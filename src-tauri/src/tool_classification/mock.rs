@@ -4,8 +4,7 @@
  * 当 llm-inference feature 未启用时使用
  * 提供 Layer 1 + Layer 2 功能，Layer 3 使用关键词回退
  */
-
-use super::types::{ClassificationResult, ClassificationLayer, ToolCategory};
+use super::types::{ClassificationLayer, ClassificationResult, ToolCategory};
 
 /// 社区版 Layer 3 分类（Mock实现）
 ///
@@ -25,7 +24,10 @@ pub fn classify_layer3_mock(input: &str) -> ClassificationResult {
                 match_type: "fallback".to_string(),
             };
         }
-        if input_lower.contains("生成") || input_lower.contains("创建") || input_lower.contains("写") {
+        if input_lower.contains("生成")
+            || input_lower.contains("创建")
+            || input_lower.contains("写")
+        {
             return ClassificationResult {
                 layer: ClassificationLayer::Layer3,
                 category: ToolCategory::CodeGeneration,

@@ -1,19 +1,23 @@
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
-use std::fs;
-use std::sync::Mutex;
-use crate::prompt_manager::{PromptMetadata, PromptTemplate, BuiltinPrompts};
 use crate::prompt_manager::storage;
 use crate::prompt_manager::template;
-use walkdir::WalkDir;
+use crate::prompt_manager::{BuiltinPrompts, PromptMetadata, PromptTemplate};
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::State;
+use walkdir::WalkDir;
 
 fn get_prompt_root(project_root: &str) -> PathBuf {
     PathBuf::from(project_root).join(".ifai/prompts")
 }
 
 #[tauri::command]
-pub async fn list_prompts(project_root: String, locale: Option<String>, expert_mode: Option<bool>) -> Result<Vec<PromptTemplate>, String> {
+pub async fn list_prompts(
+    project_root: String,
+    locale: Option<String>,
+    expert_mode: Option<bool>,
+) -> Result<Vec<PromptTemplate>, String> {
     println!("[Backend] 📡 list_prompts called");
     println!("[Backend]   project_root: {}", project_root);
     println!("[Backend]   locale: {:?}", locale);
@@ -21,7 +25,11 @@ pub async fn list_prompts(project_root: String, locale: Option<String>, expert_m
 
     let mut prompts_map = HashMap::new();
     let lang = locale.unwrap_or_else(|| "en".to_string());
-    let lang_code = if lang.starts_with("zh") { "zh-CN" } else { "en" };
+    let lang_code = if lang.starts_with("zh") {
+        "zh-CN"
+    } else {
+        "en"
+    };
     let expert_mode_enabled = expert_mode.unwrap_or(false);
 
     let mut builtin_count = 0;
@@ -29,18 +37,26 @@ pub async fn list_prompts(project_root: String, locale: Option<String>, expert_m
 
     // 1. Load Builtin Prompts with I18n Deduplication
     let builtin_iter: Vec<_> = BuiltinPrompts::iter().collect();
-    println!("[Backend] 🔍 BuiltinPrompts iter returned {} files", builtin_iter.len());
+    println!(
+        "[Backend] 🔍 BuiltinPrompts iter returned {} files",
+        builtin_iter.len()
+    );
 
     if builtin_iter.is_empty() {
         println!("[Backend] ⚠️  WARNING: BuiltinPrompts is empty! Checking fallback...");
         // Fallback: load from ifainew project directory
         let ifai_prompts_path = PathBuf::from("/Users/mac/project/aieditor/ifainew/.ifai/prompts");
-        println!("[Backend] 📂 Checking ifai prompts path: {:?}", ifai_prompts_path);
+        println!(
+            "[Backend] 📂 Checking ifai prompts path: {:?}",
+            ifai_prompts_path
+        );
         println!("[Backend]   Path exists: {}", ifai_prompts_path.exists());
     }
 
     for file_path in builtin_iter {
-        if !file_path.ends_with(".md") { continue; }
+        if !file_path.ends_with(".md") {
+            continue;
+        }
 
         let path_str = file_path.as_ref();
         // 逻辑路径定义：移除语言前缀
@@ -61,23 +77,34 @@ pub async fn list_prompts(project_root: String, locale: Option<String>, expert_m
                 if let Ok(mut template) = storage::load_prompt_from_str(content, None) {
                     template.path = Some(format!("builtin://{}", logical_path));
                     if logical_path.starts_with("system/") {
-                        template.metadata.access_tier = crate::prompt_manager::AccessTier::Protected;
+                        template.metadata.access_tier =
+                            crate::prompt_manager::AccessTier::Protected;
                     }
                     prompts_map.insert(logical_path.clone(), template);
                     builtin_count += 1;
-                    println!("[Backend]   ✓ Loaded builtin: {} (lang: {})", logical_path, lang_code);
+                    println!(
+                        "[Backend]   ✓ Loaded builtin: {} (lang: {})",
+                        logical_path, lang_code
+                    );
                 }
             }
         }
     }
 
     println!("[Backend] 📦 Builtin prompts loaded: {}", builtin_count);
-    println!("[Backend] 📁 Prompts map size after builtin: {}", prompts_map.len());
+    println!(
+        "[Backend] 📁 Prompts map size after builtin: {}",
+        prompts_map.len()
+    );
 
     // 2. Load Local Overrides (simplified for now to match logical paths)
     // Local prompts override builtin prompts
     let root = get_prompt_root(&project_root);
-    println!("[Backend] 📂 Local prompt root: {:?} (exists: {})", root, root.exists());
+    println!(
+        "[Backend] 📂 Local prompt root: {:?} (exists: {})",
+        root,
+        root.exists()
+    );
 
     if root.exists() {
         for entry in WalkDir::new(&root).into_iter().filter_map(|e| e.ok()) {
@@ -109,7 +136,10 @@ pub async fn list_prompts(project_root: String, locale: Option<String>, expert_m
         result.retain(|p| p.metadata.access_tier != crate::prompt_manager::AccessTier::Private);
         let filtered_count = before_count - result.len();
         if filtered_count > 0 {
-            println!("[Backend] 🔒 Filtered out {} Private tier prompts (expert mode: OFF)", filtered_count);
+            println!(
+                "[Backend] 🔒 Filtered out {} Private tier prompts (expert mode: OFF)",
+                filtered_count
+            );
         }
     }
 
@@ -117,20 +147,31 @@ pub async fn list_prompts(project_root: String, locale: Option<String>, expert_m
 
     println!("[Backend] ✅ Returning {} prompts:", result.len());
     for p in &result {
-        println!("[Backend]   - {} ({:?})", p.metadata.name, p.metadata.access_tier);
+        println!(
+            "[Backend]   - {} ({:?})",
+            p.metadata.name, p.metadata.access_tier
+        );
     }
 
     Ok(result)
 }
 
 #[tauri::command]
-pub async fn get_prompt(project_root: String, path: String, locale: Option<String>) -> Result<PromptTemplate, String> {
+pub async fn get_prompt(
+    project_root: String,
+    path: String,
+    locale: Option<String>,
+) -> Result<PromptTemplate, String> {
     let lang = locale.unwrap_or_else(|| "en".to_string());
-    let lang_code = if lang.starts_with("zh") { "zh-CN" } else { "en" };
+    let lang_code = if lang.starts_with("zh") {
+        "zh-CN"
+    } else {
+        "en"
+    };
 
     if path.starts_with("builtin://") {
         let logical_path = &path[10..];
-        
+
         // Try current language first
         let i18n_path = format!("{}/{}", lang_code, logical_path);
         if let Some(content_file) = BuiltinPrompts::get(&i18n_path) {
@@ -152,13 +193,18 @@ pub async fn get_prompt(project_root: String, path: String, locale: Option<Strin
     if i18n_full_path.exists() {
         return storage::load_prompt(&i18n_full_path).map_err(|e| e.to_string());
     }
-    
+
     let full_path = root.join(&path);
     storage::load_prompt(&full_path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn update_prompt(project_root: String, path: String, content: String, expert_mode: Option<bool>) -> Result<String, String> {
+pub async fn update_prompt(
+    project_root: String,
+    path: String,
+    content: String,
+    expert_mode: Option<bool>,
+) -> Result<String, String> {
     let expert_mode_enabled = expert_mode.unwrap_or(false);
 
     // 权限检查：获取当前提示词的访问层级
@@ -222,17 +268,20 @@ pub async fn update_prompt(project_root: String, path: String, content: String, 
 }
 
 #[tauri::command]
-pub async fn render_prompt_template(content: String, variables: HashMap<String, String>) -> Result<String, String> {
+pub async fn render_prompt_template(
+    content: String,
+    variables: HashMap<String, String>,
+) -> Result<String, String> {
     template::render_template(&content, &variables).map_err(|e| e.to_string())
 }
 
 // === 版本管理命令 ===
 
-use crate::prompt_manager::version::{PromptVersionManager, PromptVersion, VersionDiff};
+use crate::prompt_manager::version::{PromptVersion, PromptVersionManager, VersionDiff};
 
 // === 导入导出命令 ===
 
-use crate::prompt_manager::export::{PromptExporter, PackageInfo, ImportResult};
+use crate::prompt_manager::export::{ImportResult, PackageInfo, PromptExporter};
 
 /// 导出提示词到文件
 #[tauri::command]
@@ -243,7 +292,9 @@ pub async fn export_prompts(
     output_path: String,
 ) -> Result<String, String> {
     let exporter = PromptExporter::new(project_root).map_err(|e| e.to_string())?;
-    exporter.export_prompts(prompt_paths, package_info, output_path).map_err(|e| e.to_string())
+    exporter
+        .export_prompts(prompt_paths, package_info, output_path)
+        .map_err(|e| e.to_string())
 }
 
 /// 从文件导入提示词
@@ -254,33 +305,50 @@ pub async fn import_prompts(
     overwrite: bool,
 ) -> Result<ImportResult, String> {
     let exporter = PromptExporter::new(project_root).map_err(|e| e.to_string())?;
-    exporter.import_prompts(package_path, overwrite).map_err(|e| e.to_string())
+    exporter
+        .import_prompts(package_path, overwrite)
+        .map_err(|e| e.to_string())
 }
 
 /// 获取可导出的提示词列表
 #[tauri::command]
-pub async fn list_exportable_prompts(project_root: String) -> Result<Vec<crate::prompt_manager::export::PromptExportMetadata>, String> {
+pub async fn list_exportable_prompts(
+    project_root: String,
+) -> Result<Vec<crate::prompt_manager::export::PromptExportMetadata>, String> {
     let exporter = PromptExporter::new(project_root).map_err(|e| e.to_string())?;
     exporter.list_available_prompts().map_err(|e| e.to_string())
 }
 
 /// 获取提示词版本历史
 #[tauri::command]
-pub async fn get_prompt_versions(project_root: String, prompt_path: String, limit: Option<usize>) -> Result<Vec<PromptVersion>, String> {
+pub async fn get_prompt_versions(
+    project_root: String,
+    prompt_path: String,
+    limit: Option<usize>,
+) -> Result<Vec<PromptVersion>, String> {
     let manager = PromptVersionManager::new(project_root)?;
     manager.get_versions(&prompt_path, limit)
 }
 
 /// 对比两个提示词版本
 #[tauri::command]
-pub async fn compare_prompt_versions(project_root: String, prompt_path: String, old_version: String, new_version: String) -> Result<VersionDiff, String> {
+pub async fn compare_prompt_versions(
+    project_root: String,
+    prompt_path: String,
+    old_version: String,
+    new_version: String,
+) -> Result<VersionDiff, String> {
     let manager = PromptVersionManager::new(project_root)?;
     manager.compare_versions(&prompt_path, &old_version, &new_version)
 }
 
 /// 回滚提示词到指定版本
 #[tauri::command]
-pub async fn rollback_prompt(project_root: String, prompt_path: String, version_id: String) -> Result<String, String> {
+pub async fn rollback_prompt(
+    project_root: String,
+    prompt_path: String,
+    version_id: String,
+) -> Result<String, String> {
     let manager = PromptVersionManager::new(project_root)?;
     manager.rollback(&prompt_path, &version_id)
 }
@@ -299,7 +367,6 @@ pub async fn read_git_status(project_root: String) -> Option<String> {
     manager.read_git_status()
 }
 
-
 // === 验证命令 ===
 
 use crate::prompt_manager::validation::{PromptValidator, ValidationResult};
@@ -310,7 +377,6 @@ pub async fn validate_prompt(content: String) -> Result<ValidationResult, String
     PromptValidator::validate(&content).map_err(|e| e.to_string())
 }
 
-
 // === AI 透明化命令 ===
 
 /// 获取最近一次 AI 请求中指定 section 的系统提示词完整内容
@@ -319,16 +385,21 @@ pub async fn get_system_prompt_detail(
     section_name: String,
     state: State<'_, crate::AppState>,
 ) -> Result<String, String> {
-    let cache = state.system_prompt_cache.lock().map_err(|e| format!("Lock error: {}", e))?;
+    let cache = state
+        .system_prompt_cache
+        .lock()
+        .map_err(|e| format!("Lock error: {}", e))?;
 
     // 支持特殊 section 名称
     if section_name == "full_prompt" {
-        return cache.get("full_prompt")
+        return cache
+            .get("full_prompt")
             .cloned()
             .ok_or_else(|| "No cached system prompt available".to_string());
     }
 
-    cache.get(&section_name)
+    cache
+        .get(&section_name)
         .cloned()
         .ok_or_else(|| format!("Section '{}' not found in cache", section_name))
 }

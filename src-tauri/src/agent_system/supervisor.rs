@@ -1,7 +1,7 @@
+use crate::agent_system::base::AgentStatus;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, oneshot};
-use crate::agent_system::base::{AgentStatus};
+use tokio::sync::{oneshot, Mutex};
 
 #[derive(Debug)]
 pub struct AgentHandle {
@@ -28,12 +28,15 @@ impl Supervisor {
 
     pub async fn register_agent(&self, id: String, agent_type: String) {
         let mut agents = self.agents.lock().await;
-        agents.insert(id.clone(), AgentHandle {
-            id,
-            agent_type,
-            status: AgentStatus::Idle,
-            join_handle: None,
-        });
+        agents.insert(
+            id.clone(),
+            AgentHandle {
+                id,
+                agent_type,
+                status: AgentStatus::Idle,
+                join_handle: None,
+            },
+        );
     }
 
     pub async fn update_status(&self, id: &str, status: AgentStatus) {
@@ -45,7 +48,8 @@ impl Supervisor {
 
     pub async fn list_agents(&self) -> Vec<(String, String, AgentStatus)> {
         let agents = self.agents.lock().await;
-        agents.values()
+        agents
+            .values()
             .map(|a| (a.id.clone(), a.agent_type.clone(), a.status.clone()))
             .collect()
     }
@@ -58,24 +62,43 @@ impl Supervisor {
         {
             let mut txs = self.approval_txs.lock().await;
             txs.insert(id.clone(), tx);
-            println!("[Supervisor] Waiting for approval signal: id={}, pending_count={}", id, txs.len());
+            println!(
+                "[Supervisor] Waiting for approval signal: id={}, pending_count={}",
+                id,
+                txs.len()
+            );
         }
 
         // This will block the async task until someone calls notify_approval
         let result = rx.await.unwrap_or(false);
-        println!("[Supervisor] Approval received: id={}, approved={}", id, result);
+        println!(
+            "[Supervisor] Approval received: id={}, approved={}",
+            id, result
+        );
         result
     }
 
     pub async fn notify_approval(&self, id: &str, approved: bool) {
-        println!("[Supervisor] notify_approval called: id={}, approved={}", id, approved);
+        println!(
+            "[Supervisor] notify_approval called: id={}, approved={}",
+            id, approved
+        );
         let mut txs = self.approval_txs.lock().await;
-        println!("[Supervisor] Current pending approvals: {:?}", txs.keys().collect::<Vec<_>>());
+        println!(
+            "[Supervisor] Current pending approvals: {:?}",
+            txs.keys().collect::<Vec<_>>()
+        );
         if let Some(tx) = txs.remove(id) {
-            println!("[Supervisor] Sending approval signal: id={}, approved={}", id, approved);
+            println!(
+                "[Supervisor] Sending approval signal: id={}, approved={}",
+                id, approved
+            );
             let _ = tx.send(approved);
         } else {
-            println!("[Supervisor] WARNING: No pending approval found for id={}", id);
+            println!(
+                "[Supervisor] WARNING: No pending approval found for id={}",
+                id
+            );
         }
     }
 }

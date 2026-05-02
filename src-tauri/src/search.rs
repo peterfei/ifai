@@ -1,9 +1,9 @@
+use grep::regex::RegexMatcher;
+use grep::searcher::sinks::UTF8;
+use grep::searcher::Searcher;
+use ignore::WalkBuilder;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
-use grep::regex::RegexMatcher;
-use grep::searcher::Searcher;
-use grep::searcher::sinks::UTF8;
-use ignore::WalkBuilder;
 use tauri::command;
 
 #[derive(Serialize, Clone, Debug)]
@@ -26,7 +26,7 @@ pub fn grep_search(root_path: &str, query: &str) -> anyhow::Result<Vec<MatchResu
     let walker = WalkBuilder::new(root_path).build();
 
     let matcher = RegexMatcher::new(query)?;
-    
+
     for result in walker {
         match result {
             Ok(entry) => {
@@ -34,17 +34,17 @@ pub fn grep_search(root_path: &str, query: &str) -> anyhow::Result<Vec<MatchResu
                     continue;
                 }
                 let path = entry.path();
-                
+
                 let matches_in_file = matches_clone.clone();
                 let path_string = path.to_string_lossy().to_string();
-                
+
                 let _ = Searcher::new().search_path(
                     &matcher,
                     path,
                     UTF8(|ln, line| {
                         let mut m = matches_in_file.lock().unwrap();
                         if m.len() >= 1000 {
-                            return Ok(false); 
+                            return Ok(false);
                         }
                         m.push(MatchResult {
                             path: path_string.clone(),
@@ -54,7 +54,7 @@ pub fn grep_search(root_path: &str, query: &str) -> anyhow::Result<Vec<MatchResu
                         Ok(true)
                     }),
                 );
-                
+
                 if matches_clone.lock().unwrap().len() >= 1000 {
                     break;
                 }

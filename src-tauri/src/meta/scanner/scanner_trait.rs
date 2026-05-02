@@ -2,8 +2,8 @@
 //!
 //! 定义扫描器的核心接口，所有扫描器必须实现此 trait。
 
-use std::path::Path;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 /// 扫描器 trait：所有扫描器必须实现此接口
 pub trait Scanner: Send + Sync {
@@ -13,7 +13,9 @@ pub trait Scanner: Send + Sync {
     fn scan(path: &Path) -> Result<Self::Output, ScanError>;
 
     /// 获取扫描器配置
-    fn config() -> ScannerConfig where Self: Sized;
+    fn config() -> ScannerConfig
+    where
+        Self: Sized;
 }
 
 /// 扫描器配置

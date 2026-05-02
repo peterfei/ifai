@@ -4,10 +4,13 @@
 
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock, Arc};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use super::{
-    executor::{ToolExecutor, TodoWriteExecutor, FileToolsExecutor, SearchToolsExecutor, ShellToolsExecutor, AliasExecutor},
+    executor::{
+        AliasExecutor, FileToolsExecutor, SearchToolsExecutor, ShellToolsExecutor,
+        TodoWriteExecutor, ToolExecutor,
+    },
     ToolError,
 };
 
@@ -37,7 +40,10 @@ impl ToolRouter {
 
         // 注册 TodoWrite 执行器
         let task_store = crate::harness::task::get_global_task_store();
-        executors.insert("TodoWrite".to_string(), Box::new(TodoWriteExecutor::new(task_store.clone())));
+        executors.insert(
+            "TodoWrite".to_string(),
+            Box::new(TodoWriteExecutor::new(task_store.clone())),
+        );
 
         // 注册文件工具执行器（每个工具一个实例）
         executors.insert("read_file".to_string(), Box::new(FileToolsExecutor::new()));
@@ -45,18 +51,36 @@ impl ToolRouter {
         executors.insert("edit_file".to_string(), Box::new(FileToolsExecutor::new()));
 
         // 注册搜索工具执行器（每个工具一个实例）
-        executors.insert("glob_search".to_string(), Box::new(SearchToolsExecutor::new()));
-        executors.insert("grep_search".to_string(), Box::new(SearchToolsExecutor::new()));
+        executors.insert(
+            "glob_search".to_string(),
+            Box::new(SearchToolsExecutor::new()),
+        );
+        executors.insert(
+            "grep_search".to_string(),
+            Box::new(SearchToolsExecutor::new()),
+        );
 
         // 注册 Shell 工具执行器（每个工具一个实例）
         executors.insert("bash".to_string(), Box::new(ShellToolsExecutor::new()));
-        executors.insert("PowerShell".to_string(), Box::new(ShellToolsExecutor::new()));
+        executors.insert(
+            "PowerShell".to_string(),
+            Box::new(ShellToolsExecutor::new()),
+        );
 
         // 🆕 P4: 注册 agent_* 工具（使用 AliasExecutor）
-        executors.insert("agent_read_file".to_string(), Box::new(AliasExecutor::new()));
-        executors.insert("agent_write_file".to_string(), Box::new(AliasExecutor::new()));
+        executors.insert(
+            "agent_read_file".to_string(),
+            Box::new(AliasExecutor::new()),
+        );
+        executors.insert(
+            "agent_write_file".to_string(),
+            Box::new(AliasExecutor::new()),
+        );
         executors.insert("agent_list_dir".to_string(), Box::new(AliasExecutor::new()));
-        executors.insert("agent_scan_project".to_string(), Box::new(AliasExecutor::new()));
+        executors.insert(
+            "agent_scan_project".to_string(),
+            Box::new(AliasExecutor::new()),
+        );
 
         Self {
             executors: Mutex::new(executors),
@@ -72,11 +96,9 @@ impl ToolRouter {
     /// 执行工具
     pub fn execute(&self, name: &str, input: &Value) -> Result<String, ToolError> {
         let mut executors = self.executors.lock().unwrap();
-        let executor = executors
-            .get_mut(name)
-            .ok_or_else(|| ToolError::NotFound {
-                name: name.to_string(),
-            })?;
+        let executor = executors.get_mut(name).ok_or_else(|| ToolError::NotFound {
+            name: name.to_string(),
+        })?;
 
         executor.execute(name, input)
     }

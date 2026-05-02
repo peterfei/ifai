@@ -2,11 +2,11 @@
 //!
 //! 使用 LRU 策略缓存扫描结果，避免重复扫描
 
-use std::hash::Hash;
-use std::time::{Duration, Instant};
-use std::num::NonZeroUsize;
-use serde::{Deserialize, Serialize};
 use crate::meta::scanner::ScanError;
+use serde::{Deserialize, Serialize};
+use std::hash::Hash;
+use std::num::NonZeroUsize;
+use std::time::{Duration, Instant};
 
 /// 缓存条目
 #[derive(Debug, Clone)]
@@ -64,7 +64,9 @@ where
     pub fn new(capacity: usize) -> Self {
         let capacity_nonzero = NonZeroUsize::new(capacity.max(1));
         Self {
-            cache: lru::LruCache::new(capacity_nonzero.unwrap_or_else(|| NonZeroUsize::new(100).unwrap())),
+            cache: lru::LruCache::new(
+                capacity_nonzero.unwrap_or_else(|| NonZeroUsize::new(100).unwrap()),
+            ),
             hits: 0,
             misses: 0,
         }

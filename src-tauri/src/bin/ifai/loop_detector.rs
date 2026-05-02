@@ -4,9 +4,9 @@
 //! **单一数据源**：JSON 配置文件
 //! **声明式 API**：返回状态而非布尔值
 
-use std::collections::{VecDeque, HashMap};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::{HashMap, VecDeque};
 
 // ============================================================================
 // 配置结构（JSON 驱动）
@@ -33,9 +33,15 @@ pub struct LoopDetectionConfig {
     pub window_size: usize,
 }
 
-fn default_max_consecutive() -> usize { 10 }
-fn default_max_identical() -> usize { 3 }
-fn default_window_size() -> usize { 20 }
+fn default_max_consecutive() -> usize {
+    10
+}
+fn default_max_identical() -> usize {
+    3
+}
+fn default_window_size() -> usize {
+    20
+}
 
 impl Default for LoopDetectionConfig {
     fn default() -> Self {
@@ -58,7 +64,7 @@ impl Default for LoopDetectionConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ToolCallSignature {
     pub tool_name: String,
-    pub args_hash: u64,  // 参数的哈希值
+    pub args_hash: u64, // 参数的哈希值
 }
 
 impl ToolCallSignature {
@@ -113,15 +119,10 @@ pub enum LoopDetectionStatus {
     Normal,
 
     /// 警告：检测到循环模式
-    Warning {
-        count: usize,
-        pattern: String,
-    },
+    Warning { count: usize, pattern: String },
 
     /// 阻断：检测到危险循环
-    Blocked {
-        reason: String,
-    },
+    Blocked { reason: String },
 }
 
 impl LoopDetectionStatus {
@@ -205,7 +206,9 @@ impl LoopDetector {
     /// 规则 1：检测完全相同调用
     fn check_identical_calls(&self, signature: &ToolCallSignature) -> Option<LoopDetectionStatus> {
         // 计算历史中相同签名的数量
-        let identical_count = self.history.iter()
+        let identical_count = self
+            .history
+            .iter()
             .filter(|s| s.is_identical(signature))
             .count();
 
@@ -214,8 +217,7 @@ impl LoopDetector {
             return Some(LoopDetectionStatus::Blocked {
                 reason: format!(
                     "检测到完全相同的工具调用 {} 次（上限：{}）",
-                    identical_count,
-                    self.config.max_identical_calls
+                    identical_count, self.config.max_identical_calls
                 ),
             });
         }
@@ -224,10 +226,15 @@ impl LoopDetector {
     }
 
     /// 规则 2：检测连续相同工具
-    fn check_consecutive_same_tool(&self, signature: &ToolCallSignature) -> Option<LoopDetectionStatus> {
+    fn check_consecutive_same_tool(
+        &self,
+        signature: &ToolCallSignature,
+    ) -> Option<LoopDetectionStatus> {
         // 计算历史末尾连续相同工具的数量
         // 由于先更新了历史，当前调用已在历史中，所以直接计数即可
-        let consecutive_count = self.history.iter()
+        let consecutive_count = self
+            .history
+            .iter()
             .rev()
             .take_while(|s| s.is_same_tool(signature))
             .count();
@@ -236,9 +243,7 @@ impl LoopDetector {
             return Some(LoopDetectionStatus::Blocked {
                 reason: format!(
                     "连续调用相同工具 '{}' {} 次（上限：{}）",
-                    signature.tool_name,
-                    consecutive_count,
-                    self.config.max_consecutive_same_tool
+                    signature.tool_name, consecutive_count, self.config.max_consecutive_same_tool
                 ),
             });
         }
@@ -262,7 +267,7 @@ impl LoopDetector {
             if last.is_same_tool(signature) {
                 self.consecutive_same_tool_count += 1;
             } else {
-                self.consecutive_same_tool_count = 1;  // 重置为 1（当前调用）
+                self.consecutive_same_tool_count = 1; // 重置为 1（当前调用）
             }
         } else {
             self.consecutive_same_tool_count = 1;
@@ -308,7 +313,10 @@ impl LoopDetector {
                 return EmptyArgsResult::GlobalTripped;
             }
 
-            let streak = self.empty_args_streak.entry(tool_name.to_string()).or_insert(0);
+            let streak = self
+                .empty_args_streak
+                .entry(tool_name.to_string())
+                .or_insert(0);
             *streak += 1;
             // 连续 3 次空参数后熔断：前 2 次给学习机会，第 3+ 次静默跳过
             if *streak >= 3 {
@@ -463,7 +471,7 @@ mod tests {
     #[test]
     fn test_detector_disabled() {
         let config = LoopDetectionConfig {
-            enabled: false,  // 禁用
+            enabled: false, // 禁用
             ..Default::default()
         };
         let mut detector = LoopDetector::from_config(config);
@@ -542,7 +550,7 @@ mod tests {
         // 验证统计信息
         let stats = detector.stats();
         assert_eq!(stats.history_size, 5);
-        assert_eq!(stats.consecutive_same_tool_count, 1);  // 最后一次是 read_file
+        assert_eq!(stats.consecutive_same_tool_count, 1); // 最后一次是 read_file
     }
 
     #[test]
@@ -608,7 +616,11 @@ mod tests {
         }
 
         // 前 2 次应该正常执行，第 3 次起全部被阻止
-        assert_eq!(executed_count, 2, "Expected 2 executions before block, got {}", executed_count);
+        assert_eq!(
+            executed_count, 2,
+            "Expected 2 executions before block, got {}",
+            executed_count
+        );
         assert_eq!(blocked_count, 8, "Expected 8 blocks, got {}", blocked_count);
     }
 
@@ -630,19 +642,32 @@ mod tests {
         for i in 1..=3 {
             let status = detector.check("glob_search", "{}");
             if i == 3 {
-                assert!(status.should_stop(), "glob_search 3rd call should be blocked");
+                assert!(
+                    status.should_stop(),
+                    "glob_search 3rd call should be blocked"
+                );
             } else {
-                assert!(!status.should_stop(), "glob_search {}th call should not be blocked", i);
+                assert!(
+                    !status.should_stop(),
+                    "glob_search {}th call should not be blocked",
+                    i
+                );
             }
         }
 
         // 阶段 2：切换到 bash，调用 mkdir（history 中仍有 glob_search 的记录）
         let status = detector.check("bash", r#"{"command": "mkdir -p 2048-game"}"#);
-        assert!(!status.should_stop(), "First bash call should not be blocked");
+        assert!(
+            !status.should_stop(),
+            "First bash call should not be blocked"
+        );
 
         // 阶段 3：重复 bash mkdir 2 次
         let status = detector.check("bash", r#"{"command": "mkdir -p 2048-game"}"#);
-        assert!(!status.should_stop(), "Second bash call should not be blocked");
+        assert!(
+            !status.should_stop(),
+            "Second bash call should not be blocked"
+        );
 
         let status = detector.check("bash", r#"{"command": "mkdir -p 2048-game"}"#);
         assert!(status.should_stop(), "Third bash call should be blocked");
@@ -669,7 +694,10 @@ mod tests {
         for i in 1..=3 {
             let status = detector.check("bash", r#"{"command": "mkdir -p 2048-game"}"#);
             if i == 3 {
-                assert!(status.should_stop(), "3rd identical bash call should be blocked");
+                assert!(
+                    status.should_stop(),
+                    "3rd identical bash call should be blocked"
+                );
             }
         }
 
@@ -679,21 +707,32 @@ mod tests {
         for i in 0..9 {
             let args = format!(r#"{{"path": "filler_{}.rs"}}"#, i);
             let status = detector.check("read_file", &args);
-            assert!(!status.should_stop(), "read filler {} should not be blocked", i);
+            assert!(
+                !status.should_stop(),
+                "read filler {} should not be blocked",
+                i
+            );
         }
 
         // 切换到 glob_search 填充（连续 9 次，避免 consecutive 阻止）
         for i in 0..9 {
             let args = format!(r#"{{"pattern": "filler_{}.rs"}}"#, i);
             let status = detector.check("glob_search", &args);
-            assert!(!status.should_stop(), "glob filler {} should not be blocked", i);
+            assert!(
+                !status.should_stop(),
+                "glob filler {} should not be blocked",
+                i
+            );
         }
 
         // 此时窗口中有：3 bash + 9 read_file + 9 glob_search = 21
         // 窗口只保留 20 条，最旧的 1 个 bash 被挤出，剩 2 个 bash
         // 还需要 1 个 filler 把 bash 挤到只剩 1 个
         let status = detector.check("grep_search", r#"{"pattern": "evict_bash"}"#);
-        assert!(!status.should_stop(), "extra grep filler should not be blocked");
+        assert!(
+            !status.should_stop(),
+            "extra grep filler should not be blocked"
+        );
 
         // 现在窗口：2 bash + 9 read_file + 9 glob_search + 1 grep = 21 → 挤出 1 个 bash → 剩 1 个 bash
         // 再次调用 bash mkdir → identical_count = 1（窗口中 1 个）+ 1（当前）= 2 < 3
@@ -715,7 +754,10 @@ mod tests {
         // 最终验证：无论是否被阻止，bash 至少被执行了 1 次（窗口挤出后）
         // 这证明了窗口挤出确实能让循环检测失效
         let stats = detector.stats();
-        eprintln!("Final stats: history_size={}, consecutive_same_tool={}", stats.history_size, stats.consecutive_same_tool_count);
+        eprintln!(
+            "Final stats: history_size={}, consecutive_same_tool={}",
+            stats.history_size, stats.consecutive_same_tool_count
+        );
     }
 
     /// 模拟 continuation loop：循环检测在窗口被挤占后失效
@@ -745,7 +787,10 @@ mod tests {
 
         for round in 1..=10 {
             // 1. TodoWrite（每轮参数不同，避免 identical 检测）
-            let tw_args = format!(r#"{{"todos":[{{"content":"task {}","activeForm":"doing task {}","status":"in_progress"}}]}}"#, round, round);
+            let tw_args = format!(
+                r#"{{"todos":[{{"content":"task {}","activeForm":"doing task {}","status":"in_progress"}}]}}"#,
+                round, round
+            );
             let _ = detector.check("TodoWrite", &tw_args);
 
             // 2. bash mkdir（始终相同参数）
@@ -757,20 +802,29 @@ mod tests {
             }
 
             // 3. write_file（每轮参数不同）
-            let wf_args = format!(r#"{{"path":"2048-game/file{}.html","content":"<html>{}</html>"}}"#, round, round);
+            let wf_args = format!(
+                r#"{{"path":"2048-game/file{}.html","content":"<html>{}</html>"}}"#,
+                round, round
+            );
             let _ = detector.check("write_file", &wf_args);
         }
 
         eprintln!("=== continuation loop simulation (10 rounds, 3 tools/round) ===");
-        eprintln!("bash executed: {}, bash blocked: {}", bash_execution_count, bash_blocked_count);
+        eprintln!(
+            "bash executed: {}, bash blocked: {}",
+            bash_execution_count, bash_blocked_count
+        );
 
         // 当 TodoWrite 和 write_file 参数每轮不同时，它们不会触发 identical 检测
         // 窗口中有大量不同签名，bash 的 identical 记录被挤出后只能重新执行 2 次
         // 所以 bash 执行次数应该被限制在较低水平
-        assert!(bash_execution_count <= 4,
+        assert!(
+            bash_execution_count <= 4,
             "bash mkdir was executed {} times in 10 rounds (blocked: {}). \
              Loop detection should limit re-execution after window eviction.",
-            bash_execution_count, bash_blocked_count);
+            bash_execution_count,
+            bash_blocked_count
+        );
     }
 
     /// 参数微变绕过 identical 检测的测试
@@ -791,15 +845,16 @@ mod tests {
         // AI 每次调用的参数有细微差异（模拟真实 LLM 输出）
         // 每个变体的 FNV-1a hash 都不同
         let bash_variants = [
-            r#"{"command":"mkdir -p 2048-game"}"#,              // 无空格
-            r#"{"command": "mkdir -p 2048-game"}"#,              // 冒号后空格
+            r#"{"command":"mkdir -p 2048-game"}"#,                // 无空格
+            r#"{"command": "mkdir -p 2048-game"}"#,               // 冒号后空格
             r#"{"command":"mkdir -p 2048-game", "quiet": true}"#, // 多字段
-            r#"{ "command" : "mkdir -p 2048-game" }"#,           // 多空格
-            r#"{"command":"mkdir -p 2048-game","verbose":1}"#,   // 整数值
+            r#"{ "command" : "mkdir -p 2048-game" }"#,            // 多空格
+            r#"{"command":"mkdir -p 2048-game","verbose":1}"#,    // 整数值
         ];
 
         // 验证变体确实有不同的 hash
-        let hashes: std::collections::HashSet<u64> = bash_variants.iter()
+        let hashes: std::collections::HashSet<u64> = bash_variants
+            .iter()
             .map(|v| ToolCallSignature::from_tool_call("bash", v).args_hash)
             .collect();
         assert_eq!(hashes.len(), 5, "All variants should have different hashes");
@@ -819,10 +874,12 @@ mod tests {
         // 但注意：consecutive 检查的是 history 末尾连续相同 tool_name
         // 由于全部都是 "bash"，consecutive 一直在增长
         // 第 10 次时 consecutive_count=10 >= max_consecutive_same_tool(10) → Blocked
-        assert_eq!(execution_count, 9,
+        assert_eq!(
+            execution_count, 9,
             "Expected 9 executions (consecutive threshold 10), got {}. \
              This shows that when args vary slightly, only consecutive_same_tool detection works.",
-            execution_count);
+            execution_count
+        );
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -833,7 +890,10 @@ mod tests {
     fn test_empty_args_breaker_first_call_not_tripped() {
         let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
         // 首次空参数 → FirstOffense（应返回错误给 AI）
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::FirstOffense
+        );
     }
 
     #[test]
@@ -841,7 +901,10 @@ mod tests {
         let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
         detector.check_empty_args_breaker("read_file", "{}");
         // 第 2 次 → 仍然 FirstOffense（streak < 3）
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::FirstOffense
+        );
     }
 
     #[test]
@@ -850,21 +913,37 @@ mod tests {
         detector.check_empty_args_breaker("read_file", "{}");
         detector.check_empty_args_breaker("read_file", "{}");
         // 第 3 次 → PerToolTripped（streak >= 3）
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::PerToolTripped);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::PerToolTripped
+        );
     }
 
     #[test]
     fn test_empty_args_breaker_valid_args_resets_streak() {
         let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
         // 空参数 1 次 → FirstOffense
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::FirstOffense
+        );
 
         // 有效参数 → per-tool 重置 + 全局计数重置
-        assert_eq!(detector.check_empty_args_breaker("read_file", r#"{"path": "a.rs"}"#), EmptyArgsResult::ValidArgs);
-        assert_eq!(detector.global_empty_args_count(), 0, "valid args should reset global count");
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", r#"{"path": "a.rs"}"#),
+            EmptyArgsResult::ValidArgs
+        );
+        assert_eq!(
+            detector.global_empty_args_count(),
+            0,
+            "valid args should reset global count"
+        );
 
         // 再次空参数 → per-tool 重置后重新从 FirstOffense 开始
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::FirstOffense
+        );
     }
 
     #[test]
@@ -872,22 +951,40 @@ mod tests {
         let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
         // read_file 空参数 2 次 → 还没熔断（streak < 3）
         detector.check_empty_args_breaker("read_file", "{}");
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::FirstOffense
+        );
 
         // read_file 第 3 次 → 熔断
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::PerToolTripped);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::PerToolTripped
+        );
 
         // write_file 首次空参数 → 不熔断（独立计数）
-        assert_eq!(detector.check_empty_args_breaker("write_file", "{}"), EmptyArgsResult::FirstOffense);
+        assert_eq!(
+            detector.check_empty_args_breaker("write_file", "{}"),
+            EmptyArgsResult::FirstOffense
+        );
     }
 
     #[test]
     fn test_empty_args_breaker_empty_string() {
         let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
         // 空字符串也应触发
-        assert_eq!(detector.check_empty_args_breaker("bash", ""), EmptyArgsResult::FirstOffense);
-        assert_eq!(detector.check_empty_args_breaker("bash", ""), EmptyArgsResult::FirstOffense);
-        assert_eq!(detector.check_empty_args_breaker("bash", ""), EmptyArgsResult::PerToolTripped);
+        assert_eq!(
+            detector.check_empty_args_breaker("bash", ""),
+            EmptyArgsResult::FirstOffense
+        );
+        assert_eq!(
+            detector.check_empty_args_breaker("bash", ""),
+            EmptyArgsResult::FirstOffense
+        );
+        assert_eq!(
+            detector.check_empty_args_breaker("bash", ""),
+            EmptyArgsResult::PerToolTripped
+        );
     }
 
     #[test]
@@ -895,11 +992,17 @@ mod tests {
         let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
         detector.check_empty_args_breaker("read_file", "{}");
         detector.check_empty_args_breaker("read_file", "{}");
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::PerToolTripped);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::PerToolTripped
+        );
 
         detector.reset();
         // 重置后重新开始
-        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+        assert_eq!(
+            detector.check_empty_args_breaker("read_file", "{}"),
+            EmptyArgsResult::FirstOffense
+        );
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -917,13 +1020,22 @@ mod tests {
         for i in 0..15 {
             let tool = ["write_file", "TodoWrite", "read_file", "bash"][i % 4];
             let r = detector.check_empty_args_breaker(tool, "{}");
-            assert_ne!(r, EmptyArgsResult::GlobalTripped, "{}th empty args should NOT trigger GlobalTripped", i + 1);
+            assert_ne!(
+                r,
+                EmptyArgsResult::GlobalTripped,
+                "{}th empty args should NOT trigger GlobalTripped",
+                i + 1
+            );
         }
         assert_eq!(detector.global_empty_args_count(), 15);
 
         // 第 16 次 → GlobalTripped
         let r16 = detector.check_empty_args_breaker("bash", "{}");
-        assert_eq!(r16, EmptyArgsResult::GlobalTripped, "16th empty args should trigger GlobalTripped");
+        assert_eq!(
+            r16,
+            EmptyArgsResult::GlobalTripped,
+            "16th empty args should trigger GlobalTripped"
+        );
     }
 
     /// 有效参数重置全局计数
@@ -941,13 +1053,22 @@ mod tests {
 
         // 有效参数 → 全局计数重置为 0
         detector.check_empty_args_breaker("bash", r#"{"command": "ls"}"#);
-        assert_eq!(detector.global_empty_args_count(), 0, "valid args should reset global count");
+        assert_eq!(
+            detector.global_empty_args_count(),
+            0,
+            "valid args should reset global count"
+        );
 
         // 之后又可以累计 15 次空参数
         for i in 0..15 {
             let tool = ["write_file", "TodoWrite", "read_file", "bash"][i % 4];
             let r = detector.check_empty_args_breaker(tool, "{}");
-            assert_ne!(r, EmptyArgsResult::GlobalTripped, "{}th empty args after reset should NOT trigger", i + 1);
+            assert_ne!(
+                r,
+                EmptyArgsResult::GlobalTripped,
+                "{}th empty args after reset should NOT trigger",
+                i + 1
+            );
         }
     }
 }

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
-    use crate::core_traits::ai::{Message, Content};
+    use crate::core_traits::ai::{Content, Message};
 
     /**
      * 测试 token 计数功能
@@ -33,7 +33,10 @@ mod tests {
 
         // 验证返回值
         assert!(token_count > 0, "Token count should be greater than 0");
-        assert!(token_count < 100, "Token count should be less than 100 for short messages");
+        assert!(
+            token_count < 100,
+            "Token count should be less than 100 for short messages"
+        );
     }
 
     /**
@@ -63,7 +66,10 @@ mod tests {
         ];
 
         let should_summarize = should_summarize(&short_conversation).await;
-        assert!(!should_summarize, "Short conversations should not trigger summarization");
+        assert!(
+            !should_summarize,
+            "Short conversations should not trigger summarization"
+        );
     }
 
     /**
@@ -90,7 +96,10 @@ mod tests {
         }
 
         let should_summarize = should_summarize(&long_conversation).await;
-        assert!(should_summarize, "Conversations with >100 messages should trigger summarization");
+        assert!(
+            should_summarize,
+            "Conversations with >100 messages should trigger summarization"
+        );
     }
 
     /**
@@ -119,10 +128,15 @@ mod tests {
         let summary = "This is a test summary.";
         let keep_last_n = 5;
 
-        let compacted = compact_conversation(messages, summary.to_string(), keep_last_n).await.unwrap();
+        let compacted = compact_conversation(messages, summary.to_string(), keep_last_n)
+            .await
+            .unwrap();
 
         // 验证压缩后的消息数量
-        assert!(compacted.len() < 20, "Compacted conversation should have fewer messages");
+        assert!(
+            compacted.len() < 20,
+            "Compacted conversation should have fewer messages"
+        );
 
         // 验证保留了系统提示词
         assert_eq!(compacted[0].role, "system");
@@ -135,6 +149,9 @@ mod tests {
                 false
             }
         });
-        assert!(has_summary, "Compacted conversation should contain the summary");
+        assert!(
+            has_summary,
+            "Compacted conversation should contain the summary"
+        );
     }
 }

@@ -6,7 +6,12 @@
 use std::path::Path;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::{buffer::Buffer, layout::Rect, text::{Line, Span}, widgets::Widget};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    text::{Line, Span},
+    widgets::Widget,
+};
 
 /// 输入框操作结果
 #[derive(Debug, Clone)]
@@ -55,10 +60,15 @@ impl InputComposer {
             KeyCode::Char(c) if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 match c {
                     'c' => {
-                        self.buffer.clear();
-                        self.cursor_pos = 0;
-                        self.history_index = None;
-                        return InputAction::Interrupt;
+                        // 如果 buffer 为空，退出应用；否则清空 buffer
+                        if self.buffer.is_empty() {
+                            return InputAction::Exit;
+                        } else {
+                            self.buffer.clear();
+                            self.cursor_pos = 0;
+                            self.history_index = None;
+                            return InputAction::Interrupt;
+                        }
                     }
                     'd' => {
                         if self.buffer.is_empty() {
@@ -245,7 +255,12 @@ impl Widget for &mut InputComposer {
 /// 字符显示宽度（CJK 字符占 2 列）
 fn char_width(c: char) -> usize {
     match c as u32 {
-        0x4E00..=0x9FFF | 0x3400..=0x4DBF | 0x3000..=0x303F | 0xFF00..=0xFFEF | 0xAC00..=0xD7AF | 0x3040..=0x30FF => 2,
+        0x4E00..=0x9FFF
+        | 0x3400..=0x4DBF
+        | 0x3000..=0x303F
+        | 0xFF00..=0xFFEF
+        | 0xAC00..=0xD7AF
+        | 0x3040..=0x30FF => 2,
         _ => 1,
     }
 }

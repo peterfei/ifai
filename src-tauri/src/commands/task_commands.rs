@@ -4,7 +4,6 @@
  *
  * 负责任务拆解结果的文件读写
  */
-
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -106,8 +105,7 @@ pub async fn save_task_breakdown(
         .map_err(|e| format!("Failed to serialize breakdown: {}", e))?;
 
     // 写入文件
-    fs::write(&file_path, json)
-        .map_err(|e| format!("Failed to write breakdown file: {}", e))?;
+    fs::write(&file_path, json).map_err(|e| format!("Failed to write breakdown file: {}", e))?;
 
     // 更新索引文件
     update_index(&tasks_dir, &breakdown)?;
@@ -141,9 +139,7 @@ pub async fn load_task_breakdown(
 
 /// 列出所有任务拆解
 #[tauri::command]
-pub async fn list_task_breakdowns(
-    project_root: String,
-) -> Result<Vec<TaskBreakdownData>, String> {
+pub async fn list_task_breakdowns(project_root: String) -> Result<Vec<TaskBreakdownData>, String> {
     println!("[TaskBreakdown] Listing all breakdowns");
 
     let tasks_dir = get_tasks_dir(&project_root)?;
@@ -182,63 +178,58 @@ pub async fn list_task_breakdowns(
 
 /// 删除任务拆解
 #[tauri::command]
-pub async fn delete_task_breakdown(
-    project_root: String,
-    id: String,
-) -> Result<(), String> {
+pub async fn delete_task_breakdown(project_root: String, id: String) -> Result<(), String> {
     println!("[TaskBreakdown] Deleting breakdown: {}", id);
 
     let tasks_dir = get_tasks_dir(&project_root)?;
     let file_path = tasks_dir.join("breakdowns").join(format!("{}.json", id));
 
-    fs::remove_file(&file_path)
-        .map_err(|e| format!("Failed to delete breakdown file: {}", e))?;
+    fs::remove_file(&file_path).map_err(|e| format!("Failed to delete breakdown file: {}", e))?;
 
     // 更新索引
-    update_index(&tasks_dir, &TaskBreakdownData {
-        id: id.clone(),
-        title: String::new(),
-        description: String::new(),
-        original_prompt: String::new(),
-        task_tree: TaskNodeData {
-            id: String::new(),
+    update_index(
+        &tasks_dir,
+        &TaskBreakdownData {
+            id: id.clone(),
             title: String::new(),
-            description: None,
+            description: String::new(),
+            original_prompt: String::new(),
+            task_tree: TaskNodeData {
+                id: String::new(),
+                title: String::new(),
+                description: None,
+                status: String::new(),
+                dependencies: Vec::new(),
+                children: Vec::new(),
+                estimated_hours: None,
+                category: None,
+                acceptance_criteria: None,
+                priority: None,
+                assignee: None,
+                tags: None,
+            },
+            created_at: 0,
+            updated_at: 0,
             status: String::new(),
-            dependencies: Vec::new(),
-            children: Vec::new(),
-            estimated_hours: None,
-            category: None,
-            acceptance_criteria: None,
-            priority: None,
-            assignee: None,
-            tags: None,
+            openspec_proposal: None,
+            total_estimated_hours: None,
+            stats: None,
         },
-        created_at: 0,
-        updated_at: 0,
-        status: String::new(),
-        openspec_proposal: None,
-        total_estimated_hours: None,
-        stats: None,
-    })?;
+    )?;
 
     println!("[TaskBreakdown] Deleted: {}", id);
     Ok(())
 }
 
 /// 更新索引文件
-fn update_index(
-    tasks_dir: &Path,
-    breakdown: &TaskBreakdownData,
-) -> Result<(), String> {
+fn update_index(tasks_dir: &Path, breakdown: &TaskBreakdownData) -> Result<(), String> {
     let index_path = tasks_dir.join("index.json");
 
     // 读取现有索引
     let mut index: Vec<TaskIndexEntry> = if index_path.exists() {
         let json = fs::read_to_string(&index_path)
             .map_err(|e| format!("Failed to read index file: {}", e))?;
-        serde_json::from_str(&json)
-            .unwrap_or_default()
+        serde_json::from_str(&json).unwrap_or_default()
     } else {
         Vec::new()
     };
@@ -265,8 +256,7 @@ fn update_index(
     let json = serde_json::to_string_pretty(&index)
         .map_err(|e| format!("Failed to serialize index: {}", e))?;
 
-    fs::write(&index_path, json)
-        .map_err(|e| format!("Failed to write index file: {}", e))?;
+    fs::write(&index_path, json).map_err(|e| format!("Failed to write index file: {}", e))?;
 
     Ok(())
 }
@@ -301,10 +291,10 @@ impl Default for TaskIndexEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnifiedTask {
     pub id: String,
-    pub content: String,           // 主内容（简化 title + description）
+    pub content: String, // 主内容（简化 title + description）
     #[serde(rename(serialize = "activeForm", deserialize = "activeForm"))]
-    pub active_form: String,       // 进度描述（借鉴 TodoWrite）
-    pub status: TaskStatus,        // 统一状态值
+    pub active_form: String, // 进度描述（借鉴 TodoWrite）
+    pub status: TaskStatus, // 统一状态值
     pub dependencies: Vec<String>,
     pub meta: Option<TaskMeta>,
     pub children: Vec<UnifiedTask>,
@@ -346,7 +336,10 @@ pub async fn append_task_breakdown_to_proposal(
     todos: Vec<UnifiedTask>,
     proposal_reference: ProposalReference,
 ) -> Result<(), String> {
-    println!("[TaskBreakdown] 📝 Appending tasks to proposal: {}", proposal_id);
+    println!(
+        "[TaskBreakdown] 📝 Appending tasks to proposal: {}",
+        proposal_id
+    );
 
     // 1. 构建提案路径
     let proposal_dir = Path::new(&project_root)
@@ -375,8 +368,7 @@ pub async fn append_task_breakdown_to_proposal(
     let new_content = format!("{}\n{}", existing_content, markdown);
 
     // 4. 写入文件
-    fs::write(&tasks_path, new_content)
-        .map_err(|e| format!("Failed to write tasks.md: {}", e))?;
+    fs::write(&tasks_path, new_content).map_err(|e| format!("Failed to write tasks.md: {}", e))?;
 
     println!("[TaskBreakdown] ✅ Tasks appended to: {:?}", tasks_path);
     Ok(())
@@ -412,7 +404,10 @@ fn convert_task_to_markdown(task: &UnifiedTask, level: usize) -> String {
 
     // 标题（根据层级使用 H2/H3/H4）
     let heading = "#".repeat(2 + level.min(2));
-    md.push_str(&format!("{}{} {}: {}\n\n", indent, heading, task.id, task.content));
+    md.push_str(&format!(
+        "{}{} {}: {}\n\n",
+        indent, heading, task.id, task.content
+    ));
 
     // 状态图标和进度
     let status_icon = match task.status {
@@ -420,7 +415,10 @@ fn convert_task_to_markdown(task: &UnifiedTask, level: usize) -> String {
         TaskStatus::InProgress => "🔄",
         TaskStatus::Completed => "✅",
     };
-    md.push_str(&format!("{}- **状态**: {} {:?}\n", indent, status_icon, task.status));
+    md.push_str(&format!(
+        "{}- **状态**: {} {:?}\n",
+        indent, status_icon, task.status
+    ));
     md.push_str(&format!("{}- **进度**: {} 👈\n", indent, task.active_form));
 
     // 元数据
@@ -458,37 +456,33 @@ mod tests {
 
     #[test]
     fn test_convert_unified_tasks_to_markdown() {
-        let tasks = vec![
-            UnifiedTask {
-                id: "root-1".to_string(),
-                content: "实现用户认证系统".to_string(),
-                active_form: "实现用户认证系统中...".to_string(),
+        let tasks = vec![UnifiedTask {
+            id: "root-1".to_string(),
+            content: "实现用户认证系统".to_string(),
+            active_form: "实现用户认证系统中...".to_string(),
+            status: TaskStatus::Pending,
+            dependencies: vec![],
+            meta: Some(TaskMeta {
+                priority: Some("high".to_string()),
+                category: Some("development".to_string()),
+                hours: Some(0),
+                acceptance: vec!["用户可以登录".to_string(), "用户可以注册".to_string()],
+            }),
+            children: vec![UnifiedTask {
+                id: "task-1".to_string(),
+                content: "设计数据库结构".to_string(),
+                active_form: "设计数据库结构中...".to_string(),
                 status: TaskStatus::Pending,
                 dependencies: vec![],
                 meta: Some(TaskMeta {
                     priority: Some("high".to_string()),
                     category: Some("development".to_string()),
-                    hours: Some(0),
-                    acceptance: vec!["用户可以登录".to_string(), "用户可以注册".to_string()],
+                    hours: Some(2),
+                    acceptance: vec!["用户表已创建".to_string()],
                 }),
-                children: vec![
-                    UnifiedTask {
-                        id: "task-1".to_string(),
-                        content: "设计数据库结构".to_string(),
-                        active_form: "设计数据库结构中...".to_string(),
-                        status: TaskStatus::Pending,
-                        dependencies: vec![],
-                        meta: Some(TaskMeta {
-                            priority: Some("high".to_string()),
-                            category: Some("development".to_string()),
-                            hours: Some(2),
-                            acceptance: vec!["用户表已创建".to_string()],
-                        }),
-                        children: vec![],
-                    },
-                ],
-            },
-        ];
+                children: vec![],
+            }],
+        }];
 
         let proposal_ref = ProposalReference {
             proposal_id: "add-user-authentication".to_string(),

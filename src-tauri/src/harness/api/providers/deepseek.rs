@@ -6,15 +6,15 @@ use async_stream::stream;
 use futures_core::Stream;
 use futures_util::StreamExt;
 use reqwest::Client as HttpClient;
-use std::pin::Pin;
 use std::collections::HashMap;
+use std::pin::Pin;
 
 use super::super::client::ApiClient;
-use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
 use super::super::client_factory::{create_standard_client, normalize_base_url};
 use super::super::message_builder::{MessageBuilder, MultimodalDetector};
 use super::super::provider_metadata; // 🔥 元编程：从元数据获取模型列表
-use super::openai_format::{parse_openai_frame, ToolCallDelta, FunctionDelta};
+use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+use super::openai_format::{parse_openai_frame, FunctionDelta, ToolCallDelta};
 
 pub struct DeepSeekClient {
     http: HttpClient,
@@ -27,7 +27,7 @@ impl DeepSeekClient {
         // 🔥 使用工厂函数替代手动实现
         let base_url = normalize_base_url(
             &config.base_url,
-            "https://api.deepseek.com/chat/completions"
+            "https://api.deepseek.com/chat/completions",
         );
         let http = create_standard_client(None::<super::super::client_factory::HttpClientConfig>)
             .expect("Failed to create HTTP client");
@@ -85,7 +85,7 @@ impl ApiClient for DeepSeekClient {
 
         let response = self
             .http
-            .post(&self.base_url)  // 🆕 P2: 直接使用 base_url，不再添加路径
+            .post(&self.base_url) // 🆕 P2: 直接使用 base_url，不再添加路径
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&deepseek_request)

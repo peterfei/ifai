@@ -9,10 +9,10 @@
 //! - Token 统计（Session 累积字段）
 //! - 配置路径（XDG 标准或 ~/.ifai/）
 
+use ifainew_lib::harness::api::types::Message;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fs;
-use std::path::{PathBuf, Path};
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
-use ifainew_lib::harness::api::types::{Message};
+use std::path::{Path, PathBuf};
 
 /// 🔥 会话快照（用于序列化）
 ///
@@ -130,7 +130,9 @@ impl SessionPersistence {
 
             if cfg!(target_os = "macos") {
                 // macOS: ~/Library/Application Support
-                PathBuf::from(home).join("Library").join("Application Support")
+                PathBuf::from(home)
+                    .join("Library")
+                    .join("Application Support")
             } else {
                 // Fallback: ~/.ifai
                 PathBuf::from(home).join(".ifai")
@@ -143,8 +145,15 @@ impl SessionPersistence {
     /// 🔥 保存会话
     pub fn save_session(&self, name: &str, snapshot: SessionSnapshot) -> Result<PathBuf, String> {
         // 文件名：name.json（安全转义）
-        let safe_name = name.chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        let safe_name = name
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>();
         let filename = format!("{}.json", safe_name);
         let filepath = self.sessions_dir.join(&filename);
@@ -154,16 +163,22 @@ impl SessionPersistence {
             .map_err(|e| format!("Failed to serialize session: {}", e))?;
 
         // 写入文件
-        fs::write(&filepath, json)
-            .map_err(|e| format!("Failed to write session file: {}", e))?;
+        fs::write(&filepath, json).map_err(|e| format!("Failed to write session file: {}", e))?;
 
         Ok(filepath)
     }
 
     /// 🔥 加载会话
     pub fn load_session(&self, name: &str) -> Result<SessionSnapshot, String> {
-        let safe_name = name.chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        let safe_name = name
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>();
         let filename = format!("{}.json", safe_name);
         let filepath = self.sessions_dir.join(&filename);
@@ -214,50 +229,61 @@ impl SessionPersistence {
 
     /// 🔥 删除会话
     pub fn delete_session(&self, name: &str) -> Result<(), String> {
-        let safe_name = name.chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        let safe_name = name
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>();
         let filename = format!("{}.json", safe_name);
         let filepath = self.sessions_dir.join(&filename);
 
-        fs::remove_file(&filepath)
-            .map_err(|e| format!("Failed to delete session file: {}", e))
+        fs::remove_file(&filepath).map_err(|e| format!("Failed to delete session file: {}", e))
     }
 
     /// 读取会话元数据（不加载完整消息）
     fn read_session_metadata(&self, path: &Path) -> Result<SessionMetadata, String> {
-        let json = fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read file: {}", e))?;
+        let json = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
         // 只解析需要的字段（使用 serde_json::Value）
-        let value: serde_json::Value = serde_json::from_str(&json)
-            .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+        let value: serde_json::Value =
+            serde_json::from_str(&json).map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
-        let name = value.get("name")
+        let name = value
+            .get("name")
             .and_then(|v| v.as_str())
             .ok_or("Missing 'name' field")?
             .to_string();
 
-        let saved_at = value.get("saved_at")
+        let saved_at = value
+            .get("saved_at")
             .and_then(|v| v.as_str())
             .ok_or("Missing 'saved_at' field")?
             .to_string();
 
-        let message_count = value.get("messages")
+        let message_count = value
+            .get("messages")
             .and_then(|v| v.as_array())
             .map(|arr| arr.len())
             .unwrap_or(0);
 
-        let model = value.get("model")
+        let model = value
+            .get("model")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string();
 
-        let cumulative_input = value.get("cumulative_input_tokens")
+        let cumulative_input = value
+            .get("cumulative_input_tokens")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as u32;
 
-        let cumulative_output = value.get("cumulative_output_tokens")
+        let cumulative_output = value
+            .get("cumulative_output_tokens")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as u32;
 
@@ -276,7 +302,7 @@ impl SessionPersistence {
 #[derive(Debug, Clone)]
 pub struct SessionMetadata {
     pub name: String,
-    pub saved_at: String,  // RFC3339 格式的时间戳
+    pub saved_at: String, // RFC3339 格式的时间戳
     pub message_count: usize,
     pub model: String,
     pub cumulative_input_tokens: u32,
@@ -300,8 +326,15 @@ mod tests {
         ];
 
         for (input, expected) in test_cases {
-            let safe_name: String = input.chars()
-                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            let safe_name: String = input
+                .chars()
+                .map(|c| {
+                    if c.is_alphanumeric() || c == '-' || c == '_' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
             assert_eq!(safe_name, expected);
         }
@@ -331,7 +364,7 @@ mod tests {
         let snapshot = SessionSnapshot {
             version: 1,
             name: "test_session".to_string(),
-            saved_at: "2024-01-15T10:30:00+00:00".to_string(),  // RFC3339 格式
+            saved_at: "2024-01-15T10:30:00+00:00".to_string(), // RFC3339 格式
             provider: "deepseek-official".to_string(),
             model: "deepseek-chat".to_string(),
             messages: messages.clone(),
@@ -340,8 +373,7 @@ mod tests {
         };
 
         // 序列化
-        let json = serde_json::to_string_pretty(&snapshot)
-            .expect("Failed to serialize snapshot");
+        let json = serde_json::to_string_pretty(&snapshot).expect("Failed to serialize snapshot");
 
         // 验证 JSON 包含所有字段
         assert!(json.contains("\"version\": 1"));
@@ -353,8 +385,8 @@ mod tests {
         assert!(json.contains("\"cumulative_output_tokens\": 500"));
 
         // 反序列化
-        let deserialized: SessionSnapshot = serde_json::from_str(&json)
-            .expect("Failed to deserialize snapshot");
+        let deserialized: SessionSnapshot =
+            serde_json::from_str(&json).expect("Failed to deserialize snapshot");
 
         // 验证反序列化结果
         assert_eq!(deserialized.version, 1);
@@ -380,14 +412,12 @@ mod tests {
         std::fs::create_dir_all(&temp_dir).expect("Failed to create temp dir");
 
         // 创建测试快照
-        let messages = vec![
-            Message {
-                role: MessageRole::User,
-                content: MessageContent::Text("Test message".to_string()),
-                tool_calls: None,
-                tool_call_id: None,
-            },
-        ];
+        let messages = vec![Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Test message".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
 
         let snapshot = SessionSnapshot {
             version: 1,
@@ -410,9 +440,20 @@ mod tests {
                 Self { sessions_dir: dir }
             }
 
-            fn save_session(&self, name: &str, snapshot: &SessionSnapshot) -> Result<std::path::PathBuf, String> {
-                let safe_name = name.chars()
-                    .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            fn save_session(
+                &self,
+                name: &str,
+                snapshot: &SessionSnapshot,
+            ) -> Result<std::path::PathBuf, String> {
+                let safe_name = name
+                    .chars()
+                    .map(|c| {
+                        if c.is_alphanumeric() || c == '-' || c == '_' {
+                            c
+                        } else {
+                            '_'
+                        }
+                    })
                     .collect::<String>();
                 let filename = format!("{}.json", safe_name);
                 let filepath = self.sessions_dir.join(&filename);
@@ -420,15 +461,21 @@ mod tests {
                 let json = serde_json::to_string_pretty(snapshot)
                     .map_err(|e| format!("Failed to serialize: {}", e))?;
 
-                std::fs::write(&filepath, json)
-                    .map_err(|e| format!("Failed to write: {}", e))?;
+                std::fs::write(&filepath, json).map_err(|e| format!("Failed to write: {}", e))?;
 
                 Ok(filepath)
             }
 
             fn load_session(&self, name: &str) -> Result<SessionSnapshot, String> {
-                let safe_name = name.chars()
-                    .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                let safe_name = name
+                    .chars()
+                    .map(|c| {
+                        if c.is_alphanumeric() || c == '-' || c == '_' {
+                            c
+                        } else {
+                            '_'
+                        }
+                    })
                     .collect::<String>();
                 let filename = format!("{}.json", safe_name);
                 let filepath = self.sessions_dir.join(&filename);
@@ -436,28 +483,35 @@ mod tests {
                 let json = std::fs::read_to_string(&filepath)
                     .map_err(|e| format!("Failed to read: {}", e))?;
 
-                serde_json::from_str(&json)
-                    .map_err(|e| format!("Failed to deserialize: {}", e))
+                serde_json::from_str(&json).map_err(|e| format!("Failed to deserialize: {}", e))
             }
         }
 
         let persistence = TestPersistence::new(temp_dir.clone());
 
         // 保存
-        let saved_path = persistence.save_session("roundtrip_test", &snapshot)
+        let saved_path = persistence
+            .save_session("roundtrip_test", &snapshot)
             .expect("Failed to save session");
         assert!(saved_path.exists());
 
         // 加载
-        let loaded = persistence.load_session("roundtrip_test")
+        let loaded = persistence
+            .load_session("roundtrip_test")
             .expect("Failed to load session");
 
         // 验证
         assert_eq!(loaded.name, snapshot.name);
         assert_eq!(loaded.provider, snapshot.provider);
         assert_eq!(loaded.model, snapshot.model);
-        assert_eq!(loaded.cumulative_input_tokens, snapshot.cumulative_input_tokens);
-        assert_eq!(loaded.cumulative_output_tokens, snapshot.cumulative_output_tokens);
+        assert_eq!(
+            loaded.cumulative_input_tokens,
+            snapshot.cumulative_input_tokens
+        );
+        assert_eq!(
+            loaded.cumulative_output_tokens,
+            snapshot.cumulative_output_tokens
+        );
         assert_eq!(loaded.messages.len(), snapshot.messages.len());
 
         // 清理

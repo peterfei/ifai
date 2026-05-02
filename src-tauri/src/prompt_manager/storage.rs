@@ -1,8 +1,8 @@
+use crate::prompt_manager::{PromptMetadata, PromptTemplate};
+use anyhow::{Context, Result};
+use regex::Regex;
 use std::fs;
 use std::path::Path;
-use anyhow::{Result, Context};
-use crate::prompt_manager::{PromptMetadata, PromptTemplate};
-use regex::Regex;
 
 pub fn validate_prompt_content(content: &str) -> Result<(), String> {
     let dangerous_patterns = [
@@ -15,7 +15,10 @@ pub fn validate_prompt_content(content: &str) -> Result<(), String> {
     for pattern in dangerous_patterns {
         if let Ok(re) = Regex::new(pattern) {
             if re.is_match(content) {
-                return Err(format!("Potential prompt injection detected: '{}'", pattern));
+                return Err(format!(
+                    "Potential prompt injection detected: '{}'",
+                    pattern
+                ));
             }
         }
     }
@@ -42,17 +45,19 @@ pub fn load_prompt_from_str(content: &str, path: Option<String>) -> Result<Promp
 
 pub fn parse_front_matter(content: &str) -> Result<(PromptMetadata, &str)> {
     let trimmed = content.trim_start();
-    
+
     // Using a more robust manual split to avoid regex ownership issues
     if !trimmed.starts_with("---") {
-        return Err(anyhow::anyhow!("Invalid format: Prompt must start with '---'"));
+        return Err(anyhow::anyhow!(
+            "Invalid format: Prompt must start with '---'"
+        ));
     }
 
     let after_first = &trimmed[3..];
     if let Some(end_offset) = after_first.find("---") {
         let yaml_str = &after_first[..end_offset].trim();
-        let markdown_content = &after_first[end_offset+3..];
-        
+        let markdown_content = &after_first[end_offset + 3..];
+
         match serde_yaml::from_str::<PromptMetadata>(yaml_str) {
             Ok(metadata) => return Ok((metadata, markdown_content)),
             Err(e) => {
@@ -60,6 +65,8 @@ pub fn parse_front_matter(content: &str) -> Result<(PromptMetadata, &str)> {
             }
         }
     }
-    
-    Err(anyhow::anyhow!("Invalid format: Closing '---' not found for metadata block."))
+
+    Err(anyhow::anyhow!(
+        "Invalid format: Closing '---' not found for metadata block."
+    ))
 }

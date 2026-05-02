@@ -1,10 +1,10 @@
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::fs;
 use tokio::sync::{RwLock, Semaphore};
-use once_cell::sync::Lazy;
-use std::sync::Arc;
 
 /// 缓存条目
 #[derive(Clone, Debug)]
@@ -53,10 +53,14 @@ impl FileCache {
         }
 
         // 2. 缓存未命中或已过期，从磁盘读取 (受信号量控制)
-        let _permit = self.io_semaphore.acquire().await
+        let _permit = self
+            .io_semaphore
+            .acquire()
+            .await
             .map_err(|e| format!("Failed to acquire IO permit: {}", e))?;
-        
-        let content = fs::read_to_string(path).await
+
+        let content = fs::read_to_string(path)
+            .await
             .map_err(|e| format!("IO Error reading {:?}: {}", path, e))?;
 
         // 3. 更新缓存
@@ -68,7 +72,8 @@ impl FileCache {
     /// 插入缓存并执行淘汰策略
     async fn insert(&self, path: PathBuf, content: String) -> Result<(), String> {
         let size = content.len() as u64;
-        let modified = fs::metadata(&path).await
+        let modified = fs::metadata(&path)
+            .await
             .and_then(|m| m.modified())
             .unwrap_or_else(|_| SystemTime::now());
 
@@ -83,9 +88,11 @@ impl FileCache {
 
         // 简单的 LRU 淘汰：如果超过数量限制，移除最旧的
         if entries.len() >= self.max_entries {
-            if let Some(oldest_path) = entries.iter()
+            if let Some(oldest_path) = entries
+                .iter()
                 .min_by_key(|(_, v)| v.cached_at)
-                .map(|(k, _)| k.clone()) {
+                .map(|(k, _)| k.clone())
+            {
                 entries.remove(&oldest_path);
             }
         }

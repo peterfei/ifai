@@ -23,9 +23,13 @@ fn main() {
         });
 
         // 检查序列化结果
-        let json_str = serde_json::to_string(&tool_json).unwrap_or_else(|_| "Invalid JSON".to_string());
+        let json_str =
+            serde_json::to_string(&tool_json).unwrap_or_else(|_| "Invalid JSON".to_string());
         println!("  JSON length: {} bytes", json_str.len());
-        println!("  JSON preview: {}...", &json_str[..json_str.len().min(100)]);
+        println!(
+            "  JSON preview: {}...",
+            &json_str[..json_str.len().min(100)]
+        );
 
         // 检查关键字段
         if let Some(obj) = tool_json.as_object() {

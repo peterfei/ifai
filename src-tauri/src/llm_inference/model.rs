@@ -13,10 +13,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(feature = "llm-inference")]
 use llama_cpp_2::{
-    llama_backend::LlamaBackend,
-    model::LlamaModel,
-    model::params::LlamaModelParams,
-    LogOptions,
+    llama_backend::LlamaBackend, model::params::LlamaModelParams, model::LlamaModel, LogOptions,
 };
 
 #[cfg(feature = "llm-inference")]
@@ -48,14 +45,16 @@ pub fn default_model_path() -> PathBuf {
     #[cfg(target_os = "windows")]
     let base = dirs::home_dir().unwrap_or_else(|| PathBuf::from("C:\\"));
 
-    base.join(".ifai").join("models").join("qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf")
+    base.join(".ifai")
+        .join("models")
+        .join("qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf")
 }
 
 /// 获取或初始化全局模型
 pub fn get_or_init_model() -> Result<Arc<Mutex<Option<Model>>>, InferenceError> {
-    Ok(GLOBAL_MODEL.get_or_init(|| {
-        Arc::new(Mutex::new(None))
-    }).clone())
+    Ok(GLOBAL_MODEL
+        .get_or_init(|| Arc::new(Mutex::new(None)))
+        .clone())
 }
 
 /// 加载模型
@@ -78,7 +77,7 @@ pub fn load_model(model_path: &PathBuf) -> Result<Model, InferenceError> {
     {
         if !std::is_x86_feature_detected!("avx2") {
             return Err(InferenceError::ModelLoadFailed(
-                "当前 CPU 不支持 AVX2 指令集，无法运行本地模型。".to_string()
+                "当前 CPU 不支持 AVX2 指令集，无法运行本地模型。".to_string(),
             ));
         }
     }
@@ -109,7 +108,8 @@ pub fn ensure_model_loaded() -> Result<(), InferenceError> {
     let model_ref = get_or_init_model()?;
 
     {
-        let mut model_guard = model_ref.lock()
+        let mut model_guard = model_ref
+            .lock()
             .map_err(|_| InferenceError::InferenceFailed("获取模型锁失败".to_string()))?;
 
         if model_guard.is_some() {
@@ -133,7 +133,8 @@ pub fn unload_model() -> Result<(), InferenceError> {
     println!("[LlmInference] unload_model called");
 
     let model_ref = get_or_init_model()?;
-    let mut model_guard = model_ref.lock()
+    let mut model_guard = model_ref
+        .lock()
         .map_err(|_| InferenceError::InferenceFailed("获取模型锁失败".to_string()))?;
 
     *model_guard = None;

@@ -17,18 +17,27 @@ mod tests {
         let start = std::time::Instant::now();
         let content1 = cache.read_file(&path).await.unwrap();
         let elapsed1 = start.elapsed();
-        assert_eq!(content1, "Initial content
-");
+        assert_eq!(
+            content1,
+            "Initial content
+"
+        );
 
         // 2. 第二次读取 - 应该是 Cache Hit (极速)
         let start = std::time::Instant::now();
         let content2 = cache.read_file(&path).await.unwrap();
         let elapsed2 = start.elapsed();
-        assert_eq!(content2, "Initial content
-");
+        assert_eq!(
+            content2,
+            "Initial content
+"
+        );
 
-        println!("First read: {:?}, Second read (Cached): {:?}", elapsed1, elapsed2);
-        
+        println!(
+            "First read: {:?}, Second read (Cached): {:?}",
+            elapsed1, elapsed2
+        );
+
         // 验证缓存有效性
         assert!(elapsed2 < elapsed1);
     }
@@ -55,7 +64,10 @@ mod tests {
         // 这里的 read_file 应该能检测到 metadata 变化（即便我们还没加 notify）
         // 因为我们在 read_file 中加了 metadata 校验
         let content = cache.read_file(&path).await.unwrap();
-        assert_eq!(content, "New content
-");
+        assert_eq!(
+            content,
+            "New content
+"
+        );
     }
 }

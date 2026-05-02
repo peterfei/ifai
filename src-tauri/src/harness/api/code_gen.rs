@@ -47,7 +47,9 @@
 //! └──────────────┘
 //! ```
 
-use crate::harness::api::format_adapter::{FormatAdapter, OpenAIFormatAdapter, GeminiFormatAdapter};
+use crate::harness::api::format_adapter::{
+    FormatAdapter, GeminiFormatAdapter, OpenAIFormatAdapter,
+};
 
 /// 🏛️ 元编程宏：生成提供商客户端结构体
 ///
@@ -219,7 +221,9 @@ macro_rules! generate_provider_client {
 // ============================================================================
 
 /// 🔧 从 YAML 字符串解析 ProviderSpec 的辅助函数
-pub fn parse_spec_from_yaml(yaml: &str) -> Result<crate::harness::api::provider_metadata::ProviderSpec, serde_yaml::Error> {
+pub fn parse_spec_from_yaml(
+    yaml: &str,
+) -> Result<crate::harness::api::provider_metadata::ProviderSpec, serde_yaml::Error> {
     serde_yaml::from_str(yaml)
 }
 

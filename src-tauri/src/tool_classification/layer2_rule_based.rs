@@ -14,7 +14,7 @@ Layer 2: Rule-Based Classification
 目标准确率：90%+
 */
 
-use super::types::{ClassificationResult, ClassificationLayer, ToolCategory};
+use super::types::{ClassificationLayer, ClassificationResult, ToolCategory};
 
 // ============================================================================
 // Rule Definitions
@@ -22,20 +22,26 @@ use super::types::{ClassificationResult, ClassificationLayer, ToolCategory};
 
 /// 文件操作关键词（中文）
 const FILE_OPS_KEYWORDS_CN: &[&str] = &[
-    "读取", "打开", "查看", "保存", "写入",
-    "删除", "重命名", "移动", "复制", "编辑", "修改",
+    "读取",
+    "打开",
+    "查看",
+    "保存",
+    "写入",
+    "删除",
+    "重命名",
+    "移动",
+    "复制",
+    "编辑",
+    "修改",
 ];
 
 /// 文件操作关键词（英文）
 const FILE_OPS_KEYWORDS_EN: &[&str] = &[
-    "read", "open", "view", "save",
-    "delete", "remove", "rename", "move", "copy", "edit", "modify",
+    "read", "open", "view", "save", "delete", "remove", "rename", "move", "copy", "edit", "modify",
 ];
 
 /// 终端命令关键词（中文）
-const TERMINAL_KEYWORDS_CN: &[&str] = &[
-    "执行", "运行", "构建", "编译", "测试",
-];
+const TERMINAL_KEYWORDS_CN: &[&str] = &["执行", "运行", "构建", "编译", "测试"];
 
 /// 终端命令关键词（英文工具名）
 const TERMINAL_TOOLS: &[&str] = &[
@@ -43,46 +49,44 @@ const TERMINAL_TOOLS: &[&str] = &[
 ];
 
 /// 代码生成关键词（中文）
-const CODEGEN_KEYWORDS_CN: &[&str] = &[
-    "生成", "创建", "写", "编写", "重构", "优化",
-];
+const CODEGEN_KEYWORDS_CN: &[&str] = &["生成", "创建", "写", "编写", "重构", "优化"];
 
 /// 代码生成关键词（英文）
 const CODEGEN_KEYWORDS_EN: &[&str] = &[
-    "generate", "create", "write", "refactor", "optimize",
-    "implement", "build", "develop",
+    "generate",
+    "create",
+    "write",
+    "refactor",
+    "optimize",
+    "implement",
+    "build",
+    "develop",
 ];
 
 /// 代码分析关键词（中文）
-const ANALYSIS_KEYWORDS_CN: &[&str] = &[
-    "解释", "分析", "审查", "理解",
-];
+const ANALYSIS_KEYWORDS_CN: &[&str] = &["解释", "分析", "审查", "理解"];
 
 /// 代码分析关键词（英文）
 const ANALYSIS_KEYWORDS_EN: &[&str] = &[
-    "explain", "analyze", "review", "understand",
-    "inspect", "examine",
+    "explain",
+    "analyze",
+    "review",
+    "understand",
+    "inspect",
+    "examine",
 ];
 
 /// 搜索操作关键词（中文）
-const SEARCH_KEYWORDS_CN: &[&str] = &[
-    "查找", "搜索", "定位", "找", "寻找",
-];
+const SEARCH_KEYWORDS_CN: &[&str] = &["查找", "搜索", "定位", "找", "寻找"];
 
 /// 搜索操作关键词（英文）
-const SEARCH_KEYWORDS_EN: &[&str] = &[
-    "find", "search", "locate", "look for",
-];
+const SEARCH_KEYWORDS_EN: &[&str] = &["find", "search", "locate", "look for"];
 
 /// AI 对话关键词（中文问题词）- 更严格的模式
-const CHAT_KEYWORDS_CN: &[&str] = &[
-    "什么是", "怎么", "如何", "为什么",
-];
+const CHAT_KEYWORDS_CN: &[&str] = &["什么是", "怎么", "如何", "为什么"];
 
 /// AI 对话关键词（英文问题词）- 更严格的模式
-const CHAT_KEYWORDS_EN: &[&str] = &[
-    "what is", "how to", "why", "explain ",
-];
+const CHAT_KEYWORDS_EN: &[&str] = &["what is", "how to", "why", "explain "];
 
 // ============================================================================
 // Pattern Matching
@@ -224,12 +228,12 @@ fn rule_ai_chat(input: &str) -> Option<ClassificationResult> {
 /// 数字越小优先级越高
 fn rule_priority(category: ToolCategory) -> u8 {
     match category {
-        ToolCategory::TerminalCommands => 1,  // 最高优先级（工具名明确）
+        ToolCategory::TerminalCommands => 1, // 最高优先级（工具名明确）
         ToolCategory::SearchOperations => 2,
         ToolCategory::FileOperations => 3,
         ToolCategory::CodeGeneration => 4,
         ToolCategory::CodeAnalysis => 5,
-        ToolCategory::AiChat => 6,             // 最低优先级（最模糊）
+        ToolCategory::AiChat => 6, // 最低优先级（最模糊）
         ToolCategory::NoToolNeeded => 7,
     }
 }
@@ -250,13 +254,15 @@ pub fn classify(input: &str) -> Option<ClassificationResult> {
     // 语义复杂度检查：某些模式表示复杂的语义理解需求
     // 这些输入虽然不长，但需要 LLM 理解上下文和意图
     let complex_patterns = [
-        "一下",    // "帮我分析一下" - 需要复杂分析
-        "这段",    // "解释这段代码" - 需要上下文理解
-        "项目的",  // "项目的架构" - 需要全局理解
-        "原理",    // "工作原理" - 需要深入理解
-        "架构",    // "项目架构" - 需要全局视角
+        "一下",   // "帮我分析一下" - 需要复杂分析
+        "这段",   // "解释这段代码" - 需要上下文理解
+        "项目的", // "项目的架构" - 需要全局理解
+        "原理",   // "工作原理" - 需要深入理解
+        "架构",   // "项目架构" - 需要全局视角
     ];
-    let has_complex_pattern = complex_patterns.iter().any(|pattern| input.contains(pattern));
+    let has_complex_pattern = complex_patterns
+        .iter()
+        .any(|pattern| input.contains(pattern));
     if has_complex_pattern {
         return None; // 延迟到 Layer3 进行语义分析
     }
@@ -352,11 +358,7 @@ mod tests {
     // Terminal Commands Tests
     #[test]
     fn test_rule_terminal_commands_chinese() {
-        let inputs = [
-            "执行 git 命令",
-            "运行 npm install",
-            "执行 cargo test",
-        ];
+        let inputs = ["执行 git 命令", "运行 npm install", "执行 cargo test"];
 
         for input in inputs {
             let result = classify(input).unwrap();
@@ -367,12 +369,7 @@ mod tests {
 
     #[test]
     fn test_rule_terminal_commands_with_tools() {
-        let inputs = [
-            "git 操作",
-            "npm 安装",
-            "cargo 构建",
-            "pip 安装包",
-        ];
+        let inputs = ["git 操作", "npm 安装", "cargo 构建", "pip 安装包"];
 
         for input in inputs {
             let result = classify(input).unwrap();
@@ -401,12 +398,7 @@ mod tests {
     // Code Analysis Tests
     #[test]
     fn test_rule_code_analysis() {
-        let inputs = [
-            "解释代码",
-            "分析性能",
-            "代码审查",
-            "理解逻辑",
-        ];
+        let inputs = ["解释代码", "分析性能", "代码审查", "理解逻辑"];
 
         for input in inputs {
             let result = classify(input).unwrap();
@@ -418,12 +410,7 @@ mod tests {
     // Search Operations Tests
     #[test]
     fn test_rule_search_operations() {
-        let inputs = [
-            "查找代码",
-            "搜索函数",
-            "定位引用",
-            "找所有",
-        ];
+        let inputs = ["查找代码", "搜索函数", "定位引用", "找所有"];
 
         for input in inputs {
             let result = classify(input).unwrap();
@@ -460,25 +447,25 @@ mod tests {
         // "搜索 npm 包" - Search should be detected
         let result = classify("搜索 npm 包").unwrap();
         // Should be either Search or Terminal depending on implementation
-        assert!(matches!(result.category,
-            ToolCategory::SearchOperations | ToolCategory::TerminalCommands));
+        assert!(matches!(
+            result.category,
+            ToolCategory::SearchOperations | ToolCategory::TerminalCommands
+        ));
     }
 
     // Confidence Tests
     #[test]
     fn test_layer2_confidence_range() {
-        let inputs = vec![
-            "读取文件",
-            "执行 git",
-            "生成函数",
-            "解释代码",
-        ];
+        let inputs = vec!["读取文件", "执行 git", "生成函数", "解释代码"];
 
         for input in inputs {
             if let Some(result) = classify(input) {
-                assert!(result.confidence >= 0.7 && result.confidence < 1.0,
+                assert!(
+                    result.confidence >= 0.7 && result.confidence < 1.0,
                     "Layer 2 confidence should be in [0.7, 1.0), got {} for '{}'",
-                    result.confidence, input);
+                    result.confidence,
+                    input
+                );
             }
         }
     }
@@ -486,15 +473,15 @@ mod tests {
     // Non-matching Tests
     #[test]
     fn test_no_matching_rule() {
-        let inputs = [
-            "hello world",
-            "random text",
-            "just checking",
-        ];
+        let inputs = ["hello world", "random text", "just checking"];
 
         for input in inputs {
             let result = classify(input);
-            assert!(result.is_none(), "Input '{}' should not match any rule", input);
+            assert!(
+                result.is_none(),
+                "Input '{}' should not match any rule",
+                input
+            );
         }
     }
 }

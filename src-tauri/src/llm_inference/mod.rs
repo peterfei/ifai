@@ -26,22 +26,16 @@ IfAI Editor - llama.cpp Local Inference
 pub const VERSION: &str = "0.6.0-llama-cpp-2-implementation";
 
 // 导出子模块
-pub mod model;
-pub mod generator;
 pub mod config;
+pub mod generator;
+pub mod model;
 
 // 重新导出常用类型
 pub use model::{
-    default_model_path,
-    load_model,
-    ensure_model_loaded,
-    unload_model,
-    is_model_loaded,
+    default_model_path, ensure_model_loaded, is_model_loaded, load_model, unload_model,
 };
 
-pub use config::{
-    LlmInferenceConfig,
-};
+pub use config::LlmInferenceConfig;
 
 // 重新导出文本生成函数
 pub use generator::generate_completion;

@@ -1,12 +1,12 @@
 //! DebuggerAgent - Autonomous Debugging Engine
 //! 🏆 PIVO 3.0: Intent-driven Autonomous Healing
 
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tauri::{AppHandle, Emitter};
 use crate::agent_system::persistence::SessionPersistence;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::Mutex;
 
 // 统一任务标签
 const STEP_ROOT: &str = "启动自愈引擎";
@@ -50,52 +50,64 @@ impl DebuggerAgent {
     async fn stream_tool_call(&self, file: &str, content: &str) {
         if let Some(app) = &self.app_handle {
             let tool_call_id = format!("call_{}", self.session_id);
-            let _ = app.emit("ai-chat-response", serde_json::json!({
-                "event_id": self.session_id,
-                "content": "\n我已经为您生成了修复方案，请审查并授权应用补丁：\n",
-                "tool_calls": [{
-                    "id": tool_call_id,
-                    "type": "function",
-                    "function": {
-                        "name": "agent_write_file",
-                        "arguments": serde_json::to_string(&serde_json::json!({
-                            "rel_path": file,
-                            "content": content
-                        })).unwrap()
-                    }
-                }],
-                "done": false
-            }));
+            let _ = app.emit(
+                "ai-chat-response",
+                serde_json::json!({
+                    "event_id": self.session_id,
+                    "content": "\n我已经为您生成了修复方案，请审查并授权应用补丁：\n",
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {
+                            "name": "agent_write_file",
+                            "arguments": serde_json::to_string(&serde_json::json!({
+                                "rel_path": file,
+                                "content": content
+                            })).unwrap()
+                        }
+                    }],
+                    "done": false
+                }),
+            );
         }
     }
 
     async fn stream_text(&self, content: &str, done: bool) {
         if let Some(app) = &self.app_handle {
-            let _ = app.emit("ai-chat-response", serde_json::json!({
-                "event_id": self.session_id,
-                "content": content,
-                "done": done
-            }));
+            let _ = app.emit(
+                "ai-chat-response",
+                serde_json::json!({
+                    "event_id": self.session_id,
+                    "content": content,
+                    "done": done
+                }),
+            );
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
     }
 
     async fn emit_progress(&self, label: &str, status: &str) {
         if let Some(app) = &self.app_handle {
-            let _ = app.emit("debug:step:start", serde_json::json!({
-                "messageId": self.session_id,
-                "stepLabel": label,
-                "status": status
-            }));
+            let _ = app.emit(
+                "debug:step:start",
+                serde_json::json!({
+                    "messageId": self.session_id,
+                    "stepLabel": label,
+                    "status": status
+                }),
+            );
         }
     }
 
     async fn emit_success(&self, label: &str) {
         if let Some(app) = &self.app_handle {
-            let _ = app.emit("debug:step:success", serde_json::json!({
-                "messageId": self.session_id,
-                "stepLabel": label
-            }));
+            let _ = app.emit(
+                "debug:step:success",
+                serde_json::json!({
+                    "messageId": self.session_id,
+                    "stepLabel": label
+                }),
+            );
         }
     }
 
@@ -119,17 +131,19 @@ impl DebuggerAgent {
 
     pub async fn run_debug_loop(&self, error_log: &str) -> Result<bool, String> {
         self.emit_success(STEP_ROOT).await;
-        self.stream_text("> 🧠 **DebuggerAgent v0.5.0** 正在介入调试...\n\n", false).await;
+        self.stream_text("> 🧠 **DebuggerAgent v0.5.0** 正在介入调试...\n\n", false)
+            .await;
 
         // 1. 解析
         self.emit_progress(STEP_PARSE, "running").await;
         let target_file = self.extract_file_path(error_log);
         let path = match target_file {
             Some(p) => {
-                self.stream_text(&format!("- 已识别目标文件: `{}`\n", p), false).await;
+                self.stream_text(&format!("- 已识别目标文件: `{}`\n", p), false)
+                    .await;
                 self.emit_success(STEP_PARSE).await;
                 p
-            },
+            }
             None => {
                 self.emit_progress(STEP_PARSE, "failed").await;
                 return Err("路径识别失败".to_string());
@@ -141,13 +155,19 @@ impl DebuggerAgent {
         let mut extracted_code = String::new();
         if std::path::Path::new(&path).exists() {
             if let Ok(content) = std::fs::read_to_string(&path) {
-                use ifainew_core::symbols::{SymbolExtractor, detect_language};
+                use ifainew_core::symbols::{detect_language, SymbolExtractor};
                 let extractor = SymbolExtractor::new().map_err(|e| e.to_string())?;
                 let lang = detect_language(&path);
                 if let Ok(Some(symbol)) = extractor.find_symbol_at_line(&content, 1, lang) {
-                    if let Ok(Some(source)) = extractor.get_symbol_source(&content, &symbol.name, lang) {
+                    if let Ok(Some(source)) =
+                        extractor.get_symbol_source(&content, &symbol.name, lang)
+                    {
                         extracted_code = source;
-                        self.stream_text(&format!("- 成功提取符号定义: `{}`\n", symbol.name), false).await;
+                        self.stream_text(
+                            &format!("- 成功提取符号定义: `{}`\n", symbol.name),
+                            false,
+                        )
+                        .await;
                     }
                 }
             }
@@ -156,17 +176,22 @@ impl DebuggerAgent {
 
         // 3. 补丁生成与受控审批
         self.emit_progress(STEP_PATCH, "healing").await;
-        self.stream_text("- 正在调用 **LLM** 生成最终修复方案...\n", false).await;
-        
+        self.stream_text("- 正在调用 **LLM** 生成最终修复方案...\n", false)
+            .await;
+
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         // 🏆 物理核心：发送受控的 Tool Call
         let fixed_code = format!("// PIVO 3.0: 自动自愈补丁\n{}", extracted_code);
         self.stream_tool_call(&path, &fixed_code).await;
-        
+
         self.emit_success(STEP_PATCH).await;
-        self.stream_text("\n✅ **调试自愈流程已完成。** 请在下方工具栏确认应用代码变更。", true).await;
-        
+        self.stream_text(
+            "\n✅ **调试自愈流程已完成。** 请在下方工具栏确认应用代码变更。",
+            true,
+        )
+        .await;
+
         self.emit_success(STEP_ROOT).await;
         Ok(true)
     }

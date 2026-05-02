@@ -204,7 +204,11 @@ mod tests {
         let buf = render_to_buffer(&mut app, 80, 24);
         let text = buffer_to_string(&buf);
         // 至少有内容：空 App 应显示 Ready
-        assert!(text.contains("Ready"), "empty app should show Ready, got: {}", &text);
+        assert!(
+            text.contains("Ready"),
+            "empty app should show Ready, got: {}",
+            &text
+        );
     }
 
     #[test]
@@ -230,10 +234,7 @@ mod tests {
     #[test]
     fn test_lines_to_text_multi_span() {
         use ratatui::text::{Line, Span};
-        let lines = vec![Line::from(vec![
-            Span::raw("foo"),
-            Span::raw("bar"),
-        ])];
+        let lines = vec![Line::from(vec![Span::raw("foo"), Span::raw("bar")])];
         let text = lines_to_text(&lines);
         assert_eq!(text, "foobar");
     }

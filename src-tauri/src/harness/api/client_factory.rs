@@ -2,9 +2,9 @@
 //!
 //! 消除提供商客户端中的重复初始化逻辑
 
+use crate::harness::api::types::ProviderConfig;
 use reqwest::Client as HttpClient;
 use std::time::Duration;
-use crate::harness::api::types::ProviderConfig;
 
 /// 标准HTTP客户端配置（通过元数据定义）
 pub struct HttpClientConfig {
@@ -55,7 +55,11 @@ pub fn create_standard_client(config: Option<HttpClientConfig>) -> Result<HttpCl
         let proxy = reqwest::Proxy::custom(move |uri| {
             let host_str = uri.host_str().unwrap_or("");
             // 本地地址直连（mock server / 测试用）
-            if host_str == "localhost" || host_str == "127.0.0.1" || host_str == "0.0.0.0" || host_str.ends_with(".local") {
+            if host_str == "localhost"
+                || host_str == "127.0.0.1"
+                || host_str == "0.0.0.0"
+                || host_str.ends_with(".local")
+            {
                 None
             } else {
                 Some(proxy_url.as_str().parse::<reqwest::Url>().unwrap())
@@ -64,7 +68,8 @@ pub fn create_standard_client(config: Option<HttpClientConfig>) -> Result<HttpCl
         builder = builder.proxy(proxy);
     }
 
-    builder.build()
+    builder
+        .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))
 }
 
@@ -110,16 +115,19 @@ mod tests {
     fn test_normalize_base_url_with_path() {
         let result = normalize_base_url(
             &Some("https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string()),
-            "https://default.com"
+            "https://default.com",
         );
-        assert_eq!(result, "https://open.bigmodel.cn/api/paas/v4/chat/completions");
+        assert_eq!(
+            result,
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        );
     }
 
     #[test]
     fn test_normalize_base_url_without_path() {
         let result = normalize_base_url(
             &Some("https://api.example.com".to_string()),
-            "https://default.com"
+            "https://default.com",
         );
         assert_eq!(result, "https://api.example.com/chat/completions");
     }
@@ -128,7 +136,7 @@ mod tests {
     fn test_normalize_base_url_with_trailing_slash() {
         let result = normalize_base_url(
             &Some("https://api.example.com/".to_string()),
-            "https://default.com"
+            "https://default.com",
         );
         assert_eq!(result, "https://api.example.com/chat/completions");
     }

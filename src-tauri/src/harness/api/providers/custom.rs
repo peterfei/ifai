@@ -13,7 +13,9 @@ use std::pin::Pin;
 
 use super::super::client::ApiClient;
 use super::super::sse::SseParser;
-use super::super::types::{ApiError, AiProvider, ModelInfo, ProviderConfig, StreamEvent, StreamRequest};
+use super::super::types::{
+    AiProvider, ApiError, ModelInfo, ProviderConfig, StreamEvent, StreamRequest,
+};
 
 pub struct CustomClient {
     http: HttpClient,
@@ -177,7 +179,7 @@ fn convert_custom_event(event: &super::super::sse::SseEvent) -> StreamEvent {
                 input_tokens: 0,
                 output_tokens: 0,
             }
-        },
+        }
         _ => StreamEvent::TextDelta {
             text: String::new(),
         },
@@ -203,7 +205,12 @@ impl CustomClient {
             base_url: Some(base_url),
             organization: None,
         };
-        Self::new(&AiProvider::Custom { name: "LocalAI".to_string() }, &config)
+        Self::new(
+            &AiProvider::Custom {
+                name: "LocalAI".to_string(),
+            },
+            &config,
+        )
     }
 
     /// text-generation-webui（Oobabooga）
@@ -213,6 +220,11 @@ impl CustomClient {
             base_url: Some(base_url),
             organization: None,
         };
-        Self::new(&AiProvider::Custom { name: "Oobabooga".to_string() }, &config)
+        Self::new(
+            &AiProvider::Custom {
+                name: "Oobabooga".to_string(),
+            },
+            &config,
+        )
     }
 }

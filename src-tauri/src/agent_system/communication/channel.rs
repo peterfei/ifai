@@ -2,14 +2,14 @@
 //!
 //! 提供智能体之间通信的高级抽象
 
-use super::message::{Message, MessageType, ControlMessage, StatusMessage, MessagePriority};
-use super::{AgentId, MessageId, SessionId};
 use super::bus::{MessageBus, RouteKey};
+use super::message::{ControlMessage, Message, MessagePriority, MessageType, StatusMessage};
+use super::{AgentId, MessageId, SessionId};
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
 
 /// 通道 ID
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -67,22 +67,19 @@ impl MessageSender {
         data_type: impl Into<String>,
         payload: serde_json::Value,
     ) -> Result<()> {
-        let msg = Message::data(self.agent_id.clone(), data_type, payload)
-            .with_to(to);
+        let msg = Message::data(self.agent_id.clone(), data_type, payload).with_to(to);
         self.send(msg).await
     }
 
     /// 发送控制消息
     pub async fn send_control(&self, to: AgentId, command: ControlMessage) -> Result<()> {
-        let msg = Message::control(self.agent_id.clone(), command)
-            .with_to(to);
+        let msg = Message::control(self.agent_id.clone(), command).with_to(to);
         self.send(msg).await
     }
 
     /// 发送状态消息
     pub async fn send_status(&self, to: AgentId, status: StatusMessage) -> Result<()> {
-        let msg = Message::status(self.agent_id.clone(), status)
-            .with_to(to);
+        let msg = Message::status(self.agent_id.clone(), status).with_to(to);
         self.send(msg).await
     }
 
@@ -124,7 +121,11 @@ pub struct MessageReceiver {
 
 impl MessageReceiver {
     /// 创建新的消息接收器
-    pub fn new(agent_id: AgentId, rx: mpsc::UnboundedReceiver<Message>, bus: Arc<MessageBus>) -> Self {
+    pub fn new(
+        agent_id: AgentId,
+        rx: mpsc::UnboundedReceiver<Message>,
+        bus: Arc<MessageBus>,
+    ) -> Self {
         Self { agent_id, rx, bus }
     }
 
@@ -184,20 +185,12 @@ impl AgentChannel {
 
     /// 创建点对点通道
     pub async fn direct(agent_id: AgentId, bus: Arc<MessageBus>) -> Result<Self> {
-        Self::new(
-            agent_id.clone(),
-            bus,
-            vec![RouteKey::Direct(agent_id)],
-        ).await
+        Self::new(agent_id.clone(), bus, vec![RouteKey::Direct(agent_id)]).await
     }
 
     /// 创建广播通道
     pub async fn broadcast(agent_id: AgentId, bus: Arc<MessageBus>) -> Result<Self> {
-        Self::new(
-            agent_id,
-            bus,
-            vec![RouteKey::Broadcast],
-        ).await
+        Self::new(agent_id, bus, vec![RouteKey::Broadcast]).await
     }
 
     /// 获取发送器
@@ -401,8 +394,8 @@ impl RequestResponse {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::bus::MessageBus;
+    use super::*;
 
     #[tokio::test]
     async fn test_channel_id() {
@@ -417,7 +410,9 @@ mod tests {
     #[tokio::test]
     async fn test_agent_channel_direct() {
         let bus = Arc::new(MessageBus::with_default_config());
-        let channel = AgentChannel::direct("agent1".to_string(), Arc::clone(&bus)).await.unwrap();
+        let channel = AgentChannel::direct("agent1".to_string(), Arc::clone(&bus))
+            .await
+            .unwrap();
 
         assert_eq!(channel.agent_id(), "agent1");
     }
@@ -428,7 +423,9 @@ mod tests {
 
         // 创建接收通道
         let mut receiver = {
-            let channel = AgentChannel::direct("agent1".to_string(), Arc::clone(&bus)).await.unwrap();
+            let channel = AgentChannel::direct("agent1".to_string(), Arc::clone(&bus))
+                .await
+                .unwrap();
             channel.receiver()
         };
 
@@ -436,11 +433,10 @@ mod tests {
         let sender = MessageSender::new("sender".to_string(), bus);
 
         // 发送消息
-        sender.send_data(
-            "agent1".to_string(),
-            "test",
-            serde_json::json!("data"),
-        ).await.unwrap();
+        sender
+            .send_data("agent1".to_string(), "test", serde_json::json!("data"))
+            .await
+            .unwrap();
 
         // 接收消息
         let msg = receiver.recv().await;

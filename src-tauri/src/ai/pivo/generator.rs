@@ -1,6 +1,6 @@
+use crate::ai::pivo::commands::TaskNode;
 use std::fs;
 use std::path::PathBuf;
-use crate::ai::pivo::commands::TaskNode;
 
 pub struct PivoGenerator;
 
@@ -9,13 +9,13 @@ impl PivoGenerator {
         let mut path = PathBuf::from(project_root);
         path.push(".ifai");
         path.push("prompts");
-        
+
         // 1. 优先尝试 zh-CN 路径 (对标截图规范)
         let mut zh_path = path.clone();
         zh_path.push("zh-CN");
         zh_path.push("pivo");
         zh_path.push("planner.md");
-        
+
         if zh_path.exists() {
             return fs::read_to_string(zh_path).map_err(|e| format!("读取中文规划器失败: {}", e));
         }
@@ -50,7 +50,7 @@ mod tests {
     fn test_load_planner_prompt() {
         let dir = tempdir().unwrap();
         let project_root = dir.path().to_str().unwrap();
-        
+
         // 创建模拟的 .ifai 结构
         let prompt_path = dir.path().join(".ifai/prompts/pivo");
         fs::create_dir_all(&prompt_path).unwrap();
@@ -60,7 +60,7 @@ mod tests {
 
         // 执行测试
         let result = PivoGenerator::load_planner_prompt(project_root);
-        
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), expected_content);
     }

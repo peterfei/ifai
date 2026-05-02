@@ -2,9 +2,9 @@
 //!
 //! 参考 claw-code 的 ConversationRuntime 实现，支持 AI 工具调用循环
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use anyhow::Result;
 
 /// 工具调用请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,8 +22,8 @@ pub struct ToolResult {
     pub output: String,
     pub is_error: bool,
     /// 🔥 工具调用详细信息（用于传递到前端）
-    pub input: Option<String>,           // 工具输入
-    pub execution_time_ms: Option<i64>,  // 执行时间
+    pub input: Option<String>, // 工具输入
+    pub execution_time_ms: Option<i64>, // 执行时间
 }
 
 /// 工具执行器 trait
@@ -107,8 +107,8 @@ impl DefaultToolExecutor {
             return Ok(());
         }
 
-        let entries = std::fs::read_dir(dir)
-            .map_err(|e| anyhow::anyhow!("读取目录失败 {:?}: {}", dir, e))?;
+        let entries =
+            std::fs::read_dir(dir).map_err(|e| anyhow::anyhow!("读取目录失败 {:?}: {}", dir, e))?;
 
         let mut entries_vec: Vec<std::fs::DirEntry> = entries.filter_map(|e| e.ok()).collect();
         entries_vec.sort_by_key(|e| e.file_name());
@@ -144,7 +144,10 @@ impl DefaultToolExecutor {
 impl ToolExecutor for DefaultToolExecutor {
     async fn execute(&self, name: &str, input: &serde_json::Value) -> Result<String> {
         println!("[ToolExecutor] 🔧 Executing tool: {}", name);
-        println!("[ToolExecutor] 📦 Input: {}", serde_json::to_string_pretty(input).unwrap_or_default());
+        println!(
+            "[ToolExecutor] 📦 Input: {}",
+            serde_json::to_string_pretty(input).unwrap_or_default()
+        );
 
         match name {
             "agent_read_file" => {
@@ -166,7 +169,10 @@ impl ToolExecutor for DefaultToolExecutor {
                 let max_depth = input["max_depth"].as_u64().map(|d| d as usize);
                 self.scan_project(rel_path, max_depth).await
             }
-            _ => Err(anyhow::anyhow!("未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project", name)),
+            _ => Err(anyhow::anyhow!(
+                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project",
+                name
+            )),
         }
     }
 }

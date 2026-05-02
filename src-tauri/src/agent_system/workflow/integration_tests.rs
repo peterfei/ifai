@@ -3,32 +3,22 @@
 //! 验证工作流引擎的完整功能
 
 use super::super::workflow::{
-    Workflow, WorkflowNode, WorkflowEdge, AgentType,
-    WorkflowParser, WorkflowValidator, WorkflowScheduler,
-    WorkflowRunner, RunnerConfig,
-    WorkflowStatus, NodeStatus,
+    AgentType, NodeStatus, RunnerConfig, Workflow, WorkflowEdge, WorkflowNode, WorkflowParser,
+    WorkflowRunner, WorkflowScheduler, WorkflowStatus, WorkflowValidator,
 };
 
 /// 创建完整的工作流示例
 fn create_complete_workflow() -> Workflow {
-    let mut workflow = Workflow::new(
-        "code-review-workflow",
-        "代码审查工作流"
-    )
-    .with_description("自动代码审查和重构建议");
+    let mut workflow = Workflow::new("code-review-workflow", "代码审查工作流")
+        .with_description("自动代码审查和重构建议");
 
     // 添加节点
     workflow
-        .add_node(WorkflowNode::new("explore", AgentType::Explore)
-            .with_label("探索代码结构"))
-        .add_node(WorkflowNode::new("analyze", AgentType::Review)
-            .with_label("代码质量分析"))
-        .add_node(WorkflowNode::new("refactor", AgentType::Refactor)
-            .with_label("生成重构建议"))
-        .add_node(WorkflowNode::new("test", AgentType::Test)
-            .with_label("生成测试用例"))
-        .add_node(WorkflowNode::new("document", AgentType::Doc)
-            .with_label("生成文档"));
+        .add_node(WorkflowNode::new("explore", AgentType::Explore).with_label("探索代码结构"))
+        .add_node(WorkflowNode::new("analyze", AgentType::Review).with_label("代码质量分析"))
+        .add_node(WorkflowNode::new("refactor", AgentType::Refactor).with_label("生成重构建议"))
+        .add_node(WorkflowNode::new("test", AgentType::Test).with_label("生成测试用例"))
+        .add_node(WorkflowNode::new("document", AgentType::Doc).with_label("生成文档"));
 
     // 添加边（依赖关系）
     workflow
@@ -252,7 +242,7 @@ edges:
             .add_node(WorkflowNode::new("c", AgentType::Refactor))
             .add_edge(WorkflowEdge::new("a", "b"))
             .add_edge(WorkflowEdge::new("b", "c"))
-            .add_edge(WorkflowEdge::new("c", "a"));  // 形成环！
+            .add_edge(WorkflowEdge::new("c", "a")); // 形成环！
 
         // 验证应该失败
         let result = workflow.validate();
@@ -321,10 +311,7 @@ edges:
             assert_eq!(agent_type.as_str(), expected_str);
 
             // 创建包含该类型的节点
-            let node = WorkflowNode::new(
-                format!("node_{}", expected_str),
-                agent_type.clone()
-            );
+            let node = WorkflowNode::new(format!("node_{}", expected_str), agent_type.clone());
             assert_eq!(node.agent_type, agent_type);
         }
     }

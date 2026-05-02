@@ -33,9 +33,7 @@ pub enum PipelineStepStatus {
 
     /// 跳过
     #[status(symbol = "○", zh = "跳过", en = "Skipped", theme = "muted")]
-    Skipped {
-        reason: String,
-    },
+    Skipped { reason: String },
 
     /// 警告
     #[status(symbol = "⚠", zh = "警告", en = "Warning", theme = "warning")]
@@ -103,34 +101,50 @@ mod tests {
     #[test]
     fn test_status_labels_zh() {
         assert_eq!(PipelineStepStatus::Success.label_zh(), "成功");
-        assert_eq!(PipelineStepStatus::Failed {
-            error: "test".to_string(),
-            suggestion: None
-        }.label_zh(), "失败");
+        assert_eq!(
+            PipelineStepStatus::Failed {
+                error: "test".to_string(),
+                suggestion: None
+            }
+            .label_zh(),
+            "失败"
+        );
         assert_eq!(PipelineStepStatus::InProgress.label_zh(), "进行中");
     }
 
     #[test]
     fn test_status_labels_en() {
         assert_eq!(PipelineStepStatus::Success.label_en(), "Success");
-        assert_eq!(PipelineStepStatus::Failed {
-            error: "test".to_string(),
-            suggestion: None
-        }.label_en(), "Failed");
+        assert_eq!(
+            PipelineStepStatus::Failed {
+                error: "test".to_string(),
+                suggestion: None
+            }
+            .label_en(),
+            "Failed"
+        );
         assert_eq!(PipelineStepStatus::InProgress.label_en(), "Running");
     }
 
     #[test]
     fn test_theme_fields() {
         assert_eq!(PipelineStepStatus::Success.theme_field(), "success");
-        assert_eq!(PipelineStepStatus::Failed {
-            error: "test".to_string(),
-            suggestion: None
-        }.theme_field(), "error");
+        assert_eq!(
+            PipelineStepStatus::Failed {
+                error: "test".to_string(),
+                suggestion: None
+            }
+            .theme_field(),
+            "error"
+        );
         assert_eq!(PipelineStepStatus::InProgress.theme_field(), "brand");
         assert_eq!(PipelineStepStatus::Warning.theme_field(), "warning");
-        assert_eq!(PipelineStepStatus::Skipped {
-            reason: "test".to_string()
-        }.theme_field(), "muted");
+        assert_eq!(
+            PipelineStepStatus::Skipped {
+                reason: "test".to_string()
+            }
+            .theme_field(),
+            "muted"
+        );
     }
 }

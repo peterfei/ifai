@@ -254,7 +254,8 @@ impl MarkdownStreamState {
             20
         } else {
             lines.iter().map(|l| l.len()).max().unwrap_or(0)
-        }.min(100); // 限制最大宽度
+        }
+        .min(100); // 限制最大宽度
 
         // 语言标识
         let lang = if self.code_lang.is_empty() {
@@ -266,11 +267,7 @@ impl MarkdownStreamState {
         let t = &self.theme;
 
         // Unicode 边框
-        let top_border = format!("{}╭─{}─{}",
-            t.box_dim,
-            "─".repeat(max_width + 2),
-            t.reset
-        );
+        let top_border = format!("{}╭─{}─{}", t.box_dim, "─".repeat(max_width + 2), t.reset);
 
         // 标题行（带 [Copy] 提示）
         let copy_hint = if self.show_copy_hint {
@@ -280,9 +277,12 @@ impl MarkdownStreamState {
         };
 
         let copy_hint_len = if self.show_copy_hint { 8 } else { 0 }; // "[Copy]" 的长度包括颜色代码
-        let lang_padding = (max_width + 2).saturating_sub(lang.len()).saturating_sub(copy_hint_len);
+        let lang_padding = (max_width + 2)
+            .saturating_sub(lang.len())
+            .saturating_sub(copy_hint_len);
         let header = if self.show_copy_hint {
-            format!("{}│ {}{}{}{} {}{}",
+            format!(
+                "{}│ {}{}{}{} {}{}",
                 t.box_border,
                 t.box_header,
                 lang,
@@ -292,34 +292,24 @@ impl MarkdownStreamState {
                 t.reset
             )
         } else {
-            format!("{}│ {} {}{}",
-                t.box_border,
-                t.box_header,
-                lang,
-                t.reset
-            )
+            format!("{}│ {} {}{}", t.box_border, t.box_header, lang, t.reset)
         };
 
         // 渲染代码行
-        let body_lines: Vec<String> = lines.iter()
+        let body_lines: Vec<String> = lines
+            .iter()
             .enumerate()
             .map(|(i, line)| {
                 let line_num = format!("{:>3}", i + 1);
                 let padded_line = format!("{:width$}", line, width = max_width);
-                format!("{}│{}{} {}{}{}",
-                    t.box_border,
-                    t.line_num, line_num,
-                    t.code_content, padded_line,
-                    t.reset
+                format!(
+                    "{}│{}{} {}{}{}",
+                    t.box_border, t.line_num, line_num, t.code_content, padded_line, t.reset
                 )
             })
             .collect();
 
-        let bottom_border = format!("{}╰─{}─{}",
-            t.box_dim,
-            "─".repeat(max_width + 2),
-            t.reset
-        );
+        let bottom_border = format!("{}╰─{}─{}", t.box_dim, "─".repeat(max_width + 2), t.reset);
 
         // 组合输出（添加换行）
         vec![
@@ -328,7 +318,8 @@ impl MarkdownStreamState {
             body_lines.join("\n"),
             bottom_border,
             "\n".to_string(), // 代码块后换行
-        ].join("\n")
+        ]
+        .join("\n")
     }
 
     /// 🔥 渲染代码块（ASCII 边框）
@@ -340,7 +331,8 @@ impl MarkdownStreamState {
             20
         } else {
             lines.iter().map(|l| l.len()).max().unwrap_or(0)
-        }.min(100); // 限制最大宽度
+        }
+        .min(100); // 限制最大宽度
 
         // 语言标识
         let lang = if self.code_lang.is_empty() {
@@ -352,11 +344,7 @@ impl MarkdownStreamState {
         let t = &self.theme;
 
         // ASCII 边框
-        let top_border = format!("{}+{}+{}",
-            t.box_dim,
-            "-".repeat(max_width + 3),
-            t.reset
-        );
+        let top_border = format!("{}+{}+{}", t.box_dim, "-".repeat(max_width + 3), t.reset);
 
         // 标题行（带 [Copy] 提示）
         let copy_hint = if self.show_copy_hint {
@@ -366,9 +354,12 @@ impl MarkdownStreamState {
         };
 
         let copy_hint_len = if self.show_copy_hint { 8 } else { 0 };
-        let lang_padding = (max_width + 1).saturating_sub(lang.len()).saturating_sub(copy_hint_len);
+        let lang_padding = (max_width + 1)
+            .saturating_sub(lang.len())
+            .saturating_sub(copy_hint_len);
         let header = if self.show_copy_hint {
-            format!("{}|{} {}{}{}{} {}|{}",
+            format!(
+                "{}|{} {}{}{}{} {}|{}",
                 t.box_border,
                 t.reset,
                 t.box_header,
@@ -379,36 +370,27 @@ impl MarkdownStreamState {
                 t.reset
             )
         } else {
-            format!("{}|{} {}{}{}|{}",
-                t.box_border,
-                t.reset,
-                t.box_header,
-                lang,
-                t.box_border,
-                t.reset
+            format!(
+                "{}|{} {}{}{}|{}",
+                t.box_border, t.reset, t.box_header, lang, t.box_border, t.reset
             )
         };
 
         // 渲染代码行
-        let body_lines: Vec<String> = lines.iter()
+        let body_lines: Vec<String> = lines
+            .iter()
             .enumerate()
             .map(|(i, line)| {
                 let line_num = format!("{:>3}", i + 1);
                 let padded_line = format!("{:width$}", line, width = max_width);
-                format!("{}|{}{} {}{}{}",
-                    t.box_border,
-                    t.line_num, line_num,
-                    t.code_content, padded_line,
-                    t.reset
+                format!(
+                    "{}|{}{} {}{}{}",
+                    t.box_border, t.line_num, line_num, t.code_content, padded_line, t.reset
                 )
             })
             .collect();
 
-        let bottom_border = format!("{}+{}+{}",
-            t.box_dim,
-            "-".repeat(max_width + 3),
-            t.reset
-        );
+        let bottom_border = format!("{}+{}+{}", t.box_dim, "-".repeat(max_width + 3), t.reset);
 
         // 组合输出（添加换行）
         vec![
@@ -417,7 +399,8 @@ impl MarkdownStreamState {
             body_lines.join("\n"),
             bottom_border,
             "\n".to_string(), // 代码块后换行
-        ].join("\n")
+        ]
+        .join("\n")
     }
 
     /// 重置状态

@@ -5,20 +5,24 @@
 //! P4: Tool Call Auto-Continuation Loop（参考 agent_system/runner.rs、claw-code/conversation.rs）
 //!
 
-use crate::core_traits::ai::{AIService, AIProviderConfig, Message};
-use crate::harness::api::{ApiClientFactory, AiProvider, StreamRequest, Message as HarnessMessage, MessageRole};
-use crate::harness::api::types::{ApiError, ToolCall as HarnessToolCall, ToolCallFunction as HarnessToolCallFunction};
-use crate::harness::api::{StreamToEventStream, EventStream, BatchEventStream};  // 🔥 方案 1: 使用 EventStream + BatchEventStream
+use crate::core_traits::ai::{AIProviderConfig, AIService, Message};
+use crate::harness::api::types::{
+    ApiError, ToolCall as HarnessToolCall, ToolCallFunction as HarnessToolCallFunction,
+};
+use crate::harness::api::{
+    AiProvider, ApiClientFactory, Message as HarnessMessage, MessageRole, StreamRequest,
+};
+use crate::harness::api::{BatchEventStream, EventStream, StreamToEventStream}; // 🔥 方案 1: 使用 EventStream + BatchEventStream
 use crate::harness::tool::ToolRegistry;
 use crate::harness::tool::ToolRouter;
-use tauri::{AppHandle, Emitter};
-use std::sync::OnceLock;
-use serde_json::json;
-use futures_util::StreamExt;
-use std::collections::HashMap;
 use dashmap::DashMap;
-use tokio::sync::oneshot;
+use futures_util::StreamExt;
+use serde_json::json;
+use std::collections::HashMap;
+use std::sync::OnceLock;
 use std::time::Duration;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::oneshot;
 
 /// 全局 ToolRegistry (P1)
 static GLOBAL_TOOL_REGISTRY: OnceLock<ToolRegistry> = OnceLock::new();
@@ -36,7 +40,8 @@ fn get_global_tool_router() -> &'static ToolRouter {
 
 /// 待审批工具调用：tool_call_id → oneshot::Sender
 /// 前端审批后通过 resolve_tool_approval 发送结果到对应的 sender
-static PENDING_APPROVALS: OnceLock<DashMap<String, oneshot::Sender<ApprovalResult>>> = OnceLock::new();
+static PENDING_APPROVALS: OnceLock<DashMap<String, oneshot::Sender<ApprovalResult>>> =
+    OnceLock::new();
 
 fn get_pending_approvals() -> &'static DashMap<String, oneshot::Sender<ApprovalResult>> {
     PENDING_APPROVALS.get_or_init(DashMap::new)
@@ -46,7 +51,7 @@ fn get_pending_approvals() -> &'static DashMap<String, oneshot::Sender<ApprovalR
 #[derive(Debug, Clone)]
 pub struct ApprovalResult {
     pub approved: bool,
-    pub result: Option<String>,  // 执行结果（approved=true 时有值）
+    pub result: Option<String>, // 执行结果（approved=true 时有值）
 }
 
 /// 供 Tauri command 调用：前端审批完成后，将结果发送给等待中的 stream_chat loop
@@ -54,10 +59,16 @@ pub fn resolve_tool_approval(tool_call_id: &str, approved: bool, result: Option<
     let map = get_pending_approvals();
     if let Some((_, sender)) = map.remove(tool_call_id) {
         let _ = sender.send(ApprovalResult { approved, result });
-        println!("[AI] ✅ Tool approval resolved: {} -> approved={}", tool_call_id, approved);
+        println!(
+            "[AI] ✅ Tool approval resolved: {} -> approved={}",
+            tool_call_id, approved
+        );
         true
     } else {
-        println!("[AI] ⚠️ No pending approval found for tool_call_id: {}", tool_call_id);
+        println!(
+            "[AI] ⚠️ No pending approval found for tool_call_id: {}",
+            tool_call_id
+        );
         false
     }
 }
@@ -94,7 +105,8 @@ impl HarnessAIService {
         let registry = get_global_tool_registry();
         let tools = registry.all();
 
-        tools.into_iter()
+        tools
+            .into_iter()
             .enumerate()
             .map(|(i, tool)| {
                 let tool_json = json!({
@@ -115,7 +127,10 @@ impl HarnessAIService {
                     }
                     if let Some(function) = obj.get("function") {
                         if let Some(func_obj) = function.as_object() {
-                            println!("  - function keys: {:?}", func_obj.keys().collect::<Vec<_>>());
+                            println!(
+                                "  - function keys: {:?}",
+                                func_obj.keys().collect::<Vec<_>>()
+                            );
                         }
                     }
                 }
@@ -155,7 +170,11 @@ impl HarnessAIService {
 
 #[async_trait::async_trait]
 impl AIService for HarnessAIService {
-    async fn chat(&self, _config: &AIProviderConfig, _messages: Vec<Message>) -> Result<Message, String> {
+    async fn chat(
+        &self,
+        _config: &AIProviderConfig,
+        _messages: Vec<Message>,
+    ) -> Result<Message, String> {
         Err("HarnessAIService::chat not implemented yet".to_string())
     }
 
@@ -183,24 +202,27 @@ impl AIService for HarnessAIService {
                     }
                     crate::core_traits::ai::Content::Parts(parts) => {
                         // 🔥 v0.4.3: 支持多模态内容
-                        let content_parts = parts.iter().map(|part| match part {
-                            crate::core_traits::ai::ContentPart::Text { text, .. } => {
-                                crate::harness::api::types::ContentPart {
-                                    part_type: "text".to_string(),
-                                    text: Some(text.clone()),
-                                    image_url: None,
+                        let content_parts = parts
+                            .iter()
+                            .map(|part| match part {
+                                crate::core_traits::ai::ContentPart::Text { text, .. } => {
+                                    crate::harness::api::types::ContentPart {
+                                        part_type: "text".to_string(),
+                                        text: Some(text.clone()),
+                                        image_url: None,
+                                    }
                                 }
-                            }
-                            crate::core_traits::ai::ContentPart::ImageUrl { image_url, .. } => {
-                                crate::harness::api::types::ContentPart {
+                                crate::core_traits::ai::ContentPart::ImageUrl {
+                                    image_url, ..
+                                } => crate::harness::api::types::ContentPart {
                                     part_type: "image_url".to_string(),
                                     text: None,
                                     image_url: Some(crate::harness::api::types::ImageUrl {
                                         url: image_url.url.clone(),
                                     }),
-                                }
-                            }
-                        }).collect();
+                                },
+                            })
+                            .collect();
                         crate::harness::api::types::MessageContent::MultiModal(content_parts)
                     }
                 },
@@ -239,7 +261,7 @@ impl AIService for HarnessAIService {
         // 🔥 FIX: 设置最大迭代次数（参考 claw-code/conversation.rs）
         // claw-code 默认使用 usize::MAX（几乎无限），这里设置为较大值
         // 复杂任务（如创建多个文件、完整功能开发）可能需要 50-100 次工具调用
-        const MAX_ITERATIONS: usize = 1000;  // 足够大的值（依靠循环检测机制保护）
+        const MAX_ITERATIONS: usize = 1000; // 足够大的值（依靠循环检测机制保护）
 
         let mut loop_count = 0;
 
@@ -253,20 +275,29 @@ impl AIService for HarnessAIService {
 
         use tokio::time::{timeout, Duration};
 
-        println!("[AI] stream_chat start: model={}, tools={}", model, tool_count);
+        println!(
+            "[AI] stream_chat start: model={}, tools={}",
+            model, tool_count
+        );
 
         loop {
             loop_count += 1;
 
             // 🔥 CRITICAL: 添加最大迭代次数保护（参考 claw-code/conversation.rs line 168-172）
             if loop_count > MAX_ITERATIONS {
-                let error_msg = format!("超过最大迭代次数限制 ({})，可能陷入工具调用循环", MAX_ITERATIONS);
+                let error_msg = format!(
+                    "超过最大迭代次数限制 ({})，可能陷入工具调用循环",
+                    MAX_ITERATIONS
+                );
                 eprintln!("[AI] ❌ {}: loop_count={}, stopping", error_msg, loop_count);
-                callback(json!({
-                    "type": "error",
-                    "code": "MAX_ITERATIONS_EXCEEDED",
-                    "message": error_msg
-                }).to_string());
+                callback(
+                    json!({
+                        "type": "error",
+                        "code": "MAX_ITERATIONS_EXCEEDED",
+                        "message": error_msg
+                    })
+                    .to_string(),
+                );
                 let finish_event = json!({
                     "choices": [{ "finish_reason": "stop" }]
                 });
@@ -276,7 +307,10 @@ impl AIService for HarnessAIService {
 
             // 🔥 FIX: 简化日志（只在关键时刻输出）
             if loop_count == 1 || loop_count % 10 == 0 {
-                println!("[AI] ➡️ Loop {} starting (delta_index={})", loop_count, global_delta_index);
+                println!(
+                    "[AI] ➡️ Loop {} starting (delta_index={})",
+                    loop_count, global_delta_index
+                );
             }
 
             // 🔥 FIX: 使用全局 delta_index，并在每轮开始时记录当前值
@@ -302,7 +336,8 @@ impl AIService for HarnessAIService {
             // 🔥 FIX: 增加超时时间，避免复杂任务被中断
             // 首次请求 180s，续接 300s（与 DeepSeek HTTP 客户端超时对齐）
             let timeout_secs = if loop_count == 1 { 180 } else { 300 };
-            let stream_result = timeout(Duration::from_secs(timeout_secs), client.stream(request)).await;
+            let stream_result =
+                timeout(Duration::from_secs(timeout_secs), client.stream(request)).await;
 
             let mut stream = match stream_result {
                 Ok(Ok(s)) => s,
@@ -322,7 +357,9 @@ impl AIService for HarnessAIService {
                         ApiError::HttpError { message, .. } => {
                             // 尝试解析 JSON 并提取内层 error.message
                             if message.trim().starts_with('{') {
-                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(message) {
+                                if let Ok(parsed) =
+                                    serde_json::from_str::<serde_json::Value>(message)
+                                {
                                     if let Some(err_obj) = parsed.get("error") {
                                         if let Some(inner_msg) = err_obj.get("message") {
                                             if let Some(msg_str) = inner_msg.as_str() {
@@ -342,38 +379,50 @@ impl AIService for HarnessAIService {
                             } else {
                                 message.clone()
                             }
-                        },
+                        }
                         ApiError::Network(msg) => msg.clone(),
                         ApiError::Sse(msg) => msg.clone(),
                         _ => err_msg.clone(),
                     };
 
-                    callback(json!({
-                        "type": "error",
-                        "correlationId": correlation_id,
-                        "error": {
-                            "code": error_code,
-                            "message": error_detail  // 直接发送内层错误消息，不再包装
-                        }
-                    }).to_string());
+                    callback(
+                        json!({
+                            "type": "error",
+                            "correlationId": correlation_id,
+                            "error": {
+                                "code": error_code,
+                                "message": error_detail  // 直接发送内层错误消息，不再包装
+                            }
+                        })
+                        .to_string(),
+                    );
                     // 发送 finish 事件，让前端停止 loading
-                    callback(json!({
-                        "choices": [{ "finish_reason": "stop" }]
-                    }).to_string());
+                    callback(
+                        json!({
+                            "choices": [{ "finish_reason": "stop" }]
+                        })
+                        .to_string(),
+                    );
                     return Err(err_msg);
                 }
                 Err(_) => {
                     let err_msg = format!("API request timeout after {}s", timeout_secs);
                     eprintln!("[AI] ❌ {}", err_msg);
 
-                    callback(json!({
-                        "type": "error",
-                        "code": "TIMEOUT",
-                        "message": err_msg
-                    }).to_string());
-                    callback(json!({
-                        "choices": [{ "finish_reason": "stop" }]
-                    }).to_string());
+                    callback(
+                        json!({
+                            "type": "error",
+                            "code": "TIMEOUT",
+                            "message": err_msg
+                        })
+                        .to_string(),
+                    );
+                    callback(
+                        json!({
+                            "choices": [{ "finish_reason": "stop" }]
+                        })
+                        .to_string(),
+                    );
                     return Err(err_msg);
                 }
             };
@@ -382,7 +431,7 @@ impl AIService for HarnessAIService {
             let mut loop_text = String::new();
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<CollectedToolCall> = Vec::new();
-            let mut loop_finish_reason: Option<String> = None;  // 🔥 CRITICAL FIX: 追踪本轮的 finish_reason
+            let mut loop_finish_reason: Option<String> = None; // 🔥 CRITICAL FIX: 追踪本轮的 finish_reason
 
             // 🔥 FIX: 立即发送 delta chunks（禁用批量）
             // 批量发送可能导致缓冲区问题，暂时禁用
@@ -419,135 +468,152 @@ impl AIService for HarnessAIService {
                             }
 
                             match event {
-                            crate::harness::api::StreamEvent::MessageStart { .. } => {}
-                            crate::harness::api::StreamEvent::TextDelta { text } => {
-                                loop_text.push_str(&text);
+                                crate::harness::api::StreamEvent::MessageStart { .. } => {}
+                                crate::harness::api::StreamEvent::TextDelta { text } => {
+                                    loop_text.push_str(&text);
 
-                                // 🔥 FIX: 完全移除 TextDelta 日志，避免流式输出卡顿
-                                // 参考 claw-code 的零日志策略
+                                    // 🔥 FIX: 完全移除 TextDelta 日志，避免流式输出卡顿
+                                    // 参考 claw-code 的零日志策略
 
-                                // 🔥 FIX: 使用全局 delta_index，确保跨整个 continuation 流单调递增
-                                let chunk = json!({
-                                    "choices": [{
-                                        "delta": { "content": text },
-                                        "index": {
-                                            "content_block_index": 0,
-                                            "delta_index": global_delta_index
-                                        }
-                                    }]
-                                });
+                                    // 🔥 FIX: 使用全局 delta_index，确保跨整个 continuation 流单调递增
+                                    let chunk = json!({
+                                        "choices": [{
+                                            "delta": { "content": text },
+                                            "index": {
+                                                "content_block_index": 0,
+                                                "delta_index": global_delta_index
+                                            }
+                                        }]
+                                    });
 
-                                // 🔥 FIX: 批量发送，减少 Tauri IPC 调用频率
-                                batch_buffer.push(chunk.to_string());
+                                    // 🔥 FIX: 批量发送，减少 Tauri IPC 调用频率
+                                    batch_buffer.push(chunk.to_string());
 
-                                // 达到批次大小时批量发送
-                                if batch_buffer.len() >= batch_size {
-                                    for batched_chunk in batch_buffer.drain(..) {
-                                        callback(batched_chunk);
-                                    }
-                                }
-
-                                global_delta_index += 1;
-                            }
-                            crate::harness::api::StreamEvent::ToolStart { tool_id, name, input } => {
-                                tool_name_map.insert(tool_id.clone(), name.clone());
-
-                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
-                                if !batch_buffer.is_empty() {
-                                    for batched_chunk in batch_buffer.drain(..) {
-                                        callback(batched_chunk);
-                                    }
-                                }
-
-                                let tool_event = json!({
-                                    "type": "tool_call",
-                                    "tool_call": {
-                                        "index": 0,
-                                        "id": tool_id,
-                                        "type": "function",
-                                        "function": { "name": name, "arguments": input }
-                                    }
-                                });
-                                callback(tool_event.to_string());
-                            }
-                            crate::harness::api::StreamEvent::ToolDone { tool_id, result } => {
-                                if !batch_buffer.is_empty() {
-                                    for batched_chunk in batch_buffer.drain(..) {
-                                        callback(batched_chunk);
-                                    }
-                                }
-
-                                let result_str = result;
-
-                                // 从 tool_name_map 获取工具名称（ToolStart 时已保存）
-                                let tool_name_from_map = tool_name_map.get(&tool_id)
-                                    .map(|s| s.as_str())
-                                    .unwrap_or("unknown")
-                                    .to_string();
-
-                                // 🔥 FIX: 发送完整的 tool_call 事件给前端（包含完整 arguments）
-                                // ToolStart 时 arguments 为空，前端 toolCallBuffer 等待完整 arguments
-                                // 在 ToolDone 时 result 就是完整的 arguments JSON，发送给前端以完成累积
-                                let complete_tool_event = json!({
-                                    "type": "tool_call",
-                                    "tool_call": {
-                                        "index": 0,
-                                        "id": tool_id,
-                                        "type": "function",
-                                        "function": {
-                                            "name": tool_name_from_map,
-                                            "arguments": result_str
+                                    // 达到批次大小时批量发送
+                                    if batch_buffer.len() >= batch_size {
+                                        for batched_chunk in batch_buffer.drain(..) {
+                                            callback(batched_chunk);
                                         }
                                     }
-                                });
-                                callback(complete_tool_event.to_string());
 
-                                let (tool_name, exec_result) = if let Ok(mut args) = serde_json::from_str::<serde_json::Value>(&result_str) {
-                                    let router = get_global_tool_router();
+                                    global_delta_index += 1;
+                                }
+                                crate::harness::api::StreamEvent::ToolStart {
+                                    tool_id,
+                                    name,
+                                    input,
+                                } => {
+                                    tool_name_map.insert(tool_id.clone(), name.clone());
 
-                                    let tool_name = tool_name_map.get(&tool_id)
+                                    // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
+                                    if !batch_buffer.is_empty() {
+                                        for batched_chunk in batch_buffer.drain(..) {
+                                            callback(batched_chunk);
+                                        }
+                                    }
+
+                                    let tool_event = json!({
+                                        "type": "tool_call",
+                                        "tool_call": {
+                                            "index": 0,
+                                            "id": tool_id,
+                                            "type": "function",
+                                            "function": { "name": name, "arguments": input }
+                                        }
+                                    });
+                                    callback(tool_event.to_string());
+                                }
+                                crate::harness::api::StreamEvent::ToolDone { tool_id, result } => {
+                                    if !batch_buffer.is_empty() {
+                                        for batched_chunk in batch_buffer.drain(..) {
+                                            callback(batched_chunk);
+                                        }
+                                    }
+
+                                    let result_str = result;
+
+                                    // 从 tool_name_map 获取工具名称（ToolStart 时已保存）
+                                    let tool_name_from_map = tool_name_map
+                                        .get(&tool_id)
                                         .map(|s| s.as_str())
-                                        .or_else(|| args.get("name").and_then(|v| v.as_str()))
-                                        .or_else(|| args.get("tool").and_then(|v| v.as_str()))
-                                        .unwrap_or("TodoWrite")
+                                        .unwrap_or("unknown")
                                         .to_string();
 
-                                    // 🔥 FIX: 为 bash 工具自动注入 working_dir 参数
-                                    if tool_name == "bash" || tool_name == "PowerShell" {
-                                        if let Some(obj) = args.as_object_mut() {
-                                            if !obj.contains_key("working_dir") {
-                                                if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                    // 🔥 FIX: 发送完整的 tool_call 事件给前端（包含完整 arguments）
+                                    // ToolStart 时 arguments 为空，前端 toolCallBuffer 等待完整 arguments
+                                    // 在 ToolDone 时 result 就是完整的 arguments JSON，发送给前端以完成累积
+                                    let complete_tool_event = json!({
+                                        "type": "tool_call",
+                                        "tool_call": {
+                                            "index": 0,
+                                            "id": tool_id,
+                                            "type": "function",
+                                            "function": {
+                                                "name": tool_name_from_map,
+                                                "arguments": result_str
+                                            }
+                                        }
+                                    });
+                                    callback(complete_tool_event.to_string());
+
+                                    let (tool_name, exec_result) = if let Ok(mut args) =
+                                        serde_json::from_str::<serde_json::Value>(&result_str)
+                                    {
+                                        let router = get_global_tool_router();
+
+                                        let tool_name = tool_name_map
+                                            .get(&tool_id)
+                                            .map(|s| s.as_str())
+                                            .or_else(|| args.get("name").and_then(|v| v.as_str()))
+                                            .or_else(|| args.get("tool").and_then(|v| v.as_str()))
+                                            .unwrap_or("TodoWrite")
+                                            .to_string();
+
+                                        // 🔥 FIX: 为 bash 工具自动注入 working_dir 参数
+                                        if tool_name == "bash" || tool_name == "PowerShell" {
+                                            if let Some(obj) = args.as_object_mut() {
+                                                if !obj.contains_key("working_dir") {
+                                                    if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
                                                     println!("[AI] 🔧 Auto-injecting working_dir={} for {}", project_root, tool_name);
                                                     obj.insert("working_dir".to_string(), serde_json::json!(project_root));
                                                 }
+                                                }
                                             }
                                         }
-                                    }
 
-                                    // 🔥 FIX: 为文件工具自动解析相对路径
-                                    if tool_name == "write_file" || tool_name == "edit_file" || tool_name == "read_file" {
-                                        if let Some(obj) = args.as_object_mut() {
-                                            if let Some(path) = obj.get("path").and_then(|v| v.as_str()) {
-                                                // 如果是相对路径（不以 / 开头），自动加上项目根目录
-                                                if !path.starts_with('/') {
-                                                    if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                        // 🔥 FIX: 为文件工具自动解析相对路径
+                                        if tool_name == "write_file"
+                                            || tool_name == "edit_file"
+                                            || tool_name == "read_file"
+                                        {
+                                            if let Some(obj) = args.as_object_mut() {
+                                                if let Some(path) =
+                                                    obj.get("path").and_then(|v| v.as_str())
+                                                {
+                                                    // 如果是相对路径（不以 / 开头），自动加上项目根目录
+                                                    if !path.starts_with('/') {
+                                                        if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
                                                         let full_path = format!("{}/{}", project_root.trim_end_matches('/'), path);
                                                         println!("[AI] 🔧 Auto-resolving path: {} -> {}", path, full_path);
                                                         obj.insert("path".to_string(), serde_json::json!(full_path));
                                                     }
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    // 🔥 FIX: 为搜索工具自动解析相对路径
-                                    if tool_name == "glob_search" || tool_name == "grep_search" {
-                                        if let Some(obj) = args.as_object_mut() {
-                                            // 获取或设置 path 参数（默认为 "."）
-                                            let path = obj.get("path").and_then(|v| v.as_str()).unwrap_or(".");
-                                            // 如果 path 是 "." 或者相对路径，自动解析为项目根目录
-                                            if path == "." || !path.starts_with('/') {
-                                                if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                        // 🔥 FIX: 为搜索工具自动解析相对路径
+                                        if tool_name == "glob_search" || tool_name == "grep_search"
+                                        {
+                                            if let Some(obj) = args.as_object_mut() {
+                                                // 获取或设置 path 参数（默认为 "."）
+                                                let path = obj
+                                                    .get("path")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or(".");
+                                                // 如果 path 是 "." 或者相对路径，自动解析为项目根目录
+                                                if path == "." || !path.starts_with('/') {
+                                                    if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
                                                     let resolved_path = if path == "." {
                                                         project_root.clone()
                                                     } else {
@@ -556,12 +622,12 @@ impl AIService for HarnessAIService {
                                                     println!("[AI] 🔧 Auto-resolving search path: {} -> {}", path, resolved_path);
                                                     obj.insert("path".to_string(), serde_json::json!(resolved_path));
                                                 }
+                                                }
                                             }
                                         }
-                                    }
 
-                                    // 🔥 审批门控：Schema-Driven 权限检查
-                                    let exec_result = if !crate::stream_schema_generated::requires_approval(
+                                        // 🔥 审批门控：Schema-Driven 权限检查
+                                        let exec_result = if !crate::stream_schema_generated::requires_approval(
                                         crate::stream_schema_generated::PermissionMode::ReadOnly,
                                         &tool_name,
                                     ) {
@@ -660,60 +726,79 @@ impl AIService for HarnessAIService {
                                         }
                                     };
 
-                                    // 🔥 DIAGNOSTIC: 打印工具执行详情，用于调试 TodoWrite
-                                    println!("[AI] 🔧 Tool executed: name={}, args_keys={:?}, has_todos={}",
+                                        // 🔥 DIAGNOSTIC: 打印工具执行详情，用于调试 TodoWrite
+                                        println!("[AI] 🔧 Tool executed: name={}, args_keys={:?}, has_todos={}",
                                         tool_name,
                                         args.as_object().map(|o| o.keys().collect::<Vec<_>>()),
                                         args.get("todos").is_some()
                                     );
 
-                                    // 🔄 文件操作工具执行成功后，刷新文件树
-                                    if matches!(tool_name.as_str(), "write_file" | "edit_file" | "agent_write_file" | "agent_delete_file") {
-                                        let _ = self.app.emit("file-tree-refresh", json!({
-                                            "action": "write",
-                                            "tool": tool_name
-                                        }));
-                                        println!("[AI] 🔄 Emitted file-tree-refresh event after {}", tool_name);
-                                    }
-
-                                    // 构建并发送 tool_done 事件
-                                    let mut done_event = json!({
-                                        "type": "tool_done",
-                                        "tool_call_id": tool_id,
-                                        "tool": tool_name,
-                                        "result": exec_result
-                                    });
-                                    if tool_name == "TodoWrite" {
-                                        if let Some(todos) = args.get("todos") {
-                                            println!("[AI] ✅ Adding todos to tool_done event: {} tasks", todos.as_array().map(|a| a.len()).unwrap_or(0));
-                                            done_event["todos"] = todos.clone();
-                                        } else {
-                                            println!("[AI] ⚠️ TodoWrite tool but no todos in args! args={}", args);
+                                        // 🔄 文件操作工具执行成功后，刷新文件树
+                                        if matches!(
+                                            tool_name.as_str(),
+                                            "write_file"
+                                                | "edit_file"
+                                                | "agent_write_file"
+                                                | "agent_delete_file"
+                                        ) {
+                                            let _ = self.app.emit(
+                                                "file-tree-refresh",
+                                                json!({
+                                                    "action": "write",
+                                                    "tool": tool_name
+                                                }),
+                                            );
+                                            println!(
+                                                "[AI] 🔄 Emitted file-tree-refresh event after {}",
+                                                tool_name
+                                            );
                                         }
-                                    }
-                                    callback(done_event.to_string());
 
-                                    (tool_name, exec_result)
-                                } else {
-                                    // JSON 解析失败：使用 tool_name_map 中的名称尝试执行
-                                    println!("[AI] ⚠️ Failed to parse tool args as JSON, trying fallback. result_str preview: {}",
+                                        // 构建并发送 tool_done 事件
+                                        let mut done_event = json!({
+                                            "type": "tool_done",
+                                            "tool_call_id": tool_id,
+                                            "tool": tool_name,
+                                            "result": exec_result
+                                        });
+                                        if tool_name == "TodoWrite" {
+                                            if let Some(todos) = args.get("todos") {
+                                                println!("[AI] ✅ Adding todos to tool_done event: {} tasks", todos.as_array().map(|a| a.len()).unwrap_or(0));
+                                                done_event["todos"] = todos.clone();
+                                            } else {
+                                                println!("[AI] ⚠️ TodoWrite tool but no todos in args! args={}", args);
+                                            }
+                                        }
+                                        callback(done_event.to_string());
+
+                                        (tool_name, exec_result)
+                                    } else {
+                                        // JSON 解析失败：使用 tool_name_map 中的名称尝试执行
+                                        println!("[AI] ⚠️ Failed to parse tool args as JSON, trying fallback. result_str preview: {}",
                                         result_str.chars().take(100).collect::<String>()
                                     );
 
-                                    let (resolved_name, exec_result) = if tool_name_from_map != "unknown" {
-                                        // 🔥 CRITICAL FIX: 尝试从 result_str 中提取 todos（用于 TodoWrite）
-                                        let maybe_todos = if tool_name_from_map == "TodoWrite" {
-                                            serde_json::from_str::<serde_json::Value>(&result_str)
+                                        let (resolved_name, exec_result) = if tool_name_from_map
+                                            != "unknown"
+                                        {
+                                            // 🔥 CRITICAL FIX: 尝试从 result_str 中提取 todos（用于 TodoWrite）
+                                            let maybe_todos = if tool_name_from_map == "TodoWrite" {
+                                                serde_json::from_str::<serde_json::Value>(
+                                                    &result_str,
+                                                )
                                                 .ok()
                                                 .and_then(|v| v.get("todos").cloned())
-                                        } else {
-                                            None
-                                        };
+                                            } else {
+                                                None
+                                            };
 
-                                        // 🔥 FIX: 为 bash 工具自动注入 working_dir（fallback 路径）
-                                        let mut fallback_args = serde_json::json!({"raw_input": &result_str});
-                                        if tool_name_from_map == "bash" || tool_name_from_map == "PowerShell" {
-                                            if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                            // 🔥 FIX: 为 bash 工具自动注入 working_dir（fallback 路径）
+                                            let mut fallback_args =
+                                                serde_json::json!({"raw_input": &result_str});
+                                            if tool_name_from_map == "bash"
+                                                || tool_name_from_map == "PowerShell"
+                                            {
+                                                if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
                                                 if let Some(obj) = fallback_args.as_object_mut() {
                                                     if !obj.contains_key("working_dir") {
                                                         println!("[AI] 🔧 Auto-injecting working_dir={} for {} (fallback)", project_root, tool_name_from_map);
@@ -721,11 +806,14 @@ impl AIService for HarnessAIService {
                                                     }
                                                 }
                                             }
-                                        }
+                                            }
 
-                                        // 🔥 FIX: 为文件工具自动解析相对路径（fallback 路径）
-                                        if tool_name_from_map == "write_file" || tool_name_from_map == "edit_file" || tool_name_from_map == "read_file" {
-                                            if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                            // 🔥 FIX: 为文件工具自动解析相对路径（fallback 路径）
+                                            if tool_name_from_map == "write_file"
+                                                || tool_name_from_map == "edit_file"
+                                                || tool_name_from_map == "read_file"
+                                            {
+                                                if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
                                                 if let Some(obj) = fallback_args.as_object_mut() {
                                                     if let Some(path) = obj.get("path").and_then(|v| v.as_str()) {
                                                         // 如果是相对路径（不以 / 开头），自动加上项目根目录
@@ -737,11 +825,13 @@ impl AIService for HarnessAIService {
                                                     }
                                                 }
                                             }
-                                        }
+                                            }
 
-                                        // 🔥 FIX: 为搜索工具自动解析相对路径（fallback 路径）
-                                        if tool_name_from_map == "glob_search" || tool_name_from_map == "grep_search" {
-                                            if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                            // 🔥 FIX: 为搜索工具自动解析相对路径（fallback 路径）
+                                            if tool_name_from_map == "glob_search"
+                                                || tool_name_from_map == "grep_search"
+                                            {
+                                                if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
                                                 if let Some(obj) = fallback_args.as_object_mut() {
                                                     // 获取或设置 path 参数（默认为 "."）
                                                     let path = obj.get("path").and_then(|v| v.as_str()).unwrap_or(".");
@@ -757,10 +847,10 @@ impl AIService for HarnessAIService {
                                                     }
                                                 }
                                             }
-                                        }
+                                            }
 
-                                        // 🔥 fallback 路径审批门控（Schema-Driven）
-                                        let exec = if !crate::stream_schema_generated::requires_approval(
+                                            // 🔥 fallback 路径审批门控（Schema-Driven）
+                                            let exec = if !crate::stream_schema_generated::requires_approval(
                                             crate::stream_schema_generated::PermissionMode::ReadOnly,
                                             &tool_name_from_map,
                                         ) {
@@ -830,79 +920,94 @@ impl AIService for HarnessAIService {
                                             }
                                         };
 
-                                        // 🔄 文件操作工具执行成功后，刷新文件树（fallback 路径）
-                                        if matches!(tool_name_from_map.as_str(), "write_file" | "edit_file" | "agent_write_file" | "agent_delete_file") {
-                                            let _ = self.app.emit("file-tree-refresh", json!({
-                                                "action": "write",
-                                                "tool": tool_name_from_map
-                                            }));
-                                            println!("[AI] 🔄 Emitted file-tree-refresh event after {} (fallback)", tool_name_from_map);
-                                        }
+                                            // 🔄 文件操作工具执行成功后，刷新文件树（fallback 路径）
+                                            if matches!(
+                                                tool_name_from_map.as_str(),
+                                                "write_file"
+                                                    | "edit_file"
+                                                    | "agent_write_file"
+                                                    | "agent_delete_file"
+                                            ) {
+                                                let _ = self.app.emit(
+                                                    "file-tree-refresh",
+                                                    json!({
+                                                        "action": "write",
+                                                        "tool": tool_name_from_map
+                                                    }),
+                                                );
+                                                println!("[AI] 🔄 Emitted file-tree-refresh event after {} (fallback)", tool_name_from_map);
+                                            }
 
-                                        let mut done_event = json!({
-                                            "type": "tool_done",
-                                            "tool_call_id": tool_id,
-                                            "tool": tool_name_from_map,
-                                            "result": exec
-                                        });
-                                        // 🔥 CRITICAL FIX: 如果是 TodoWrite 且有 todos，添加到事件中
-                                        if let Some(todos) = maybe_todos {
-                                            println!("[AI] ✅ Adding todos to fallback tool_done event");
-                                            done_event["todos"] = todos;
-                                        }
-                                        callback(done_event.to_string());
-                                        (tool_name_from_map, exec)
-                                    } else {
-                                        // 🔥 CRITICAL FIX: 工具名称未知时也返回 JSON 格式
-                                        let err_json = serde_json::json!({
+                                            let mut done_event = json!({
+                                                "type": "tool_done",
+                                                "tool_call_id": tool_id,
+                                                "tool": tool_name_from_map,
+                                                "result": exec
+                                            });
+                                            // 🔥 CRITICAL FIX: 如果是 TodoWrite 且有 todos，添加到事件中
+                                            if let Some(todos) = maybe_todos {
+                                                println!("[AI] ✅ Adding todos to fallback tool_done event");
+                                                done_event["todos"] = todos;
+                                            }
+                                            callback(done_event.to_string());
+                                            (tool_name_from_map, exec)
+                                        } else {
+                                            // 🔥 CRITICAL FIX: 工具名称未知时也返回 JSON 格式
+                                            let err_json = serde_json::json!({
                                             "error": true,
                                             "success": false,
                                             "message": "工具参数解析失败，且无法确定工具名称",
                                             "tool_call_id": tool_id,
                                             "raw_input": result_str.chars().take(200).collect::<String>()
                                         }).to_string();
-                                        callback(json!({
-                                            "type": "tool_done",
-                                            "tool_call_id": tool_id,
-                                            "result": err_json
-                                        }).to_string());
-                                        ("unknown".to_string(), err_json)
+                                            callback(
+                                                json!({
+                                                    "type": "tool_done",
+                                                    "tool_call_id": tool_id,
+                                                    "result": err_json
+                                                })
+                                                .to_string(),
+                                            );
+                                            ("unknown".to_string(), err_json)
+                                        };
+
+                                        (resolved_name, exec_result)
                                     };
 
-                                    (resolved_name, exec_result)
-                                };
-
-                                collected_tool_calls.push(CollectedToolCall {
-                                    tool_id: tool_id.clone(),
-                                    tool_name: tool_name.clone(),
-                                    arguments: result_str,
-                                    execution_result: exec_result,
-                                });
-                            }
-                            crate::harness::api::StreamEvent::MessageDone { input_tokens: _, output_tokens: _ } => {
-                                if !batch_buffer.is_empty() {
-                                    for batched_chunk in batch_buffer.drain(..) {
-                                        callback(batched_chunk);
+                                    collected_tool_calls.push(CollectedToolCall {
+                                        tool_id: tool_id.clone(),
+                                        tool_name: tool_name.clone(),
+                                        arguments: result_str,
+                                        execution_result: exec_result,
+                                    });
+                                }
+                                crate::harness::api::StreamEvent::MessageDone {
+                                    input_tokens: _,
+                                    output_tokens: _,
+                                } => {
+                                    if !batch_buffer.is_empty() {
+                                        for batched_chunk in batch_buffer.drain(..) {
+                                            callback(batched_chunk);
+                                        }
                                     }
                                 }
-                            }
-                            crate::harness::api::StreamEvent::Error { code, message } => {
-                                if !batch_buffer.is_empty() {
-                                    for batched_chunk in batch_buffer.drain(..) {
-                                        callback(batched_chunk);
+                                crate::harness::api::StreamEvent::Error { code, message } => {
+                                    if !batch_buffer.is_empty() {
+                                        for batched_chunk in batch_buffer.drain(..) {
+                                            callback(batched_chunk);
+                                        }
                                     }
-                                }
 
-                                println!("[AI] Stream error: {} - {}", code, message);
-                                let error_event = json!({
-                                    "type": "error", "code": code, "message": message
-                                });
-                                callback(error_event.to_string());
-                                has_error = true;
+                                    println!("[AI] Stream error: {} - {}", code, message);
+                                    let error_event = json!({
+                                        "type": "error", "code": code, "message": message
+                                    });
+                                    callback(error_event.to_string());
+                                    has_error = true;
+                                }
                             }
-                        }
-                    }  // match event
-                    }  // for event in events
+                        } // match event
+                    } // for event in events
                     Err(e) => {
                         println!("[AI] ❌ Batch stream error: {:?}", e);
                         has_error = true;
@@ -915,8 +1020,8 @@ impl AIService for HarnessAIService {
 
                         break;
                     }
-                }  // match batch_stream.next_batch()
-            }  // loop
+                } // match batch_stream.next_batch()
+            } // loop
 
             println!("[AI] 🔚 While loop ended, event_count={}", event_count);
 
@@ -929,8 +1034,13 @@ impl AIService for HarnessAIService {
 
             // 🔥 FIX: 简化日志（只输出关键信息）
             if has_error || collected_tool_calls.is_empty() {
-                println!("[AI] Loop {} ended: events={}, tool_calls={}, error={}",
-                    loop_count, event_count, collected_tool_calls.len(), has_error);
+                println!(
+                    "[AI] Loop {} ended: events={}, tool_calls={}, error={}",
+                    loop_count,
+                    event_count,
+                    collected_tool_calls.len(),
+                    has_error
+                );
             }
 
             // 判断是否需要续接 (claw-code 模式：主要退出条件)
@@ -951,11 +1061,16 @@ impl AIService for HarnessAIService {
 
             // 🔥 FIX: 简化续接日志
             if loop_count % 5 == 0 {
-                println!("[AI] 🔄 Loop {} continuing ({} tools)", loop_count, collected_tool_calls.len());
+                println!(
+                    "[AI] 🔄 Loop {} continuing ({} tools)",
+                    loop_count,
+                    collected_tool_calls.len()
+                );
             }
 
             // 安全网：检测连续相同的工具调用签名
-            let current_sig: String = collected_tool_calls.iter()
+            let current_sig: String = collected_tool_calls
+                .iter()
                 .map(|tc| format!("{}:{}", tc.tool_name, tc.arguments.len()))
                 .collect::<Vec<_>>()
                 .join("|");
@@ -968,12 +1083,18 @@ impl AIService for HarnessAIService {
             }
 
             if consecutive_same_tool_count >= 3 {
-                println!("[AI] Loop detected ({}x same sig), stopping", consecutive_same_tool_count + 1);
-                callback(json!({
-                    "type": "error",
-                    "code": "LOOP_DETECTED",
-                    "message": format!("工具调用陷入循环")
-                }).to_string());
+                println!(
+                    "[AI] Loop detected ({}x same sig), stopping",
+                    consecutive_same_tool_count + 1
+                );
+                callback(
+                    json!({
+                        "type": "error",
+                        "code": "LOOP_DETECTED",
+                        "message": format!("工具调用陷入循环")
+                    })
+                    .to_string(),
+                );
                 let finish_event = json!({
                     "choices": [{ "finish_reason": "stop" }]
                 });
@@ -985,16 +1106,17 @@ impl AIService for HarnessAIService {
             // 工具调用信息已在 ToolStart/ToolDone 时输出
 
             // 构建 assistant 消息（包含 tool_calls）
-            let tool_calls_for_msg: Vec<HarnessToolCall> = collected_tool_calls.iter().map(|tc| {
-                HarnessToolCall {
+            let tool_calls_for_msg: Vec<HarnessToolCall> = collected_tool_calls
+                .iter()
+                .map(|tc| HarnessToolCall {
                     id: tc.tool_id.clone(),
                     call_type: "function".to_string(),
                     function: HarnessToolCallFunction {
                         name: tc.tool_name.clone(),
                         arguments: tc.arguments.clone(),
                     },
-                }
-            }).collect();
+                })
+                .collect();
 
             stream_messages.push(HarnessMessage {
                 role: MessageRole::Assistant,
@@ -1007,7 +1129,9 @@ impl AIService for HarnessAIService {
             for tc in &collected_tool_calls {
                 stream_messages.push(HarnessMessage {
                     role: MessageRole::Tool,
-                    content: crate::harness::api::types::MessageContent::Text(tc.execution_result.clone()),
+                    content: crate::harness::api::types::MessageContent::Text(
+                        tc.execution_result.clone(),
+                    ),
                     tool_calls: None,
                     tool_call_id: Some(tc.tool_id.clone()),
                 });

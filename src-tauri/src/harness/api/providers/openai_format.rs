@@ -88,7 +88,8 @@ mod tests {
 
     #[test]
     fn test_parse_openai_content_delta() {
-        let frame = r#"data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"Hello"}}]}"#;
+        let frame =
+            r#"data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"Hello"}}]}"#;
         let result = parse_openai_frame(frame).unwrap();
         assert!(result.is_some());
         let data = result.unwrap();

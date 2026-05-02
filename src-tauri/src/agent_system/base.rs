@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use async_trait::async_trait;
 use anyhow::Result;
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -31,7 +31,7 @@ pub struct AgentContext {
     pub initial_prompt: String,
     pub variables: HashMap<String, String>,
     pub provider_config: crate::core_traits::ai::AIProviderConfig,
-    pub current_model: Option<String>,  // 🔥 用户当前选择的模型
+    pub current_model: Option<String>, // 🔥 用户当前选择的模型
 }
 
 #[async_trait]

@@ -23,17 +23,11 @@ use tokio::sync::Mutex;
 #[derive(Debug, Clone)]
 pub enum RouteDecision {
     /// 使用本地模型
-    Local {
-        reason: String,
-    },
+    Local { reason: String },
     /// 使用云端 API
-    Cloud {
-        reason: String,
-    },
+    Cloud { reason: String },
     /// 混合模式：本地解析工具，云端生成内容
-    Hybrid {
-        reason: String,
-    },
+    Hybrid { reason: String },
 }
 
 /// 任务复杂度评估
@@ -81,10 +75,7 @@ impl IntelligenceRouter {
     /// 判断任务复杂度
     pub fn assess_complexity(&self, messages: &[Message]) -> TaskComplexity {
         // 获取最后一条用户消息
-        let user_message = messages
-            .iter()
-            .filter(|m| m.role == "user")
-            .last();
+        let user_message = messages.iter().filter(|m| m.role == "user").last();
 
         let text = match user_message {
             Some(msg) => extract_text_content(&msg.content),
@@ -111,7 +102,12 @@ impl IntelligenceRouter {
         println!("[Router] text='{}', is_tool_request={}, requires_ai_tool={}, is_long_context={}, tokens={}, msg_len={}",
                  text.chars().take(1024).collect::<String>(), is_tool_request, requires_ai_tool, is_long_context, estimated_tokens, conversation_length);
 
-        match (is_tool_request, is_simple_query, is_long_context, requires_ai_tool) {
+        match (
+            is_tool_request,
+            is_simple_query,
+            is_long_context,
+            requires_ai_tool,
+        ) {
             // 🆕 P2: 需要 AI 工具调用的任务（TodoWrite 等）必须路由到云端
             (_, _, _, true) => {
                 TaskComplexity::Complex // 强制使用云端 API
@@ -187,9 +183,17 @@ impl IntelligenceRouter {
 
         // 简单查询特征
         let simple_keywords = [
-            "是什么", "怎么用", "如何", "什么意思",
-            "what is", "how to", "how do", "explain",
-            "定义", "解释", "说明",
+            "是什么",
+            "怎么用",
+            "如何",
+            "什么意思",
+            "what is",
+            "how to",
+            "how do",
+            "explain",
+            "定义",
+            "解释",
+            "说明",
         ];
 
         // 短查询（< 100字符）
@@ -208,10 +212,19 @@ impl IntelligenceRouter {
 
         // TodoWrite 相关关键词
         let todowrite_keywords = [
-            "任务列表", "todo list", "todolist", "to-do",
-            "创建任务", "添加任务", "新建任务",
-            "任务清单", "checklist", "check list",
-            "行动计划", "action items", "action plan",
+            "任务列表",
+            "todo list",
+            "todolist",
+            "to-do",
+            "创建任务",
+            "添加任务",
+            "新建任务",
+            "任务清单",
+            "checklist",
+            "check list",
+            "行动计划",
+            "action items",
+            "action plan",
         ];
 
         // 检测是否需要 AI 工具调用
@@ -230,16 +243,49 @@ impl IntelligenceRouter {
         // 检查明确的工具调用关键词（文件操作类）
         let tool_keywords = [
             // 文件操作
-            "读取文件", "写入文件", "创建文件", "删除文件", "搜索", "查找",
-            "read file", "write file", "create file", "delete file", "search", "find",
-            "打开", "关闭", "列出", "显示",
-            "open", "close", "list", "show",
-            "explore", "scan", "查看", "目录",
-            "folder", "dir", "ls",
+            "读取文件",
+            "写入文件",
+            "创建文件",
+            "删除文件",
+            "搜索",
+            "查找",
+            "read file",
+            "write file",
+            "create file",
+            "delete file",
+            "search",
+            "find",
+            "打开",
+            "关闭",
+            "列出",
+            "显示",
+            "open",
+            "close",
+            "list",
+            "show",
+            "explore",
+            "scan",
+            "查看",
+            "目录",
+            "folder",
+            "dir",
+            "ls",
             // 🔥 命令执行相关（v0.5.0 新增）
-            "执行", "运行", "命令", "command", "bash", "shell",
-            "execute", "run", "terminal",
-            "git", "npm", "yarn", "pnpm", "pip", "cargo",
+            "执行",
+            "运行",
+            "命令",
+            "command",
+            "bash",
+            "shell",
+            "execute",
+            "run",
+            "terminal",
+            "git",
+            "npm",
+            "yarn",
+            "pnpm",
+            "pip",
+            "cargo",
         ];
 
         tool_keywords.iter().any(|kw| text_lower.contains(kw))
@@ -253,7 +299,8 @@ impl IntelligenceRouter {
         let debug_keywords = ["修复", "报错", "错误", "bug", "fix", "error", "panic"];
 
         // 物理报错特征 (E0XXX, TSXXXX, Traceback)
-        let has_error_code = text.contains("error[E") || text.contains("error TS") || text.contains("Traceback");
+        let has_error_code =
+            text.contains("error[E") || text.contains("error TS") || text.contains("Traceback");
 
         let has_keyword = debug_keywords.iter().any(|kw| text_lower.contains(kw));
 
@@ -275,19 +322,17 @@ impl Default for IntelligenceRouter {
 pub fn extract_text_content(content: &crate::core_traits::ai::Content) -> String {
     match content {
         crate::core_traits::ai::Content::Text(text) => text.clone(),
-        crate::core_traits::ai::Content::Parts(parts) => {
-            parts
-                .iter()
-                .filter_map(|p| {
-                    if let crate::core_traits::ai::ContentPart::Text { text, .. } = p {
-                        Some(text.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
+        crate::core_traits::ai::Content::Parts(parts) => parts
+            .iter()
+            .filter_map(|p| {
+                if let crate::core_traits::ai::ContentPart::Text { text, .. } = p {
+                    Some(text.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
     }
 }
 
@@ -298,7 +343,7 @@ pub fn extract_text_content(content: &crate::core_traits::ai::Content) -> String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core_traits::ai::{Message, Content};
+    use crate::core_traits::ai::{Content, Message};
 
     #[test]
     fn test_assess_simple_query() {

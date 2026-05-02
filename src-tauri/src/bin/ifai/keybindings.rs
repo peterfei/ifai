@@ -2,9 +2,9 @@
 //!
 //! 提供快捷键分类和渲染功能，用于 TUI 帮助覆盖层
 
+use ratatui::layout::Alignment;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
-use ratatui::layout::Alignment;
 
 /// 帮助覆盖层组件
 pub struct HelpOverlay {
@@ -25,12 +25,10 @@ impl HelpOverlay {
         let mut lines = Vec::new();
 
         // 顶部标题栏
-        lines.push(Line::from(vec![
-            Span::styled(
-                "╔════════════════════════════════════════════════════════╗",
-                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-            ),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "╔════════════════════════════════════════════════════════╗",
+            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+        )]));
         lines.push(Line::from(vec![
             Span::styled(
                 "║",
@@ -50,12 +48,10 @@ impl HelpOverlay {
                 ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
             ),
         ]));
-        lines.push(Line::from(vec![
-            Span::styled(
-                "╚════════════════════════════════════════════════════════╝",
-                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-            ),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "╚════════════════════════════════════════════════════════╝",
+            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+        )]));
 
         // 空行
         lines.push(Line::from(""));
@@ -153,11 +149,11 @@ pub fn get_all_categories() -> Vec<KeybindingCategory> {
                 },
                 KeyBinding {
                     keys: "Ctrl+C",
-                    description: "清空输入 / 中断",
+                    description: "清空输入 / 退出（空输入框时）",
                 },
                 KeyBinding {
                     keys: "Ctrl+D",
-                    description: "退出程序",
+                    description: "退出程序（空输入框时）",
                 },
                 KeyBinding {
                     keys: "↑/↓",
@@ -183,6 +179,35 @@ pub fn get_all_categories() -> Vec<KeybindingCategory> {
                 KeyBinding {
                     keys: "Esc",
                     description: "退出搜索",
+                },
+            ],
+        ),
+        KeybindingCategory::new(
+            "📖 查看详情",
+            vec![
+                KeyBinding {
+                    keys: "Ctrl+O",
+                    description: "全屏查看 AI 响应（Toggle 关闭）",
+                },
+                KeyBinding {
+                    keys: "j/k / ↑/↓",
+                    description: "滚动内容",
+                },
+                KeyBinding {
+                    keys: "Space",
+                    description: "向下翻页",
+                },
+                KeyBinding {
+                    keys: "PageUp/PageDn",
+                    description: "快速翻页",
+                },
+                KeyBinding {
+                    keys: "g / G",
+                    description: "跳转到顶部/底部",
+                },
+                KeyBinding {
+                    keys: "Esc / q / Ctrl+C",
+                    description: "退出详情视图",
                 },
             ],
         ),
@@ -247,12 +272,10 @@ mod tests {
     fn test_keybinding_category_render() {
         let category = KeybindingCategory::new(
             "测试分类",
-            vec![
-                KeyBinding {
-                    keys: "A",
-                    description: "测试 A",
-                },
-            ],
+            vec![KeyBinding {
+                keys: "A",
+                description: "测试 A",
+            }],
         );
 
         let lines = category.render();
@@ -263,11 +286,17 @@ mod tests {
     #[test]
     fn test_get_all_categories() {
         let categories = get_all_categories();
-        assert_eq!(categories.len(), 4);
+        assert_eq!(categories.len(), 5);
 
         // 验证每个分类都有快捷键
         for category in &categories {
             assert!(!category.bindings.is_empty());
         }
+
+        // 验证包含 Ctrl+O
+        let view_category = categories.iter()
+            .find(|c| c.name == "📖 查看详情")
+            .expect("应该有查看详情分类");
+        assert!(view_category.bindings.iter().any(|b| b.keys.contains("Ctrl+O")));
     }
 }

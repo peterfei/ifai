@@ -37,7 +37,11 @@ impl PermissionPolicy {
     }
 
     /// 设置工具的权限要求
-    pub fn with_tool_requirement(mut self, tool_name: &str, requirement: ToolPermissionMode) -> Self {
+    pub fn with_tool_requirement(
+        mut self,
+        tool_name: &str,
+        requirement: ToolPermissionMode,
+    ) -> Self {
         {
             let mut requirements = self.tool_requirements.write().unwrap();
             requirements.insert(tool_name.to_string(), requirement);
@@ -46,7 +50,11 @@ impl PermissionPolicy {
     }
 
     /// 检查工具权限
-    pub fn check_permission(&self, tool_name: &str, tool_required: ToolPermissionMode) -> PermissionDecision {
+    pub fn check_permission(
+        &self,
+        tool_name: &str,
+        tool_required: ToolPermissionMode,
+    ) -> PermissionDecision {
         let current = self.current_mode();
 
         // 检查工具特定的权限要求
@@ -108,9 +116,7 @@ pub enum PermissionDecision {
     },
 
     /// 拒绝执行
-    Denied {
-        reason: String,
-    },
+    Denied { reason: String },
 }
 
 /// 权限错误

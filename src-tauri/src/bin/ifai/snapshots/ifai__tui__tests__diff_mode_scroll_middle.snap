@@ -1,0 +1,28 @@
+---
+source: src/bin/ifai/tui.rs
+expression: text
+---
+  21    0 -line 21                                                         ↑41% 
+  22    0 -line 22                                                              
+  23    0 -line 23                                                              
+  24    0 -line 24                                                              
+  25    0 -line 25                                                              
+  26    0 -line 26                                                              
+  27    0 -line 27                                                              
+  28    0 -line 28                                                              
+  29    0 -line 29                                                              
+  30    0 -line 30                                                              
+  31    0 -line 31                                                              
+  32    0 -line 32                                                              
+  33    0 -line 33                                                              
+  34    0 -line 34                                                              
+  35    0 -line 35                                                              
+  36    0 -line 36                                                              
+  37    0 -line 37                                                              
+  38    0 -line 38                                                              
+  39    0 -line 39                                                              
+  40    0 -line 40                                                              
+  41    0 -line 41                                                              
+ Diff: large_file.rs [1/1] | ←/→ 或  [/] 切 换 文 件  | j/k 滚 动  | q/Esc 退 出         
+────────────────────────────────────────────────────────────────────────────────
+(Diff 模 式  - 按  q/Esc/Ctrl+D 退 出 )

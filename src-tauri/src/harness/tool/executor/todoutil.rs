@@ -23,7 +23,10 @@ impl TodoWriteExecutor {
         let mut allowed_tools = HashSet::new();
         allowed_tools.insert("TodoWrite".to_string());
 
-        Self { store, allowed_tools }
+        Self {
+            store,
+            allowed_tools,
+        }
     }
 
     /// 处理 TodoWrite 工具调用
@@ -44,9 +47,9 @@ impl TodoWriteExecutor {
         }
 
         // 写入 TaskStore
-        self.store.set_tasks(tasks).map_err(|e| {
-            ToolError::Execution(format!("Failed to write tasks to store: {}", e))
-        })?;
+        self.store
+            .set_tasks(tasks)
+            .map_err(|e| ToolError::Execution(format!("Failed to write tasks to store: {}", e)))?;
 
         // 返回成功消息
         let task_count = todos_array.len();
@@ -63,10 +66,7 @@ impl TodoWriteExecutor {
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                ToolError::InvalidInput(format!(
-                    "Task at index {} missing 'content' field",
-                    index
-                ))
+                ToolError::InvalidInput(format!("Task at index {} missing 'content' field", index))
             })?
             .to_string();
 

@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 #[cfg(feature = "commercial")]
-use ifainew_core::skills::{SkillRegistry, Skill, SkillState};
+use ifainew_core::skills::{Skill, SkillRegistry, SkillState};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SkillInfo {
@@ -14,9 +14,7 @@ pub struct SkillInfo {
 }
 
 #[tauri::command]
-pub async fn get_available_skills(
-    project_root: String,
-) -> Result<Vec<serde_json::Value>, String> {
+pub async fn get_available_skills(project_root: String) -> Result<Vec<serde_json::Value>, String> {
     println!("[SkillCommand] Request received for root: {}", project_root);
 
     #[cfg(feature = "commercial")]
@@ -58,11 +56,14 @@ pub async fn get_available_skills(
 /// 初始化技能目录结构并生成示例技能
 #[tauri::command]
 pub async fn init_skills_dir(project_root: String) -> Result<bool, String> {
-    println!("[SkillCommand] Initializing skills directory for: {}", project_root);
-    
+    println!(
+        "[SkillCommand] Initializing skills directory for: {}",
+        project_root
+    );
+
     let mut ifai_path = PathBuf::from(&project_root);
     ifai_path.push(".ifai");
-    
+
     let mut skills_path = ifai_path.clone();
     skills_path.push("skills");
 
@@ -91,11 +92,26 @@ pub async fn init_skills_dir(project_root: String) -> Result<bool, String> {
     if let Ok(entries) = fs::read_dir(&ifai_path) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() && path.file_name().map(|n| n != "skills" && n != "proposals" && n != "archive" && n != "changes" && n != "sessions" && n != "templates").unwrap_or(false) {
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .map(|n| {
+                        n != "skills"
+                            && n != "proposals"
+                            && n != "archive"
+                            && n != "changes"
+                            && n != "sessions"
+                            && n != "templates"
+                    })
+                    .unwrap_or(false)
+            {
                 let config_path = path.join("skill.json");
                 if config_path.exists() {
                     let target_dir = skills_path.join(path.file_name().unwrap());
-                    println!("[SkillCommand] Auto-migrating skill from {:?} to {:?}", path, target_dir);
+                    println!(
+                        "[SkillCommand] Auto-migrating skill from {:?} to {:?}",
+                        path, target_dir
+                    );
                     let _ = fs::rename(path, target_dir);
                 }
             }
@@ -143,54 +159,61 @@ pub async fn install_skill(
     source: Option<String>,
     skill_data: Option<serde_json::Value>,
 ) -> Result<bool, String> {
-    println!("[SkillCommand] Installing skill: {} (version: {:?}, source: {:?})",
-             skill_id, version, source);
+    println!(
+        "[SkillCommand] Installing skill: {} (version: {:?}, source: {:?})",
+        skill_id, version, source
+    );
 
     let mut skills_path = PathBuf::from(&project_root);
     skills_path.push(".ifai");
     skills_path.push("skills");
 
     // 确保技能目录存在
-    fs::create_dir_all(&skills_path)
-        .map_err(|e| format!("创建技能目录失败: {}", e))?;
+    fs::create_dir_all(&skills_path).map_err(|e| format!("创建技能目录失败: {}", e))?;
 
     // 检查是否从技能市场安装（传递了 skill_data）
     if let Some(data) = skill_data {
         println!("[SkillCommand] Installing skill from marketplace data");
 
         let skill_dir = skills_path.join(&skill_id);
-        fs::create_dir_all(&skill_dir)
-            .map_err(|e| format!("创建技能目录失败: {}", e))?;
+        fs::create_dir_all(&skill_dir).map_err(|e| format!("创建技能目录失败: {}", e))?;
 
         // 构建 Markdown 格式的技能文件
-        let name = data.get("displayName")
+        let name = data
+            .get("displayName")
             .or(data.get("name"))
             .and_then(|v| v.as_str())
             .unwrap_or(&skill_id);
 
-        let description = data.get("description")
+        let description = data
+            .get("description")
             .and_then(|v| v.as_str())
             .unwrap_or("暂无描述");
 
-        let long_description = data.get("longDescription")
+        let long_description = data
+            .get("longDescription")
             .or(data.get("description"))
             .and_then(|v| v.as_str())
             .unwrap_or(description);
 
-        let version_str = data.get("version")
+        let version_str = data
+            .get("version")
             .and_then(|v| v.as_str())
             .or(version.as_deref())
             .unwrap_or("1.0.0");
 
-        let author = data.get("author")
+        let author = data
+            .get("author")
             .and_then(|v| v.as_str())
             .unwrap_or("Unknown");
 
-        let system_prompt = data.get("systemPrompt")
+        let system_prompt = data
+            .get("systemPrompt")
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        let tags = data.get("tags")
+        let tags = data
+            .get("tags")
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
@@ -201,7 +224,8 @@ pub async fn install_skill(
             .unwrap_or_else(|| String::new());
 
         // 构建 Markdown 内容
-        let markdown_content = format!(r#"---
+        let markdown_content = format!(
+            r#"---
 name: {}
 id: {}
 description: {}
@@ -219,20 +243,12 @@ metadata:
 
 {}
 "#,
-            name,
-            skill_id,
-            description,
-            author,
-            version_str,
-            tags,
-            long_description,
-            system_prompt
+            name, skill_id, description, author, version_str, tags, long_description, system_prompt
         );
 
         // 写入 skill.md 文件
         let skill_md = skill_dir.join("skill.md");
-        fs::write(&skill_md, markdown_content)
-            .map_err(|e| format!("写入技能文件失败: {}", e))?;
+        fs::write(&skill_md, markdown_content).map_err(|e| format!("写入技能文件失败: {}", e))?;
 
         // 同时生成 skill.json 以便兼容性
         let skill_json = serde_json::json!({
@@ -253,10 +269,16 @@ metadata:
         });
 
         let skill_json_path = skill_dir.join("skill.json");
-        fs::write(&skill_json_path, serde_json::to_string_pretty(&skill_json).unwrap())
-            .map_err(|e| format!("写入skill.json失败: {}", e))?;
+        fs::write(
+            &skill_json_path,
+            serde_json::to_string_pretty(&skill_json).unwrap(),
+        )
+        .map_err(|e| format!("写入skill.json失败: {}", e))?;
 
-        println!("[SkillCommand] Skill {} installed successfully from marketplace", skill_id);
+        println!(
+            "[SkillCommand] Skill {} installed successfully from marketplace",
+            skill_id
+        );
         return Ok(true);
     }
 
@@ -440,12 +462,10 @@ metadata:
 
         for (skill_id, skill_content) in example_skills {
             let skill_dir = skills_path.join(skill_id);
-            fs::create_dir_all(&skill_dir)
-                .map_err(|e| format!("创建技能目录失败: {}", e))?;
+            fs::create_dir_all(&skill_dir).map_err(|e| format!("创建技能目录失败: {}", e))?;
 
             let skill_md = skill_dir.join("skill.md");
-            fs::write(&skill_md, skill_content)
-                .map_err(|e| format!("写入技能文件失败: {}", e))?;
+            fs::write(&skill_md, skill_content).map_err(|e| format!("写入技能文件失败: {}", e))?;
             println!("[SkillCommand] Installed skill: {}", skill_id);
         }
 
@@ -455,16 +475,16 @@ metadata:
 
     // 如果是具体的技能ID，从技能市场查找并安装
     // 这里暂时返回错误，提示用户功能待实现
-    Err(format!("技能 '{}' 暂未在技能库中找到。请使用'安装示例技能'功能。", skill_id))
+    Err(format!(
+        "技能 '{}' 暂未在技能库中找到。请使用'安装示例技能'功能。",
+        skill_id
+    ))
 }
 
 /// 卸载技能
 #[cfg(feature = "commercial")]
 #[tauri::command]
-pub async fn uninstall_skill(
-    project_root: String,
-    skill_id: String,
-) -> Result<bool, String> {
+pub async fn uninstall_skill(project_root: String, skill_id: String) -> Result<bool, String> {
     println!("[SkillCommand] Uninstalling skill: {}", skill_id);
 
     let mut skills_path = PathBuf::from(&project_root);
@@ -474,8 +494,7 @@ pub async fn uninstall_skill(
     // 删除技能目录
     let skill_dir = skills_path.join(&skill_id);
     if skill_dir.exists() {
-        fs::remove_dir_all(&skill_dir)
-            .map_err(|e| format!("删除技能目录失败: {}", e))?;
+        fs::remove_dir_all(&skill_dir).map_err(|e| format!("删除技能目录失败: {}", e))?;
 
         println!("[SkillCommand] Skill {} uninstalled successfully", skill_id);
         Ok(true)
@@ -487,10 +506,7 @@ pub async fn uninstall_skill(
 /// 激活技能
 #[cfg(feature = "commercial")]
 #[tauri::command]
-pub async fn activate_skill(
-    project_root: String,
-    skill_id: String,
-) -> Result<bool, String> {
+pub async fn activate_skill(project_root: String, skill_id: String) -> Result<bool, String> {
     println!("[SkillCommand] Activating skill: {}", skill_id);
 
     let mut skills_path = PathBuf::from(&project_root);
@@ -508,10 +524,7 @@ pub async fn activate_skill(
 /// 停用技能
 #[cfg(feature = "commercial")]
 #[tauri::command]
-pub async fn deactivate_skill(
-    project_root: String,
-    skill_id: String,
-) -> Result<bool, String> {
+pub async fn deactivate_skill(project_root: String, skill_id: String) -> Result<bool, String> {
     println!("[SkillCommand] Deactivating skill: {}", skill_id);
 
     let mut skills_path = PathBuf::from(&project_root);
@@ -528,10 +541,7 @@ pub async fn deactivate_skill(
 /// 创建新技能
 #[cfg(feature = "commercial")]
 #[tauri::command]
-pub async fn create_skill(
-    project_root: String,
-    skill: serde_json::Value,
-) -> Result<bool, String> {
+pub async fn create_skill(project_root: String, skill: serde_json::Value) -> Result<bool, String> {
     println!("[SkillCommand] Creating skill: {}", skill["id"]);
 
     let mut skills_path = PathBuf::from(&project_root);
@@ -539,19 +549,17 @@ pub async fn create_skill(
     skills_path.push("skills");
 
     // 确保技能目录存在
-    fs::create_dir_all(&skills_path)
-        .map_err(|e| format!("创建技能目录失败: {}", e))?;
+    fs::create_dir_all(&skills_path).map_err(|e| format!("创建技能目录失败: {}", e))?;
 
     // 创建技能子目录
     let skill_id = skill["id"].as_str().ok_or("技能ID不能为空")?;
     let skill_dir = skills_path.join(&skill_id);
 
-    fs::create_dir_all(&skill_dir)
-        .map_err(|e| format!("创建技能子目录失败: {}", e))?;
+    fs::create_dir_all(&skill_dir).map_err(|e| format!("创建技能子目录失败: {}", e))?;
 
     // 写入skill.json
-    let skill_json = serde_json::to_string_pretty(&skill)
-        .map_err(|e| format!("序列化技能数据失败: {}", e))?;
+    let skill_json =
+        serde_json::to_string_pretty(&skill).map_err(|e| format!("序列化技能数据失败: {}", e))?;
 
     fs::write(skill_dir.join("skill.json"), skill_json)
         .map_err(|e| format!("写入skill.json失败: {}", e))?;
@@ -581,25 +589,24 @@ pub async fn update_skill(
     }
 
     // 读取现有技能数据
-    let existing_content = fs::read_to_string(&skill_file)
-        .map_err(|e| format!("读取技能文件失败: {}", e))?;
+    let existing_content =
+        fs::read_to_string(&skill_file).map_err(|e| format!("读取技能文件失败: {}", e))?;
 
-    let mut existing_skill: serde_json::Value = serde_json::from_str(&existing_content)
-        .map_err(|e| format!("解析技能数据失败: {}", e))?;
+    let mut existing_skill: serde_json::Value =
+        serde_json::from_str(&existing_content).map_err(|e| format!("解析技能数据失败: {}", e))?;
 
     // 合并更新
     if let Some(obj) = updates.as_object() {
-      for (key, value) in obj.iter() {
-        existing_skill[key.clone()] = value.clone();
-      }
+        for (key, value) in obj.iter() {
+            existing_skill[key.clone()] = value.clone();
+        }
     }
 
     // 写回文件
     let updated_json = serde_json::to_string_pretty(&existing_skill)
         .map_err(|e| format!("序列化更新后的技能失败: {}", e))?;
 
-    fs::write(&skill_file, updated_json)
-        .map_err(|e| format!("写入更新后的技能文件失败: {}", e))?;
+    fs::write(&skill_file, updated_json).map_err(|e| format!("写入更新后的技能文件失败: {}", e))?;
 
     println!("[SkillCommand] Skill {} updated successfully", skill_id);
     Ok(true)
@@ -620,28 +627,19 @@ pub async fn install_skill(
 
 #[cfg(not(feature = "commercial"))]
 #[tauri::command]
-pub async fn uninstall_skill(
-    _project_root: String,
-    _skill_id: String,
-) -> Result<bool, String> {
+pub async fn uninstall_skill(_project_root: String, _skill_id: String) -> Result<bool, String> {
     Err("技能卸载功能仅在商业版中可用".to_string())
 }
 
 #[cfg(not(feature = "commercial"))]
 #[tauri::command]
-pub async fn activate_skill(
-    _project_root: String,
-    _skill_id: String,
-) -> Result<bool, String> {
+pub async fn activate_skill(_project_root: String, _skill_id: String) -> Result<bool, String> {
     Err("技能激活功能仅在商业版中可用".to_string())
 }
 
 #[cfg(not(feature = "commercial"))]
 #[tauri::command]
-pub async fn deactivate_skill(
-    _project_root: String,
-    _skill_id: String,
-) -> Result<bool, String> {
+pub async fn deactivate_skill(_project_root: String, _skill_id: String) -> Result<bool, String> {
     Err("技能停用功能仅在商业版中可用".to_string())
 }
 

@@ -8,26 +8,28 @@
 //!
 //! ToolDone 事件不再用于参数解析，参数仅来自 ToolStart.input
 
-use std::io::{self, Write};
-use std::time::{Duration, Instant};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::cell::RefCell;
+use crate::loop_detector::{self, EmptyArgsResult}; // 🎬 元编程：循环检测引擎 + 空参数三态结果
+use crate::permission::{self as approval, RiskLevel, ToolCategory};
+use crate::permission_store::{PermissionRule, PermissionStore, RuleType};
+use crate::pipeline::PipelineTracker; // 🎨 元编程：Pipeline 可视化
+use crate::prompt_vars::collect_cli_variables;
+use crate::provider::resolve_provider;
+use crate::render::{self, Spinner, RESET};
+use crate::token; // 🔥 元编程：Token 状态栏
+use crate::token::format_number; // 🔥 格式化数字（用于压缩统计）
 use futures_util::stream::StreamExt;
-use serde_json::json;
-use ifainew_lib::harness::api::types::{StreamEvent, Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
+use ifainew_lib::harness::api::types::{
+    Message, MessageContent, MessageRole, StreamEvent, ToolCall, ToolCallFunction,
+};
+use ifainew_lib::harness::task::{get_global_task_store, TaskStatus};
 use ifainew_lib::harness::tool::{ToolRegistry, ToolRouter};
 use ifainew_lib::prompt_manager;
-use crate::provider::resolve_provider;
-use crate::render::{self, RESET, Spinner};
-use crate::prompt_vars::collect_cli_variables;
-use crate::permission::{self as approval, ToolCategory, RiskLevel};
-use crate::permission_store::{PermissionStore, PermissionRule, RuleType};
-use crate::token;  // 🔥 元编程：Token 状态栏
-use crate::token::format_number;  // 🔥 格式化数字（用于压缩统计）
-use crate::pipeline::PipelineTracker;  // 🎨 元编程：Pipeline 可视化
-use crate::loop_detector::{self, EmptyArgsResult};  // 🎬 元编程：循环检测引擎 + 空参数三态结果
-use ifainew_lib::harness::task::{get_global_task_store, TaskStatus};  // 📋 TodoWrite 任务状态自动推进
+use serde_json::json;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::io::{self, Write};
+use std::sync::Arc;
+use std::time::{Duration, Instant}; // 📋 TodoWrite 任务状态自动推进
 
 /// 📋 自动推进 TodoWrite 任务状态
 ///
@@ -119,7 +121,11 @@ fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
             let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
             let preview = if content.chars().count() > 40 {
-                format!("{}... ({} 字符)", content.chars().take(37).collect::<String>(), content.chars().count())
+                format!(
+                    "{}... ({} 字符)",
+                    content.chars().take(37).collect::<String>(),
+                    content.chars().count()
+                )
             } else {
                 format!("{}", content)
             };
@@ -348,7 +354,7 @@ impl Session {
         let session_start = Instant::now();
 
         // 🎨 创建渲染管道（启用动画模式）
-        use crate::stream_render::{RenderPipeline, RenderMode};
+        use crate::stream_render::{RenderMode, RenderPipeline};
         let render_pipeline = RenderPipeline::new(RenderMode::Animated);
 
         // 🎬 创建动画停止标志
@@ -515,11 +521,14 @@ impl Session {
 
         let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(
             provider,
-            &provider_config
-        ).map_err(|e| format!("Failed to create client: {:?}", e))?;
+            &provider_config,
+        )
+        .map_err(|e| format!("Failed to create client: {:?}", e))?;
 
         // 获取工具定义
-        let tools: Vec<serde_json::Value> = self.tool_registry.all()
+        let tools: Vec<serde_json::Value> = self
+            .tool_registry
+            .all()
             .into_iter()
             .map(|tool| {
                 json!({
@@ -543,21 +552,21 @@ impl Session {
 
         // 🎨 创建 Spinner（立即完成，不显示，使用进度动画代替）
         let mut spinner = Spinner::new("");
-        spinner.finish(true);  // 立即完成，避免显示
+        spinner.finish(true); // 立即完成，避免显示
         let mut interval = tokio::time::interval(Duration::from_millis(150));
         interval.tick().await;
 
         // 🔥 元编程：从配置获取最大续播次数（而非硬编码）
-        let current_category = approval::ToolCategory::Safe;  // 初始为 safe，会动态调整
+        let current_category = approval::ToolCategory::Safe; // 初始为 safe，会动态调整
         let max_continuations = approval::max_iterations(current_category);
         let mut continuation_count = 0;
         let mut full_response = String::new();
-        let start_time = Instant::now();  // 🔥 记录开始时间
+        let start_time = Instant::now(); // 🔥 记录开始时间
 
         // 🎯 自动压缩：检查 token 数量并在超过阈值时压缩
         let estimated_input = token::estimate_tokens(&self.messages);
-        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;  // 100k tokens
-        const COMPRESS_MESSAGE_THRESHOLD: usize = 100;     // 100 messages
+        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000; // 100k tokens
+        const COMPRESS_MESSAGE_THRESHOLD: usize = 100; // 100 messages
 
         let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
             || self.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
@@ -566,28 +575,39 @@ impl Session {
             let theme = render::default_theme();
             eprintln!(
                 "{}⚠️  对话过长 ({} tokens, {} messages)，正在自动压缩...{}",
-                theme.warning, estimated_input, self.messages.len(), render::RESET
+                theme.warning,
+                estimated_input,
+                self.messages.len(),
+                render::RESET
             );
 
             // 自动压缩：保留最后 50 条消息
             let keep_last_n = 50.min(self.messages.len());
             let total_messages = self.messages.len();
-            self.messages = self.messages.split_off(total_messages.saturating_sub(keep_last_n));
+            self.messages = self
+                .messages
+                .split_off(total_messages.saturating_sub(keep_last_n));
 
             // 保留第一条系统消息（如果有）
-            let has_system = self.messages.first()
+            let has_system = self
+                .messages
+                .first()
                 .map(|m| matches!(m.role, MessageRole::System))
                 .unwrap_or(false);
 
             if !has_system && !system_prompt.is_empty() {
-                self.messages.insert(0, Message {
-                    role: MessageRole::System,
-                    content: MessageContent::Text(
-                        format!("(对话历史已压缩，保留最近 {} 条消息)", keep_last_n)
-                    ),
-                    tool_calls: None,
-                    tool_call_id: None,
-                });
+                self.messages.insert(
+                    0,
+                    Message {
+                        role: MessageRole::System,
+                        content: MessageContent::Text(format!(
+                            "(对话历史已压缩，保留最近 {} 条消息)",
+                            keep_last_n
+                        )),
+                        tool_calls: None,
+                        tool_call_id: None,
+                    },
+                );
             }
 
             let new_tokens = token::estimate_tokens(&self.messages);
@@ -596,7 +616,8 @@ impl Session {
                 theme.success,
                 format_number(estimated_input),
                 format_number(new_tokens),
-                ((estimated_input.saturating_sub(new_tokens)) as f64 / estimated_input as f64) * 100.0,
+                ((estimated_input.saturating_sub(new_tokens)) as f64 / estimated_input as f64)
+                    * 100.0,
                 render::RESET
             );
         }
@@ -611,23 +632,29 @@ impl Session {
                 temperature: Some(0.7),
                 stream: true,
                 // 🔥 如果禁用工具，不发送 tools 参数
-                tools: if self.tools_disabled || tools.is_empty() { None } else { Some(tools.clone()) },
+                tools: if self.tools_disabled || tools.is_empty() {
+                    None
+                } else {
+                    Some(tools.clone())
+                },
             };
 
             // 发送流式请求（带瞬时错误重试）
             const MAX_RETRIES: u32 = 2;
-            const RETRY_DELAYS: [Duration; 2] = [
-                Duration::from_secs(1),
-                Duration::from_secs(2),
-            ];
+            const RETRY_DELAYS: [Duration; 2] = [Duration::from_secs(1), Duration::from_secs(2)];
             let mut retry_attempt: u32 = 0;
             let mut stream = loop {
                 match client.stream(request.clone()).await {
                     Ok(s) => break s,
                     Err(ref e) if e.is_retryable() && retry_attempt < MAX_RETRIES => {
                         let theme = render::default_theme();
-                        eprintln!("{}Retrying ({}/{})...{}",
-                            theme.warning, retry_attempt + 1, MAX_RETRIES, RESET);
+                        eprintln!(
+                            "{}Retrying ({}/{})...{}",
+                            theme.warning,
+                            retry_attempt + 1,
+                            MAX_RETRIES,
+                            RESET
+                        );
                         tokio::time::sleep(RETRY_DELAYS[retry_attempt as usize]).await;
                         retry_attempt += 1;
                     }
@@ -653,7 +680,7 @@ impl Session {
                 use std::sync::atomic::Ordering;
 
                 let mut pipeline = crate::stream_render::RenderPipeline::new(
-                    crate::stream_render::RenderMode::Animated
+                    crate::stream_render::RenderMode::Animated,
                 );
                 let mut interval = tokio::time::interval(Duration::from_millis(100));
 
@@ -689,7 +716,7 @@ impl Session {
             // 工具调用直接收集：ToolDone 时构建 PendingToolCall
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<PendingToolCall> = Vec::new();
-            let mut any_tool_done_received = false;  // 区分"无工具调用"和"全部被过滤"
+            let mut any_tool_done_received = false; // 区分"无工具调用"和"全部被过滤"
 
             // 🔥 元编程：估算输入 tokens（复用 token::estimate_tokens）
             let estimated_input = token::estimate_tokens(&self.messages);
@@ -886,25 +913,28 @@ impl Session {
 
             // 如果所有工具调用都被熔断跳过（PerToolTripped）或循环检测阻止，终止循环
             // 注意：FirstOffense 返回 "empty arguments" 是给 AI 学习的，不触发终止
-            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| {
-                result.contains("Skipped") || result.contains("循环检测阻止")
-            }) {
+            if !tool_results.is_empty()
+                && tool_results.iter().all(|(_, _, result, _)| {
+                    result.contains("Skipped") || result.contains("循环检测阻止")
+                })
+            {
                 println!("\n所有工具调用均被阻止（空参数熔断或循环检测），终止执行");
                 complete_current_task();
                 break;
             }
 
             // 构建 tool_calls
-            let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
-                ToolCall {
+            let tool_calls_value: Vec<ToolCall> = tool_results
+                .iter()
+                .map(|(id, name, _, _)| ToolCall {
                     id: id.clone(),
                     call_type: "function".to_string(),
                     function: ToolCallFunction {
                         name: name.clone(),
                         arguments: String::new(),
                     },
-                }
-            }).collect();
+                })
+                .collect();
 
             // 添加 assistant 消息（带 tool_calls）
             self.messages.push(Message {
@@ -943,7 +973,10 @@ impl Session {
                     // 添加时间信息
                     if let Some(duration) = step.metadata.duration {
                         let duration_str = format_duration(duration.as_secs_f64());
-                        println!("\n{} {}({})  [{}]", status_render, name, args_preview, duration_str);
+                        println!(
+                            "\n{} {}({})  [{}]",
+                            status_render, name, args_preview, duration_str
+                        );
                     } else {
                         println!("\n{} {}({})", status_render, name, args_preview);
                     }
@@ -952,10 +985,19 @@ impl Session {
                     match &step.output {
                         crate::pipeline::StepOutput::Empty => {}
                         crate::pipeline::StepOutput::Full { content } => {
-                            println!("   ╾ {}", content.lines().collect::<Vec<_>>().join("\n   ╾ "));
+                            println!(
+                                "   ╾ {}",
+                                content.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                            );
                         }
-                        crate::pipeline::StepOutput::Truncated { preview, total_lines } => {
-                            println!("   ╾ {}", preview.lines().collect::<Vec<_>>().join("\n   ╾ "));
+                        crate::pipeline::StepOutput::Truncated {
+                            preview,
+                            total_lines,
+                        } => {
+                            println!(
+                                "   ╾ {}",
+                                preview.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                            );
                             println!("   ╾ (共 {} 行，使用 --verbose 查看完整输出)", total_lines);
                         }
                     }
@@ -972,14 +1014,19 @@ impl Session {
             // 续播检查
             continuation_count += 1;
             if continuation_count >= dynamic_max {
-                eprintln!("\n{}Maximum tool iterations reached ({}) for {:?} tools{}",
-                    theme.warning, dynamic_max, current_category, RESET);
+                eprintln!(
+                    "\n{}Maximum tool iterations reached ({}) for {:?} tools{}",
+                    theme.warning, dynamic_max, current_category, RESET
+                );
                 complete_current_task();
                 break;
             }
 
             // 继续续播
-            println!("\n{}Continuing... ({}/{}){}", theme.dim, continuation_count, dynamic_max, RESET);
+            println!(
+                "\n{}Continuing... ({}/{}){}",
+                theme.dim, continuation_count, dynamic_max, RESET
+            );
         }
 
         // 结束后换行
@@ -991,7 +1038,7 @@ impl Session {
     pub async fn stream_prompt_tui(
         &mut self,
         prompt: &str,
-        output_tx: tokio::sync::mpsc::UnboundedSender<String>,
+        output_tx: tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
         status_tx: tokio::sync::mpsc::UnboundedSender<String>,
         approval_tx: tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
     ) -> Result<String, String> {
@@ -1035,10 +1082,13 @@ impl Session {
 
         let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(
             provider,
-            &provider_config
-        ).map_err(|e| format!("Failed to create client: {:?}", e))?;
+            &provider_config,
+        )
+        .map_err(|e| format!("Failed to create client: {:?}", e))?;
 
-        let tools: Vec<serde_json::Value> = self.tool_registry.all()
+        let tools: Vec<serde_json::Value> = self
+            .tool_registry
+            .all()
             .into_iter()
             .map(|tool| {
                 json!({
@@ -1072,36 +1122,62 @@ impl Session {
             || self.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
 
         if need_compress {
-            let _ = output_tx.send(format!("⚠️ 对话过长 ({} tokens, {} messages)，正在自动压缩...", estimated_input, self.messages.len()));
+            let _ = output_tx.send(
+                format!(
+                    "⚠️ 对话过长 ({} tokens, {} messages)，正在自动压缩...",
+                    estimated_input,
+                    self.messages.len()
+                )
+                .into(),
+            );
             let keep_last_n = 50.min(self.messages.len());
             let total_messages = self.messages.len();
-            self.messages = self.messages.split_off(total_messages.saturating_sub(keep_last_n));
+            self.messages = self
+                .messages
+                .split_off(total_messages.saturating_sub(keep_last_n));
 
-            let has_system = self.messages.first()
+            let has_system = self
+                .messages
+                .first()
                 .map(|m| matches!(m.role, MessageRole::System))
                 .unwrap_or(false);
 
             if !has_system && !system_prompt.is_empty() {
-                self.messages.insert(0, Message {
-                    role: MessageRole::System,
-                    content: MessageContent::Text(
-                        format!("(对话历史已压缩，保留最近 {} 条消息)", keep_last_n)
-                    ),
-                    tool_calls: None,
-                    tool_call_id: None,
-                });
+                self.messages.insert(
+                    0,
+                    Message {
+                        role: MessageRole::System,
+                        content: MessageContent::Text(format!(
+                            "(对话历史已压缩，保留最近 {} 条消息)",
+                            keep_last_n
+                        )),
+                        tool_calls: None,
+                        tool_call_id: None,
+                    },
+                );
             }
 
             let new_tokens = token::estimate_tokens(&self.messages);
-            let _ = output_tx.send(format!("✓ 压缩完成：{} → {} tokens", format_number(estimated_input), format_number(new_tokens)));
+            let _ = output_tx.send(
+                format!(
+                    "✓ 压缩完成：{} → {} tokens",
+                    format_number(estimated_input),
+                    format_number(new_tokens)
+                )
+                .into(),
+            );
         }
 
         // TUI 上下文警告
         let token_count = token::estimate_tokens(&self.messages);
         let max_tokens = token::get_model_max_tokens(&self.model);
         if token_count > (max_tokens * 80 / 100) && self.messages.len() >= 10 {
-            let _ = output_tx.send(format!("Warning: Context size ({} tokens, {} messages) exceeds 80% of model limit ({}).", token_count, self.messages.len(), max_tokens));
-            let _ = output_tx.send("Tip: Use /compact to compress or /clear to start fresh.".to_string());
+            let _ = output_tx.send(format!("Warning: Context size ({} tokens, {} messages) exceeds 80% of model limit ({}).", token_count, self.messages.len(), max_tokens).into());
+            let _ = output_tx.send(
+                "Tip: Use /compact to compress or /clear to start fresh."
+                    .to_string()
+                    .into(),
+            );
         }
 
         let current_category = approval::ToolCategory::Safe;
@@ -1110,10 +1186,7 @@ impl Session {
 
         // 重试策略常量
         const MAX_RETRIES: u32 = 2;
-        const RETRY_DELAYS: [Duration; 2] = [
-            Duration::from_secs(1),
-            Duration::from_secs(2),
-        ];
+        const RETRY_DELAYS: [Duration; 2] = [Duration::from_secs(1), Duration::from_secs(2)];
         let mut retry_attempt: u32 = 0;
 
         // 🔥 清空 PipelineTracker 状态（确保不会显示上一次的工具结果）
@@ -1130,14 +1203,20 @@ impl Session {
                 system: Some(system_prompt.clone()),
                 temperature: Some(0.7),
                 stream: true,
-                tools: if self.tools_disabled || tools.is_empty() { None } else { Some(tools.clone()) },
+                tools: if self.tools_disabled || tools.is_empty() {
+                    None
+                } else {
+                    Some(tools.clone())
+                },
             };
 
             let mut stream = loop {
                 match client.stream(request.clone()).await {
                     Ok(s) => break s,
                     Err(ref e) if e.is_retryable() && retry_attempt < MAX_RETRIES => {
-                        let _ = output_tx.send(format!("Retrying ({}/{})...", retry_attempt + 1, MAX_RETRIES));
+                        let _ = output_tx.send(
+                            format!("Retrying ({}/{})...", retry_attempt + 1, MAX_RETRIES).into(),
+                        );
                         tokio::time::sleep(RETRY_DELAYS[retry_attempt as usize]).await;
                         retry_attempt += 1;
                     }
@@ -1150,7 +1229,7 @@ impl Session {
                         if continuation_count == 0 {
                             self.messages.pop();
                         }
-                        let _ = output_tx.send(format!("Stream error: {:?}{}", e, suffix));
+                        let _ = output_tx.send(format!("Stream error: {:?}{}", e, suffix).into());
                         return Err(format!("Failed to start stream: {:?}{}", e, suffix));
                     }
                 }
@@ -1166,7 +1245,7 @@ impl Session {
             // 工具调用直接收集：ToolDone 时构建 PendingToolCall
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<PendingToolCall> = Vec::new();
-            let mut any_tool_done_received = false;  // 区分"无工具调用"和"全部被过滤"
+            let mut any_tool_done_received = false; // 区分"无工具调用"和"全部被过滤"
 
             use token::StatusBarState;
 
@@ -1177,14 +1256,16 @@ impl Session {
                             StreamEvent::TextDelta { text } => {
                                 if first_delta {
                                     first_delta = false;
-                                    self.bottom_status_bar.transition(StatusBarState::Streaming {
-                                        estimated_input,
-                                        current_output: 0,
-                                        current_tool: None,
-                                    });
+                                    self.bottom_status_bar
+                                        .transition(StatusBarState::Streaming {
+                                            estimated_input,
+                                            current_output: 0,
+                                            current_tool: None,
+                                        });
                                 }
 
-                                let _current_output = self.bottom_status_bar.update_streaming_output(text);
+                                let _current_output =
+                                    self.bottom_status_bar.update_streaming_output(text);
                                 current_response.push_str(text);
                                 full_response.push_str(text);
 
@@ -1193,7 +1274,7 @@ impl Session {
                                 while let Some(newline_pos) = line_buffer.find('\n') {
                                     let complete_line = line_buffer[..newline_pos].to_string();
                                     line_buffer = line_buffer[newline_pos + 1..].to_string();
-                                    let _ = output_tx.send(complete_line);
+                                    let _ = output_tx.send(complete_line.into());
                                 }
 
                                 // 更新状态栏
@@ -1202,14 +1283,19 @@ impl Session {
 
                                 collector.dispatch(&event);
                             }
-                            StreamEvent::ToolStart { tool_id, name, input } => {
+                            StreamEvent::ToolStart {
+                                tool_id,
+                                name,
+                                input,
+                            } => {
                                 if first_delta {
                                     first_delta = false;
-                                    self.bottom_status_bar.transition(StatusBarState::Streaming {
-                                        estimated_input,
-                                        current_output: 0,
-                                        current_tool: Some(name.clone()),
-                                    });
+                                    self.bottom_status_bar
+                                        .transition(StatusBarState::Streaming {
+                                            estimated_input,
+                                            current_output: 0,
+                                            current_tool: Some(name.clone()),
+                                        });
                                 }
                                 let _ = status_tx.send(format!("Tool: {} [running]", name));
 
@@ -1220,7 +1306,8 @@ impl Session {
                             }
                             StreamEvent::ToolDone { tool_id, result } => {
                                 // 直接收集：从映射获取 name，构建 PendingToolCall
-                                let tool_name = tool_name_map.get(tool_id)
+                                let tool_name = tool_name_map
+                                    .get(tool_id)
                                     .cloned()
                                     .unwrap_or_else(|| "unknown".to_string());
 
@@ -1231,7 +1318,7 @@ impl Session {
                                 let is_empty_result = result.is_empty() || result.trim() == "{}";
                                 if is_empty_result && std::env::var("IFAI_QUIET").is_err() {
                                     let _ = output_tx.send(format!("[TUI] ⚠️ ToolDone empty result: tool_id={}, name={}, result_len={}",
-                                        tool_id, tool_name, result.len()));
+                                        tool_id, tool_name, result.len()).into());
                                 }
 
                                 self.pipeline_tracker.start_step(
@@ -1252,15 +1339,19 @@ impl Session {
                                 collector.dispatch(&event);
                             }
                             StreamEvent::Error { code, message } => {
-                                let _ = output_tx.send(format!("Error [{}]: {}", code, message));
+                                let _ =
+                                    output_tx.send(format!("Error [{}]: {}", code, message).into());
                             }
-                            StreamEvent::MessageDone { input_tokens, output_tokens } => {
+                            StreamEvent::MessageDone {
+                                input_tokens,
+                                output_tokens,
+                            } => {
                                 self.cumulative_input_tokens += *input_tokens;
                                 self.cumulative_output_tokens += *output_tokens;
 
                                 // 🖥️ TUI：刷新剩余缓冲区
                                 if !line_buffer.is_empty() {
-                                    let _ = output_tx.send(std::mem::take(&mut line_buffer));
+                                    let _ = output_tx.send(std::mem::take(&mut line_buffer).into());
                                 }
 
                                 self.bottom_status_bar.transition(StatusBarState::Idle);
@@ -1274,7 +1365,7 @@ impl Session {
                         }
                     }
                     Some(Err(e)) => {
-                        let _ = output_tx.send(format!("Stream error: {:?}", e));
+                        let _ = output_tx.send(format!("Stream error: {:?}", e).into());
                         return Err(format!("Stream error: {:?}", e));
                     }
                     None => {
@@ -1301,42 +1392,52 @@ impl Session {
                     self.cumulative_input_tokens,
                     self.cumulative_output_tokens,
                 );
-                let _ = output_tx.send(summary);
+                let _ = output_tx.send(summary.into());
 
                 break;
             }
 
             // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
-            let _ = output_tx.send(String::new());
-            let tool_results = match self.execute_tools_tui(&collected_tool_calls, &output_tx, &approval_tx).await {
+            let _ = output_tx.send(String::new().into());
+            let tool_results = match self
+                .execute_tools_tui(&collected_tool_calls, &output_tx, &approval_tx)
+                .await
+            {
                 Ok(results) => results,
                 Err(e) if e == "GLOBAL_EMPTY_ARGS_TRIPPED" => {
-                    let _ = output_tx.send("全局空参数熔断触发，终止执行".to_string());
+                    let _ = output_tx.send("全局空参数熔断触发，终止执行".to_string().into());
                     break;
                 }
                 Err(e) => return Err(e),
             };
 
             // 如果所有工具调用都被熔断跳过（PerToolTripped）或循环检测阻止，终止循环
-            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| {
-                result.contains("Skipped") || result.contains("循环检测阻止")
-            }) {
-                let _ = output_tx.send("所有工具调用均被阻止（空参数熔断或循环检测），终止执行".to_string());
+            if !tool_results.is_empty()
+                && tool_results.iter().all(|(_, _, result, _)| {
+                    result.contains("Skipped") || result.contains("循环检测阻止")
+                })
+            {
+                let _ = output_tx.send(
+                    "所有工具调用均被阻止（空参数熔断或循环检测），终止执行"
+                        .to_string()
+                        .into(),
+                );
                 complete_current_task();
                 break;
             }
 
             // 构建 tool_calls
-            let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
-                ToolCall {
+            let tool_calls_value: Vec<ToolCall> = tool_results
+                .iter()
+                .map(|(id, name, _, _)| ToolCall {
                     id: id.clone(),
                     call_type: "function".to_string(),
                     function: ToolCallFunction {
                         name: name.clone(),
                         arguments: String::new(),
                     },
-                }
-            }).collect();
+                })
+                .collect();
 
             self.messages.push(Message {
                 role: MessageRole::Assistant,
@@ -1368,19 +1469,44 @@ impl Session {
                     };
 
                     if let Some(duration) = step.metadata.duration {
-                        let _ = output_tx.send(format!("\n{} {}({})  [{}]", status_render, name, args_preview, format_duration(duration.as_secs_f64())));
+                        let _ = output_tx.send(
+                            format!(
+                                "\n{} {}({})  [{}]",
+                                status_render,
+                                name,
+                                args_preview,
+                                format_duration(duration.as_secs_f64())
+                            )
+                            .into(),
+                        );
                     } else {
-                        let _ = output_tx.send(format!("\n{} {}({})", status_render, name, args_preview));
+                        let _ = output_tx
+                            .send(format!("\n{} {}({})", status_render, name, args_preview).into());
                     }
 
                     match &step.output {
                         crate::pipeline::StepOutput::Empty => {}
                         crate::pipeline::StepOutput::Full { content } => {
-                            let _ = output_tx.send(format!("   ╾ {}", content.lines().collect::<Vec<_>>().join("\n   ╾ ")));
+                            let _ = output_tx.send(
+                                format!(
+                                    "   ╾ {}",
+                                    content.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                                )
+                                .into(),
+                            );
                         }
-                        crate::pipeline::StepOutput::Truncated { preview, total_lines } => {
-                            let _ = output_tx.send(format!("   ╾ {}", preview.lines().collect::<Vec<_>>().join("\n   ╾ ")));
-                            let _ = output_tx.send(format!("   ╾ (共 {} 行)", total_lines));
+                        crate::pipeline::StepOutput::Truncated {
+                            preview,
+                            total_lines,
+                        } => {
+                            let _ = output_tx.send(
+                                format!(
+                                    "   ╾ {}",
+                                    preview.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                                )
+                                .into(),
+                            );
+                            let _ = output_tx.send(format!("   ╾ (共 {} 行)", total_lines).into());
                         }
                     }
                 }
@@ -1394,15 +1520,17 @@ impl Session {
 
             continuation_count += 1;
             if continuation_count >= dynamic_max {
-                let _ = output_tx.send(format!("Maximum tool iterations reached ({})", dynamic_max));
+                let _ = output_tx
+                    .send(format!("Maximum tool iterations reached ({})", dynamic_max).into());
                 complete_current_task();
                 break;
             }
 
-            let _ = output_tx.send(format!("Continuing... ({}/{})", continuation_count, dynamic_max));
+            let _ = output_tx
+                .send(format!("Continuing... ({}/{})", continuation_count, dynamic_max).into());
         }
 
-        let _ = output_tx.send(String::new());
+        let _ = output_tx.send(String::new().into());
         Ok(full_response)
     }
 
@@ -1410,7 +1538,7 @@ impl Session {
     async fn execute_tools_tui(
         &mut self,
         tools: &[PendingToolCall],
-        output_tx: &tokio::sync::mpsc::UnboundedSender<String>,
+        output_tx: &tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
         approval_tx: &tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
     ) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
@@ -1425,21 +1553,35 @@ impl Session {
                 match breaker_result {
                     EmptyArgsResult::GlobalTripped => {
                         // 全局空参数超过阈值：立即终止，不继续循环
-                        let _ = output_tx.send("🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行".to_string());
-                        self.pipeline_tracker.skip_step(&tool.tool_id, "全局空参数熔断".to_string());
+                        let _ = output_tx.send(
+                            "🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行"
+                                .to_string()
+                                .into(),
+                        );
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
                         return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
                     }
                     EmptyArgsResult::PerToolTripped => {
                         // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
-                        let _ = output_tx.send(format!("⚡ 熔断跳过: {}({})", tool.name, tool.args));
-                        self.pipeline_tracker.skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
+                        let _ = output_tx
+                            .send(format!("⚡ 熔断跳过: {}({})", tool.name, tool.args).into());
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
                         // push "Skipped" 结果（匹配终止条件，防止 AI 无限重试空参数）
-                        results.push((tool.tool_id.clone(), tool.name.clone(), "Skipped: empty arguments, tool not executed.".to_string(), Duration::ZERO));
+                        results.push((
+                            tool.tool_id.clone(),
+                            tool.name.clone(),
+                            "Skipped: empty arguments, tool not executed.".to_string(),
+                            Duration::ZERO,
+                        ));
                         continue;
                     }
                     EmptyArgsResult::FirstOffense => {
                         // 首次空参数：返回错误给 AI（给学习机会）
-                        let required_hint = self.tool_registry.get(&tool.name)
+                        let required_hint = self
+                            .tool_registry
+                            .get(&tool.name)
                             .and_then(|t| t.input_schema.get("required").cloned())
                             .and_then(|r| serde_json::to_string(&r).ok())
                             .unwrap_or_else(|| "check tool schema".to_string());
@@ -1451,9 +1593,16 @@ impl Session {
                             tool.name, required_hint
                         );
 
-                        let _ = output_tx.send(format!("⚠️ 空参数阻止: {}({})", tool.name, tool.args));
-                        self.pipeline_tracker.skip_step(&tool.tool_id, "空参数直接阻止".to_string());
-                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        let _ = output_tx
+                            .send(format!("⚠️ 空参数阻止: {}({})", tool.name, tool.args).into());
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
+                        results.push((
+                            tool.tool_id.clone(),
+                            tool.name.clone(),
+                            error_msg,
+                            Duration::ZERO,
+                        ));
                         continue;
                     }
                     EmptyArgsResult::ValidArgs => {
@@ -1471,18 +1620,31 @@ impl Session {
                 Ok(v) => v,
                 Err(e) => {
                     let preview = tool.args.chars().take(100).collect::<String>();
-                    let error_msg = format!("Error: 工具参数 JSON 解析失败: {} (args preview: {})", e, preview);
-                    let _ = output_tx.send(format!("⚠️ 参数解析失败: {}({}) → {}", tool.name, preview, e));
+                    let error_msg = format!(
+                        "Error: 工具参数 JSON 解析失败: {} (args preview: {})",
+                        e, preview
+                    );
+                    let _ = output_tx.send(
+                        format!("⚠️ 参数解析失败: {}({}) → {}", tool.name, preview, e).into(),
+                    );
                     self.pipeline_tracker.finish_step_error(
                         &tool.tool_id,
                         error_msg.clone(),
                         Duration::ZERO,
                     );
-                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    results.push((
+                        tool.tool_id.clone(),
+                        tool.name.clone(),
+                        error_msg,
+                        Duration::ZERO,
+                    ));
                     continue;
                 }
             };
-            let store_allowed = self.permission_store.borrow().is_allowed(&tool.name, &args_json);
+            let store_allowed = self
+                .permission_store
+                .borrow()
+                .is_allowed(&tool.name, &args_json);
 
             // 检查会话级规则（在 Session.session_rules 中）
             let session_allowed = {
@@ -1491,9 +1653,14 @@ impl Session {
                 for rule in session_rules.iter() {
                     if rule.tool_name == tool.name && rule.rule_type == RuleType::Allow {
                         // 提取当前命令的目标值（不带后缀）
-                        let target = crate::permission_store::PermissionStore::extract_target_value(&tool.name, &args_json);
+                        let target = crate::permission_store::PermissionStore::extract_target_value(
+                            &tool.name, &args_json,
+                        );
                         // 检查是否匹配
-                        if crate::permission_store::PermissionStore::match_rule(&rule.pattern, &target) {
+                        if crate::permission_store::PermissionStore::match_rule(
+                            &rule.pattern,
+                            &target,
+                        ) {
                             allowed = true;
                             break;
                         }
@@ -1503,16 +1670,25 @@ impl Session {
             };
 
             // 然后检查系统默认自动审批规则
-            let auto_approve = store_allowed || session_allowed || approval::should_auto_approve(&tool.name, false);
+            let auto_approve = store_allowed
+                || session_allowed
+                || approval::should_auto_approve(&tool.name, false);
 
             if !auto_approve {
                 // 通过 channel 发送审批请求，等待用户决策
                 let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-                let request = crate::approval_overlay::ApprovalRequest::from_tool(tool, response_tx);
+                let request =
+                    crate::approval_overlay::ApprovalRequest::from_tool(tool, response_tx);
                 if approval_tx.send(request).is_err() {
                     let error_msg = format!("Tool '{}': approval channel closed", tool.name);
-                    self.pipeline_tracker.skip_step(&tool.tool_id, error_msg.clone());
-                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    self.pipeline_tracker
+                        .skip_step(&tool.tool_id, error_msg.clone());
+                    results.push((
+                        tool.tool_id.clone(),
+                        tool.name.clone(),
+                        error_msg,
+                        Duration::ZERO,
+                    ));
                     continue;
                 }
 
@@ -1522,7 +1698,9 @@ impl Session {
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::ApproveAlways) => {
                         // 持久化白名单（写入文件 + 内存）
-                        let pattern = crate::permission_store::PermissionStore::extract_pattern(&tool.name, &args_json);
+                        let pattern = crate::permission_store::PermissionStore::extract_pattern(
+                            &tool.name, &args_json,
+                        );
                         let rule = crate::permission_store::PermissionRule {
                             tool_name: tool.name.clone(),
                             pattern,
@@ -1532,7 +1710,9 @@ impl Session {
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::ApproveSession) => {
                         // 会话级白名单（仅内存）
-                        let pattern = crate::permission_store::PermissionStore::extract_pattern(&tool.name, &args_json);
+                        let pattern = crate::permission_store::PermissionStore::extract_pattern(
+                            &tool.name, &args_json,
+                        );
                         let rule = crate::permission_store::PermissionRule {
                             tool_name: tool.name.clone(),
                             pattern,
@@ -1542,8 +1722,14 @@ impl Session {
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::Deny) => {
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);
-                        self.pipeline_tracker.skip_step(&tool.tool_id, error_msg.clone());
-                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, error_msg.clone());
+                        results.push((
+                            tool.tool_id.clone(),
+                            tool.name.clone(),
+                            error_msg,
+                            Duration::ZERO,
+                        ));
                         continue;
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::Abort) => {
@@ -1552,8 +1738,14 @@ impl Session {
                     }
                     Err(_) => {
                         let error_msg = format!("Tool '{}': approval channel closed", tool.name);
-                        self.pipeline_tracker.skip_step(&tool.tool_id, error_msg.clone());
-                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, error_msg.clone());
+                        results.push((
+                            tool.tool_id.clone(),
+                            tool.name.clone(),
+                            error_msg,
+                            Duration::ZERO,
+                        ));
                         return Err("approval channel closed".to_string());
                     }
                 }
@@ -1563,16 +1755,29 @@ impl Session {
             let loop_status = approval::check_loop(&tool.name, &tool.args);
             if loop_status.should_stop() {
                 if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
-                    let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason));
-                    self.pipeline_tracker.skip_step(
-                        &tool.tool_id,
-                        format!("循环检测阻止: {}", reason),
-                    );
+                    let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason).into());
+                    self.pipeline_tracker
+                        .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
                     let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
-                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    results.push((
+                        tool.tool_id.clone(),
+                        tool.name.clone(),
+                        error_msg,
+                        Duration::ZERO,
+                    ));
                     continue;
                 }
             }
+
+            // 🎨 Diff 预处理：对于 edit_file，在执行前保存旧内容
+            let old_content_backup = if tool.name == "edit_file" {
+                args_json
+                    .get("path")
+                    .and_then(|p| p.as_str())
+                    .and_then(|path| std::fs::read_to_string(path).ok())
+            } else {
+                None
+            };
 
             let start = Instant::now();
 
@@ -1585,6 +1790,72 @@ impl Session {
                         duration,
                     );
                     results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
+
+                    // 🎨 Diff 生成：write_file/edit_file 工具执行后生成 diff
+                    if tool.name == "write_file" || tool.name == "edit_file" {
+                        if let Some(path) = args_json.get("path").and_then(|p| p.as_str()) {
+                            use super::diff_render::{DiffChangeKind, DiffFileChange};
+                            use std::fs;
+                            use std::path::Path;
+
+                            let path_buf = Path::new(path).to_path_buf();
+
+                            // 读取新内容（工具执行后）
+                            let new_content = fs::read_to_string(&path_buf).ok();
+
+                            // 使用保存的旧内容（对于 edit_file）或 None（对于 write_file）
+                            let old_content = old_content_backup;
+
+                            // 使用 similar 计算 diff 统计
+                            let (added, removed) = if let (Some(old), Some(new)) =
+                                (&old_content, &new_content)
+                            {
+                                use similar::{Algorithm, TextDiff};
+                                let diff = TextDiff::configure()
+                                    .algorithm(Algorithm::Patience)
+                                    .diff_lines(old, new);
+                                let added = diff
+                                    .ops()
+                                    .iter()
+                                    .filter(|op| op.tag() == similar::DiffTag::Insert)
+                                    .map(|op| op.new_range().len())
+                                    .sum::<usize>();
+                                let removed = diff
+                                    .ops()
+                                    .iter()
+                                    .filter(|op| op.tag() == similar::DiffTag::Delete)
+                                    .map(|op| op.old_range().len())
+                                    .sum::<usize>();
+                                (added, removed)
+                            } else if new_content.is_some() {
+                                // 新文件，所有行都是新增
+                                (
+                                    new_content.as_ref().map(|c| c.lines().count()).unwrap_or(0),
+                                    0,
+                                )
+                            } else {
+                                (0, 0)
+                            };
+
+                            let kind = match tool.name.as_str() {
+                                "write_file" => DiffChangeKind::Added,
+                                "edit_file" => DiffChangeKind::Modified,
+                                _ => DiffChangeKind::Modified,
+                            };
+
+                            let diff_change = DiffFileChange {
+                                path: path_buf,
+                                kind,
+                                old_content,
+                                new_content,
+                                added,
+                                removed,
+                            };
+
+                            // 发送 diff 消息
+                            let _ = output_tx.send(diff_change.into());
+                        }
+                    }
 
                     // 📋 自动推进 TodoWrite 任务状态（非 TodoWrite 工具成功后）
                     if tool.name != "TodoWrite" {
@@ -1608,9 +1879,12 @@ impl Session {
     }
 
     /// 🔧 执行工具列表（Execute 阶段）- 使用元编程权限引擎
-    fn execute_tools(&mut self, tools: &[PendingToolCall]) -> Result<Vec<(String, String, String, Duration)>, String> {
+    fn execute_tools(
+        &mut self,
+        tools: &[PendingToolCall],
+    ) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
-        let theme = render::default_theme();  // 🎨 主题（用于循环检测警告）
+        let theme = render::default_theme(); // 🎨 主题（用于循环检测警告）
 
         // PipelineStep 已在事件循环的 ToolDone 中创建（使用完整参数）
 
@@ -1622,23 +1896,39 @@ impl Session {
                 match breaker_result {
                     EmptyArgsResult::GlobalTripped => {
                         // 全局空参数超过阈值：立即终止，不继续循环
-                        eprintln!("\n{}🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行{}", theme.warning, render::RESET);
-                        self.pipeline_tracker.skip_step(&tool.tool_id, "全局空参数熔断".to_string());
+                        eprintln!(
+                            "\n{}🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行{}",
+                            theme.warning,
+                            render::RESET
+                        );
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
                         return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
                     }
                     EmptyArgsResult::PerToolTripped => {
                         // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
-                        eprintln!("\n{}⚡ 熔断跳过: {}({}){}", theme.warning, tool.name, tool.args, render::RESET);
-                        self.pipeline_tracker.skip_step(
-                            &tool.tool_id,
-                            "空参数熔断（静默跳过）".to_string(),
+                        eprintln!(
+                            "\n{}⚡ 熔断跳过: {}({}){}",
+                            theme.warning,
+                            tool.name,
+                            tool.args,
+                            render::RESET
                         );
-                        results.push((tool.tool_id.clone(), tool.name.clone(), "Skipped: empty arguments, tool not executed.".to_string(), Duration::ZERO));
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
+                        results.push((
+                            tool.tool_id.clone(),
+                            tool.name.clone(),
+                            "Skipped: empty arguments, tool not executed.".to_string(),
+                            Duration::ZERO,
+                        ));
                         continue;
                     }
                     EmptyArgsResult::FirstOffense => {
                         // 首次空参数：返回错误给 AI（给学习机会）
-                        let required_hint = self.tool_registry.get(&tool.name)
+                        let required_hint = self
+                            .tool_registry
+                            .get(&tool.name)
                             .and_then(|t| t.input_schema.get("required").cloned())
                             .and_then(|r| serde_json::to_string(&r).ok())
                             .unwrap_or_else(|| "check tool schema".to_string());
@@ -1650,12 +1940,21 @@ impl Session {
                             tool.name, required_hint
                         );
 
-                        eprintln!("\n{}⚠️  空参数阻止: {}({}){}", theme.warning, tool.name, tool.args, render::RESET);
-                        self.pipeline_tracker.skip_step(
-                            &tool.tool_id,
-                            "空参数直接阻止".to_string(),
+                        eprintln!(
+                            "\n{}⚠️  空参数阻止: {}({}){}",
+                            theme.warning,
+                            tool.name,
+                            tool.args,
+                            render::RESET
                         );
-                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        self.pipeline_tracker
+                            .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
+                        results.push((
+                            tool.tool_id.clone(),
+                            tool.name.clone(),
+                            error_msg,
+                            Duration::ZERO,
+                        ));
                         continue;
                     }
                     EmptyArgsResult::ValidArgs => {
@@ -1669,8 +1968,12 @@ impl Session {
 
             // 🔥 元编程：使用配置驱动的权限判断
             let category = approval::categorize_tool(&tool.name);
-            let risk = approval::calculate_risk(&tool.name, &serde_json::from_str::<serde_json::Value>(&tool.args).unwrap_or(serde_json::json!({})));
-            let auto_approve = approval::should_auto_approve(&tool.name, false);  // CLI 中无沙箱
+            let risk = approval::calculate_risk(
+                &tool.name,
+                &serde_json::from_str::<serde_json::Value>(&tool.args)
+                    .unwrap_or(serde_json::json!({})),
+            );
+            let auto_approve = approval::should_auto_approve(&tool.name, false); // CLI 中无沙箱
 
             if !auto_approve {
                 // 🔥 在 CLI 中，所有需要审批的工具都需要用户确认（Safe 除外）
@@ -1698,11 +2001,15 @@ impl Session {
                     }
                     println!("└─────────────────────────────────────────────────────────┘");
                     print!("  是否执行? (y/n): ");
-                    io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+                    io::stdout()
+                        .flush()
+                        .map_err(|e| format!("Failed to flush stdout: {}", e))?;
 
                     // 简单的用户输入（生产环境应使用更健壮的方法）
                     let mut input = String::new();
-                    io::stdin().read_line(&mut input).map_err(|e| format!("Failed to read input: {}", e))?;
+                    io::stdin()
+                        .read_line(&mut input)
+                        .map_err(|e| format!("Failed to read input: {}", e))?;
 
                     if input.trim() != "y" && input.trim() != "Y" {
                         // 🎨 元编程：标记步骤为跳过
@@ -1712,7 +2019,12 @@ impl Session {
                         );
 
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);
-                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        results.push((
+                            tool.tool_id.clone(),
+                            tool.name.clone(),
+                            error_msg,
+                            Duration::ZERO,
+                        ));
 
                         continue;
                     }
@@ -1723,49 +2035,81 @@ impl Session {
             let loop_status = approval::check_loop(&tool.name, &tool.args);
             if loop_status.should_stop() {
                 if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
-                    eprintln!("\n{}⚠️  循环检测触发: {}{}",
-                        theme.warning, reason, render::RESET);
+                    eprintln!(
+                        "\n{}⚠️  循环检测触发: {}{}",
+                        theme.warning,
+                        reason,
+                        render::RESET
+                    );
 
                     // 🎨 元编程：标记步骤为跳过（循环阻止）
-                    self.pipeline_tracker.skip_step(
-                        &tool.tool_id,
-                        format!("循环检测阻止: {}", reason),
-                    );
+                    self.pipeline_tracker
+                        .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
 
                     // 返回错误给 AI，让 AI 知道这个工具调用被阻止了
                     let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
-                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    results.push((
+                        tool.tool_id.clone(),
+                        tool.name.clone(),
+                        error_msg,
+                        Duration::ZERO,
+                    ));
 
-                    continue;  // 跳过当前工具，继续处理下一个
+                    continue; // 跳过当前工具，继续处理下一个
                 }
             } else if loop_status.should_warn() {
-                if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status {
-                    eprintln!("\n{}⚠️  循环检测警告: {} (已执行 {} 次){}",
-                        theme.warning, pattern, count, render::RESET);
+                if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status
+                {
+                    eprintln!(
+                        "\n{}⚠️  循环检测警告: {} (已执行 {} 次){}",
+                        theme.warning,
+                        pattern,
+                        count,
+                        render::RESET
+                    );
                 }
             }
 
             // 🎯 更新底部状态栏状态（但不显示，避免干扰对话）
             use token::StatusBarState;
-            self.bottom_status_bar.transition(StatusBarState::ExecutingTool {
-                tool_name: tool.name.clone(),
-                tool_count: results.len(),
-                tool_success: results.iter().filter(|r| !r.2.starts_with("Error:")).count(),
-                tool_errors: results.iter().filter(|r| r.2.starts_with("Error:")).count(),
-            });
+            self.bottom_status_bar
+                .transition(StatusBarState::ExecutingTool {
+                    tool_name: tool.name.clone(),
+                    tool_count: results.len(),
+                    tool_success: results
+                        .iter()
+                        .filter(|r| !r.2.starts_with("Error:"))
+                        .count(),
+                    tool_errors: results.iter().filter(|r| r.2.starts_with("Error:")).count(),
+                });
 
             let args_json: serde_json::Value = match serde_json::from_str(&tool.args) {
                 Ok(v) => v,
                 Err(e) => {
                     let preview = tool.args.chars().take(100).collect::<String>();
-                    let error_msg = format!("Error: 工具参数 JSON 解析失败: {} (args preview: {})", e, preview);
-                    eprintln!("  {}⚠️ 参数解析失败: {}({}) → {}{}", theme.warning, tool.name, preview, e, render::RESET);
+                    let error_msg = format!(
+                        "Error: 工具参数 JSON 解析失败: {} (args preview: {})",
+                        e, preview
+                    );
+                    eprintln!(
+                        "  {}⚠️ 参数解析失败: {}({}) → {}{}",
+                        theme.warning,
+                        tool.name,
+                        preview,
+                        e,
+                        render::RESET
+                    );
                     self.pipeline_tracker.finish_step_error(
                         &tool.tool_id,
                         error_msg.clone(),
                         Duration::ZERO,
                     );
-                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    results.push((
+                        tool.tool_id.clone(),
+                        tool.name.clone(),
+                        error_msg,
+                        Duration::ZERO,
+                    ));
                     continue;
                 }
             };
@@ -1809,7 +2153,6 @@ impl Session {
 
         Ok(results)
     }
-
 }
 
 // ============================================================================
@@ -1821,12 +2164,16 @@ impl Session {
 /// **零重复**：复用 GUI 的 prompt_manager
 /// **编译时嵌入**：从 BuiltinPrompts 加载模板
 /// **运行时渲染**：Handlebars 变量插值
-fn build_cli_system_prompt(spec: &ifainew_lib::harness::api::provider_metadata::ProviderSpec) -> String {
+fn build_cli_system_prompt(
+    spec: &ifainew_lib::harness::api::provider_metadata::ProviderSpec,
+) -> String {
     // 1. 收集 CLI 特定变量（元编程）
     let mut variables = collect_cli_variables(spec);
 
     // 2. 从 BuiltinPrompts 加载 CLI 模板（编译时嵌入）
-    let template_content = if let Some(content_file) = prompt_manager::BuiltinPrompts::get("system/cli.md") {
+    let template_content = if let Some(content_file) =
+        prompt_manager::BuiltinPrompts::get("system/cli.md")
+    {
         std::str::from_utf8(content_file.data.as_ref())
             .unwrap_or("You are IfAI CLI.")
             .to_string()
@@ -1839,14 +2186,15 @@ fn build_cli_system_prompt(spec: &ifainew_lib::harness::api::provider_metadata::
     };
 
     // 3. 使用 Handlebars 渲染（元编程）
-    let mut rendered = match prompt_manager::template::render_template(&template_content, &variables) {
-        Ok(r) => r,
-        Err(e) => {
-            // 渲染失败时返回原始模板
-            eprintln!("Warning: Failed to render prompt template: {}", e);
-            template_content
-        }
-    };
+    let mut rendered =
+        match prompt_manager::template::render_template(&template_content, &variables) {
+            Ok(r) => r,
+            Err(e) => {
+                // 渲染失败时返回原始模板
+                eprintln!("Warning: Failed to render prompt template: {}", e);
+                template_content
+            }
+        };
 
     // 4. 🏛️ 声明式：注入行为规则（数据驱动，替代 if is_zhipu { push_str(...) } 命令式逻辑）
     let cwd = std::env::current_dir()
@@ -1968,7 +2316,10 @@ mod tests {
         let mut collector = EventCollector::new();
         assert!(!collector.is_done());
 
-        collector.dispatch(&StreamEvent::MessageDone { input_tokens: 100, output_tokens: 50 });
+        collector.dispatch(&StreamEvent::MessageDone {
+            input_tokens: 100,
+            output_tokens: 50,
+        });
         assert!(collector.is_done());
     }
 
@@ -1987,7 +2338,10 @@ mod tests {
             tool_id: "call_1".to_string(),
             result: r#"{"command":"ls"}"#.to_string(),
         });
-        collector.dispatch(&StreamEvent::MessageDone { input_tokens: 10, output_tokens: 5 });
+        collector.dispatch(&StreamEvent::MessageDone {
+            input_tokens: 10,
+            output_tokens: 5,
+        });
 
         assert!(!collector.response_text().is_empty());
         assert!(collector.is_done());
@@ -2106,7 +2460,10 @@ mod tests {
         });
 
         // MessageDone - 标记完成
-        collector.dispatch(&StreamEvent::MessageDone { input_tokens: 100, output_tokens: 50 });
+        collector.dispatch(&StreamEvent::MessageDone {
+            input_tokens: 100,
+            output_tokens: 50,
+        });
 
         // Error - 显式处理（虽然不操作）
         collector.dispatch(&StreamEvent::Error {
@@ -2138,7 +2495,7 @@ mod tests {
         let mut session = Session::new("openai".to_string(), "gpt-4".to_string());
         session.set_base_url(format!("{}/v1", mock.uri()));
         session.set_api_key("test-key".to_string());
-        session.disable_tools();  // 禁用工具避免测试复杂度
+        session.disable_tools(); // 禁用工具避免测试复杂度
 
         // 3. 记录初始消息数
         assert_eq!(session.messages.len(), 0, "初始应该没有消息");
@@ -2147,7 +2504,7 @@ mod tests {
         for i in 1..=55 {
             let prompt = format!("message {}", i);
             match session.stream_prompt(&prompt).await {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     // 忽略流式错误，我们主要关注压缩逻辑
                     eprintln!("Warning: stream_prompt error for message {}: {:?}", i, e);
@@ -2165,7 +2522,10 @@ mod tests {
 
         // 6. 验证消息确实被压缩了（不是简单的 0 或 110）
         assert!(session.messages.len() > 0, "压缩后应该还有消息");
-        assert!(session.messages.len() < 110, "压缩后消息数应该少于原始 110 条");
+        assert!(
+            session.messages.len() < 110,
+            "压缩后消息数应该少于原始 110 条"
+        );
     }
 
     #[test]
@@ -2194,9 +2554,9 @@ mod tests {
         // 手动触发压缩逻辑（模拟 stream_prompt 中的压缩）
         let total_messages = session.messages.len();
         let keep_last_n = 50.min(total_messages);
-        session.messages = session.messages.split_off(
-            total_messages.saturating_sub(keep_last_n)
-        );
+        session.messages = session
+            .messages
+            .split_off(total_messages.saturating_sub(keep_last_n));
 
         // 验证压缩后保留 50 条
         assert_eq!(session.messages.len(), 50, "压缩后应该保留 50 条消息");
@@ -2204,15 +2564,18 @@ mod tests {
         // 验证保留的是最近的消息（最后 50 条）
         match &session.messages[0].content {
             MessageContent::Text(text) => {
-                assert_eq!(text, "message_56", "第一条应该是 message_56（第 56 条原始消息）");
-            },
+                assert_eq!(
+                    text, "message_56",
+                    "第一条应该是 message_56（第 56 条原始消息）"
+                );
+            }
             _ => panic!("Expected Text content"),
         }
 
         match &session.messages[49].content {
             MessageContent::Text(text) => {
                 assert_eq!(text, "message_105", "最后一条应该是 message_105");
-            },
+            }
             _ => panic!("Expected Text content"),
         }
     }
@@ -2226,8 +2589,14 @@ mod tests {
         assert!(session.messages.is_empty(), "messages 应该为空");
         assert_eq!(session.provider, "deepseek", "provider 应该正确");
         assert_eq!(session.model, "deepseek-chat", "model 应该正确");
-        assert_eq!(session.cumulative_input_tokens, 0, "初始 input tokens 应该为 0");
-        assert_eq!(session.cumulative_output_tokens, 0, "初始 output tokens 应该为 0");
+        assert_eq!(
+            session.cumulative_input_tokens, 0,
+            "初始 input tokens 应该为 0"
+        );
+        assert_eq!(
+            session.cumulative_output_tokens, 0,
+            "初始 output tokens 应该为 0"
+        );
     }
 
     // ========================================================================
@@ -2238,7 +2607,10 @@ mod tests {
     fn test_format_tool_args_bash_chinese_truncation() {
         // bash 命令包含中文，超过 80 字符时截断不 panic
         let long_chinese_cmd = "帮我创建一个2048小游戏的核心逻辑，需要包含游戏板的初始化和方块移动合并以及得分计算功能，支持上下左右四个方向的操作，还需要实现胜利和失败判定逻辑以及动画效果和得分排行榜功能";
-        assert!(long_chinese_cmd.chars().count() > 80, "测试数据需超过 80 字符");
+        assert!(
+            long_chinese_cmd.chars().count() > 80,
+            "测试数据需超过 80 字符"
+        );
         let args = serde_json::json!({ "command": long_chinese_cmd });
         let result = format_tool_args("bash", &args);
         assert!(result.contains("命令:"));
@@ -2257,7 +2629,8 @@ mod tests {
     #[test]
     fn test_format_tool_args_bash_mixed_cjk_ascii() {
         // 混合 CJK + ASCII，截断点落在多字节字符中间时不 panic
-        let mixed = "python3 -c \"print('帮我实现一个功能非常复杂的逻辑，包含很多步骤和详细说明')\"";
+        let mixed =
+            "python3 -c \"print('帮我实现一个功能非常复杂的逻辑，包含很多步骤和详细说明')\"";
         let args = serde_json::json!({ "command": mixed });
         let result = format_tool_args("bash", &args);
         assert!(result.contains("命令:"));
@@ -2266,7 +2639,8 @@ mod tests {
     #[test]
     fn test_format_tool_args_write_file_chinese_content() {
         // write_file 内容包含中文，超过 40 字符截断
-        let long_content = "这是一个很长的中文文件内容需要被截断显示确保不会在多字节字符边界处崩溃这是一个测试";
+        let long_content =
+            "这是一个很长的中文文件内容需要被截断显示确保不会在多字节字符边界处崩溃这是一个测试";
         assert!(long_content.chars().count() > 40, "测试数据需超过 40 字符");
         let args = serde_json::json!({ "path": "/tmp/test.py", "content": long_content });
         let result = format_tool_args("write_file", &args);

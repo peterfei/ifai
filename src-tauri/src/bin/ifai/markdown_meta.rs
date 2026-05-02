@@ -102,7 +102,8 @@ impl MetaPipeline {
 
     /// 🔥 自动选择渲染模式（声明式：根据代码特征和配置自动选择）
     fn auto_select_render_mode(&self, code_lines: &[&str]) -> RenderMode {
-        let has_folding = self.config.enable_folding && code_lines.len() > self.config.folding_strategy.max_lines;
+        let has_folding =
+            self.config.enable_folding && code_lines.len() > self.config.folding_strategy.max_lines;
         let has_highlight = self.config.enable_highlight;
 
         match (has_folding, has_highlight) {
@@ -120,7 +121,8 @@ impl MetaPipeline {
         code_lang: &str,
         theme: &crate::markdown_stream::TerminalTheme,
     ) -> String {
-        let max_width = code_lines.iter()
+        let max_width = code_lines
+            .iter()
             .map(|l| l.len())
             .max()
             .unwrap_or(0)
@@ -135,12 +137,11 @@ impl MetaPipeline {
 
         let header = format!(
             "{}│ {} {}{}",
-            theme.box_border,
-            theme.box_header, code_lang,
-            theme.reset
+            theme.box_border, theme.box_header, code_lang, theme.reset
         );
 
-        let body_lines: Vec<String> = code_lines.iter()
+        let body_lines: Vec<String> = code_lines
+            .iter()
             .enumerate()
             .map(|(i, line)| {
                 let line_num = format!("{:>3}", i + 1);
@@ -148,8 +149,10 @@ impl MetaPipeline {
                 format!(
                     "{}│{}{} {}{}{}",
                     theme.box_border,
-                    theme.line_num, line_num,
-                    theme.code_content, padded_line,
+                    theme.line_num,
+                    line_num,
+                    theme.code_content,
+                    padded_line,
                     theme.reset
                 )
             })
@@ -168,7 +171,8 @@ impl MetaPipeline {
             body_lines.join("\n"),
             bottom_border,
             "".to_string(),
-        ].join("\n")
+        ]
+        .join("\n")
     }
 
     /// 🔥 折叠渲染（边框 + 行号 + 折叠）
@@ -178,7 +182,8 @@ impl MetaPipeline {
         code_lang: &str,
         theme: &crate::markdown_stream::TerminalTheme,
     ) -> String {
-        self.folding_renderer.render_folded_block(code_lines, code_lang, theme)
+        self.folding_renderer
+            .render_folded_block(code_lines, code_lang, theme)
     }
 
     /// 🔥 高亮渲染（边框 + 行号 + 语法高亮）
@@ -188,7 +193,8 @@ impl MetaPipeline {
         code_lang: &str,
         theme: &crate::markdown_stream::TerminalTheme,
     ) -> String {
-        let max_width = code_lines.iter()
+        let max_width = code_lines
+            .iter()
             .map(|l| l.len())
             .max()
             .unwrap_or(0)
@@ -203,13 +209,12 @@ impl MetaPipeline {
 
         let header = format!(
             "{}│ {} {}{}",
-            theme.box_border,
-            theme.box_header, code_lang,
-            theme.reset
+            theme.box_border, theme.box_header, code_lang, theme.reset
         );
 
         // 元编程：自动应用语法高亮
-        let body_lines: Vec<String> = code_lines.iter()
+        let body_lines: Vec<String> = code_lines
+            .iter()
             .enumerate()
             .map(|(i, line)| {
                 let line_num = format!("{:>3}", i + 1);
@@ -218,8 +223,10 @@ impl MetaPipeline {
                 format!(
                     "{}│{}{} {}{}{}",
                     theme.box_border,
-                    theme.line_num, line_num,
-                    theme.code_content, padded_line,
+                    theme.line_num,
+                    line_num,
+                    theme.code_content,
+                    padded_line,
                     theme.reset
                 )
             })
@@ -238,7 +245,8 @@ impl MetaPipeline {
             body_lines.join("\n"),
             bottom_border,
             "".to_string(),
-        ].join("\n")
+        ]
+        .join("\n")
     }
 
     /// 🔥 完整渲染（边框 + 行号 + 折叠 + 语法高亮）
@@ -248,7 +256,8 @@ impl MetaPipeline {
         code_lang: &str,
         theme: &crate::markdown_stream::TerminalTheme,
     ) -> String {
-        let max_width = code_lines.iter()
+        let max_width = code_lines
+            .iter()
             .map(|l| l.len())
             .max()
             .unwrap_or(0)
@@ -263,17 +272,17 @@ impl MetaPipeline {
 
         let header = format!(
             "{}│ {} {}{}",
-            theme.box_border,
-            theme.box_header, code_lang,
-            theme.reset
+            theme.box_border, theme.box_header, code_lang, theme.reset
         );
 
         // 元编程：先应用语法高亮，再应用折叠逻辑
-        let highlighted_lines: Vec<String> = code_lines.iter()
+        let highlighted_lines: Vec<String> = code_lines
+            .iter()
             .map(|line| self.highlight_renderer.render_highlighted(line, code_lang))
             .collect();
 
-        let body_lines: Vec<String> = highlighted_lines.iter()
+        let body_lines: Vec<String> = highlighted_lines
+            .iter()
             .enumerate()
             .map(|(i, line)| {
                 let line_num = format!("{:>3}", i + 1);
@@ -281,8 +290,10 @@ impl MetaPipeline {
                 format!(
                     "{}│{}{} {}{}{}",
                     theme.box_border,
-                    theme.line_num, line_num,
-                    theme.code_content, padded_line,
+                    theme.line_num,
+                    line_num,
+                    theme.code_content,
+                    padded_line,
                     theme.reset
                 )
             })
@@ -301,7 +312,8 @@ impl MetaPipeline {
             body_lines.join("\n"),
             bottom_border,
             "".to_string(),
-        ].join("\n")
+        ]
+        .join("\n")
     }
 }
 
@@ -397,11 +409,17 @@ mod tests {
 
         // 短代码块
         let short_lines: Vec<&str> = vec!["line 1", "line 2"];
-        assert_eq!(pipeline.auto_select_render_mode(&short_lines), RenderMode::Highlight);
+        assert_eq!(
+            pipeline.auto_select_render_mode(&short_lines),
+            RenderMode::Highlight
+        );
 
         // 长代码块
         let long_lines: Vec<&str> = (0..30).map(|_i| "line").collect();
-        assert_eq!(pipeline.auto_select_render_mode(&long_lines), RenderMode::Full);
+        assert_eq!(
+            pipeline.auto_select_render_mode(&long_lines),
+            RenderMode::Full
+        );
     }
 
     #[test]

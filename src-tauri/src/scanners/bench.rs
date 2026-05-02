@@ -31,7 +31,11 @@ mod tests {
         }
 
         // 性能目标：<500ms
-        assert!(duration.as_millis() < 500, "Scan took too long: {:?}", duration);
+        assert!(
+            duration.as_millis() < 500,
+            "Scan took too long: {:?}",
+            duration
+        );
     }
 
     /// 基准测试：缓存效果
@@ -61,8 +65,12 @@ mod tests {
         println!("⚡ Cache speedup: {:.2}x", speedup);
 
         // 验证缓存确实命中了（通过速度或统计）
-        assert!(speedup > 10.0 || duration2.as_micros() < 1000,
-            "Cache not effective: first={:?}, second={:?}", duration1, duration2);
+        assert!(
+            speedup > 10.0 || duration2.as_micros() < 1000,
+            "Cache not effective: first={:?}, second={:?}",
+            duration1,
+            duration2
+        );
 
         // 验证缓存统计（可选，因为缓存已经工作了）
         if let Some(cache_stats) = result2.unwrap().cache_stats {
@@ -97,7 +105,10 @@ mod tests {
 
         // 并行应该更快（或至少不慢）
         // 注意：小项目可能看不出差异
-        println!("⚡ Speedup: {:.2}x", duration_serial.as_millis() as f64 / duration_parallel.as_millis() as f64);
+        println!(
+            "⚡ Speedup: {:.2}x",
+            duration_serial.as_millis() as f64 / duration_parallel.as_millis() as f64
+        );
     }
 
     /// 基准测试：多次扫描（验证缓存稳定性）
@@ -124,6 +135,10 @@ mod tests {
         println!("📈 Average scan time over 10 runs: {:?}", avg_duration);
 
         // 平均时间应该 <100ms（因为有缓存）
-        assert!(avg_duration.as_millis() < 100, "Average scan too slow: {:?}", avg_duration);
+        assert!(
+            avg_duration.as_millis() < 100,
+            "Average scan too slow: {:?}",
+            avg_duration
+        );
     }
 }

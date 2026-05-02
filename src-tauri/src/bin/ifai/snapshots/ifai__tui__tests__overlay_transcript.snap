@@ -1,0 +1,28 @@
+---
+source: src/bin/ifai/tui.rs
+expression: text
+---
+/ T R A N S C R I P T                                                           
+                                                                                
+Here is the code you requested:                                                 
+                                                                                
+```rust                                                                         
+fn main() {                                                                     
+    println!("Hello, World!");                                                  
+}                                                                               
+```                                                                             
+                                                                                
+This program prints a greeting.                                                 
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+↑/k ↑  ↓/j ↓  Space 翻 页   g/G 跳 转                                Top

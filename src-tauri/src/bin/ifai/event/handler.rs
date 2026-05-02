@@ -98,7 +98,8 @@ mod tests {
 
     impl EventHandler<KeyEvent> for MockHandler {
         fn handle(&mut self, _event: &KeyEvent, _app: &mut App) -> ControlFlow {
-            self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             ControlFlow::Continue
         }
     }

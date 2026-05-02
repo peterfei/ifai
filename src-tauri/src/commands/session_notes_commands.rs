@@ -3,7 +3,6 @@
  *
  * 提供会话笔记的创建、更新、查询和导出功能
  */
-
 use crate::conversation::notes::SessionNotes;
 use std::fs;
 use std::path::PathBuf;
@@ -151,9 +150,7 @@ pub async fn update_todo_task_status(
  * @returns 更新后的会话笔记（包含生成的摘要）
  */
 #[tauri::command]
-pub async fn generate_notes_summary(
-    notes: SessionNotes,
-) -> Result<SessionNotes, String> {
+pub async fn generate_notes_summary(notes: SessionNotes) -> Result<SessionNotes, String> {
     let mut updated_notes = notes.clone();
     updated_notes.generate_summary();
     Ok(updated_notes)
@@ -166,9 +163,7 @@ pub async fn generate_notes_summary(
  * @returns Markdown 格式的字符串
  */
 #[tauri::command]
-pub async fn export_notes_to_markdown(
-    notes: SessionNotes,
-) -> Result<String, String> {
+pub async fn export_notes_to_markdown(notes: SessionNotes) -> Result<String, String> {
     Ok(notes.to_markdown())
 }
 
@@ -179,9 +174,7 @@ pub async fn export_notes_to_markdown(
  * @returns JSON 格式的字符串
  */
 #[tauri::command]
-pub async fn export_notes_to_json(
-    notes: SessionNotes,
-) -> Result<String, String> {
+pub async fn export_notes_to_json(notes: SessionNotes) -> Result<String, String> {
     notes.to_json()
 }
 
@@ -192,9 +185,7 @@ pub async fn export_notes_to_json(
  * @returns 导入的会话笔记
  */
 #[tauri::command]
-pub async fn import_notes_from_json(
-    json: String,
-) -> Result<SessionNotes, String> {
+pub async fn import_notes_from_json(json: String) -> Result<SessionNotes, String> {
     SessionNotes::from_json(&json)
 }
 
@@ -205,9 +196,7 @@ pub async fn import_notes_from_json(
  * @returns 保存的文件路径
  */
 #[tauri::command]
-pub async fn save_session_notes(
-    notes: SessionNotes,
-) -> Result<String, String> {
+pub async fn save_session_notes(notes: SessionNotes) -> Result<String, String> {
     // 创建笔记目录
     let notes_dir = PathBuf::from(&notes.project_root)
         .join(".ifai")
@@ -223,8 +212,7 @@ pub async fn save_session_notes(
 
     // 序列化并保存
     let json = notes.to_json()?;
-    fs::write(&file_path, json)
-        .map_err(|e| format!("Failed to write notes file: {}", e))?;
+    fs::write(&file_path, json).map_err(|e| format!("Failed to write notes file: {}", e))?;
 
     Ok(file_path.to_string_lossy().to_string())
 }
@@ -249,8 +237,8 @@ pub async fn load_session_notes(
     let file_name = format!("{}.json", session_id);
     let file_path = notes_dir.join(&file_name);
 
-    let content = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read notes file: {}", e))?;
+    let content =
+        fs::read_to_string(&file_path).map_err(|e| format!("Failed to read notes file: {}", e))?;
 
     SessionNotes::from_json(&content)
 }
@@ -262,9 +250,7 @@ pub async fn load_session_notes(
  * @returns 会话笔记 ID 列表
  */
 #[tauri::command]
-pub async fn list_session_notes(
-    project_root: String,
-) -> Result<Vec<String>, String> {
+pub async fn list_session_notes(project_root: String) -> Result<Vec<String>, String> {
     let notes_dir = PathBuf::from(&project_root)
         .join(".ifai")
         .join("sessions")
@@ -274,8 +260,8 @@ pub async fn list_session_notes(
         return Ok(Vec::new());
     }
 
-    let entries = fs::read_dir(&notes_dir)
-        .map_err(|e| format!("Failed to read notes directory: {}", e))?;
+    let entries =
+        fs::read_dir(&notes_dir).map_err(|e| format!("Failed to read notes directory: {}", e))?;
 
     let mut session_ids = Vec::new();
     for entry in entries {

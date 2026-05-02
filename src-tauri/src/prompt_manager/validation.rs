@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy)]
 enum HandlebarsType {
-    Double,  // {{ }}
-    Triple,  // {{{ }}}
+    Double, // {{ }}
+    Triple, // {{{ }}}
 }
 
 /**
@@ -114,14 +114,13 @@ impl PromptValidator {
         }
 
         // 尝试解析 YAML
-        serde_yaml::from_str::<serde_yaml::Value>(yaml_content)
-            .map_err(|e| ValidationError {
-                error_type: "yaml".to_string(),
-                message: format!("YAML 解析失败: {}", e),
-                line: Some(2),
-                column: None,
-                severity: ErrorSeverity::Error,
-            })?;
+        serde_yaml::from_str::<serde_yaml::Value>(yaml_content).map_err(|e| ValidationError {
+            error_type: "yaml".to_string(),
+            message: format!("YAML 解析失败: {}", e),
+            line: Some(2),
+            column: None,
+            severity: ErrorSeverity::Error,
+        })?;
 
         Ok(())
     }
@@ -174,7 +173,11 @@ impl PromptValidator {
                                             error_type: "braces".to_string(),
                                             message: "多余的 }}} 标记".to_string(),
                                             line: Self::line_number(content, idx),
-                                            column: Some(idx - content[..idx].rfind('\n').map_or(0, |p| idx - p - 1)),
+                                            column: Some(
+                                                idx - content[..idx]
+                                                    .rfind('\n')
+                                                    .map_or(0, |p| idx - p - 1),
+                                            ),
                                             severity: ErrorSeverity::Error,
                                         });
                                     }
@@ -182,13 +185,20 @@ impl PromptValidator {
                                     // 这是 }}
                                     if let Some((_, HandlebarsType::Double)) = stack.pop() {
                                         // 正常的 }}
-                                    } else if let Some((start, HandlebarsType::Triple)) = stack.last() {
+                                    } else if let Some((start, HandlebarsType::Triple)) =
+                                        stack.last()
+                                    {
                                         // 在 {{{ 后面遇到 }}
                                         return Err(ValidationError {
                                             error_type: "braces".to_string(),
-                                            message: "Handlebars 标记不匹配：期望 }}} 但遇到 }}".to_string(),
+                                            message: "Handlebars 标记不匹配：期望 }}} 但遇到 }}"
+                                                .to_string(),
                                             line: Self::line_number(content, idx),
-                                            column: Some(idx - content[..idx].rfind('\n').map_or(0, |p| idx - p - 1)),
+                                            column: Some(
+                                                idx - content[..idx]
+                                                    .rfind('\n')
+                                                    .map_or(0, |p| idx - p - 1),
+                                            ),
                                             severity: ErrorSeverity::Error,
                                         });
                                     }
@@ -222,7 +232,11 @@ impl PromptValidator {
 
     /// 获取字符所在的行号（1-based）
     fn line_number(content: &str, index: usize) -> Option<usize> {
-        content[..index].chars().filter(|&c| c == '\n').count().checked_add(1)
+        content[..index]
+            .chars()
+            .filter(|&c| c == '\n')
+            .count()
+            .checked_add(1)
     }
 
     /// 验证 Handlebars 语法
@@ -250,7 +264,10 @@ impl PromptValidator {
         if if_count != end_if_count {
             warnings.push(ValidationError {
                 error_type: "handlebars".to_string(),
-                message: format!("{{#if}} 和 {{/if}} 数量不匹配：{} 个 #if，{} 个 /if", if_count, end_if_count),
+                message: format!(
+                    "{{#if}} 和 {{/if}} 数量不匹配：{} 个 #if，{} 个 /if",
+                    if_count, end_if_count
+                ),
                 line: None,
                 column: None,
                 severity: ErrorSeverity::Warning,
@@ -267,7 +284,10 @@ impl PromptValidator {
         if each_count != end_each_count {
             warnings.push(ValidationError {
                 error_type: "handlebars".to_string(),
-                message: format!("{{#each}} 和 {{/each}} 数量不匹配：{} 个 #each，{} 个 /each", each_count, end_each_count),
+                message: format!(
+                    "{{#each}} 和 {{/each}} 数量不匹配：{} 个 #each，{} 个 /each",
+                    each_count, end_each_count
+                ),
                 line: None,
                 column: None,
                 severity: ErrorSeverity::Warning,

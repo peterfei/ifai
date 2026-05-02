@@ -2,12 +2,12 @@
 //!
 //! 实现 Glob 和 Grep 搜索工具。
 
+use glob::{glob as glob_pattern, Pattern};
+use regex::Regex;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
-use glob::{glob as glob_pattern, Pattern};
-use regex::Regex;
 
 use super::super::{ToolError, ToolExecutor};
 
@@ -37,14 +37,9 @@ impl SearchToolsExecutor {
         let pattern = input
             .get("pattern")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'pattern' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'pattern' parameter".to_string()))?;
 
-        let base_path = input
-            .get("path")
-            .and_then(|v| v.as_str())
-            .unwrap_or(".");
+        let base_path = input.get("path").and_then(|v| v.as_str()).unwrap_or(".");
 
         let base = Path::new(base_path);
         if !base.exists() {
@@ -101,7 +96,10 @@ impl SearchToolsExecutor {
         }
 
         if error_count > 0 {
-            result.push_str(&format!("\n{} error(s) occurred during search", error_count));
+            result.push_str(&format!(
+                "\n{} error(s) occurred during search",
+                error_count
+            ));
         }
 
         Ok(result)
@@ -112,14 +110,9 @@ impl SearchToolsExecutor {
         let pattern = input
             .get("pattern")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'pattern' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'pattern' parameter".to_string()))?;
 
-        let base_path = input
-            .get("path")
-            .and_then(|v| v.as_str())
-            .unwrap_or(".");
+        let base_path = input.get("path").and_then(|v| v.as_str()).unwrap_or(".");
 
         let base = Path::new(base_path);
         if !base.exists() {
@@ -130,9 +123,8 @@ impl SearchToolsExecutor {
         }
 
         // 创建正则表达式
-        let regex = Regex::new(pattern).map_err(|e| {
-            ToolError::Execution(format!("Invalid regex pattern: {}", e))
-        })?;
+        let regex = Regex::new(pattern)
+            .map_err(|e| ToolError::Execution(format!("Invalid regex pattern: {}", e)))?;
 
         let mut results: Vec<GrepResult> = Vec::new();
 
@@ -154,13 +146,14 @@ impl SearchToolsExecutor {
 
         // 格式化结果
         let mut total_matches = 0;
-        let mut output = format!(
-            "Grep search: '{}'\nPath: {}\n\n",
-            pattern, base_path
-        );
+        let mut output = format!("Grep search: '{}'\nPath: {}\n\n", pattern, base_path);
 
         for result in &results {
-            output.push_str(&format!("{} ({} matches):\n", result.file, result.matches.len()));
+            output.push_str(&format!(
+                "{} ({} matches):\n",
+                result.file,
+                result.matches.len()
+            ));
             total_matches += result.matches.len();
 
             for (line_num, line) in &result.matches {
@@ -169,7 +162,11 @@ impl SearchToolsExecutor {
             output.push('\n');
         }
 
-        output.push_str(&format!("Total: {} matches in {} file(s)", total_matches, results.len()));
+        output.push_str(&format!(
+            "Total: {} matches in {} file(s)",
+            total_matches,
+            results.len()
+        ));
 
         Ok(output)
     }
@@ -214,7 +211,11 @@ impl SearchToolsExecutor {
         results: &mut Vec<GrepResult>,
     ) -> Result<(), ToolError> {
         let entries = fs::read_dir(dir).map_err(|e| {
-            ToolError::Execution(format!("Failed to read directory '{}': {}", dir.display(), e))
+            ToolError::Execution(format!(
+                "Failed to read directory '{}': {}",
+                dir.display(),
+                e
+            ))
         })?;
 
         for entry in entries {
@@ -244,11 +245,38 @@ impl SearchToolsExecutor {
                     // 常见文本文件扩展名
                     let is_text = matches!(
                         ext_str.as_ref(),
-                        "rs" | "js" | "ts" | "tsx" | "jsx" | "py" | "go" | "java"
-                            | "c" | "cpp" | "h" | "hpp" | "cs" | "rb" | "php"
-                            | "sh" | "bash" | "zsh" | "fish" | "json" | "toml"
-                            | "yaml" | "yml" | "xml" | "md" | "txt" | "html"
-                            | "css" | "scss" | "less" | "sql" | "r" | "lua"
+                        "rs" | "js"
+                            | "ts"
+                            | "tsx"
+                            | "jsx"
+                            | "py"
+                            | "go"
+                            | "java"
+                            | "c"
+                            | "cpp"
+                            | "h"
+                            | "hpp"
+                            | "cs"
+                            | "rb"
+                            | "php"
+                            | "sh"
+                            | "bash"
+                            | "zsh"
+                            | "fish"
+                            | "json"
+                            | "toml"
+                            | "yaml"
+                            | "yml"
+                            | "xml"
+                            | "md"
+                            | "txt"
+                            | "html"
+                            | "css"
+                            | "scss"
+                            | "less"
+                            | "sql"
+                            | "r"
+                            | "lua"
                     );
                     if is_text {
                         self.search_file(&path, regex, results)?;

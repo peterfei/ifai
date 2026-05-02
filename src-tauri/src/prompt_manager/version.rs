@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::fs;
+use git2::{Oid, Repository};
 use serde::{Deserialize, Serialize};
-use git2::{Repository, Oid};
+use std::fs;
+use std::path::PathBuf;
 
 /// 提示词版本信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,7 +66,11 @@ impl PromptVersionManager {
     }
 
     /// 获取提示词版本历史
-    pub fn get_versions(&self, prompt_path: &str, limit: Option<usize>) -> Result<Vec<PromptVersion>, String> {
+    pub fn get_versions(
+        &self,
+        prompt_path: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<PromptVersion>, String> {
         let repo = self.get_repo()?;
         let prompt_full_path = self.get_prompt_path(prompt_path);
 
@@ -78,22 +82,30 @@ impl PromptVersionManager {
         // 获取相对于 Git 仓库根的路径
         // 使用 canonicalize 来规范化路径（解决 macOS 上 /var -> /private/var 的符号链接问题）
         let repo_root = repo.workdir().ok_or("No working directory")?;
-        let canonical_repo_root = repo_root.canonicalize()
+        let canonical_repo_root = repo_root
+            .canonicalize()
             .map_err(|e| format!("Failed to canonicalize repo root: {}", e))?;
-        let canonical_prompt_path = prompt_full_path.canonicalize()
+        let canonical_prompt_path = prompt_full_path
+            .canonicalize()
             .map_err(|e| format!("Failed to canonicalize prompt path: {}", e))?;
-
 
         let rel_path = canonical_prompt_path
             .strip_prefix(&canonical_repo_root)
-            .map_err(|e| format!("Failed to get relative path: {} (repo_root: {:?}, prompt_path: {:?})",
-                                e, canonical_repo_root, canonical_prompt_path))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to get relative path: {} (repo_root: {:?}, prompt_path: {:?})",
+                    e, canonical_repo_root, canonical_prompt_path
+                )
+            })?;
 
         // 获取文件的提交历史
-        let mut revwalk = repo.revwalk()
+        let mut revwalk = repo
+            .revwalk()
             .map_err(|e| format!("Failed to walk commits: {}", e))?;
 
-        revwalk.push_head().map_err(|e| format!("Failed to push HEAD: {}", e))?;
+        revwalk
+            .push_head()
+            .map_err(|e| format!("Failed to push HEAD: {}", e))?;
 
         let mut versions = Vec::new();
         let max_count = limit.unwrap_or(20);
@@ -104,11 +116,14 @@ impl PromptVersionManager {
             }
 
             let oid = oid.map_err(|e| format!("Failed to get OID: {}", e))?;
-            let commit = repo.find_commit(oid)
+            let commit = repo
+                .find_commit(oid)
                 .map_err(|e| format!("Failed to find commit: {}", e))?;
 
             // 检查此提交是否修改了该文件
-            let tree = commit.tree().map_err(|e| format!("Failed to get tree: {}", e))?;
+            let tree = commit
+                .tree()
+                .map_err(|e| format!("Failed to get tree: {}", e))?;
 
             // 尝试获取文件内容
             let object_id = match tree.get_path(rel_path) {
@@ -147,27 +162,31 @@ impl PromptVersionManager {
         &self,
         prompt_path: &str,
         old_version_id: &str,
-        new_version_id: &str
+        new_version_id: &str,
     ) -> Result<VersionDiff, String> {
         let repo = self.get_repo()?;
 
-        let old_oid = Oid::from_str(old_version_id)
-            .map_err(|e| format!("Invalid old version ID: {}", e))?;
-        let new_oid = Oid::from_str(new_version_id)
-            .map_err(|e| format!("Invalid new version ID: {}", e))?;
+        let old_oid =
+            Oid::from_str(old_version_id).map_err(|e| format!("Invalid old version ID: {}", e))?;
+        let new_oid =
+            Oid::from_str(new_version_id).map_err(|e| format!("Invalid new version ID: {}", e))?;
 
-        let old_commit = repo.find_commit(old_oid)
+        let old_commit = repo
+            .find_commit(old_oid)
             .map_err(|e| format!("Failed to find old commit: {}", e))?;
-        let new_commit = repo.find_commit(new_oid)
+        let new_commit = repo
+            .find_commit(new_oid)
             .map_err(|e| format!("Failed to find new commit: {}", e))?;
 
         let prompt_full_path = self.get_prompt_path(prompt_path);
         let repo_root = repo.workdir().ok_or("No working directory")?;
 
         // 使用 canonicalize 来规范化路径（解决 macOS 符号链接问题）
-        let canonical_repo_root = repo_root.canonicalize()
+        let canonical_repo_root = repo_root
+            .canonicalize()
             .map_err(|e| format!("Failed to canonicalize repo root: {}", e))?;
-        let canonical_prompt_path = prompt_full_path.canonicalize()
+        let canonical_prompt_path = prompt_full_path
+            .canonicalize()
             .map_err(|e| format!("Failed to canonicalize prompt path: {}", e))?;
 
         let rel_path = canonical_prompt_path
@@ -175,25 +194,35 @@ impl PromptVersionManager {
             .map_err(|e| format!("Failed to get relative path: {}", e))?;
 
         // 获取旧版本内容
-        let old_tree = old_commit.tree().map_err(|e| format!("Failed to get old tree: {}", e))?;
+        let old_tree = old_commit
+            .tree()
+            .map_err(|e| format!("Failed to get old tree: {}", e))?;
         let old_content = match old_tree.get_path(rel_path) {
             Ok(entry) => {
-                let obj = entry.to_object(&repo)
+                let obj = entry
+                    .to_object(&repo)
                     .map_err(|e| format!("Failed to get old object: {}", e))?;
                 let blob = obj.as_blob().ok_or("Not a blob")?;
-                std::str::from_utf8(blob.content()).unwrap_or("").to_string()
+                std::str::from_utf8(blob.content())
+                    .unwrap_or("")
+                    .to_string()
             }
             Err(_) => String::new(),
         };
 
         // 获取新版本内容
-        let new_tree = new_commit.tree().map_err(|e| format!("Failed to get new tree: {}", e))?;
+        let new_tree = new_commit
+            .tree()
+            .map_err(|e| format!("Failed to get new tree: {}", e))?;
         let new_content = match new_tree.get_path(rel_path) {
             Ok(entry) => {
-                let obj = entry.to_object(&repo)
+                let obj = entry
+                    .to_object(&repo)
                     .map_err(|e| format!("Failed to get new object: {}", e))?;
                 let blob = obj.as_blob().ok_or("Not a blob")?;
-                std::str::from_utf8(blob.content()).unwrap_or("").to_string()
+                std::str::from_utf8(blob.content())
+                    .unwrap_or("")
+                    .to_string()
             }
             Err(_) => String::new(),
         };
@@ -269,26 +298,32 @@ impl PromptVersionManager {
             }
         }
 
-        DiffResult { additions, deletions, diff_text }
+        DiffResult {
+            additions,
+            deletions,
+            diff_text,
+        }
     }
 
     /// 回滚到指定版本
     pub fn rollback(&self, prompt_path: &str, version_id: &str) -> Result<String, String> {
         let repo = self.get_repo()?;
 
-        let oid = Oid::from_str(version_id)
-            .map_err(|e| format!("Invalid version ID: {}", e))?;
-        let commit = repo.find_commit(oid)
+        let oid = Oid::from_str(version_id).map_err(|e| format!("Invalid version ID: {}", e))?;
+        let commit = repo
+            .find_commit(oid)
             .map_err(|e| format!("Failed to find commit: {}", e))?;
 
         let prompt_full_path = self.get_prompt_path(prompt_path);
         let repo_root = repo.workdir().ok_or("No working directory")?;
 
         // 使用 canonicalize 来规范化路径（解决 macOS 符号链接问题）
-        let canonical_repo_root = repo_root.canonicalize()
+        let canonical_repo_root = repo_root
+            .canonicalize()
             .map_err(|e| format!("Failed to canonicalize repo root: {}", e))?;
         let canonical_prompt_path = if prompt_full_path.exists() {
-            prompt_full_path.canonicalize()
+            prompt_full_path
+                .canonicalize()
                 .map_err(|e| format!("Failed to canonicalize prompt path: {}", e))?
         } else {
             // 文件不存在时使用原路径
@@ -300,13 +335,18 @@ impl PromptVersionManager {
             .map_err(|e| format!("Failed to get relative path: {}", e))?;
 
         // 获取指定版本的文件内容
-        let tree = commit.tree().map_err(|e| format!("Failed to get tree: {}", e))?;
+        let tree = commit
+            .tree()
+            .map_err(|e| format!("Failed to get tree: {}", e))?;
         let content = match tree.get_path(rel_path) {
             Ok(entry) => {
-                let obj = entry.to_object(&repo)
+                let obj = entry
+                    .to_object(&repo)
                     .map_err(|e| format!("Failed to get object: {}", e))?;
                 let blob = obj.as_blob().ok_or("Not a blob")?;
-                std::str::from_utf8(blob.content()).unwrap_or("").to_string()
+                std::str::from_utf8(blob.content())
+                    .unwrap_or("")
+                    .to_string()
             }
             Err(_) => return Err("File not found in this version".to_string()),
         };
@@ -366,9 +406,7 @@ impl PromptVersionManager {
 
                 // 检查文件状态
                 match repo.status_file(rel_path) {
-                    Ok(status) => {
-                        !status.is_empty()
-                    }
+                    Ok(status) => !status.is_empty(),
                     Err(_) => false,
                 }
             }
@@ -418,21 +456,18 @@ mod tests {
 
         // 添加并提交
         let mut index = repo.index().unwrap();
-        index.add_path(PathBuf::from(".ifai/prompts/test.md").as_path()).unwrap();
+        index
+            .add_path(PathBuf::from(".ifai/prompts/test.md").as_path())
+            .unwrap();
         index.write().unwrap();
 
         let tree_id = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
 
         let sig = repo.signature().unwrap();
-        let oid = repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            "Initial commit",
-            &tree,
-            &[]
-        ).unwrap();
+        let oid = repo
+            .commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])
+            .unwrap();
 
         println!("Test repository initialized at: {:?}", temp_dir);
         println!("Initial commit: {}", oid);
@@ -507,7 +542,10 @@ mod tests {
         assert_eq!(hash1, hash2, "Same content should produce same hash");
 
         // 不同内容应该产生不同的 hash
-        assert_ne!(hash1, hash3, "Different content should produce different hash");
+        assert_ne!(
+            hash1, hash3,
+            "Different content should produce different hash"
+        );
 
         println!("Hash1: {}", hash1);
         println!("Hash2: {}", hash2);
@@ -528,20 +566,24 @@ mod tests {
 
         // 提交修改
         let mut index = repo.index().unwrap();
-        index.add_path(PathBuf::from(".ifai/prompts/test.md").as_path()).unwrap();
+        index
+            .add_path(PathBuf::from(".ifai/prompts/test.md").as_path())
+            .unwrap();
         index.write().unwrap();
 
         let tree_id = index.write_tree().unwrap();
         let tree = repo.find_tree(tree_id).unwrap();
         let sig = repo.signature().unwrap();
-        let _ = repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            "Second commit",
-            &tree,
-            &[&repo.head().unwrap().peel_to_commit().unwrap()]
-        ).unwrap();
+        let _ = repo
+            .commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                "Second commit",
+                &tree,
+                &[&repo.head().unwrap().peel_to_commit().unwrap()],
+            )
+            .unwrap();
 
         // 获取所有版本
         let versions = manager.get_versions("test.md", Some(10)).unwrap();
@@ -553,7 +595,11 @@ mod tests {
 
         let result = manager.compare_versions("test.md", old_id, new_id);
 
-        assert!(result.is_ok(), "Failed to compare versions: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to compare versions: {:?}",
+            result.err()
+        );
 
         let diff = result.unwrap();
         assert_eq!(diff.old_version.version_id, *old_id);
@@ -564,7 +610,10 @@ mod tests {
         println!("Deletions: {}", diff.deletions);
 
         // 应该有变化
-        assert!(diff.additions > 0 || diff.deletions > 0, "Should have some changes");
+        assert!(
+            diff.additions > 0 || diff.deletions > 0,
+            "Should have some changes"
+        );
     }
 
     #[test]

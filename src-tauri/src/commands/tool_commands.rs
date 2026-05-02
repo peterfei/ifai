@@ -6,7 +6,7 @@
 //! P3: 通用工具系统 UI - 后端命令实现
 //!
 
-use crate::harness::tool::{ToolRegistry, ToolSpec, ToolPermissionMode, ToolCategory};
+use crate::harness::tool::{ToolCategory, ToolPermissionMode, ToolRegistry, ToolSpec};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -273,10 +273,7 @@ fn generate_parameter_descriptions(name: &str) -> HashMap<String, String> {
         }
         "edit_file" => {
             descriptions.insert("path".to_string(), "要编辑的文件路径".to_string());
-            descriptions.insert(
-                "old_text".to_string(),
-                "要替换的原始文本内容".to_string(),
-            );
+            descriptions.insert("old_text".to_string(), "要替换的原始文本内容".to_string());
             descriptions.insert("new_text".to_string(), "替换后的新文本内容".to_string());
         }
         "glob_search" => {
@@ -294,7 +291,10 @@ fn generate_parameter_descriptions(name: &str) -> HashMap<String, String> {
             descriptions.insert("command".to_string(), "要执行的 bash 命令".to_string());
         }
         "PowerShell" => {
-            descriptions.insert("command".to_string(), "要执行的 PowerShell 命令".to_string());
+            descriptions.insert(
+                "command".to_string(),
+                "要执行的 PowerShell 命令".to_string(),
+            );
         }
         "WebFetch" => {
             descriptions.insert("url".to_string(), "要获取的网页 URL".to_string());
@@ -320,14 +320,8 @@ mod tests {
 
     #[test]
     fn test_tool_categorization() {
-        assert!(matches!(
-            categorize_tool("read_file"),
-            ToolCategory::File
-        ));
-        assert!(matches!(
-            categorize_tool("bash"),
-            ToolCategory::Command
-        ));
+        assert!(matches!(categorize_tool("read_file"), ToolCategory::File));
+        assert!(matches!(categorize_tool("bash"), ToolCategory::Command));
         assert!(matches!(
             categorize_tool("glob_search"),
             ToolCategory::Search

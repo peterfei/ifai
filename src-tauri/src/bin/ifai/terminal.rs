@@ -11,9 +11,9 @@
 //! - 线程安全：支持多线程读取
 //! - 类型安全：所有 ANSI 序列封装在方法中
 
+use once_cell::sync::Lazy;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
-use once_cell::sync::Lazy;
 
 // ============================================================================
 // 终端尺寸抽象
@@ -71,23 +71,21 @@ impl Terminal {
     /// - 失败：返回 24（保守默认值，适合大多数终端）
     pub fn rows(&self) -> u16 {
         self.update_size_if_needed();
-        self.size.read().unwrap()
-            .map(|s| s.rows)
-            .unwrap_or(24) // 🎯 降级到安全默认值
+        self.size.read().unwrap().map(|s| s.rows).unwrap_or(24) // 🎯 降级到安全默认值
     }
 
     /// 🔥 获取终端列数（带降级策略）
     pub fn cols(&self) -> u16 {
         self.update_size_if_needed();
-        self.size.read().unwrap()
-            .map(|s| s.cols)
-            .unwrap_or(80) // 🎯 降级到安全默认值
+        self.size.read().unwrap().map(|s| s.cols).unwrap_or(80) // 🎯 降级到安全默认值
     }
 
     /// 🔥 获取终端尺寸（带降级策略）
     pub fn size(&self) -> TerminalSize {
         self.update_size_if_needed();
-        self.size.read().unwrap()
+        self.size
+            .read()
+            .unwrap()
             .unwrap_or_else(TerminalSize::safe_default)
     }
 
@@ -110,8 +108,8 @@ impl Terminal {
     /// 🔥 查询终端尺寸（跨平台抽象）
     #[cfg(unix)]
     fn query_size(&self) -> TerminalSize {
+        use libc::{ioctl, winsize, TIOCGWINSZ};
         use std::mem;
-        use libc::{ioctl, TIOCGWINSZ, winsize};
 
         unsafe {
             let mut size: winsize = mem::zeroed();
@@ -131,8 +129,7 @@ impl Terminal {
     fn query_size(&self) -> TerminalSize {
         use std::mem;
         use windows::Win32::System::Console::{
-            GetConsoleScreenBufferInfo, GetStdHandle, CONSOLE_SCREEN_BUFFER_INFO,
-            STD_OUTPUT_HANDLE,
+            GetConsoleScreenBufferInfo, GetStdHandle, CONSOLE_SCREEN_BUFFER_INFO, STD_OUTPUT_HANDLE,
         };
 
         unsafe {
@@ -147,10 +144,7 @@ impl Terminal {
             if GetConsoleScreenBufferInfo(handle, &mut info).is_ok() {
                 let rows = (info.srWindow.Bottom - info.srWindow.Top + 1).max(1) as u16;
                 let cols = (info.srWindow.Right - info.srWindow.Left + 1).max(1) as u16;
-                TerminalSize {
-                    rows,
-                    cols,
-                }
+                TerminalSize { rows, cols }
             } else {
                 TerminalSize::safe_default()
             }
@@ -408,10 +402,10 @@ mod tests {
         let output = Cursor::render_at_bottom(content);
 
         // 验证包含所有必要的 ANSI 序列
-        assert!(output.contains("\x1b[s"));  // 保存光标
-        assert!(output.contains("\x1b["));   // 移动光标
-        assert!(output.contains(content));   // 包含内容
-        assert!(output.contains("\x1b[u"));  // 恢复光标
+        assert!(output.contains("\x1b[s")); // 保存光标
+        assert!(output.contains("\x1b[")); // 移动光标
+        assert!(output.contains(content)); // 包含内容
+        assert!(output.contains("\x1b[u")); // 恢复光标
     }
 
     #[test]
@@ -420,7 +414,7 @@ mod tests {
         let output = Cursor::render_at_bottom_clear_line(content);
 
         // 验证包含清除整行序列
-        assert!(output.contains("\x1b[2K"));  // 清除整行
+        assert!(output.contains("\x1b[2K")); // 清除整行
         assert!(output.contains(content));
     }
 

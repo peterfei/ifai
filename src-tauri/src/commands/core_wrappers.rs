@@ -1,5 +1,5 @@
-use crate::AppState;
 use crate::core_traits::rag::RagResult;
+use crate::AppState;
 
 // For optimized directory scanning
 use walkdir::WalkDir;
@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 pub async fn init_rag_index(
     _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
-    root_path: String
+    root_path: String,
 ) -> Result<(), String> {
     state.rag_service.index_project(&root_path).await
 }
@@ -17,7 +17,7 @@ pub async fn init_rag_index(
 pub async fn search_semantic(
     state: tauri::State<'_, AppState>,
     query: String,
-    limit: usize
+    limit: usize,
 ) -> Result<Vec<String>, String> {
     state.rag_service.search(&query, limit).await
 }
@@ -26,7 +26,7 @@ pub async fn search_semantic(
 pub async fn search_hybrid(
     state: tauri::State<'_, AppState>,
     query: String,
-    limit: usize
+    limit: usize,
 ) -> Result<Vec<String>, String> {
     state.rag_service.search(&query, limit).await
 }
@@ -35,7 +35,7 @@ pub async fn search_hybrid(
 pub async fn build_context(
     state: tauri::State<'_, AppState>,
     query: String,
-    root_path: String
+    root_path: String,
 ) -> Result<RagResult, String> {
     state.rag_service.retrieve_context(&query, &root_path).await
 }
@@ -53,8 +53,15 @@ pub async fn build_context(
 // New code should use ToolRouter instead of calling these functions directly.
 
 #[tauri::command]
-#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_write_file\", ...) instead")]
-pub async fn agent_write_file(root_path: String, rel_path: String, content: String) -> Result<String, String> {
+#[deprecated(
+    since = "0.3.13",
+    note = "Use ToolRouter::execute(\"agent_write_file\", ...) instead"
+)]
+pub async fn agent_write_file(
+    root_path: String,
+    rel_path: String,
+    content: String,
+) -> Result<String, String> {
     // 🔄 P4: 委托给 ToolRouter
     use crate::harness::tool::ToolRouter;
     let router = ToolRouter::new();
@@ -65,12 +72,16 @@ pub async fn agent_write_file(root_path: String, rel_path: String, content: Stri
         "content": content
     });
 
-    router.execute("agent_write_file", &args)
+    router
+        .execute("agent_write_file", &args)
         .map_err(|e| format!("{:?}", e))
 }
 
 #[tauri::command]
-#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_read_file\", ...) instead")]
+#[deprecated(
+    since = "0.3.13",
+    note = "Use ToolRouter::execute(\"agent_read_file\", ...) instead"
+)]
 pub async fn agent_read_file(root_path: String, rel_path: String) -> Result<String, String> {
     // 🔄 P4: 委托给 ToolRouter
     use crate::harness::tool::ToolRouter;
@@ -81,12 +92,16 @@ pub async fn agent_read_file(root_path: String, rel_path: String) -> Result<Stri
         "rel_path": rel_path
     });
 
-    router.execute("agent_read_file", &args)
+    router
+        .execute("agent_read_file", &args)
         .map_err(|e| format!("{:?}", e))
 }
 
 #[tauri::command]
-#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_list_dir\", ...) instead")]
+#[deprecated(
+    since = "0.3.13",
+    note = "Use ToolRouter::execute(\"agent_list_dir\", ...) instead"
+)]
 pub async fn agent_list_dir(root_path: String, rel_path: String) -> Result<Vec<String>, String> {
     // 🔄 P4: 委托给 ToolRouter
     use crate::harness::tool::ToolRouter;
@@ -97,12 +112,12 @@ pub async fn agent_list_dir(root_path: String, rel_path: String) -> Result<Vec<S
         "rel_path": rel_path
     });
 
-    let result = router.execute("agent_list_dir", &args)
+    let result = router
+        .execute("agent_list_dir", &args)
         .map_err(|e| format!("{:?}", e))?;
 
     // 解析 JSON 数组
-    serde_json::from_str(&result)
-        .map_err(|e| format!("Failed to parse result: {}", e))
+    serde_json::from_str(&result).map_err(|e| format!("Failed to parse result: {}", e))
 }
 
 /// Delete a file
@@ -116,7 +131,9 @@ pub async fn agent_delete_file(root_path: String, rel_path: String) -> Result<St
     #[cfg(not(feature = "commercial"))]
     {
         let path = std::path::Path::new(&root_path).join(&rel_path);
-        tokio::fs::remove_file(&path).await.map_err(|e| e.to_string())?;
+        tokio::fs::remove_file(&path)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(format!("File deleted: {}", rel_path))
     }
 }
@@ -128,22 +145,26 @@ pub async fn agent_batch_read(root_path: String, paths: Vec<String>) -> Result<S
     use serde_json::json;
 
     // Read files in parallel using futures
-    let futures: Vec<_> = paths.into_iter().map(|rel_path| {
-        let root = root_path.clone();
-        async move {
-            let path = std::path::Path::new(&root).join(&rel_path);
-            match tokio::fs::read_to_string(&path).await {
-                Ok(content) => (rel_path, Some(content)),
-                Err(e) => (rel_path, None::<String>),
+    let futures: Vec<_> = paths
+        .into_iter()
+        .map(|rel_path| {
+            let root = root_path.clone();
+            async move {
+                let path = std::path::Path::new(&root).join(&rel_path);
+                match tokio::fs::read_to_string(&path).await {
+                    Ok(content) => (rel_path, Some(content)),
+                    Err(e) => (rel_path, None::<String>),
+                }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     let results = futures::future::join_all(futures).await;
 
     // Build JSON response
-    let json_results: Vec<serde_json::Value> = results.into_iter().map(|(path, content)| {
-        match content {
+    let json_results: Vec<serde_json::Value> = results
+        .into_iter()
+        .map(|(path, content)| match content {
             Some(c) => json!({
                 "path": path,
                 "status": "success",
@@ -153,9 +174,9 @@ pub async fn agent_batch_read(root_path: String, paths: Vec<String>) -> Result<S
                 "path": path,
                 "status": "error",
                 "error": "File not found or cannot be read"
-            })
-        }
-    }).collect();
+            }),
+        })
+        .collect();
 
     serde_json::to_string(&json_results).map_err(|e| e.to_string())
 }
@@ -164,8 +185,15 @@ pub async fn agent_batch_read(root_path: String, paths: Vec<String>) -> Result<S
 /// Supports glob patterns and file limits
 
 #[tauri::command]
-#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_scan_project\", ...) instead")]
-pub async fn agent_scan_project(root_path: String, rel_path: String, max_depth: Option<usize>) -> Result<String, String> {
+#[deprecated(
+    since = "0.3.13",
+    note = "Use ToolRouter::execute(\"agent_scan_project\", ...) instead"
+)]
+pub async fn agent_scan_project(
+    root_path: String,
+    rel_path: String,
+    max_depth: Option<usize>,
+) -> Result<String, String> {
     // 🔄 P4: 委托给 ToolRouter
     use crate::harness::tool::ToolRouter;
     let router = ToolRouter::new();
@@ -176,7 +204,8 @@ pub async fn agent_scan_project(root_path: String, rel_path: String, max_depth: 
         "max_depth": max_depth
     });
 
-    router.execute("agent_scan_project", &args)
+    router
+        .execute("agent_scan_project", &args)
         .map_err(|e| format!("{:?}", e))
 }
 
@@ -186,10 +215,10 @@ pub async fn agent_scan_directory(
     rel_path: String,
     pattern: Option<String>,
     max_depth: Option<usize>,
-    max_files: Option<usize>
+    max_files: Option<usize>,
 ) -> Result<String, String> {
-    use serde_json::json;
     use glob::glob;
+    use serde_json::json;
     use std::path::Path;
 
     let base_path = Path::new(&root_path).join(&rel_path);
@@ -198,15 +227,24 @@ pub async fn agent_scan_directory(
 
     // Directories to ignore during scan
     let ignore_dirs = [
-        "node_modules", ".git", "target", "dist", "build",
-        ".vscode", ".idea", "coverage", ".next", ".nuxt",
-        ".venv", "venv", "__pycache__", "node_modules_cache"
+        "node_modules",
+        ".git",
+        "target",
+        "dist",
+        "build",
+        ".vscode",
+        ".idea",
+        "coverage",
+        ".next",
+        ".nuxt",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "node_modules_cache",
     ];
 
     // Files to ignore during scan
-    let ignore_files = [
-        ".DS_Store", "*.log", "*.tsbuildinfo"
-    ];
+    let ignore_files = [".DS_Store", "*.log", "*.tsbuildinfo"];
 
     // Helper to check if a path should be ignored
     let should_ignore_path = |path: &str, is_dir: bool| -> bool {
@@ -215,7 +253,8 @@ pub async fn agent_scan_directory(
         // Check if path is in or contains an ignored directory
         for ignore_dir in &ignore_dirs {
             let pattern = format!("/{}/", ignore_dir);
-            if path_lower.contains(&pattern) || path_lower.starts_with(&format!("{}/", ignore_dir)) {
+            if path_lower.contains(&pattern) || path_lower.starts_with(&format!("{}/", ignore_dir))
+            {
                 return true;
             }
         }
@@ -282,7 +321,8 @@ pub async fn agent_scan_directory(
                         }
 
                         // Convert to relative path
-                        let rel = path.strip_prefix(&root_path)
+                        let rel = path
+                            .strip_prefix(&root_path)
                             .unwrap_or(&path)
                             .to_string_lossy()
                             .to_string();
@@ -306,11 +346,11 @@ pub async fn agent_scan_directory(
                             files.push(rel);
                             count += 1;
                         }
-                    },
+                    }
                     Err(_) => continue,
                 }
             }
-        },
+        }
         Err(e) => {
             return Err(format!("Invalid glob pattern: {}", e));
         }
@@ -346,11 +386,11 @@ pub async fn agent_scan_directory_with_progress(
     rel_path: String,
     pattern: Option<String>,
     max_depth: Option<usize>,
-    max_files: Option<usize>
+    max_files: Option<usize>,
 ) -> Result<String, String> {
     use serde_json::json;
-    use std::path::Path;
     use std::collections::HashMap;
+    use std::path::Path;
     use tauri::Emitter;
 
     #[derive(Clone, serde::Serialize)]
@@ -366,15 +406,32 @@ pub async fn agent_scan_directory_with_progress(
 
     // Hardcoded ignore directories (simple and reliable)
     let ignore_dirs = [
-        ".git", ".github", ".vscode", ".idea",
-        "node_modules", ".next", ".nuxt",
-        "dist", "build", "target", "out",
-        ".cache", "coverage", ".tsbuildinfo",
-        "vendor", "bower_components",
-        "__pycache__", "node_modules", ".venv", "venv"
+        ".git",
+        ".github",
+        ".vscode",
+        ".idea",
+        "node_modules",
+        ".next",
+        ".nuxt",
+        "dist",
+        "build",
+        "target",
+        "out",
+        ".cache",
+        "coverage",
+        ".tsbuildinfo",
+        "vendor",
+        "bower_components",
+        "__pycache__",
+        "node_modules",
+        ".venv",
+        "venv",
     ];
 
-    println!("[core_wrappers] Scan setup: depth={}, max_files={}", max_depth, max_files);
+    println!(
+        "[core_wrappers] Scan setup: depth={}, max_files={}",
+        max_depth, max_files
+    );
 
     // STEP 1: First pass - count total directories for progress
     let total_directories = WalkDir::new(&base_path)
@@ -387,7 +444,8 @@ pub async fn agent_scan_directory_with_progress(
         })
         .filter(|e| {
             // Filter out ignored directories
-            e.path().file_name()
+            e.path()
+                .file_name()
                 .and_then(|n| n.to_str())
                 .map_or(false, |name| !ignore_dirs.contains(&name))
         })
@@ -412,23 +470,28 @@ pub async fn agent_scan_directory_with_progress(
         let depth = entry.depth();
 
         // Skip if in ignored directory
-        let is_ignored = path.ancestors()
-            .any(|ancestor| {
-                ancestor.file_name()
-                    .and_then(|n| n.to_str())
-                    .map_or(false, |name| ignore_dirs.contains(&name))
-            });
+        let is_ignored = path.ancestors().any(|ancestor| {
+            ancestor
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map_or(false, |name| ignore_dirs.contains(&name))
+        });
 
         if is_ignored {
             continue;
         }
 
         // Get relative path
-        let rel = path.strip_prefix(&base_path)
+        let rel = path
+            .strip_prefix(&base_path)
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
-        let full_rel = if rel.is_empty() { rel_path.clone() } else { format!("{}/{}", rel_path, rel) };
+        let full_rel = if rel.is_empty() {
+            rel_path.clone()
+        } else {
+            format!("{}/{}", rel_path, rel)
+        };
 
         // Get directory path for this entry
         let file_dir = if let Some(pos) = full_rel.rfind('/') {
@@ -436,7 +499,11 @@ pub async fn agent_scan_directory_with_progress(
         } else {
             ""
         };
-        let file_dir = if file_dir.is_empty() { &rel_path } else { file_dir };
+        let file_dir = if file_dir.is_empty() {
+            &rel_path
+        } else {
+            file_dir
+        };
 
         // Process directory entry
         if path.is_dir() {
@@ -444,11 +511,13 @@ pub async fn agent_scan_directory_with_progress(
                 directories.push(full_rel.clone());
             }
 
-            by_directory.entry(full_rel.clone()).or_insert_with(|| ScanStatus {
-                total: total_estimate,
-                scanned: dirs_scanned,
-                status: "scanning".to_string(),
-            });
+            by_directory
+                .entry(full_rel.clone())
+                .or_insert_with(|| ScanStatus {
+                    total: total_estimate,
+                    scanned: dirs_scanned,
+                    status: "scanning".to_string(),
+                });
 
             continue;
         }
@@ -456,20 +525,26 @@ pub async fn agent_scan_directory_with_progress(
         // Check if we entered a new directory (for files)
         if current_dir_path.as_deref() != Some(file_dir) {
             if let Some(prev_dir) = &current_dir_path {
-                by_directory.insert(prev_dir.clone(), ScanStatus {
-                    total: total_estimate,
-                    scanned: dirs_scanned,
-                    status: "completed".to_string(),
-                });
+                by_directory.insert(
+                    prev_dir.clone(),
+                    ScanStatus {
+                        total: total_estimate,
+                        scanned: dirs_scanned,
+                        status: "completed".to_string(),
+                    },
+                );
 
                 dirs_scanned += 1;
             }
 
-            by_directory.insert(file_dir.to_string(), ScanStatus {
-                total: total_estimate,
-                scanned: dirs_scanned,
-                status: "scanning".to_string(),
-            });
+            by_directory.insert(
+                file_dir.to_string(),
+                ScanStatus {
+                    total: total_estimate,
+                    scanned: dirs_scanned,
+                    status: "scanning".to_string(),
+                },
+            );
 
             current_dir_path = Some(file_dir.to_string());
         }
@@ -482,11 +557,14 @@ pub async fn agent_scan_directory_with_progress(
             let by_dir_serializable: HashMap<String, serde_json::Value> = by_directory
                 .iter()
                 .map(|(k, v)| {
-                    (k.clone(), json!({
-                        "total": v.total,
-                        "scanned": v.scanned,
-                        "status": v.status
-                    }))
+                    (
+                        k.clone(),
+                        json!({
+                            "total": v.total,
+                            "scanned": v.scanned,
+                            "status": v.status
+                        }),
+                    )
                 })
                 .collect();
 
@@ -514,14 +592,21 @@ pub async fn agent_scan_directory_with_progress(
 
     // Mark final directory as completed
     if let Some(last_dir) = &current_dir_path {
-        by_directory.insert(last_dir.clone(), ScanStatus {
-            total: total_estimate,
-            scanned: dirs_scanned + 1,
-            status: "completed".to_string(),
-        });
+        by_directory.insert(
+            last_dir.clone(),
+            ScanStatus {
+                total: total_estimate,
+                scanned: dirs_scanned + 1,
+                status: "completed".to_string(),
+            },
+        );
     }
 
-    println!("[core_wrappers] Scan complete: {} files, {} directories", files.len(), directories.len());
+    println!(
+        "[core_wrappers] Scan complete: {} files, {} directories",
+        files.len(),
+        directories.len()
+    );
 
     // Sort results
     files.sort();

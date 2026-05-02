@@ -1,11 +1,11 @@
-use tauri::{AppHandle, Emitter, command, State};
-use std::sync::Arc;
 use std::collections::HashMap;
-use tokio::process::{Command, ChildStdin};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader, AsyncBufReadExt};
-use tokio::sync::Mutex;
 use std::process::Stdio;
 use std::str;
+use std::sync::Arc;
+use tauri::{command, AppHandle, Emitter, State};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{ChildStdin, Command};
+use tokio::sync::Mutex;
 
 // Manage multiple LSP sessions
 pub struct LspManager {
@@ -45,7 +45,11 @@ pub async fn start_lsp(
     let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
 
-    state.processes.lock().await.insert(language_id.clone(), stdin);
+    state
+        .processes
+        .lock()
+        .await
+        .insert(language_id.clone(), stdin);
 
     // Spawn stdout reader
     let app_handle = app.clone();
@@ -63,7 +67,7 @@ pub async fn start_lsp(
                 Ok(0) => break, // EOF
                 Ok(n) => {
                     buffer.extend_from_slice(&chunk[..n]);
-                    
+
                     // Process buffer
                     loop {
                         if let Some(len) = content_length {
@@ -73,7 +77,9 @@ pub async fn start_lsp(
                                 let body_bytes: Vec<u8> = buffer.drain(0..len).collect();
                                 if let Ok(msg) = str::from_utf8(&body_bytes) {
                                     // println!("LSP < {}: {}", lang_id, msg); // Verbose log
-                                    app_handle.emit(&format!("lsp-msg-{}", lang_id), msg).unwrap_or(());
+                                    app_handle
+                                        .emit(&format!("lsp-msg-{}", lang_id), msg)
+                                        .unwrap_or(());
                                 }
                                 content_length = None;
                             } else {
@@ -83,9 +89,9 @@ pub async fn start_lsp(
                             // We are looking for headers (ended by \r\n\r\n)
                             // Find double CRLF
                             if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
-                                let header_bytes: Vec<u8> = buffer.drain(0..pos+4).collect();
+                                let header_bytes: Vec<u8> = buffer.drain(0..pos + 4).collect();
                                 let header_str = String::from_utf8_lossy(&header_bytes);
-                                
+
                                 // Parse Content-Length
                                 for line in header_str.lines() {
                                     if line.to_lowercase().starts_with("content-length:") {
@@ -96,7 +102,7 @@ pub async fn start_lsp(
                                         }
                                     }
                                 }
-                                
+
                                 if content_length.is_none() {
                                     // Header without Content-Length? Invalid or unknown.
                                     println!("LSP Error: Missing Content-Length in header");
@@ -149,13 +155,16 @@ pub async fn send_lsp_message(
         // Format LSP message: Header + Body
         let content = message.as_bytes();
         let header = format!("Content-Length: {}\r\n\r\n", content.len());
-        
+
         // println!("LSP > {}: {}", language_id, message); // Verbose log
 
-        stdin.write_all(header.as_bytes()).await.map_err(|e| e.to_string())?;
+        stdin
+            .write_all(header.as_bytes())
+            .await
+            .map_err(|e| e.to_string())?;
         stdin.write_all(content).await.map_err(|e| e.to_string())?;
         stdin.flush().await.map_err(|e| e.to_string())?;
-        
+
         Ok(())
     } else {
         Err(format!("No LSP running for {}", language_id))

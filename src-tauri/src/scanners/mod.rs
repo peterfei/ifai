@@ -2,8 +2,8 @@
 //!
 //! SmartScanner 极简元编程框架的扫描器实现
 
-mod explore;
 mod bench;
+mod explore;
 mod perf;
 
 pub use explore::*;

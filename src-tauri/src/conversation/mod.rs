@@ -1,11 +1,11 @@
-pub mod token_counter;
-pub mod summarizer;
 pub mod notes;
+pub mod summarizer;
+pub mod token_counter;
 
 #[cfg(test)]
 mod tests;
 
-use crate::core_traits::ai::{Message, Content, AIProviderConfig};
+use crate::core_traits::ai::{AIProviderConfig, Content, Message};
 
 pub async fn should_summarize(messages: &[Message]) -> bool {
     // Guard: Don't summarize short conversations regardless of token count
@@ -14,7 +14,11 @@ pub async fn should_summarize(messages: &[Message]) -> bool {
     }
 
     let token_count = token_counter::count_messages_tokens(messages);
-    println!("[Conversation] Check summary: {} messages, {} tokens", messages.len(), token_count);
+    println!(
+        "[Conversation] Check summary: {} messages, {} tokens",
+        messages.len(),
+        token_count
+    );
 
     // 阈值：100k tokens or 100 messages
     token_count > 100_000 || messages.len() > 100
@@ -79,15 +83,16 @@ pub async fn auto_summarize(
     println!("[Conversation] Context threshold reached. Starting auto-summarization.");
 
     // 1. Generate the summary
-    let summary = summarizer::generate_summary(project_root, provider_config, messages.clone()).await?;
+    let summary =
+        summarizer::generate_summary(project_root, provider_config, messages.clone()).await?;
 
     // 2. Archive existing messages (Simplified: for now we just log it)
     // TODO: Write to .ifai/sessions/archive/
-    
+
     // 3. Clear middle messages, keeping system prompt and the summary
     // We keep the last 5 messages for immediate continuity
     let mut new_history = Vec::new();
-    
+
     // Keep original system prompt if it exists
     if let Some(first) = messages.first() {
         if first.role == "system" {
@@ -98,7 +103,10 @@ pub async fn auto_summarize(
     // Inject the summary as a new system message
     new_history.push(Message {
         role: "system".to_string(),
-        content: Content::Text(format!("## CONVERSATION SUMMARY\n\n{}\n\n=== End of Summary ===", summary)),
+        content: Content::Text(format!(
+            "## CONVERSATION SUMMARY\n\n{}\n\n=== End of Summary ===",
+            summary
+        )),
         tool_calls: None,
         tool_call_id: None,
     });
@@ -111,10 +119,10 @@ pub async fn auto_summarize(
     }
 
     *messages = new_history.clone();
-    
+
     // Notify frontend to update its history
     let _ = app.emit(&format!("{}_compacted", event_id), new_history);
-    
+
     println!("[Conversation] History compacted successfully.");
 
     Ok(())

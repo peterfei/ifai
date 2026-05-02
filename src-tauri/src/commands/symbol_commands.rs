@@ -4,12 +4,12 @@
 //! - 商业版: 使用 ifainew-core 的 tree-sitter 引擎
 //! - 社区版: 使用基础正则表达式兜底
 
+use ignore::WalkBuilder;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::command;
-use serde::{Serialize, Deserialize};
-use ignore::WalkBuilder;
 
 // ============================================================================
 // 类型定义 (兼容 ifainew-core)
@@ -101,7 +101,11 @@ impl SymbolIndexState {
                 refs.push(SymbolReference {
                     symbol_name: symbol_name.to_string(),
                     defined_at: def_loc.clone(),
-                    referenced_in: self.references.get(symbol_name).cloned().unwrap_or_default(),
+                    referenced_in: self
+                        .references
+                        .get(symbol_name)
+                        .cloned()
+                        .unwrap_or_default(),
                 });
             }
         }
@@ -175,14 +179,17 @@ pub async fn extract_symbols(
 
     let local_symbols = local_extract(&code, &language);
 
-    Ok(local_symbols.into_iter().map(|s| Symbol {
-        kind: s.kind,
-        name: s.name.clone(),
-        line: (s.range.start_line + 1) as u32,
-        end_line: Some((s.range.end_line + 1) as u32),
-        parent: None,
-        qualified_name: s.name,
-    }).collect())
+    Ok(local_symbols
+        .into_iter()
+        .map(|s| Symbol {
+            kind: s.kind,
+            name: s.name.clone(),
+            line: (s.range.start_line + 1) as u32,
+            end_line: Some((s.range.end_line + 1) as u32),
+            parent: None,
+            qualified_name: s.name,
+        })
+        .collect())
 }
 
 /// 索引整个项目的符号
@@ -215,9 +222,7 @@ pub async fn index_project_symbols(
                 }
 
                 let path = entry.path();
-                let extension = path.extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("");
+                let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
                 // 只索引支持的代码文件
                 if !["rs", "ts", "tsx", "js", "jsx", "py"].contains(&extension) {
@@ -241,7 +246,9 @@ pub async fn index_project_symbols(
                     content,
                     language.to_string(),
                     path.to_string_lossy().to_string(),
-                ).await {
+                )
+                .await
+                {
                     Ok(symbols) => {
                         let symbols_count = symbols.len();
                         if !symbols.is_empty() {
@@ -391,16 +398,14 @@ mod tests {
         // 添加 impl 块
         let file_symbols = FileSymbols {
             path: "user.rs".to_string(),
-            symbols: vec![
-                Symbol {
-                    kind: "impl".to_string(),
-                    name: "impl Authenticator for User".to_string(),
-                    line: 10,
-                    end_line: Some(15),
-                    parent: None,
-                    qualified_name: "User::Authenticator".to_string(),
-                },
-            ],
+            symbols: vec![Symbol {
+                kind: "impl".to_string(),
+                name: "impl Authenticator for User".to_string(),
+                line: 10,
+                end_line: Some(15),
+                parent: None,
+                qualified_name: "User::Authenticator".to_string(),
+            }],
             hash: "abc123".to_string(),
         };
 

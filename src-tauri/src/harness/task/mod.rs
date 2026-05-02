@@ -4,7 +4,7 @@
 
 pub mod store;
 
-pub use store::{TaskItem, TaskStore, TaskStatus};
+pub use store::{TaskItem, TaskStatus, TaskStore};
 
 use std::sync::OnceLock;
 

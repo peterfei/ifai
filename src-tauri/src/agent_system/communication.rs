@@ -2,23 +2,23 @@
 //!
 //! 提供智能体之间的消息传递、点对点通信和广播功能
 
-pub mod message;
 pub mod bus;
 pub mod channel;
+pub mod message;
 
+pub use bus::{BusConfig, EventBus, MessageBus};
+pub use channel::{AgentChannel, ChannelId, MessageReceiver, MessageSender};
 pub use message::{
-    Message, MessageType, DataMessage, ControlMessage, StatusMessage,
-    MessagePriority, MessageHeaders,
+    ControlMessage, DataMessage, Message, MessageHeaders, MessagePriority, MessageType,
+    StatusMessage,
 };
-pub use bus::{MessageBus, BusConfig, EventBus};
-pub use channel::{AgentChannel, ChannelId, MessageSender, MessageReceiver};
 
+use anyhow::Result;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use anyhow::Result;
-use chrono::{DateTime, Utc};
 
 /// 消息 ID 类型
 pub type MessageId = String;

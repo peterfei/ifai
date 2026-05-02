@@ -57,14 +57,13 @@ impl MessageContent {
     pub fn get_text(&self) -> String {
         match self {
             MessageContent::Text(s) => s.clone(),
-            MessageContent::MultiModal(parts) => {
-                parts.iter()
-                    .filter(|p| p.part_type == "text")
-                    .filter_map(|p| p.text.as_ref())
-                    .map(|s| s.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            }
+            MessageContent::MultiModal(parts) => parts
+                .iter()
+                .filter(|p| p.part_type == "text")
+                .filter_map(|p| p.text.as_ref())
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(" "),
         }
     }
 }
@@ -267,7 +266,9 @@ pub enum AiProvider {
     /// Google Gemini
     Gemini,
     /// 自定义供应商（使用 OpenAI 兼容 API）
-    Custom { name: String },
+    Custom {
+        name: String,
+    },
 }
 
 // 为 Copy trait 实现特殊处理（Custom 不能是 Copy）
@@ -423,7 +424,9 @@ mod factory_integration_tests {
         let gemini = AiProvider::Gemini;
         assert!(!gemini.is_custom());
 
-        let custom = AiProvider::Custom { name: "Test".to_string() };
+        let custom = AiProvider::Custom {
+            name: "Test".to_string(),
+        };
         assert!(custom.is_custom());
     }
 }

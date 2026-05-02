@@ -7,9 +7,9 @@
 //! - 压缩判断：复用 `conversation::should_summarize`
 //! - 预警逻辑：复用 UI 端 `TokenUsageIndicator.tsx` 颜色分级
 
-use crate::render::{Theme, RESET, bg_256};
-use ifainew_lib::harness::api::types::{Message, MessageContent, ContentPart};
+use crate::render::{bg_256, Theme, RESET};
 use ifainew_lib::harness::api::provider_metadata::get_all_provider_specs;
+use ifainew_lib::harness::api::types::{ContentPart, Message, MessageContent};
 
 // ============================================================================
 // Token Usage Display
@@ -39,9 +39,7 @@ pub fn format_token_warning(messages: &[Message], model: &str, theme: &Theme) ->
 
     format!(
         "{}{}{} Tokens: {}/{} ({}%) {}",
-        color, icon, RESET,
-        count, max, pct,
-        progress
+        color, icon, RESET, count, max, pct, progress
     )
 }
 
@@ -87,17 +85,18 @@ fn render_progress_bar(percentage: u8, color: &'static str) -> String {
 
     // 双色进度条：填充部分用 color，空白部分用灰色
     // 格式: [█████████░░░░░░░] 50%
-    format!("[{}{}{}{}{}{}{}] {}{}{}",
-        color,                        // 1
-        bg_256(240),                  // 2
-        "█".repeat(filled),          // 3
-        RESET,                        // 4
-        bg_256(240),                  // 5
-        "░".repeat(empty),            // 6
-        RESET,                        // 7
-        color,                        // 8
-        percentage,                   // 9
-        RESET                         // 10
+    format!(
+        "[{}{}{}{}{}{}{}] {}{}{}",
+        color,              // 1
+        bg_256(240),        // 2
+        "█".repeat(filled), // 3
+        RESET,              // 4
+        bg_256(240),        // 5
+        "░".repeat(empty),  // 6
+        RESET,              // 7
+        color,              // 8
+        percentage,         // 9
+        RESET               // 10
     )
 }
 
@@ -106,7 +105,12 @@ fn render_progress_bar(percentage: u8, color: &'static str) -> String {
 // ============================================================================
 
 /// 🔥 元编程：计算成本（复用 provider_metadata）
-pub fn calculate_cost(_messages: &[Message], model: &str, input_tokens: u32, output_tokens: u32) -> Option<f64> {
+pub fn calculate_cost(
+    _messages: &[Message],
+    model: &str,
+    input_tokens: u32,
+    output_tokens: u32,
+) -> Option<f64> {
     // 遍历所有提供商查找模型定价
     for (_provider_id, spec) in get_all_provider_specs() {
         if let Some(model_spec) = spec.models.iter().find(|m| m.id == model) {
@@ -120,7 +124,7 @@ pub fn calculate_cost(_messages: &[Message], model: &str, input_tokens: u32, out
             // 假设 cache hit（最佳情况），也可以用 cache_miss 计算最坏情况
             if let (Some(input_cost), Some(output_cost)) = (
                 model_spec.cost_per_1k_tokens_input_cache_hit,
-                model_spec.cost_per_1k_tokens_output
+                model_spec.cost_per_1k_tokens_output,
             ) {
                 let input_cost_total = input_tokens as f64 / 1000.0 * input_cost;
                 let output_cost_total = output_tokens as f64 / 1000.0 * output_cost;
@@ -132,12 +136,17 @@ pub fn calculate_cost(_messages: &[Message], model: &str, input_tokens: u32, out
 }
 
 /// 格式化成本显示
-pub fn format_cost(messages: &[Message], model: &str, input_tokens: u32, output_tokens: u32, theme: &Theme) -> String {
+pub fn format_cost(
+    messages: &[Message],
+    model: &str,
+    input_tokens: u32,
+    output_tokens: u32,
+    theme: &Theme,
+) -> String {
     if let Some(cost) = calculate_cost(messages, model, input_tokens, output_tokens) {
         format!(
             "{}${:.4}{} ({} input + {} output tokens)",
-            theme.success, cost, RESET,
-            input_tokens, output_tokens
+            theme.success, cost, RESET, input_tokens, output_tokens
         )
     } else {
         format!(
@@ -191,22 +200,31 @@ pub fn format_session_stats(
     model: &str,
     cumulative_input: u32,
     cumulative_output: u32,
-    theme: &Theme
+    theme: &Theme,
 ) -> String {
     let count = estimate_tokens(messages);
     let max = get_model_max_tokens(model);
-    let pct = if max > 0 { (count * 100 / max) as u8 } else { 0 };
+    let pct = if max > 0 {
+        (count * 100 / max) as u8
+    } else {
+        0
+    };
 
     let mut lines = vec![
         format!("{}Session Stats{}", theme.heading, RESET),
         format!("  Messages:     {}", messages.len()),
         format!("  Tokens:       {} / {} ({}%)", count, max, pct),
-        format!("  Cumulative:   {} input + {} output",
-            cumulative_input, cumulative_output),
+        format!(
+            "  Cumulative:   {} input + {} output",
+            cumulative_input, cumulative_output
+        ),
     ];
 
     if let Some(cost) = calculate_cost(messages, model, cumulative_input, cumulative_output) {
-        lines.push(format!("  Est. Cost:    {}${:.4}{}", theme.success, cost, RESET));
+        lines.push(format!(
+            "  Est. Cost:    {}${:.4}{}",
+            theme.success, cost, RESET
+        ));
     }
 
     lines.join("\n")

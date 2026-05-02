@@ -21,6 +21,8 @@ const BRAND_PALETTE: &[(&str, u8, bool, bool)] = &[
     ("code",         72,  false, false),  // 行内代码 蓝绿融合
     ("table_border", 236,  false, false),  // 表格框线 #333333 → #303030
     ("box_bg",      234,  false, true),   // 代码块背景 #17191c → #1c1c1c (bg)
+    ("diff_add_bg",  22,  false, true),   // diff 新增行背景 #213A2B (xterm-256 index 22)
+    ("diff_del_bg",  52,  false, true),   // diff 删除行背景 #4A221D (xterm-256 index 52)
 ];
 
 // ============================================================================
@@ -63,7 +65,7 @@ pub fn current_progress_frame() -> char {
 // Theme System
 // ============================================================================
 
-/// 🎨 主题系统 — 所有 10 个语义颜色字段从 BRAND_PALETTE 派生
+/// 🎨 主题系统 — 所有 12 个语义颜色字段从 BRAND_PALETTE 派生
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
     pub brand: &'static str,
@@ -76,6 +78,8 @@ pub struct Theme {
     pub code: &'static str,
     pub table_border: &'static str,
     pub box_bg: &'static str,
+    pub diff_add_bg: &'static str,
+    pub diff_del_bg: &'static str,
 }
 
 impl Theme {
@@ -92,6 +96,8 @@ impl Theme {
             code:    color_256_raw(72, false),
             table_border: color_256_raw(236, false),
             box_bg: bg_256_raw(234),
+            diff_add_bg: bg_256_raw(22),
+            diff_del_bg: bg_256_raw(52),
         }
     }
 }
@@ -601,7 +607,7 @@ mod tests {
 
     #[test]
     fn test_brand_palette_completeness() {
-        // 验证 BRAND_PALETTE 包含所有 10 个必需字段
+        // 验证 BRAND_PALETTE 包含所有必需字段
         let field_names: Vec<_> = BRAND_PALETTE.iter().map(|(name, _, _, _)| *name).collect();
 
         assert!(field_names.contains(&"brand"));
@@ -614,8 +620,11 @@ mod tests {
         assert!(field_names.contains(&"code"));
         assert!(field_names.contains(&"table_border"));
         assert!(field_names.contains(&"box_bg"));
+        // Diff 颜色（Ctrl+D 功能）
+        assert!(field_names.contains(&"diff_add_bg"));
+        assert!(field_names.contains(&"diff_del_bg"));
 
-        assert_eq!(field_names.len(), 10);
+        assert_eq!(field_names.len(), 12);
     }
 
     #[test]

@@ -2,12 +2,12 @@
 //!
 //! 参考 claw-code 的 ConversationRuntime 实现，支持 AI 工具调用的循环执行
 
-use super::tools::{ToolExecutor, ToolCall, ToolResult, create_tool_definitions};
 use super::runner::ToolCallDetails;
-use crate::core_traits::ai::{Message, Content};
+use super::tools::{create_tool_definitions, ToolCall, ToolExecutor, ToolResult};
+use crate::core_traits::ai::{Content, Message};
+use futures_util::StreamExt;
 use serde_json::json;
-use std::sync::Arc;
-use futures_util::StreamExt;  // 🔥 添加 StreamExt trait
+use std::sync::Arc; // 🔥 添加 StreamExt trait
 
 /// 工具调用循环配置
 #[derive(Debug, Clone)]
@@ -49,7 +49,7 @@ pub async fn execute_with_tools(
     user_message: String,
     tool_executor: &dyn ToolExecutor,
     config: ToolLoopConfig,
-    progress_callback: Option<ToolProgressCallback>,  // 🔥 添加进度回调参数
+    progress_callback: Option<ToolProgressCallback>, // 🔥 添加进度回调参数
 ) -> Result<String, String> {
     let workflow_start = std::time::Instant::now();
     let mut ai_time_total = std::time::Duration::ZERO;
@@ -83,15 +83,19 @@ pub async fn execute_with_tools(
             return Err(format!("超过最大迭代次数: {}", config.max_iterations));
         }
 
-        println!("[ToolLoop] 🔄 迭代 {}/{}", iterations, config.max_iterations);
+        println!(
+            "[ToolLoop] 🔄 迭代 {}/{}",
+            iterations, config.max_iterations
+        );
 
         // 调用 AI（使用流式 API 实现实时工具调用显示）
         let ai_start = std::time::Instant::now();
         let response = call_ai_with_tools_stream(
             provider_config.clone(),
             &messages,
-            progress_callback.clone(),  // 🔥 传递进度回调给流式函数
-        ).await?;
+            progress_callback.clone(), // 🔥 传递进度回调给流式函数
+        )
+        .await?;
         let ai_duration = ai_start.elapsed();
         ai_time_total += ai_duration;
 
@@ -103,7 +107,10 @@ pub async fn execute_with_tools(
         if tool_calls.is_empty() {
             // 没有工具调用，返回 AI 响应
             final_response = response;
-            println!("[ToolLoop] ✅ 完成，最终响应长度: {} 字符", final_response.len());
+            println!(
+                "[ToolLoop] ✅ 完成，最终响应长度: {} 字符",
+                final_response.len()
+            );
             break;
         }
 
@@ -113,7 +120,10 @@ pub async fn execute_with_tools(
         println!("[ToolLoop] 🔧 检测到 {} 个工具调用", tool_calls.len());
 
         // 🔥 发送工具调用进度事件
-        println!("[ToolLoop] 📤 发送工具调用进度事件: {} 个工具", tool_calls.len());
+        println!(
+            "[ToolLoop] 📤 发送工具调用进度事件: {} 个工具",
+            tool_calls.len()
+        );
 
         // 🔥 准备进度回调（克隆以在循环中使用）
         let progress_callback_clone = progress_callback.clone();
@@ -128,16 +138,23 @@ pub async fn execute_with_tools(
             println!("[ToolLoop] 🔧 启动工具: {}", tool_call.name);
 
             let tool_call = tool_call.clone();
-            let callback_for_task = progress_callback_clone.clone();  // 🔥 为每个任务克隆回调
+            let callback_for_task = progress_callback_clone.clone(); // 🔥 为每个任务克隆回调
             tool_tasks.push(async move {
                 // 🔥 执行工具（在独立任务中）
                 let tool_start = std::time::Instant::now();
                 let input_json = serde_json::to_string_pretty(&tool_call.input).unwrap_or_default();
-                let result = match tool_executor.execute(&tool_call.name, &tool_call.input).await {
+                let result = match tool_executor
+                    .execute(&tool_call.name, &tool_call.input)
+                    .await
+                {
                     Ok(output) => {
                         let execution_time = tool_start.elapsed().as_millis() as i64;
-                        println!("[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符，耗时: {}ms",
-                                 tool_call.name, output.len(), execution_time);
+                        println!(
+                            "[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符，耗时: {}ms",
+                            tool_call.name,
+                            output.len(),
+                            execution_time
+                        );
 
                         // 🔥 发送工具调用进度事件
                         if let Some(ref cb) = callback_for_task {
@@ -164,8 +181,10 @@ pub async fn execute_with_tools(
                     Err(e) => {
                         let execution_time = tool_start.elapsed().as_millis() as i64;
                         let error_msg = format!("工具执行失败: {}", e);
-                        println!("[ToolLoop] ❌ 工具 {} 失败: {}，耗时: {}ms",
-                                 tool_call.name, e, execution_time);
+                        println!(
+                            "[ToolLoop] ❌ 工具 {} 失败: {}，耗时: {}ms",
+                            tool_call.name, e, execution_time
+                        );
 
                         // 🔥 发送工具调用进度事件（错误情况）
                         if let Some(ref cb) = callback_for_task {
@@ -200,7 +219,11 @@ pub async fn execute_with_tools(
 
         let tool_duration = tool_start.elapsed();
         tool_time_total += tool_duration;
-        println!("[ToolLoop] ⏱️ 工具执行总耗时: {:?} ({} 个工具并行)", tool_duration, tool_calls.len());
+        println!(
+            "[ToolLoop] ⏱️ 工具执行总耗时: {:?} ({} 个工具并行)",
+            tool_duration,
+            tool_calls.len()
+        );
 
         // 将工具结果添加到消息历史
         for (tool_call, result) in results {
@@ -225,10 +248,20 @@ pub async fn execute_with_tools(
     println!("[ToolLoop] 📊 ========== 性能统计 ==========");
     println!("[ToolLoop] 📊 总执行时长: {:?}", total_duration);
     println!("[ToolLoop] 📊 迭代次数: {}", iterations);
-    println!("[ToolLoop] 📊 AI API 调用总时长: {:?} (平均: {:?}/次)", ai_time_total, ai_time_total / iterations as u32);
+    println!(
+        "[ToolLoop] 📊 AI API 调用总时长: {:?} (平均: {:?}/次)",
+        ai_time_total,
+        ai_time_total / iterations as u32
+    );
     println!("[ToolLoop] 📊 工具执行总时长: {:?}", tool_time_total);
-    println!("[ToolLoop] 📊 AI 占比: {:.1}%", (ai_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0);
-    println!("[ToolLoop] 📊 工具占比: {:.1}%", (tool_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0);
+    println!(
+        "[ToolLoop] 📊 AI 占比: {:.1}%",
+        (ai_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0
+    );
+    println!(
+        "[ToolLoop] 📊 工具占比: {:.1}%",
+        (tool_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0
+    );
     println!("[ToolLoop] 📊 ================================");
 
     Ok(final_response)
@@ -250,7 +283,9 @@ async fn call_ai_with_tools(
     let client = Client::new();
 
     // 获取模型名称
-    let model = provider_config.models.first()
+    let model = provider_config
+        .models
+        .first()
         .cloned()
         .unwrap_or_else(|| "glm-4.7".to_string());
 
@@ -270,10 +305,13 @@ async fn call_ai_with_tools(
         Duration::from_secs(60),
         client
             .post(&provider_config.base_url)
-            .header("Authorization", format!("Bearer {}", provider_config.api_key))
+            .header(
+                "Authorization",
+                format!("Bearer {}", provider_config.api_key),
+            )
             .header("Content-Type", "application/json")
             .json(&request_body)
-            .send()
+            .send(),
     )
     .await
     .map_err(|e| format!("请求超时: {}", e))?
@@ -330,14 +368,18 @@ async fn call_ai_with_tools_unified(
             provider_config,
             messages.to_vec(),
             true, // enable_tools
-        ).await.map_err(|e| format!("AI 调用失败: {}", e))?;
+        )
+        .await
+        .map_err(|e| format!("AI 调用失败: {}", e))?;
 
-        println!("[ToolLoop] ⏱️ AI API 耗时: {}ms", response.metrics.ai_api_duration_ms);
+        println!(
+            "[ToolLoop] ⏱️ AI API 耗时: {}ms",
+            response.metrics.ai_api_duration_ms
+        );
 
         // 返回工具调用 JSON 或内容
         if let Some(tool_calls) = response.tool_calls {
-            let tool_calls_json = serde_json::to_string(&tool_calls)
-                .unwrap_or_default();
+            let tool_calls_json = serde_json::to_string(&tool_calls).unwrap_or_default();
             println!("[ToolLoop] 🔧 返回工具调用: {} 个", tool_calls.len());
             Ok(tool_calls_json)
         } else {
@@ -361,19 +403,22 @@ fn extract_tool_calls(response: &str) -> Result<Vec<ToolCall>, String> {
     if let Ok(tool_calls) = serde_json::from_str::<Vec<serde_json::Value>>(response) {
         let mut calls = Vec::new();
         for (index, tool_call) in tool_calls.iter().enumerate() {
-            let id = tool_call.get("id")
+            let id = tool_call
+                .get("id")
                 .and_then(|v| v.as_str())
                 .unwrap_or(&format!("call_{}", index))
                 .to_string();
 
-            let name = tool_call.get("function")
+            let name = tool_call
+                .get("function")
                 .and_then(|f| f.get("name"))
                 .and_then(|v| v.as_str())
                 .ok_or("缺少工具名称")?
                 .to_string();
 
             // 🔥 关键修复：arguments 是 JSON 字符串，需要再次解析
-            let input = tool_call.get("function")
+            let input = tool_call
+                .get("function")
                 .and_then(|f| f.get("arguments"))
                 .and_then(|args| args.as_str())
                 .and_then(|args_str| serde_json::from_str::<serde_json::Value>(args_str).ok())
@@ -437,16 +482,18 @@ async fn call_ai_with_tools_stream(
 
     #[cfg(feature = "commercial")]
     {
-        use reqwest::Client;
         use eventsource_stream::Eventsource;
-        use tokio::time::{timeout, Duration};
+        use reqwest::Client;
         use std::collections::HashMap;
+        use tokio::time::{timeout, Duration};
 
         // 🔥 步骤1：准备请求
         // 注意：api_key 和 base_url 已经是 String 类型，不是 Option
         let api_key = &provider_config.api_key;
         let base_url = &provider_config.base_url;
-        let model = provider_config.models.first()
+        let model = provider_config
+            .models
+            .first()
             .ok_or("缺少模型配置")?
             .clone();
 
@@ -454,7 +501,8 @@ async fn call_ai_with_tools_stream(
         let tools_value = create_tool_definitions();
 
         // 构建请求消息
-        let messages_for_api: Vec<serde_json::Value> = messages.iter()
+        let messages_for_api: Vec<serde_json::Value> = messages
+            .iter()
             .map(|msg| {
                 let mut msg_obj = serde_json::json!({
                     "role": msg.role,
@@ -467,7 +515,8 @@ async fn call_ai_with_tools_stream(
                     Content::Parts(parts) => {
                         // 如果是多部分内容，连接所有文本部分
                         use ifainew_core::ai::ContentPart;
-                        let text: String = parts.iter()
+                        let text: String = parts
+                            .iter()
                             .filter_map(|p| match p {
                                 ContentPart::Text { text, .. } => Some(text.as_str()),
                                 ContentPart::ImageUrl { .. } => None,
@@ -534,7 +583,9 @@ async fn call_ai_with_tools_stream(
                     chunk_count += 1;
 
                     // 解析 JSON
-                    if let Ok(stream_response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
+                    if let Ok(stream_response) =
+                        serde_json::from_str::<OpenAIStreamResponse>(&event.data)
+                    {
                         if let Some(choice) = stream_response.choices.first() {
                             // 处理内容
                             if let Some(content) = &choice.delta.content {
@@ -547,16 +598,20 @@ async fn call_ai_with_tools_stream(
                                     let index = chunk.index;
 
                                     // 初始化或获取现有工具调用
-                                    let entry = accumulated_tools.entry(index).or_insert_with(|| {
-                                        let id = chunk.id.clone().unwrap_or_else(|| {
-                                            format!("call_{}", index)
+                                    let entry =
+                                        accumulated_tools.entry(index).or_insert_with(|| {
+                                            let id = chunk
+                                                .id
+                                                .clone()
+                                                .unwrap_or_else(|| format!("call_{}", index));
+                                            let name = chunk
+                                                .function
+                                                .as_ref()
+                                                .and_then(|f| f.name.clone())
+                                                .unwrap_or_default();
+                                            let arguments = String::new();
+                                            (id, name, arguments)
                                         });
-                                        let name = chunk.function.as_ref()
-                                            .and_then(|f| f.name.clone())
-                                            .unwrap_or_default();
-                                        let arguments = String::new();
-                                        (id, name, arguments)
-                                    });
 
                                     // 更新工具名称（如果有）
                                     if let Some(func) = &chunk.function {
@@ -572,18 +627,24 @@ async fn call_ai_with_tools_stream(
                                     // 🔥 关键：当工具调用有 ID 或名称时，立即发送进度通知！
                                     // 这就是实时显示的魔法所在
                                     let has_id = chunk.id.is_some();
-                                    let has_name = chunk.function.as_ref()
+                                    let has_name = chunk
+                                        .function
+                                        .as_ref()
                                         .and_then(|f| f.name.as_ref())
                                         .is_some();
 
-                                    if (has_id || has_name) && !sent_tool_notifications.contains(&index) {
+                                    if (has_id || has_name)
+                                        && !sent_tool_notifications.contains(&index)
+                                    {
                                         sent_tool_notifications.insert(index);
 
                                         let tool_id = &entry.0;
                                         let tool_name = &entry.1;
 
-                                        println!("[ToolLoop] 🔥 [STREAM] 检测到新工具调用 #{}: {} ({})",
-                                            index, tool_name, tool_id);
+                                        println!(
+                                            "[ToolLoop] 🔥 [STREAM] 检测到新工具调用 #{}: {} ({})",
+                                            index, tool_name, tool_id
+                                        );
 
                                         // 🔥 移除流式处理时的事件发送
                                         // 问题：此时 tool_output 和 execution_time_ms 都是空的/未知的
@@ -600,8 +661,10 @@ async fn call_ai_with_tools_stream(
 
                             // 检查是否完成
                             if choice.finish_reason.is_some() {
-                                println!("[ToolLoop] 📤 [STREAM] 流结束，原因: {:?}",
-                                    choice.finish_reason);
+                                println!(
+                                    "[ToolLoop] 📤 [STREAM] 流结束，原因: {:?}",
+                                    choice.finish_reason
+                                );
                                 break;
                             }
                         }
@@ -615,8 +678,10 @@ async fn call_ai_with_tools_stream(
         }
 
         println!("[ToolLoop] 📊 [STREAM] 处理了 {} 个 chunks", chunk_count);
-        println!("[ToolLoop] 🔧 [STREAM] 累积了 {} 个工具调用",
-            accumulated_tools.len());
+        println!(
+            "[ToolLoop] 🔧 [STREAM] 累积了 {} 个工具调用",
+            accumulated_tools.len()
+        );
 
         // 🔥 步骤6：构建最终结果
         if !accumulated_tools.is_empty() {
@@ -637,14 +702,19 @@ async fn call_ai_with_tools_stream(
             let result_json = serde_json::to_string(&final_tool_calls)
                 .map_err(|e| format!("JSON 序列化失败: {}", e))?;
 
-            println!("[ToolLoop] ✅ [STREAM] 返回 {} 个工具调用，总长度: {} 字符",
-                final_tool_calls.len(), result_json.len());
+            println!(
+                "[ToolLoop] ✅ [STREAM] 返回 {} 个工具调用，总长度: {} 字符",
+                final_tool_calls.len(),
+                result_json.len()
+            );
 
             Ok(result_json)
         } else {
             // 没有工具调用，返回内容
-            println!("[ToolLoop] ✅ [STREAM] 返回文本内容，长度: {} 字符",
-                final_content.len());
+            println!(
+                "[ToolLoop] ✅ [STREAM] 返回文本内容，长度: {} 字符",
+                final_content.len()
+            );
             Ok(final_content)
         }
     }
@@ -684,13 +754,15 @@ pub async fn call_ai_streaming_simple(
 
     #[cfg(feature = "commercial")]
     {
-        use reqwest::Client;
         use eventsource_stream::Eventsource;
+        use reqwest::Client;
 
         // 🔥 准备请求
         let api_key = &provider_config.api_key;
         let base_url = &provider_config.base_url;
-        let model = provider_config.models.first()
+        let model = provider_config
+            .models
+            .first()
             .ok_or("缺少模型配置")?
             .clone();
 
@@ -703,7 +775,7 @@ pub async fn call_ai_streaming_simple(
             serde_json::json!({
                 "role": "user",
                 "content": user_message
-            })
+            }),
         ];
 
         let completions_url = base_url.clone();
@@ -714,7 +786,10 @@ pub async fn call_ai_streaming_simple(
             "stream": true,
         });
 
-        println!("[ToolLoop] 📤 [SIMPLE_STREAM] 发送流式请求到: {}", completions_url);
+        println!(
+            "[ToolLoop] 📤 [SIMPLE_STREAM] 发送流式请求到: {}",
+            completions_url
+        );
 
         // 🔥 发送流式请求
         let client = Client::new();
@@ -758,7 +833,9 @@ pub async fn call_ai_streaming_simple(
                     chunk_count += 1;
 
                     // 解析 JSON
-                    if let Ok(stream_response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
+                    if let Ok(stream_response) =
+                        serde_json::from_str::<OpenAIStreamResponse>(&event.data)
+                    {
                         if let Some(choice) = stream_response.choices.first() {
                             // 处理内容
                             if let Some(content) = &choice.delta.content {
@@ -768,7 +845,8 @@ pub async fn call_ai_streaming_simple(
                                 // 🔥 节流：检查是否应该触发回调
                                 let now = std::time::Instant::now();
                                 let should_callback = accumulated_delta.len() >= MIN_DELTA_LENGTH
-                                    || now.duration_since(last_callback_time).as_millis() >= CALLBACK_INTERVAL_MS as u128;
+                                    || now.duration_since(last_callback_time).as_millis()
+                                        >= CALLBACK_INTERVAL_MS as u128;
 
                                 if should_callback && !accumulated_delta.is_empty() {
                                     // 发送内容增量
@@ -782,8 +860,10 @@ pub async fn call_ai_streaming_simple(
 
                             // 检查是否完成
                             if choice.finish_reason.is_some() {
-                                println!("[ToolLoop] 📤 [SIMPLE_STREAM] 流结束，原因: {:?}",
-                                    choice.finish_reason);
+                                println!(
+                                    "[ToolLoop] 📤 [SIMPLE_STREAM] 流结束，原因: {:?}",
+                                    choice.finish_reason
+                                );
 
                                 // 🔥 发送剩余的累积内容
                                 if !accumulated_delta.is_empty() {
@@ -814,8 +894,14 @@ pub async fn call_ai_streaming_simple(
             }
         }
 
-        println!("[ToolLoop] 📊 [SIMPLE_STREAM] 处理了 {} 个 chunks", chunk_count);
-        println!("[ToolLoop] ✅ [SIMPLE_STREAM] 返回完整内容，长度: {} 字符", final_content.len());
+        println!(
+            "[ToolLoop] 📊 [SIMPLE_STREAM] 处理了 {} 个 chunks",
+            chunk_count
+        );
+        println!(
+            "[ToolLoop] ✅ [SIMPLE_STREAM] 返回完整内容，长度: {} 字符",
+            final_content.len()
+        );
 
         Ok(final_content)
     }
@@ -841,23 +927,20 @@ pub async fn call_ai_streaming_simple(
         ];
 
         // 使用 ai_utils::fetch_ai_completion_simple 进行非流式调用
-        let result_msg = crate::ai_utils::fetch_ai_completion_simple(
-            &provider_config,
-            messages,
-        ).await?;
+        let result_msg =
+            crate::ai_utils::fetch_ai_completion_simple(&provider_config, messages).await?;
 
         // 从 Message 提取文本内容
         let content_str = match &result_msg.content {
             crate::core_traits::ai::Content::Text(s) => s.clone(),
-            crate::core_traits::ai::Content::Parts(parts) => {
-                parts.iter()
-                    .filter_map(|p| match p {
-                        crate::core_traits::ai::ContentPart::Text { text, .. } => Some(text.clone()),
-                        crate::core_traits::ai::ContentPart::ImageUrl { .. } => None,
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            crate::core_traits::ai::Content::Parts(parts) => parts
+                .iter()
+                .filter_map(|p| match p {
+                    crate::core_traits::ai::ContentPart::Text { text, .. } => Some(text.clone()),
+                    crate::core_traits::ai::ContentPart::ImageUrl { .. } => None,
+                })
+                .collect::<Vec<_>>()
+                .join(""),
         };
 
         Ok(content_str)

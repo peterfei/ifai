@@ -3,9 +3,8 @@
  *
  * 提供对话总结、归档和统计功能的 Tauri 命令接口
  */
-
 use crate::conversation::{self, token_counter};
-use crate::core_traits::ai::{Message, AIProviderConfig, Content};
+use crate::core_traits::ai::{AIProviderConfig, Content, Message};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -36,10 +35,7 @@ pub struct ArchiveInfo {
  * @returns Token 数量
  */
 #[tauri::command]
-pub async fn count_messages_tokens(
-    messages: Vec<Message>,
-    model: String,
-) -> Result<usize, String> {
+pub async fn count_messages_tokens(messages: Vec<Message>, model: String) -> Result<usize, String> {
     // 参数 model 当前未使用，因为 cl100k_base 适用于大多数 GPT 模型
     // 未来可以根据模型选择不同的编码器
     let token_count = token_counter::count_messages_tokens(&messages);
@@ -53,9 +49,7 @@ pub async fn count_messages_tokens(
  * @returns 是否需要总结
  */
 #[tauri::command]
-pub async fn should_summarize_conversation(
-    messages: Vec<Message>,
-) -> Result<bool, String> {
+pub async fn should_summarize_conversation(messages: Vec<Message>) -> Result<bool, String> {
     Ok(conversation::should_summarize(&messages).await)
 }
 
@@ -73,11 +67,7 @@ pub async fn summarize_conversation(
     messages: Vec<Message>,
     provider_config: AIProviderConfig,
 ) -> Result<String, String> {
-    conversation::summarizer::generate_summary(
-        &project_root,
-        &provider_config,
-        messages,
-    ).await
+    conversation::summarizer::generate_summary(&project_root, &provider_config, messages).await
 }
 
 /**
@@ -136,9 +126,7 @@ pub async fn get_conversation_archives(
         }
 
         // 解析文件名获取时间戳
-        let file_name = path.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let file_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
 
         // 读取文件内容获取元数据
         if let Ok(content) = fs::read_to_string(&path) {
@@ -147,9 +135,16 @@ pub async fn get_conversation_archives(
                     archives.push(ArchiveInfo {
                         id: file_name.to_string(),
                         timestamp,
-                        message_count: value.get("message_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
-                        token_count: value.get("token_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
-                        summary_preview: value.get("summary")
+                        message_count: value
+                            .get("message_count")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as usize,
+                        token_count: value
+                            .get("token_count")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as usize,
+                        summary_preview: value
+                            .get("summary")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .chars()
@@ -180,10 +175,7 @@ pub async fn get_conversation_archives(
  * @returns Token 统计信息
  */
 #[tauri::command]
-pub async fn get_token_stats(
-    messages: Vec<Message>,
-    model: String,
-) -> Result<TokenStats, String> {
+pub async fn get_token_stats(messages: Vec<Message>, model: String) -> Result<TokenStats, String> {
     let total_tokens = token_counter::count_messages_tokens(&messages);
     let message_count = messages.len();
 
@@ -270,8 +262,11 @@ pub async fn save_conversation_archive(
     });
 
     // 写入文件
-    fs::write(&file_path, serde_json::to_string_pretty(&archive_data).unwrap())
-        .map_err(|e| format!("Failed to write archive file: {}", e))?;
+    fs::write(
+        &file_path,
+        serde_json::to_string_pretty(&archive_data).unwrap(),
+    )
+    .map_err(|e| format!("Failed to write archive file: {}", e))?;
 
     Ok(file_path.to_string_lossy().to_string())
 }
@@ -316,25 +311,26 @@ pub async fn load_conversation_archive(
         .map_err(|e| format!("Failed to parse archive JSON: {}", e))?;
 
     // 提取元数据
-    let timestamp = value.get("timestamp")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
+    let timestamp = value.get("timestamp").and_then(|v| v.as_i64()).unwrap_or(0);
 
-    let summary = value.get("summary")
+    let summary = value
+        .get("summary")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
     let messages: Vec<Message> = serde_json::from_value(
-        value.get("messages").cloned().unwrap_or(serde_json::json!([]))
-    ).map_err(|e| format!("Failed to parse messages: {}", e))?;
+        value
+            .get("messages")
+            .cloned()
+            .unwrap_or(serde_json::json!([])),
+    )
+    .map_err(|e| format!("Failed to parse messages: {}", e))?;
 
     let metadata = value.get("metadata").cloned();
 
     // 获取文件大小
-    let file_size = fs::metadata(&archive_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = fs::metadata(&archive_path).map(|m| m.len()).unwrap_or(0);
 
     Ok(ConversationArchiveDetail {
         id: archive_id,
@@ -361,7 +357,8 @@ async fn parse_markdown_archive(md_path: &PathBuf) -> Result<ConversationArchive
     // 简单解析 Markdown（提取基本信息）
     let lines: Vec<&str> = content.lines().collect();
 
-    let summary = lines.iter()
+    let summary = lines
+        .iter()
         .find(|l| l.starts_with("**Summary:**"))
         .map(|l| l.replace("**Summary:**", "").trim().to_string())
         .unwrap_or_default();
@@ -370,7 +367,8 @@ async fn parse_markdown_archive(md_path: &PathBuf) -> Result<ConversationArchive
     // 目前返回基础信息，完整解析需要更复杂的逻辑
 
     Ok(ConversationArchiveDetail {
-        id: md_path.file_stem()
+        id: md_path
+            .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("unknown")
             .to_string(),

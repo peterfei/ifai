@@ -19,11 +19,11 @@ IfAI Editor - Local Model Management
 - Windows: %USERPROFILE%\.ifai\models\
 */
 
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 
@@ -114,8 +114,8 @@ impl LocalModelConfig {
         }
 
         // 检查文件大小
-        let metadata = std::fs::metadata(&self.model_path)
-            .map_err(|e| format!("无法读取模型文件: {}", e))?;
+        let metadata =
+            std::fs::metadata(&self.model_path).map_err(|e| format!("无法读取模型文件: {}", e))?;
 
         let file_size = metadata.len();
 
@@ -183,7 +183,9 @@ pub struct ModelDownloadConfig {
 impl Default for ModelDownloadConfig {
     fn default() -> Self {
         // 真实的模型下载地址（使用 CDN 加速）
-        let url = "http://image-peterfei-blog.test.upcdn.net/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string();
+        let url =
+            "http://image-peterfei-blog.test.upcdn.net/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf"
+                .to_string();
 
         Self {
             url,
@@ -299,13 +301,12 @@ pub async fn local_model_chat(
     _event_id: String,
     _app: AppHandle,
 ) -> Result<crate::core_traits::ai::Message, String> {
-    Err(
-        "本地推理功能已简化。\n\n\
+    Err("本地推理功能已简化。\n\n\
          当前系统支持：\n\
          - 工具调用本地解析（agent_read_file 等）\n\
          - 简单问答转发云端 API\n\n\
-         请使用 'local_model_preprocess' 命令进行智能路由。".to_string()
-    )
+         请使用 'local_model_preprocess' 命令进行智能路由。"
+        .to_string())
 }
 
 /// 社区版：返回提示信息
@@ -316,31 +317,29 @@ pub async fn local_model_chat(
     _event_id: String,
     _app: AppHandle,
 ) -> Result<crate::core_traits::ai::Message, String> {
-    Err(
-        "本地推理功能已简化。\n\n\
+    Err("本地推理功能已简化。\n\n\
          当前系统支持：\n\
          - 工具调用本地解析（agent_read_file 等）\n\
          - 简单问答转发云端 API\n\n\
-         请使用 'local_model_preprocess' 命令进行智能路由。".to_string()
-    )
+         请使用 'local_model_preprocess' 命令进行智能路由。"
+        .to_string())
 }
 
 /// 从消息内容中提取文本
 fn extract_text_content(content: &crate::core_traits::ai::Content) -> String {
     match content {
         crate::core_traits::ai::Content::Text(text) => text.clone(),
-        crate::core_traits::ai::Content::Parts(parts) => {
-            parts.iter()
-                .filter_map(|p| {
-                    if let crate::core_traits::ai::ContentPart::Text { text, .. } = p {
-                        Some(text.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
+        crate::core_traits::ai::Content::Parts(parts) => parts
+            .iter()
+            .filter_map(|p| {
+                if let crate::core_traits::ai::ContentPart::Text { text, .. } = p {
+                    Some(text.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
     }
 }
 
@@ -354,19 +353,35 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
 
     // 优先检查：是否是纯命令（由意图识别器提取的 bash 命令）
     // 特征：短文本、包含常见命令关键词
-    let is_pure_command = text.len() < 50 && (
-        text.starts_with("ls") || text.starts_with("pwd") || text.starts_with("cd") ||
-        text.starts_with("git") || text.starts_with("npm") || text.starts_with("yarn") ||
-        text.starts_with("pnpm") || text.starts_with("cargo") || text.starts_with("node") ||
-        text.starts_with("python") || text.starts_with("pip") || text.starts_with("python3") ||
-        text.contains("git status") || text.contains("git log") || text.contains("git diff") ||
-        text.contains("npm run") || text.contains("npm test") || text.contains("npm install") ||
-        text.contains("cargo build") || text.contains("cargo test") || text.contains("cargo run")
-    );
+    let is_pure_command = text.len() < 50
+        && (text.starts_with("ls")
+            || text.starts_with("pwd")
+            || text.starts_with("cd")
+            || text.starts_with("git")
+            || text.starts_with("npm")
+            || text.starts_with("yarn")
+            || text.starts_with("pnpm")
+            || text.starts_with("cargo")
+            || text.starts_with("node")
+            || text.starts_with("python")
+            || text.starts_with("pip")
+            || text.starts_with("python3")
+            || text.contains("git status")
+            || text.contains("git log")
+            || text.contains("git diff")
+            || text.contains("npm run")
+            || text.contains("npm test")
+            || text.contains("npm install")
+            || text.contains("cargo build")
+            || text.contains("cargo test")
+            || text.contains("cargo run"));
 
     if is_pure_command {
         // 纯命令应该构造为 bash 工具调用
-        println!("[LocalModel] Detected pure command '{}', creating bash tool call", text);
+        println!(
+            "[LocalModel] Detected pure command '{}', creating bash tool call",
+            text
+        );
         let mut args = HashMap::new();
         args.insert("command".to_string(), text.to_string());
         calls.push(ParsedToolCall {
@@ -401,7 +416,11 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
 
     // 模式2: 中文自然语言解析
     // 读取文件: "读取 xxx", "查看 xxx", "打开 xxx", "read xxx"
-    if text_lower.contains("读取") || text_lower.contains("查看") || text_lower.contains("打开") || text_lower.contains("read ") {
+    if text_lower.contains("读取")
+        || text_lower.contains("查看")
+        || text_lower.contains("打开")
+        || text_lower.contains("read ")
+    {
         // 提取文件路径 - 简化版
         let file_pattern = regex::Regex::new(r"(?:读取|查看|打开)\s+(\S+)").unwrap();
         if let Some(cap) = file_pattern.captures(&text) {
@@ -418,8 +437,13 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
     }
 
     // 列出目录: "列出", "目录", "文件夹", "list", "dir", "ls"
-    if text_lower.contains("列出") || text_lower.contains("目录") || text_lower.contains("文件夹") ||
-       text_lower.starts_with("list") || text_lower.starts_with("dir") || text_lower.starts_with("ls") {
+    if text_lower.contains("列出")
+        || text_lower.contains("目录")
+        || text_lower.contains("文件夹")
+        || text_lower.starts_with("list")
+        || text_lower.starts_with("dir")
+        || text_lower.starts_with("ls")
+    {
         let mut args = HashMap::new();
         args.insert("rel_path".to_string(), ".".to_string());
         calls.push(ParsedToolCall {
@@ -430,7 +454,11 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
     }
 
     // 写入文件: "写入", "保存", "write", "save"
-    if text_lower.contains("写入") || text_lower.contains("保存") || text_lower.contains("write") || text_lower.contains("save") {
+    if text_lower.contains("写入")
+        || text_lower.contains("保存")
+        || text_lower.contains("write")
+        || text_lower.contains("save")
+    {
         // 这里需要更复杂的解析来获取内容和路径，暂时跳过
         // 因为需要多行内容解析
     }
@@ -485,8 +513,7 @@ pub async fn start_download(app: AppHandle) -> Result<DownloadState, String> {
     let model_dir = LocalModelConfig::model_dir();
 
     // 确保模型目录存在
-    std::fs::create_dir_all(&model_dir)
-        .map_err(|e| format!("无法创建模型目录: {}", e))?;
+    std::fs::create_dir_all(&model_dir).map_err(|e| format!("无法创建模型目录: {}", e))?;
 
     let output_path = model_dir.join(&config.filename);
 
@@ -515,7 +542,8 @@ pub async fn start_download(app: AppHandle) -> Result<DownloadState, String> {
             cancel_flag,
             config.expected_size,
             app,
-        ).await
+        )
+        .await
         {
             let mut s = state_for_error.lock().await;
             s.status = DownloadStatus::Failed(e);
@@ -533,8 +561,7 @@ pub async fn cancel_download() -> Result<(), String> {
     // 删除已下载的部分文件
     let model_path = LocalModelConfig::default_model_path();
     if model_path.exists() {
-        std::fs::remove_file(&model_path)
-            .map_err(|e| format!("无法删除部分文件: {}", e))?;
+        std::fs::remove_file(&model_path).map_err(|e| format!("无法删除部分文件: {}", e))?;
     }
 
     {
@@ -557,11 +584,12 @@ async fn download_file(
     println!("[Download] 开始下载: {}", url);
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(600))  // 增加到10分钟
+        .timeout(Duration::from_secs(600)) // 增加到10分钟
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .send()
         .await
         .map_err(|e| format!("请求失败: {}", e))?;
@@ -573,12 +601,19 @@ async fn download_file(
     // 获取实际文件大小
     let total_bytes_from_server = response.content_length();
     let total_bytes = total_bytes_from_server.unwrap_or_else(|| {
-        println!("[Download] 服务器未返回 Content-Length，使用配置的大小: {}MB", total_size / 1024 / 1024);
+        println!(
+            "[Download] 服务器未返回 Content-Length，使用配置的大小: {}MB",
+            total_size / 1024 / 1024
+        );
         total_size
     });
 
     if let Some(size) = total_bytes_from_server {
-        println!("[Download] 服务器返回文件大小: {}MB ({} bytes)", size / 1024 / 1024, size);
+        println!(
+            "[Download] 服务器返回文件大小: {}MB ({} bytes)",
+            size / 1024 / 1024,
+            size
+        );
     }
 
     let mut file = tokio::fs::File::create(output_path)
@@ -639,20 +674,28 @@ async fn download_file(
 
             // 每5秒打印一次日志
             if now.duration_since(last_log_time).as_secs() > 5 {
-                println!("[Download] 进度: {}% ({}/{} bytes), 速度: {}MB/s",
-                    progress, downloaded, total_bytes, speed / 1024 / 1024);
+                println!(
+                    "[Download] 进度: {}% ({}/{} bytes), 速度: {}MB/s",
+                    progress,
+                    downloaded,
+                    total_bytes,
+                    speed / 1024 / 1024
+                );
                 last_log_time = now;
             }
 
             // 发送进度事件到前端
-            let _ = app.emit("model-download-progress", &DownloadState {
-                status: DownloadStatus::Downloading,
-                progress,
-                bytes_downloaded: downloaded,
-                total_bytes,
-                speed,
-                eta,
-            });
+            let _ = app.emit(
+                "model-download-progress",
+                &DownloadState {
+                    status: DownloadStatus::Downloading,
+                    progress,
+                    bytes_downloaded: downloaded,
+                    total_bytes,
+                    speed,
+                    eta,
+                },
+            );
 
             last_update_time = now;
         }
@@ -668,14 +711,17 @@ async fn download_file(
     }
 
     // 发送完成事件
-    let _ = app.emit("model-download-complete", &DownloadState {
-        status: DownloadStatus::Completed,
-        progress: 100,
-        bytes_downloaded: total_bytes,
-        total_bytes,
-        speed: 0,
-        eta: 0,
-    });
+    let _ = app.emit(
+        "model-download-complete",
+        &DownloadState {
+            status: DownloadStatus::Completed,
+            progress: 100,
+            bytes_downloaded: total_bytes,
+            total_bytes,
+            speed: 0,
+            eta: 0,
+        },
+    );
 
     Ok(())
 }
@@ -725,7 +771,9 @@ pub struct PreprocessResult {
 pub async fn local_model_preprocess(
     messages: Vec<crate::core_traits::ai::Message>,
 ) -> Result<PreprocessResult, String> {
-    use crate::intelligence_router::{IntelligenceRouter, extract_text_content as router_extract_text};
+    use crate::intelligence_router::{
+        extract_text_content as router_extract_text, IntelligenceRouter,
+    };
 
     println!("[LocalModel] ===== Preprocess Start =====");
     println!("[LocalModel] Messages count: {}", messages.len());
@@ -735,7 +783,10 @@ pub async fn local_model_preprocess(
     let model_exists = config.model_path.exists();
     let model_enabled = config.enabled;
 
-    println!("[LocalModel] Model exists: {}, enabled: {}", model_exists, model_enabled);
+    println!(
+        "[LocalModel] Model exists: {}, enabled: {}",
+        model_exists, model_enabled
+    );
     println!("[LocalModel] Model path: {}", config.model_path.display());
 
     if !model_exists {
@@ -761,7 +812,7 @@ pub async fn local_model_preprocess(
         crate::intelligence_router::RouteDecision::Local { reason } => {
             // 使用本地模型
             println!("[LocalModel] ✅ Route: Local - {}", reason);
-            
+
             // 🔥 针对 Windows 的安全性增强：
             // 如果本地模型未启用（Windows 默认），且无法直接解析出工具调用，则强制路由到云端
             if !model_enabled {
@@ -777,7 +828,7 @@ pub async fn local_model_preprocess(
                     });
                 }
             }
-            
+
             process_with_local_model(messages, reason).await
         }
         crate::intelligence_router::RouteDecision::Cloud { reason } => {
@@ -810,7 +861,10 @@ async fn process_with_local_model(
 
     if !tool_calls.is_empty() {
         // 解析到显式工具调用，直接返回（本地执行）
-        println!("[LocalModel] ✅ Parsed {} explicit tool calls", tool_calls.len());
+        println!(
+            "[LocalModel] ✅ Parsed {} explicit tool calls",
+            tool_calls.len()
+        );
         return Ok(PreprocessResult {
             should_use_local: true,
             has_tool_calls: true,
@@ -839,14 +893,14 @@ async fn try_parse_tool_calls_from_messages(
     use crate::core_traits::ai::Message;
 
     // 获取最后一条用户消息
-    let user_message = messages
-        .iter()
-        .filter(|m| m.role == "user")
-        .last();
+    let user_message = messages.iter().filter(|m| m.role == "user").last();
 
     if let Some(msg) = user_message {
         let text = extract_text_content(&msg.content);
-        println!("[LocalModel] Checking for explicit tool calls in: '{}'", text.chars().take(50).collect::<String>());
+        println!(
+            "[LocalModel] Checking for explicit tool calls in: '{}'",
+            text.chars().take(50).collect::<String>()
+        );
         test_tool_parse(text)
     } else {
         vec![]
@@ -883,30 +937,40 @@ pub async fn local_model_fim(
 
         // 构造 Qwen2.5-Coder 的 FIM Prompt 格式
         // 格式: <|fim_prefix|>{prefix}<|fim_suffix|>{suffix}<|fim_middle|>
-        let prompt = format!("<|fim_prefix|>{}{}<|fim_suffix|>{}{}<|fim_middle|>",
-            if prefix.len() > 1000 { crate::ai_utils::safe_truncate_start(&prefix, 1000) } else { prefix.clone() },
+        let prompt = format!(
+            "<|fim_prefix|>{}{}<|fim_suffix|>{}{}<|fim_middle|>",
+            if prefix.len() > 1000 {
+                crate::ai_utils::safe_truncate_start(&prefix, 1000)
+            } else {
+                prefix.clone()
+            },
             "", // Placeholder for potential middle content if needed
-            if suffix.len() > 500 { crate::ai_utils::safe_truncate(&suffix, 500) } else { suffix.clone() },
+            if suffix.len() > 500 {
+                crate::ai_utils::safe_truncate(&suffix, 500)
+            } else {
+                suffix.clone()
+            },
             ""
         );
         let max_tokens_val = max_tokens.unwrap_or(128);
 
         // 使用 spawn_blocking
-        let result = tokio::task::spawn_blocking(move || {
-            generate_completion(&prompt, max_tokens_val)
-        }).await.map_err(|e| format!("任务调度失败: {}", e))?;
+        let result =
+            tokio::task::spawn_blocking(move || generate_completion(&prompt, max_tokens_val))
+                .await
+                .map_err(|e| format!("任务调度失败: {}", e))?;
 
         match result {
             Ok(text) => {
                 let elapsed = start_time.elapsed();
                 // 清理可能包含的特殊标记（模型有时会重复输出标记）
-                let clean_text = text
-                    .split("<|")
-                    .next()
-                    .unwrap_or("")
-                    .to_string();
-                
-                println!("[LocalFIM] ✓ Success: {} chars in {:?}", clean_text.len(), elapsed);
+                let clean_text = text.split("<|").next().unwrap_or("").to_string();
+
+                println!(
+                    "[LocalFIM] ✓ Success: {} chars in {:?}",
+                    clean_text.len(),
+                    elapsed
+                );
                 Ok(clean_text)
             }
             Err(e) => {
@@ -936,22 +1000,20 @@ pub async fn local_code_completion(
     // 检查模型是否可用
     let config = LocalModelConfig::default();
     if !config.model_path.exists() {
-        return Err(
-            "本地模型文件不存在。\n\n\
+        return Err("本地模型文件不存在。\n\n\
              请先下载模型：\n\
              1. 打开设置 → 本地模型\n\
              2. 点击下载模型\n\n\
-             或者使用云端 API 进行代码补全。".to_string()
-        );
+             或者使用云端 API 进行代码补全。"
+            .to_string());
     }
 
     // 检查 llm-inference feature 是否启用
     #[cfg(not(feature = "llm-inference"))]
     {
-        return Err(
-            "本地推理功能未启用。\n\n\
-             请使用 --features llm-inference 编译，或使用云端 API。".to_string()
-        );
+        return Err("本地推理功能未启用。\n\n\
+             请使用 --features llm-inference 编译，或使用云端 API。"
+            .to_string());
     }
 
     #[cfg(feature = "llm-inference")]
@@ -962,14 +1024,19 @@ pub async fn local_code_completion(
 
         // 使用 spawn_blocking 在专用线程池中运行同步推理任务
         // 这样可以避免阻塞 tokio 的工作线程，从而保持 UI 响应
-        let result = tokio::task::spawn_blocking(move || {
-            generate_completion(&prompt, max_tokens_val)
-        }).await.map_err(|e| format!("任务调度失败: {}", e))?;
+        let result =
+            tokio::task::spawn_blocking(move || generate_completion(&prompt, max_tokens_val))
+                .await
+                .map_err(|e| format!("任务调度失败: {}", e))?;
 
         match result {
             Ok(text) => {
                 let elapsed = start_time.elapsed();
-                println!("[LocalCompletion] ✓ Success: {} chars in {:?}", text.len(), elapsed);
+                println!(
+                    "[LocalCompletion] ✓ Success: {} chars in {:?}",
+                    text.len(),
+                    elapsed
+                );
                 Ok(text)
             }
             Err(e) => {
@@ -1000,7 +1067,10 @@ mod tests {
     fn test_download_config() {
         let config = ModelDownloadConfig::default();
         assert_eq!(config.filename, "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf");
-        assert_eq!(config.url, "http://image-peterfei-blog.test.upcdn.net/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf");
+        assert_eq!(
+            config.url,
+            "http://image-peterfei-blog.test.upcdn.net/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf"
+        );
         assert_eq!(config.expected_size, 397_807_552); // 379.4MB
     }
 

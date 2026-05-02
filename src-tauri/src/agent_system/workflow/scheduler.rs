@@ -2,7 +2,7 @@
 //!
 //! 负责对工作流进行拓扑排序，确定节点执行顺序
 
-use super::types::{Workflow, AgentType};
+use super::types::{AgentType, Workflow};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// 调度结果
@@ -30,9 +30,7 @@ impl Schedule {
     ///
     /// 返回节点在执行顺序中的位置（0-based）
     pub fn get_node_index(&self, node_id: &str) -> Option<usize> {
-        self.execution_order
-            .iter()
-            .position(|id| id == node_id)
+        self.execution_order.iter().position(|id| id == node_id)
     }
 
     /// 获取节点所在的并行组索引
@@ -46,7 +44,9 @@ impl Schedule {
     ///
     /// 两个节点可以并行执行当且仅当它们在同一并行组中
     pub fn can_execute_in_parallel(&self, node_a: &str, node_b: &str) -> bool {
-        if let (Some(group_a), Some(group_b)) = (self.get_node_group(node_a), self.get_node_group(node_b)) {
+        if let (Some(group_a), Some(group_b)) =
+            (self.get_node_group(node_a), self.get_node_group(node_b))
+        {
             group_a == group_b
         } else {
             false
@@ -216,8 +216,7 @@ impl WorkflowScheduler {
     /// 检查两个节点之间是否存在依赖关系
     fn has_dependency_between(workflow: &Workflow, from: &str, to: &str) -> bool {
         workflow.edges.iter().any(|edge| {
-            (edge.from == from && edge.to == to)
-                || (edge.from == to && edge.to == from)
+            (edge.from == from && edge.to == to) || (edge.from == to && edge.to == from)
         })
     }
 }
@@ -238,7 +237,10 @@ pub enum ScheduleError {
 impl From<crate::agent_system::workflow::WorkflowValidationError> for ScheduleError {
     fn from(err: crate::agent_system::workflow::WorkflowValidationError) -> Self {
         // 如果是循环依赖错误，转换为 CycleDetected
-        if matches!(err, crate::agent_system::workflow::WorkflowValidationError::CyclicDependency) {
+        if matches!(
+            err,
+            crate::agent_system::workflow::WorkflowValidationError::CyclicDependency
+        ) {
             ScheduleError::CycleDetected
         } else {
             ScheduleError::ValidationError(err.to_string())
@@ -249,7 +251,7 @@ impl From<crate::agent_system::workflow::WorkflowValidationError> for ScheduleEr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_system::workflow::{Workflow, WorkflowNode, WorkflowEdge, AgentType};
+    use crate::agent_system::workflow::{AgentType, Workflow, WorkflowEdge, WorkflowNode};
 
     #[test]
     fn test_schedule_linear_workflow() {
@@ -328,8 +330,14 @@ mod tests {
         // b 和 d 应该在第二组（可以并行）
         assert_eq!(schedule.parallel_groups.len(), 2);
 
-        let group0: HashSet<_> = schedule.parallel_groups[0].iter().map(|s| s.as_str()).collect();
-        let group1: HashSet<_> = schedule.parallel_groups[1].iter().map(|s| s.as_str()).collect();
+        let group0: HashSet<_> = schedule.parallel_groups[0]
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
+        let group1: HashSet<_> = schedule.parallel_groups[1]
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
 
         assert!(group0.contains("a") || group0.contains("c"));
         assert!(group0.contains("a") || group0.contains("c"));

@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Stdio;
-use tokio::process::Command;
-use tokio::time::{timeout, Duration};
-use tokio::io::{AsyncBufReadExt, BufReader};
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+use tokio::time::{timeout, Duration};
 
 /// 检测输出是否包含启动成功的标志
 ///
@@ -19,22 +19,18 @@ fn detect_startup_success(stdout_lines: &[String], stderr_lines: &[String]) -> b
         "Network:",
         "ready in",
         "VITE",
-
         // Webpack
         "Compiled successfully",
         "webpack: Compiled",
         "webpack compiled",
         "webpack: Compiled with",
-
         // Next.js
         "ready - started server on",
         "▲ Next.js",
-
         // Create React App
         "Starting the development server",
         "Compiled successfully!",
         "You can now view",
-
         // General server messages
         "Server running",
         "server running",
@@ -42,15 +38,12 @@ fn detect_startup_success(stdout_lines: &[String], stderr_lines: &[String]) -> b
         "Listening on",
         "Serving",
         "serving at",
-
         // Python servers
         "Running on",
         "Serving HTTP on",
-
         // Go servers
         "Starting server",
         "Server started",
-
         // Node.js
         "server is listening",
         "application is running",
@@ -160,7 +153,9 @@ pub async fn execute_bash_command_streaming(
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn command: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn command: {}", e))?;
 
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
@@ -321,12 +316,16 @@ pub async fn execute_bash_command_streaming(
             }
 
             if line_count >= MAX_OUTPUT_LINES {
-                emit_event(&app_handle, &event_id, BashStreamEvent {
-                    event_type: "error".to_string(),
-                    content: format!("Output limit reached ({} lines)", MAX_OUTPUT_LINES),
-                    is_stderr: false,
-                    line_count: line_count,
-                })?;
+                emit_event(
+                    &app_handle,
+                    &event_id,
+                    BashStreamEvent {
+                        event_type: "error".to_string(),
+                        content: format!("Output limit reached ({} lines)", MAX_OUTPUT_LINES),
+                        is_stderr: false,
+                        line_count: line_count,
+                    },
+                )?;
                 break;
             }
         }
@@ -358,32 +357,44 @@ pub async fn execute_bash_command_streaming(
                 // 进程正常结束（没有提前检测到启动成功）
                 // 这里需要重新获取进程状态，但我们没有保存它
                 // 由于进程已经正常结束，我们可以假设它是成功的
-                emit_event(&app_handle, &event_id, BashStreamEvent {
-                    event_type: "complete".to_string(),
-                    content: "Command completed (process exited normally)".to_string(),
-                    is_stderr: false,
-                    line_count,
-                })?;
+                emit_event(
+                    &app_handle,
+                    &event_id,
+                    BashStreamEvent {
+                        event_type: "complete".to_string(),
+                        content: "Command completed (process exited normally)".to_string(),
+                        is_stderr: false,
+                        line_count,
+                    },
+                )?;
                 (0, true, false)
             }
         }
         Ok(Err(e)) => {
-            emit_event(&app_handle, &event_id, BashStreamEvent {
-                event_type: "error".to_string(),
-                content: format!("Execution error: {}", e),
-                is_stderr: false,
-                line_count,
-            })?;
+            emit_event(
+                &app_handle,
+                &event_id,
+                BashStreamEvent {
+                    event_type: "error".to_string(),
+                    content: format!("Execution error: {}", e),
+                    is_stderr: false,
+                    line_count,
+                },
+            )?;
             (-1, false, false)
         }
         Err(_) => {
             // 超时
-            emit_event(&app_handle, &event_id, BashStreamEvent {
-                event_type: "error".to_string(),
-                content: "Command timed out".to_string(),
-                is_stderr: false,
-                line_count,
-            })?;
+            emit_event(
+                &app_handle,
+                &event_id,
+                BashStreamEvent {
+                    event_type: "error".to_string(),
+                    content: "Command timed out".to_string(),
+                    is_stderr: false,
+                    line_count,
+                },
+            )?;
             (-1, false, true)
         }
     };

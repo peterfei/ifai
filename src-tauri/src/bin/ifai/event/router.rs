@@ -199,8 +199,7 @@ mod tests {
 
     #[test]
     fn test_router_fallback() {
-        let router: EventRouter<KeyEvent> =
-            EventRouter::new().fallback(FallbackHandler);
+        let router: EventRouter<KeyEvent> = EventRouter::new().fallback(FallbackHandler);
 
         assert!(router.fallback.is_some());
     }

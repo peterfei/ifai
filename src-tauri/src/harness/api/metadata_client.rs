@@ -14,7 +14,9 @@ use super::client::ApiClient;
 use super::format_adapter::FormatAdapter;
 use super::provider_metadata::ProviderSpec;
 use super::sse::SseParser;
-use super::types::{ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+use super::types::{
+    ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest,
+};
 
 /// 🏛️ 元数据驱动的通用客户端
 ///
@@ -61,7 +63,9 @@ impl<A: FormatAdapter + Send + Sync + 'static> ApiClient for MetadataDrivenClien
         // 使用适配器构建请求
         let url = self.adapter.build_url(&request.model, &self.api_key);
         let headers = self.adapter.build_headers(&self.api_key);
-        let body = self.adapter.transform_request_body(&request)
+        let body = self
+            .adapter
+            .transform_request_body(&request)
             .map_err(|e| ApiError::Sse(format!("Failed to transform request: {}", e)))?;
 
         // 构建请求
@@ -161,12 +165,15 @@ impl<A: FormatAdapter + Send + Sync + 'static> ApiClient for MetadataDrivenClien
     fn estimate_tokens(&self, content: &str) -> usize {
         // 简单估算：英文约 4 字符/token，中文约 2 字符/token
         let chars = content.chars().count();
-        let chinese_chars = content.chars().filter(|c| {
-            let cp = *c as u32;
-            (0x4E00..=0x9FFF).contains(&cp) || // CJK 统一汉字
+        let chinese_chars = content
+            .chars()
+            .filter(|c| {
+                let cp = *c as u32;
+                (0x4E00..=0x9FFF).contains(&cp) || // CJK 统一汉字
             (0x3400..=0x4DBF).contains(&cp) || // CJK 扩展 A
-            (0x20000..=0x2A6DF).contains(&cp)  // CJK 扩展 B
-        }).count();
+            (0x20000..=0x2A6DF).contains(&cp) // CJK 扩展 B
+            })
+            .count();
 
         let non_chinese_chars = chars - chinese_chars;
         (chinese_chars / 2) + (non_chinese_chars / 4)
@@ -178,16 +185,20 @@ impl<A: FormatAdapter + Send + Sync + 'static> ApiClient for MetadataDrivenClien
 // ============================================================================
 
 /// OpenAI 官方客户端（元数据驱动）
-pub type OpenAIOfficialClient = MetadataDrivenClient<crate::harness::api::generated_clients::OpenAIOfficialClient>;
+pub type OpenAIOfficialClient =
+    MetadataDrivenClient<crate::harness::api::generated_clients::OpenAIOfficialClient>;
 
 /// Zhipu 官方客户端（元数据驱动）
-pub type ZhipuOfficialMetadataClient = MetadataDrivenClient<crate::harness::api::generated_clients::ZhipuOfficialClient>;
+pub type ZhipuOfficialMetadataClient =
+    MetadataDrivenClient<crate::harness::api::generated_clients::ZhipuOfficialClient>;
 
 /// Kimi 官方客户端（元数据驱动）
-pub type KimiOfficialMetadataClient = MetadataDrivenClient<crate::harness::api::generated_clients::KimiOfficialClient>;
+pub type KimiOfficialMetadataClient =
+    MetadataDrivenClient<crate::harness::api::generated_clients::KimiOfficialClient>;
 
 /// Gemini 官方客户端（元数据驱动）
-pub type GeminiOfficialMetadataClient = MetadataDrivenClient<crate::harness::api::generated_clients::GeminiOfficialClient>;
+pub type GeminiOfficialMetadataClient =
+    MetadataDrivenClient<crate::harness::api::generated_clients::GeminiOfficialClient>;
 
 // ============================================================================
 // 辅助函数：创建客户端
@@ -297,9 +308,7 @@ mod tests {
         use tokio::runtime::Runtime;
         let rt = Runtime::new().unwrap();
 
-        let models = rt.block_on(async {
-            zhipu.list_models().await
-        });
+        let models = rt.block_on(async { zhipu.list_models().await });
 
         assert!(models.is_ok());
         let models = models.unwrap();
@@ -323,9 +332,9 @@ mod tests {
         let headers = zhipu.adapter.build_headers("test-api-key");
 
         // 验证 Authorization 头
-        assert!(headers.iter().any(|(k, v)| {
-            k == "Authorization" && v == "Bearer test-api-key"
-        }));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| { k == "Authorization" && v == "Bearer test-api-key" }));
     }
 
     #[test]
@@ -335,9 +344,7 @@ mod tests {
         use tokio::runtime::Runtime;
         let rt = Runtime::new().unwrap();
 
-        let models = rt.block_on(async {
-            kimi.list_models().await
-        });
+        let models = rt.block_on(async { kimi.list_models().await });
 
         assert!(models.is_ok());
         let models = models.unwrap();
@@ -354,9 +361,7 @@ mod tests {
         use tokio::runtime::Runtime;
         let rt = Runtime::new().unwrap();
 
-        let models = rt.block_on(async {
-            gemini.list_models().await
-        });
+        let models = rt.block_on(async { gemini.list_models().await });
 
         assert!(models.is_ok());
         let models = models.unwrap();
@@ -412,7 +417,8 @@ mod tests {
         let zhipu = create_zhipu_client("test-key");
 
         // 测试正常的 SSE 事件
-        let event_data = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"你好"}}]}"#;
+        let event_data =
+            r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"你好"}}]}"#;
 
         let event = zhipu.adapter.parse_sse_event(event_data);
         assert!(event.is_ok());
@@ -449,14 +455,12 @@ mod tests {
 
         let request = StreamRequest {
             model: "glm-5.1".to_string(),
-            messages: vec![
-                Message {
-                    role: MessageRole::User,
-                    content: MessageContent::Text("你好".to_string()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                },
-            ],
+            messages: vec![Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("你好".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            }],
             max_tokens: 4096,
             system: None,
             temperature: Some(0.7),

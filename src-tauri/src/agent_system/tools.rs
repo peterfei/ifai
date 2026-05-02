@@ -1,9 +1,9 @@
 // 🔥 P4: 移除对 ifainew_core::agent 的依赖，改用本地实现
 // use ifainew_core::agent;
-use serde_json::Value;
 use crate::harness::task::TaskStore;
 use crate::harness::tool::executor::todoutil::TodoWriteExecutor;
 use crate::harness::tool::executor::ToolExecutor;
+use serde_json::Value;
 use std::path::Path;
 
 // 🆕 全局 TaskStore 单例
@@ -12,9 +12,7 @@ use std::sync::OnceLock;
 static GLOBAL_TASK_STORE: OnceLock<TaskStore> = OnceLock::new();
 
 fn get_global_task_store() -> &'static TaskStore {
-    GLOBAL_TASK_STORE.get_or_init(|| {
-        TaskStore::new()
-    })
+    GLOBAL_TASK_STORE.get_or_init(|| TaskStore::new())
 }
 
 /// Convert snake_case to camelCase (e.g., "rel_path" -> "relPath")
@@ -41,12 +39,18 @@ fn get_arg_str<'a>(args: &'a Value, snake_key: &str, default: &'a str) -> &'a st
     if let Some(s) = args[snake_key].as_str() {
         return s;
     }
-    
+
     // 🔥 Special case for 'command' to handle AI hallucinations
     if snake_key == "command" {
-        if let Some(s) = args["cmd"].as_str() { return s; }
-        if let Some(s) = args["args"].as_str() { return s; }
-        if let Some(s) = args["script"].as_str() { return s; }
+        if let Some(s) = args["cmd"].as_str() {
+            return s;
+        }
+        if let Some(s) = args["args"].as_str() {
+            return s;
+        }
+        if let Some(s) = args["script"].as_str() {
+            return s;
+        }
     }
 
     // Convert to camelCase (e.g., relPath) and try again
@@ -141,7 +145,10 @@ fn is_path_forbidden(rel_path: &str) -> bool {
     ];
 
     // 1. 直接前缀匹配
-    if forbidden_prefixes.iter().any(|prefix| path.starts_with(prefix)) {
+    if forbidden_prefixes
+        .iter()
+        .any(|prefix| path.starts_with(prefix))
+    {
         return true;
     }
 
@@ -190,7 +197,7 @@ pub async fn execute_tool_internal(
 ) -> Result<String, String> {
     // 1. Calibrate the project root globally for ALL tools
     let calibrated_root = calibrate_project_root(project_root);
-    
+
     // 🔥 Security Sandbox: Check for forbidden paths
     let rel_path = get_arg_opt_str(args, "rel_path")
         .or_else(|| get_arg_opt_str(args, "path"))
@@ -198,17 +205,29 @@ pub async fn execute_tool_internal(
 
     if !rel_path.is_empty() && is_path_forbidden(&rel_path) {
         // Allow ONLY reading of non-critical parts if necessary, but for now, block all writes/deletes
-        if tool_name.contains("write") || tool_name.contains("delete") || tool_name.contains("replace") {
-            println!("[AgentTools] 🛡️ Security Sandbox: Blocked {} on forbidden path: {}", tool_name, rel_path);
+        if tool_name.contains("write")
+            || tool_name.contains("delete")
+            || tool_name.contains("replace")
+        {
+            println!(
+                "[AgentTools] 🛡️ Security Sandbox: Blocked {} on forbidden path: {}",
+                tool_name, rel_path
+            );
             return Err(format!("Security Error: Access to '{}' is strictly forbidden for AI safety. Please modify other parts of the project.", rel_path));
         }
     }
-    
+
     // Only log if calibration actually changed the path
     if calibrated_root != project_root {
-        println!("[AgentTools] Executing tool: {} | Root Calibrated: '{}' -> '{}'", tool_name, project_root, calibrated_root);
+        println!(
+            "[AgentTools] Executing tool: {} | Root Calibrated: '{}' -> '{}'",
+            tool_name, project_root, calibrated_root
+        );
     } else {
-        println!("[AgentTools] Executing tool: {} with args: {}", tool_name, args);
+        println!(
+            "[AgentTools] Executing tool: {} with args: {}",
+            tool_name, args
+        );
     }
 
     match tool_name {
@@ -219,23 +238,27 @@ pub async fn execute_tool_internal(
             tokio::fs::read_to_string(&path)
                 .await
                 .map_err(|e| format!("Failed to read file: {}", e))
-        },
+        }
         "agent_list_dir" => {
             let rel_path = get_arg_str(args, "rel_path", ".");
             // 🔥 P4: 使用本地实现替代 ifainew_core::agent
             let path = Path::new(&calibrated_root).join(rel_path);
-            let mut entries = tokio::fs::read_dir(&path).await
+            let mut entries = tokio::fs::read_dir(&path)
+                .await
                 .map_err(|e| format!("Failed to list directory: {}", e))?;
 
             let mut result = Vec::new();
-            while let Some(entry) = entries.next_entry().await
-                .map_err(|e| format!("Failed to read directory entry: {}", e))? {
+            while let Some(entry) = entries
+                .next_entry()
+                .await
+                .map_err(|e| format!("Failed to read directory entry: {}", e))?
+            {
                 let name = entry.file_name().to_string_lossy().to_string();
                 result.push(name);
             }
             result.sort();
             Ok(result.join("\n"))
-        },
+        }
         "agent_write_file" => {
             let rel_path = get_arg_str(args, "rel_path", "");
             let content = get_arg_str(args, "content", "");
@@ -243,28 +266,36 @@ pub async fn execute_tool_internal(
             // Fix: Unescape escape sequences in content (\\n -> \n, \\t -> \t, etc.)
             let unescaped_content = unescape_string(content);
 
-            println!("[AgentTools] Writing file: {} (content length: {})", rel_path, unescaped_content.len());
+            println!(
+                "[AgentTools] Writing file: {} (content length: {})",
+                rel_path,
+                unescaped_content.len()
+            );
 
             // 🔥 P4: 使用本地实现替代 ifainew_core::agent
             let path = Path::new(&calibrated_root).join(rel_path);
 
             // Ensure parent directory exists
             if let Some(parent) = path.parent() {
-                tokio::fs::create_dir_all(parent).await
+                tokio::fs::create_dir_all(parent)
+                    .await
                     .map_err(|e| format!("Failed to create directory: {}", e))?;
             }
 
-            tokio::fs::write(&path, unescaped_content).await
+            tokio::fs::write(&path, unescaped_content)
+                .await
                 .map_err(|e| format!("Failed to write file: {}", e))?;
 
             Ok(format!("File written: {}", rel_path))
-        },
+        }
         "agent_batch_read" => {
-            let paths_array = args["paths"].as_array()
+            let paths_array = args["paths"]
+                .as_array()
                 .or_else(|| args["Paths"].as_array())
                 .ok_or("Missing 'paths' array in arguments")?;
 
-            let paths: Vec<String> = paths_array.iter()
+            let paths: Vec<String> = paths_array
+                .iter()
                 .filter_map(|v| v.as_str())
                 .map(|s| s.to_string())
                 .collect();
@@ -275,23 +306,27 @@ pub async fn execute_tool_internal(
 
             println!("[AgentTools] Batch reading {} files", paths.len());
             crate::commands::core_wrappers::agent_batch_read(calibrated_root, paths).await
-        },
+        }
         "agent_scan_directory" => {
             let rel_path = get_arg_str(args, "rel_path", ".");
             let pattern = get_arg_opt_str(args, "pattern");
             let max_depth = get_arg_opt_u64(args, "max_depth").map(|v| v as usize);
             let max_files = get_arg_opt_u64(args, "max_files").map(|v| v as usize);
 
-            println!("[AgentTools] Scanning directory: {} (pattern: {:?})", rel_path, pattern);
+            println!(
+                "[AgentTools] Scanning directory: {} (pattern: {:?})",
+                rel_path, pattern
+            );
 
             crate::commands::core_wrappers::agent_scan_directory(
                 calibrated_root,
                 rel_path.to_string(),
                 pattern,
                 max_depth,
-                max_files
-            ).await
-        },
+                max_files,
+            )
+            .await
+        }
         "agent_bash" | "bash" | "agent_run_shell_command" | "agent_execute_command" => {
             let command = get_arg_str(args, "command", "");
             let working_dir_arg = get_arg_opt_str(args, "working_dir");
@@ -310,9 +345,12 @@ pub async fn execute_tool_internal(
                     if clean_dir.is_empty() || clean_dir == "." {
                         calibrated_root.clone()
                     } else {
-                        std::path::Path::new(&calibrated_root).join(clean_dir).to_string_lossy().to_string()
+                        std::path::Path::new(&calibrated_root)
+                            .join(clean_dir)
+                            .to_string_lossy()
+                            .to_string()
                     }
-                },
+                }
                 None => calibrated_root.clone(),
             };
 
@@ -333,14 +371,19 @@ pub async fn execute_tool_internal(
                 Some(final_working_dir.clone()),
                 timeout,
                 None, // env_vars
-            ).await {
+            )
+            .await
+            {
                 Ok(result) => {
                     // Format the result in a more AI-friendly way.
                     // IMPORTANT: Include stderr even on success, because many tools (like npm/git)
-                    // output progress or status to stderr. This prevents the AI from thinking 
+                    // output progress or status to stderr. This prevents the AI from thinking
                     // nothing happened and looping.
                     let formatted = if result.success {
-                        let mut output = format!("Command '{}' executed successfully in {}.\n", command, final_working_dir);
+                        let mut output = format!(
+                            "Command '{}' executed successfully in {}.\n",
+                            command, final_working_dir
+                        );
                         if !result.stdout.trim().is_empty() {
                             output.push_str(&format!("stdout:\n{}\n", result.stdout));
                         }
@@ -352,25 +395,36 @@ pub async fn execute_tool_internal(
                         }
                         output
                     } else {
-                        format!("Command '{}' failed with exit code {} in {}.\nstdout: {}\nstderr: {}",
-                            command, result.exit_code, final_working_dir, result.stdout, result.stderr)
+                        format!(
+                            "Command '{}' failed with exit code {} in {}.\nstdout: {}\nstderr: {}",
+                            command,
+                            result.exit_code,
+                            final_working_dir,
+                            result.stdout,
+                            result.stderr
+                        )
                     };
 
-                    println!("[AgentTools] BASH SUCCESS: exit_code={}, success={}, output_len={}",
-                        result.exit_code, result.success, formatted.len());
+                    println!(
+                        "[AgentTools] BASH SUCCESS: exit_code={}, success={}, output_len={}",
+                        result.exit_code,
+                        result.success,
+                        formatted.len()
+                    );
                     Ok(formatted)
-                },
+                }
                 Err(e) => {
                     println!("[AgentTools] BASH ERROR: {}", e);
                     Err(e)
-                },
+                }
             }
-        },
+        }
         "TodoWrite" => {
             println!("[AgentTools] Executing TodoWrite with args: {}", args);
 
             // 提取 todos 数组
-            let todos_array = args.get("todos")
+            let todos_array = args
+                .get("todos")
                 .and_then(|v| v.as_array())
                 .ok_or("Missing or invalid 'todos' array in TodoWrite arguments")?;
 
@@ -382,13 +436,16 @@ pub async fn execute_tool_internal(
                 Ok(result) => {
                     println!("[AgentTools] TodoWrite SUCCESS: {}", result);
                     Ok(result)
-                },
+                }
                 Err(e) => {
                     println!("[AgentTools] TodoWrite ERROR: {:?}", e);
                     Err(format!("TodoWrite failed: {:?}", e))
-                },
+                }
             }
-        },
-        _ => Err(format!("Tool {} not implemented or allowed in Agent System", tool_name))
+        }
+        _ => Err(format!(
+            "Tool {} not implemented or allowed in Agent System",
+            tool_name
+        )),
     }
 }

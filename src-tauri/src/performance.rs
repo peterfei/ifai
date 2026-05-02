@@ -23,7 +23,7 @@ pub fn detect_gpu_info() -> Result<GpuInfo, String> {
 pub fn is_on_battery() -> Result<bool, String> {
     // Stub for battery check
     // On macOS/Linux/Windows we might need different implementations
-    Ok(false) 
+    Ok(false)
 }
 
 #[command]

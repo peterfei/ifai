@@ -1,3 +1,6 @@
+use async_stream::stream;
+use futures_core::Stream;
+use serde::{Deserialize, Serialize};
 /**
  * 🔥 务实的 next_event 接口（折中方案）
  *
@@ -7,12 +10,8 @@
  * - 零破坏性变更
  * - 渐进式迁移
  */
-
 use std::collections::VecDeque;
 use std::pin::Pin;
-use futures_core::Stream;
-use async_stream::stream;
-use serde::{Deserialize, Serialize};
 
 use super::types::{ApiError, StreamEvent};
 
@@ -134,8 +133,7 @@ mod tests {
 
     #[test]
     fn test_stream_wrapper() {
-        let events = vec
-![1, 2, 3, 4, 5]
+        let events = vec![1, 2, 3, 4, 5]
             .into_iter()
             .map(|i| StreamEvent::TextDelta {
                 text: format!("delta {}", i),

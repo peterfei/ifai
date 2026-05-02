@@ -3,7 +3,8 @@
 #[cfg(test)]
 mod tests {
     use crate::harness::api::{
-        ApiClientFactory, AiProvider, Message, MessageContent, MessageRole, ProviderConfig, StreamRequest,
+        AiProvider, ApiClientFactory, Message, MessageContent, MessageRole, ProviderConfig,
+        StreamRequest,
     };
 
     /// 测试所有提供商客户端都能正常创建
@@ -75,10 +76,7 @@ mod tests {
             AiProvider::from_str("zhipuai"),
             Ok(AiProvider::Zhipu)
         ));
-        assert!(matches!(
-            AiProvider::from_str("glm"),
-            Ok(AiProvider::Zhipu)
-        ));
+        assert!(matches!(AiProvider::from_str("glm"), Ok(AiProvider::Zhipu)));
 
         // 大小写不敏感
         assert!(matches!(
@@ -209,7 +207,11 @@ mod tests {
         assert!(result.is_err());
         // 检查错误消息包含 base_url
         match result {
-            Err(msg) => assert!(msg.contains("base_url"), "Error should mention base_url: {}", msg),
+            Err(msg) => assert!(
+                msg.contains("base_url"),
+                "Error should mention base_url: {}",
+                msg
+            ),
             Ok(_) => panic!("Expected error for missing base_url"),
         }
     }
@@ -248,7 +250,11 @@ mod tests {
         assert!(result.is_err());
         // 检查错误消息包含 http://
         match result {
-            Err(msg) => assert!(msg.contains("http://"), "Error should mention http:// or https://: {}", msg),
+            Err(msg) => assert!(
+                msg.contains("http://"),
+                "Error should mention http:// or https://: {}",
+                msg
+            ),
             Ok(_) => panic!("Expected error for invalid URL"),
         }
     }
@@ -314,8 +320,14 @@ mod tests {
 
         // 验证智谱模型存在
         assert!(model_ids.contains(&"glm-4.7"), "Should contain glm-4.7");
-        assert!(model_ids.contains(&"glm-4.7-flash"), "Should contain glm-4.7-flash");
+        assert!(
+            model_ids.contains(&"glm-4.7-flash"),
+            "Should contain glm-4.7-flash"
+        );
         assert!(model_ids.contains(&"glm-4.6"), "Should contain glm-4.6");
-        assert!(model_ids.contains(&"glm-4-plus"), "Should contain glm-4-plus");
+        assert!(
+            model_ids.contains(&"glm-4-plus"),
+            "Should contain glm-4-plus"
+        );
     }
 }

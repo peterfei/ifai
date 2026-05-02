@@ -20,7 +20,7 @@
 //! - `parse_sse_event()` 方法
 //! - `Default` trait 实现
 
-use crate::harness::api::format_adapter::{OpenAIFormatAdapter, GeminiFormatAdapter};
+use crate::harness::api::format_adapter::{GeminiFormatAdapter, OpenAIFormatAdapter};
 
 // ============================================================================
 // OpenAI 兼容提供商（使用 OpenAIFormatAdapter）
@@ -54,11 +54,11 @@ crate::generate_provider_client!("gemini-official", GeminiOfficialClient, Gemini
 #[cfg(test)]
 mod tests {
     // 导入宏生成的客户端类型（完整路径）
+    use crate::harness::api::generated_clients::GeminiOfficialClient;
+    use crate::harness::api::generated_clients::KimiOfficialClient;
     use crate::harness::api::generated_clients::OpenAIOfficialClient;
     use crate::harness::api::generated_clients::ZhipuOfficialClient;
-    use crate::harness::api::generated_clients::KimiOfficialClient;
-    use crate::harness::api::generated_clients::GeminiOfficialClient;
-    use crate::harness::api::types::{StreamRequest, Message, MessageContent, MessageRole};
+    use crate::harness::api::types::{Message, MessageContent, MessageRole, StreamRequest};
 
     #[test]
     fn test_openai_client_creation() {
@@ -115,14 +115,14 @@ mod tests {
         let headers = client.build_headers("test-api-key");
 
         // 验证 Authorization 头
-        assert!(headers.iter().any(|(k, v)| {
-            k == "Authorization" && v == "Bearer test-api-key"
-        }));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| { k == "Authorization" && v == "Bearer test-api-key" }));
 
         // 验证 Content-Type 头
-        assert!(headers.iter().any(|(k, v)| {
-            k == "Content-Type" && v == "application/json"
-        }));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| { k == "Content-Type" && v == "application/json" }));
     }
 
     #[test]
@@ -228,7 +228,10 @@ mod tests {
 
         // Gemini 格式：系统消息添加 "System: " 前缀
         assert_eq!(body["contents"][0]["role"], "user");
-        assert_eq!(body["contents"][0]["parts"][0]["text"], "System: You are helpful");
+        assert_eq!(
+            body["contents"][0]["parts"][0]["text"],
+            "System: You are helpful"
+        );
         assert_eq!(body["contents"][1]["role"], "user");
         assert_eq!(body["contents"][1]["parts"][0]["text"], "Hello");
     }
@@ -237,7 +240,8 @@ mod tests {
     fn test_zhipu_client_parse_sse() {
         let client = ZhipuOfficialClient::new();
 
-        let event_data = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"你好"}}]}"#;
+        let event_data =
+            r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"你好"}}]}"#;
 
         let event = client.parse_sse_event(event_data).unwrap();
 

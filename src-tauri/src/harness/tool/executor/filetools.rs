@@ -37,16 +37,12 @@ impl FileToolsExecutor {
 
         // 检查文件是否存在
         if !path_obj.exists() {
-            return Err(ToolError::Execution(format!(
-                "File not found: {}",
-                path
-            )));
+            return Err(ToolError::Execution(format!("File not found: {}", path)));
         }
 
         // 读取文件内容
-        let content = fs::read_to_string(path_obj).map_err(|e| {
-            ToolError::Execution(format!("Failed to read file '{}': {}", path, e))
-        })?;
+        let content = fs::read_to_string(path_obj)
+            .map_err(|e| ToolError::Execution(format!("Failed to read file '{}': {}", path, e)))?;
 
         // 返回文件内容和路径信息
         Ok(format!(
@@ -67,9 +63,7 @@ impl FileToolsExecutor {
         let content = input
             .get("content")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'content' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'content' parameter".to_string()))?;
 
         let path_obj = Path::new(path);
 
@@ -87,18 +81,15 @@ impl FileToolsExecutor {
         }
 
         // 写入文件
-        fs::write(path_obj, content).map_err(|e| {
-            ToolError::Execution(format!("Failed to write file '{}': {}", path, e))
-        })?;
+        fs::write(path_obj, content)
+            .map_err(|e| ToolError::Execution(format!("Failed to write file '{}': {}", path, e)))?;
 
         // 返回成功消息
         let line_count = content.lines().count();
         let char_count = content.len();
         Ok(format!(
             "Successfully wrote to file: {}\n{} lines, {} characters",
-            path,
-            line_count,
-            char_count
+            path, line_count, char_count
         ))
     }
 
@@ -112,31 +103,23 @@ impl FileToolsExecutor {
         let old_text = input
             .get("old_text")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'old_text' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'old_text' parameter".to_string()))?;
 
         let new_text = input
             .get("new_text")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'new_text' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'new_text' parameter".to_string()))?;
 
         let path_obj = Path::new(path);
 
         // 检查文件是否存在
         if !path_obj.exists() {
-            return Err(ToolError::Execution(format!(
-                "File not found: {}",
-                path
-            )));
+            return Err(ToolError::Execution(format!("File not found: {}", path)));
         }
 
         // 读取文件内容
-        let content = fs::read_to_string(path_obj).map_err(|e| {
-            ToolError::Execution(format!("Failed to read file '{}': {}", path, e))
-        })?;
+        let content = fs::read_to_string(path_obj)
+            .map_err(|e| ToolError::Execution(format!("Failed to read file '{}': {}", path, e)))?;
 
         // 尝试匹配 old_text：精确 → 忽略首尾空白 → 逐行忽略空白
         let (actual_old, matched) = if content.contains(old_text) {
@@ -178,7 +161,9 @@ impl FileToolsExecutor {
                             // 向上匹配
                             for (i, line) in old_lines[..mid_idx].iter().rev().enumerate() {
                                 let trimmed = line.trim();
-                                if trimmed.is_empty() { continue; }
+                                if trimmed.is_empty() {
+                                    continue;
+                                }
                                 if let Some(pos) = before_mid.rfind(trimmed) {
                                     actual_start = pos;
                                 } else {
@@ -190,7 +175,9 @@ impl FileToolsExecutor {
                             let remaining_after = &content[actual_end..];
                             for line in &old_lines[mid_idx + 1..] {
                                 let trimmed = line.trim();
-                                if trimmed.is_empty() { continue; }
+                                if trimmed.is_empty() {
+                                    continue;
+                                }
                                 if let Some(pos) = remaining_after.find(trimmed) {
                                     actual_end += pos + trimmed.len();
                                 } else {
@@ -230,9 +217,8 @@ impl FileToolsExecutor {
         let new_content = content.replace(&actual_old, new_text);
 
         // 写回文件
-        fs::write(path_obj, new_content).map_err(|e| {
-            ToolError::Execution(format!("Failed to write file '{}': {}", path, e))
-        })?;
+        fs::write(path_obj, new_content)
+            .map_err(|e| ToolError::Execution(format!("Failed to write file '{}': {}", path, e)))?;
 
         // 返回成功消息
         let replacements = content.matches(&actual_old).count();
@@ -316,7 +302,11 @@ mod tests {
     #[test]
     fn test_write_file_success() {
         let temp_dir = TempDir::new().unwrap();
-        let test_file = temp_dir.path().join("new.txt").to_string_lossy().to_string();
+        let test_file = temp_dir
+            .path()
+            .join("new.txt")
+            .to_string_lossy()
+            .to_string();
 
         let mut executor = FileToolsExecutor::new();
         let input = serde_json::json!({
@@ -397,8 +387,16 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         // 验证错误信息包含诊断提示
-        assert!(err.contains("old_text preview"), "error should include old_text preview: {}", err);
-        assert!(err.contains("File preview"), "error should include file preview: {}", err);
+        assert!(
+            err.contains("old_text preview"),
+            "error should include old_text preview: {}",
+            err
+        );
+        assert!(
+            err.contains("File preview"),
+            "error should include file preview: {}",
+            err
+        );
         assert!(err.contains("Hint:"), "error should include hint: {}", err);
     }
 
@@ -425,8 +423,11 @@ mod tests {
     fn test_edit_file_fuzzy_line_match() {
         // LLM 生成的 old_text 缩进不同时，通过中间行匹配
         let temp_dir = TempDir::new().unwrap();
-        let test_file = create_test_file(&temp_dir, "edit.txt",
-            "function hello() {\n    console.log('hi');\n    return true;\n}");
+        let test_file = create_test_file(
+            &temp_dir,
+            "edit.txt",
+            "function hello() {\n    console.log('hi');\n    return true;\n}",
+        );
 
         let mut executor = FileToolsExecutor::new();
         // LLM 可能把缩进搞错了
@@ -438,7 +439,11 @@ mod tests {
 
         let result = executor.execute("edit_file", &input);
         // 中间行 "console.log('hi')" 可以匹配到，应该成功
-        assert!(result.is_ok(), "line-level fuzzy match should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "line-level fuzzy match should succeed: {:?}",
+            result
+        );
     }
 
     #[test]

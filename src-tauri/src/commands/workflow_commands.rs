@@ -3,11 +3,11 @@
 //! 提供前端 UI 与工作流系统的集成
 
 use crate::agent_system::workflow::*;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tauri::Emitter;  // 🔥 添加 Emitter trait 以使用 emit 方法
+use std::sync::Arc;
+use tauri::Emitter;
+use tokio::sync::Mutex; // 🔥 添加 Emitter trait 以使用 emit 方法
 
 /// 工作流执行状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,12 +39,13 @@ pub struct NodeResultInfo {
 }
 
 /// 全局工作流管理器
-static WORKFLOW_MANAGER: std::sync::OnceLock<Arc<Mutex<WorkflowManager>>> = std::sync::OnceLock::new();
+static WORKFLOW_MANAGER: std::sync::OnceLock<Arc<Mutex<WorkflowManager>>> =
+    std::sync::OnceLock::new();
 
 pub fn get_workflow_manager() -> Arc<Mutex<WorkflowManager>> {
-    WORKFLOW_MANAGER.get_or_init(|| {
-        Arc::new(Mutex::new(WorkflowManager::new()))
-    }).clone()
+    WORKFLOW_MANAGER
+        .get_or_init(|| Arc::new(Mutex::new(WorkflowManager::new())))
+        .clone()
 }
 
 /// 工作流管理器
@@ -59,12 +60,9 @@ impl WorkflowManager {
         }
     }
 
-    pub fn start_workflow(
-        &mut self,
-        id: String,
-        runner: WorkflowRunner,
-    ) -> Result<(), String> {
-        self.running_workflows.insert(id, Arc::new(Mutex::new(runner)));
+    pub fn start_workflow(&mut self, id: String, runner: WorkflowRunner) -> Result<(), String> {
+        self.running_workflows
+            .insert(id, Arc::new(Mutex::new(runner)));
         Ok(())
     }
 
@@ -80,35 +78,35 @@ impl WorkflowManager {
 /// 从 YAML 字符串解析工作流
 #[tauri::command]
 pub async fn parse_workflow_from_yaml(yaml_content: String) -> Result<Workflow, String> {
-    WorkflowParser::from_str(&yaml_content)
-        .map_err(|e| format!("YAML 解析失败: {}", e))
+    WorkflowParser::from_str(&yaml_content).map_err(|e| format!("YAML 解析失败: {}", e))
 }
 
 /// 从 YAML 文件加载工作流
 #[tauri::command]
 pub async fn load_workflow_from_file(file_path: String) -> Result<Workflow, String> {
-    let yaml_content = std::fs::read_to_string(&file_path)
-        .map_err(|e| format!("无法读取文件: {}", e))?;
+    let yaml_content =
+        std::fs::read_to_string(&file_path).map_err(|e| format!("无法读取文件: {}", e))?;
 
-    WorkflowParser::from_str(&yaml_content)
-        .map_err(|e| format!("YAML 解析失败: {}", e))
+    WorkflowParser::from_str(&yaml_content).map_err(|e| format!("YAML 解析失败: {}", e))
 }
 
 /// 验证工作流
 #[tauri::command]
 pub async fn validate_workflow(workflow: Workflow) -> Result<(), String> {
-    workflow.validate()
+    workflow
+        .validate()
         .map_err(|e| format!("工作流验证失败: {:?}", e))
 }
 
 /// 获取工作流执行计划
 #[tauri::command]
 pub async fn get_workflow_schedule(workflow: Workflow) -> Result<ScheduleInfo, String> {
-    let schedule = WorkflowScheduler::schedule(&workflow)
-        .map_err(|e| format!("调度失败: {:?}", e))?;
+    let schedule =
+        WorkflowScheduler::schedule(&workflow).map_err(|e| format!("调度失败: {:?}", e))?;
 
     // 构建并行组信息
-    let parallel_groups: Vec<Vec<String>> = schedule.parallel_groups
+    let parallel_groups: Vec<Vec<String>> = schedule
+        .parallel_groups
         .iter()
         .map(|group| group.iter().cloned().collect())
         .collect();
@@ -124,16 +122,26 @@ pub async fn get_workflow_schedule(workflow: Workflow) -> Result<ScheduleInfo, S
 pub async fn execute_workflow(
     workflow: Workflow,
     window: tauri::Window,
-    correlation_id: Option<String>,  // 🔥 添加 correlation_id 参数
-    session_id: Option<String>,  // 🔥 添加 session_id 参数用于标签页隔离
+    correlation_id: Option<String>, // 🔥 添加 correlation_id 参数
+    session_id: Option<String>,     // 🔥 添加 session_id 参数用于标签页隔离
 ) -> Result<String, String> {
     let workflow_id = workflow.id.clone();
 
     println!("[Workflow] 🎬 execute_workflow called");
     println!("[Workflow] 🆔 ID: {}", workflow_id);
     println!("[Workflow] 📋 Name: {}", workflow.name);
-    println!("[Workflow] 📄 Nodes: {:?}", workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
-    println!("[Workflow] 🔗 Edges: {:?}", workflow.edges.iter().map(|e| (e.from.clone(), e.to.clone())).collect::<Vec<_>>());
+    println!(
+        "[Workflow] 📄 Nodes: {:?}",
+        workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>()
+    );
+    println!(
+        "[Workflow] 🔗 Edges: {:?}",
+        workflow
+            .edges
+            .iter()
+            .map(|e| (e.from.clone(), e.to.clone()))
+            .collect::<Vec<_>>()
+    );
 
     // 🔥 创建 window_clone 用于 progress_callback（必须在 tokio::spawn 外部）
     let window_for_progress = window.clone();
@@ -154,7 +162,10 @@ pub async fn execute_workflow(
             println!("  - node_id: {:?}", event.node_id);
             println!("  - message: {:?}", event.message);
             println!("  - has_tool_details: {}", event.tool_details.is_some());
-            println!("  - content_delta length: {:?}", event.content_delta.as_ref().map(|d| d.len()));
+            println!(
+                "  - content_delta length: {:?}",
+                event.content_delta.as_ref().map(|d| d.len())
+            );
             println!("  - content_finished: {:?}", event.content_finished);
 
             if let Err(e) = window_for_progress.emit("workflow:progress", &event) {
@@ -190,15 +201,21 @@ pub async fn execute_workflow(
     // 在后台执行
     let workflow_id_clone = workflow_id.clone();
     let window_for_start = window.clone();
-    let planned_nodes_clone = planned_nodes.clone();  // 克隆用于闭包
-    let session_id_clone = session_id.clone();  // 🔥 克隆 session_id 用于闭包（标签页隔离）
+    let planned_nodes_clone = planned_nodes.clone(); // 克隆用于闭包
+    let session_id_clone = session_id.clone(); // 🔥 克隆 session_id 用于闭包（标签页隔离）
     tokio::spawn(async move {
-        println!("[Workflow] 🔄 Starting background execution for {}", workflow_id_clone);
+        println!(
+            "[Workflow] 🔄 Starting background execution for {}",
+            workflow_id_clone
+        );
 
         // 🔥 CRITICAL FIX: 发送 workflow:started 事件，包含计划节点信息
         // 这样前端可以立即显示所有计划节点（pending 状态）
         println!("[Workflow] 📤 Emitting workflow:started event to frontend with planned nodes...");
-        println!("[Workflow] 📋 Sending {} planned nodes in workflow:started event", planned_nodes_clone.len());
+        println!(
+            "[Workflow] 📋 Sending {} planned nodes in workflow:started event",
+            planned_nodes_clone.len()
+        );
         for (i, node) in planned_nodes_clone.iter().enumerate() {
             println!("  {}. {} ({})", i + 1, node.label, node.agent_type);
         }
@@ -214,13 +231,19 @@ pub async fn execute_workflow(
         // 🔥 添加 session_id 到 workflow:started 事件（标签页隔离）
         if let Some(sid) = &session_id_clone {
             started_event["sessionId"] = serde_json::json!(sid);
-            println!("[Workflow] 🏷️ Added sessionId to workflow:started event: {}", sid);
+            println!(
+                "[Workflow] 🏷️ Added sessionId to workflow:started event: {}",
+                sid
+            );
         }
 
         if let Err(e) = window_for_start.emit("workflow:started", &started_event) {
             println!("[Workflow] ⚠️ Failed to emit workflow:started event: {}", e);
         } else {
-            println!("[Workflow] ✅ workflow:started event sent successfully with {} nodes", planned_nodes_clone.len());
+            println!(
+                "[Workflow] ✅ workflow:started event sent successfully with {} nodes",
+                planned_nodes_clone.len()
+            );
         }
 
         let manager = get_workflow_manager();
@@ -231,15 +254,28 @@ pub async fn execute_workflow(
             let mut runner = runner_arc.lock().await;
             match runner.run().await {
                 Ok(result) => {
-                    println!("[Workflow] ✅ Workflow {} completed successfully", workflow_id_clone);
+                    println!(
+                        "[Workflow] ✅ Workflow {} completed successfully",
+                        workflow_id_clone
+                    );
                     println!("[Workflow] 📊 Status: {:?}", result.status);
-                    println!("[Workflow] 📄 Nodes completed: {}", result.node_results.len());
+                    println!(
+                        "[Workflow] 📄 Nodes completed: {}",
+                        result.node_results.len()
+                    );
 
                     // 打印每个节点的结果摘要
                     for (node_id, node_result) in &result.node_results {
-                        println!("[Workflow] 🔍 Node {}: status={:?}", node_id, node_result.status);
+                        println!(
+                            "[Workflow] 🔍 Node {}: status={:?}",
+                            node_id, node_result.status
+                        );
                         if let Some(output) = &node_result.output {
-                            println!("[Workflow] 📝 Node {} output: {} chars", node_id, output.len());
+                            println!(
+                                "[Workflow] 📝 Node {} output: {} chars",
+                                node_id,
+                                output.len()
+                            );
                         }
                         if let Some(error) = &node_result.error {
                             println!("[Workflow] ❌ Node {} error: {}", node_id, error);
@@ -259,8 +295,12 @@ pub async fn execute_workflow(
 
                     // 🔥 包含 correlation_id（如果有），帮助前端匹配消息
                     if let Some(correlation_id) = &correlation_id {
-                        response_payload["correlation_id"] = serde_json::Value::String(correlation_id.clone());
-                        println!("[Workflow] ✅ Included correlation_id in response: {}", correlation_id);
+                        response_payload["correlation_id"] =
+                            serde_json::Value::String(correlation_id.clone());
+                        println!(
+                            "[Workflow] ✅ Included correlation_id in response: {}",
+                            correlation_id
+                        );
                     }
 
                     if let Err(e) = window.emit("workflow:response", &response_payload) {
@@ -303,7 +343,10 @@ pub async fn execute_workflow(
                 }
             }
         } else {
-            println!("[Workflow] ⚠️ Workflow {} not found in manager", workflow_id_clone);
+            println!(
+                "[Workflow] ⚠️ Workflow {} not found in manager",
+                workflow_id_clone
+            );
         }
     });
 
@@ -319,7 +362,9 @@ pub async fn cancel_workflow(workflow_id: String) -> Result<(), String> {
 
     if let Some(runner_arc) = manager.get_workflow(&workflow_id) {
         let mut runner = runner_arc.lock().await;
-        runner.cancel().await
+        runner
+            .cancel()
+            .await
             .map_err(|e| format!("取消失败: {}", e))?;
 
         manager.remove_workflow(&workflow_id);
@@ -390,8 +435,7 @@ pub async fn create_custom_workflow(
     nodes: Vec<NodeConfig>,
     edges: Vec<EdgeConfig>,
 ) -> Result<Workflow, String> {
-    let mut workflow = Workflow::new(&id, &name)
-        .with_description(&description);
+    let mut workflow = Workflow::new(&id, &name).with_description(&description);
 
     // 添加节点
     for node_config in nodes {
@@ -426,21 +470,24 @@ pub async fn create_custom_workflow(
 pub async fn execute_quick_workflow(
     workflow_type: String,
     target_path: String,
-    project_root: Option<String>,  // 🔥 添加 project_root 参数
-    provider_config: Option<serde_json::Value>,  // 🔥 添加 provider_config 参数
-    current_model: Option<String>,  // 🔥 添加 current_model 参数
-    correlation_id: Option<String>,  // 🔥 添加 correlation_id 参数用于关联前端消息
-    session_id: Option<String>,  // 🔥 添加 session_id 参数用于标签页隔离
+    project_root: Option<String>, // 🔥 添加 project_root 参数
+    provider_config: Option<serde_json::Value>, // 🔥 添加 provider_config 参数
+    current_model: Option<String>, // 🔥 添加 current_model 参数
+    correlation_id: Option<String>, // 🔥 添加 correlation_id 参数用于关联前端消息
+    session_id: Option<String>,   // 🔥 添加 session_id 参数用于标签页隔离
     window: tauri::Window,
 ) -> Result<String, String> {
     println!("[Workflow] 🚀 execute_quick_workflow called");
     println!("[Workflow] 📋 Type: {}", workflow_type);
     println!("[Workflow] 📁 Target path: {}", target_path);
     println!("[Workflow] 📂 Project root: {:?}", project_root);
-    println!("[Workflow] ⚙️ Provider config: {:?}", provider_config.is_some());
+    println!(
+        "[Workflow] ⚙️ Provider config: {:?}",
+        provider_config.is_some()
+    );
     println!("[Workflow] 🤖 Current model: {:?}", current_model);
     println!("[Workflow] 🔗 Correlation ID: {:?}", correlation_id);
-    println!("[Workflow] 🏷️ Session ID: {:?}", session_id);  // 🔥 日志 session_id
+    println!("[Workflow] 🏷️ Session ID: {:?}", session_id); // 🔥 日志 session_id
 
     let workflow = match workflow_type.as_str() {
         "code_review" => {
@@ -464,26 +511,42 @@ pub async fn execute_quick_workflow(
 
     println!("[Workflow] 🎯 Workflow ID: {}", workflow.id);
     println!("[Workflow] 📝 Workflow name: {}", workflow.name);
-    println!("[Workflow] 📄 Nodes: {:?}", workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
+    println!(
+        "[Workflow] 📄 Nodes: {:?}",
+        workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>()
+    );
 
     // 🔥 将配置存储到 workflow 变量中
     let mut workflow = workflow;
 
     // 存储 correlation_id（用于关联前端消息）
     if let Some(correlation_id) = &correlation_id {
-        println!("[Workflow] ✅ Stored correlation_id in workflow variables: {}", correlation_id);
-        workflow.variables.insert("correlation_id".to_string(), correlation_id.clone());
+        println!(
+            "[Workflow] ✅ Stored correlation_id in workflow variables: {}",
+            correlation_id
+        );
+        workflow
+            .variables
+            .insert("correlation_id".to_string(), correlation_id.clone());
     }
 
     // 🔥 存储 session_id（用于标签页隔离）
     if let Some(session_id) = &session_id {
-        println!("[Workflow] ✅ Stored session_id in workflow variables: {}", session_id);
-        workflow.variables.insert("session_id".to_string(), session_id.clone());
+        println!(
+            "[Workflow] ✅ Stored session_id in workflow variables: {}",
+            session_id
+        );
+        workflow
+            .variables
+            .insert("session_id".to_string(), session_id.clone());
     }
 
     // 存储 project_root
     if let Some(root) = project_root {
-        println!("[Workflow] ✅ Stored project_root in workflow variables: {}", root);
+        println!(
+            "[Workflow] ✅ Stored project_root in workflow variables: {}",
+            root
+        );
         workflow.variables.insert("project_root".to_string(), root);
     }
 
@@ -493,14 +556,24 @@ pub async fn execute_quick_workflow(
         let config_json = serde_json::to_string(&config)
             .map_err(|e| format!("Failed to serialize provider_config: {}", e))?;
         let json_len = config_json.len();
-        workflow.variables.insert("provider_config".to_string(), config_json);
-        println!("[Workflow] ✅ Stored provider config in workflow variables (JSON: {} chars)", json_len);
+        workflow
+            .variables
+            .insert("provider_config".to_string(), config_json);
+        println!(
+            "[Workflow] ✅ Stored provider config in workflow variables (JSON: {} chars)",
+            json_len
+        );
     }
 
     // 🔥 存储 current_model（用户选择的模型）
     if let Some(model) = current_model {
-        println!("[Workflow] ✅ Stored current_model in workflow variables: {}", model);
-        workflow.variables.insert("current_model".to_string(), model);
+        println!(
+            "[Workflow] ✅ Stored current_model in workflow variables: {}",
+            model
+        );
+        workflow
+            .variables
+            .insert("current_model".to_string(), model);
     }
 
     let result = execute_workflow(workflow, window, correlation_id, session_id).await?;
@@ -547,17 +620,16 @@ fn create_quick_code_review_workflow(target_path: &str) -> Workflow {
         .with_description("自动代码审查和改进建议");
 
     workflow
-        .add_node(WorkflowNode::new("explore", AgentType::Explore)
-            .with_label("探索代码"))
-        .add_node(WorkflowNode::new("review", AgentType::Review)
-            .with_label("代码审查"))
-        .add_node(WorkflowNode::new("refactor", AgentType::Refactor)
-            .with_label("重构建议"))
+        .add_node(WorkflowNode::new("explore", AgentType::Explore).with_label("探索代码"))
+        .add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码审查"))
+        .add_node(WorkflowNode::new("refactor", AgentType::Refactor).with_label("重构建议"))
         .add_edge(WorkflowEdge::new("explore", "review"))
         .add_edge(WorkflowEdge::new("review", "refactor"));
 
     // 设置目标路径
-    workflow.variables.insert("target_path".to_string(), target_path.to_string());
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
 
     workflow
 }
@@ -572,11 +644,13 @@ fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
 
     workflow
         // 🔥 单一探索节点：全面探索项目
-        .add_node(WorkflowNode::new("explore", AgentType::Explore)
-            .with_label("探索项目")
-            .with_config(AgentConfig {
-                target: Some(target_path.to_string()),
-                task_description: Some("全面探索项目，执行 PIVO 两阶段扫描：
+        .add_node(
+            WorkflowNode::new("explore", AgentType::Explore)
+                .with_label("探索项目")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "全面探索项目，执行 PIVO 两阶段扫描：
 
 **Phase 1: 全景扫描**
 - 使用 agent_scan_project 获取项目全局拓扑
@@ -595,14 +669,19 @@ fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
 **输出要求**：
 - 使用结构化报告格式
 - 包含：项目概述、技术栈、目录结构、依赖关系、关键发现
-- 简洁明了，避免冗长".to_string()),
-                ..Default::default()
-            }))
+- 简洁明了，避免冗长"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        )
         // 总结节点：生成最终报告
-        .add_node(WorkflowNode::new("summarize", AgentType::Doc)
-            .with_label("生成总结")
-            .with_config(AgentConfig {
-                task_description: Some("基于探索结果，生成完整的代码结构总结报告：
+        .add_node(
+            WorkflowNode::new("summarize", AgentType::Doc)
+                .with_label("生成总结")
+                .with_config(AgentConfig {
+                    task_description: Some(
+                        "基于探索结果，生成完整的代码结构总结报告：
 
 **报告格式**：
 ## 📊 项目概述
@@ -621,29 +700,34 @@ fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
 - 潜在问题
 - 改进建议
 
-使用 Markdown 格式，清晰易读。".to_string()),
-                ..Default::default()
-            }))
+使用 Markdown 格式，清晰易读。"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        )
         // 探索完成后执行总结
         .add_edge(WorkflowEdge::new("explore", "summarize"));
 
-    workflow.variables.insert("target_path".to_string(), target_path.to_string());
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
 
     workflow
 }
 
 fn create_quick_quality_check_workflow(target_path: &str) -> Workflow {
-    let mut workflow = Workflow::new("quick-quality-check", "质量检查")
-        .with_description("快速质量检查");
+    let mut workflow =
+        Workflow::new("quick-quality-check", "质量检查").with_description("快速质量检查");
 
     workflow
-        .add_node(WorkflowNode::new("review", AgentType::Review)
-            .with_label("代码审查"))
-        .add_node(WorkflowNode::new("security", AgentType::Review)
-            .with_label("安全检查"))
+        .add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码审查"))
+        .add_node(WorkflowNode::new("security", AgentType::Review).with_label("安全检查"))
         .add_edge(WorkflowEdge::new("review", "security"));
 
-    workflow.variables.insert("target_path".to_string(), target_path.to_string());
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
 
     workflow
 }
@@ -668,8 +752,10 @@ impl AgentType {
 // ==================== 工作流结果总结生成 ====================
 
 /// 生成工作流执行结果的 Markdown 总结
-fn generate_workflow_summary(result: &crate::agent_system::workflow::runner::WorkflowResult) -> String {
-    use crate::agent_system::workflow::runner::{WorkflowStatus, NodeStatus};
+fn generate_workflow_summary(
+    result: &crate::agent_system::workflow::runner::WorkflowResult,
+) -> String {
+    use crate::agent_system::workflow::runner::{NodeStatus, WorkflowStatus};
 
     let mut summary = String::from("## ✅ 工作流执行完成\n\n");
 
@@ -687,10 +773,14 @@ fn generate_workflow_summary(result: &crate::agent_system::workflow::runner::Wor
     // 添加节点执行概览
     summary.push_str("### 📊 节点执行概览\n\n");
 
-    let completed_count = result.node_results.values()
+    let completed_count = result
+        .node_results
+        .values()
         .filter(|r| matches!(r.status, NodeStatus::Completed))
         .count();
-    let failed_count = result.node_results.values()
+    let failed_count = result
+        .node_results
+        .values()
         .filter(|r| matches!(r.status, NodeStatus::Failed(_)))
         .count();
     let total_count = result.node_results.len();
@@ -729,7 +819,10 @@ fn generate_workflow_summary(result: &crate::agent_system::workflow::runner::Wor
                 // 确保 safe_end 不超过字符串长度
                 let safe_end = std::cmp::min(safe_end, output.len());
 
-                format!("{}...\n\n_(输出过长，已截断，完整输出请查看日志)_", &output[..safe_end])
+                format!(
+                    "{}...\n\n_(输出过长，已截断，完整输出请查看日志)_",
+                    &output[..safe_end]
+                )
             } else {
                 output.clone()
             };
@@ -752,8 +845,6 @@ fn generate_workflow_summary(result: &crate::agent_system::workflow::runner::Wor
 
     summary
 }
-
-
 
 // ============================================================================
 // 工作流单元测试
@@ -797,10 +888,15 @@ mod workflow_tests {
         assert!(node_ids.contains(&"summarize"), "应该有 summarize 节点");
 
         // ✅ 验证边连接
-        let edges: Vec<_> = workflow.edges.iter()
+        let edges: Vec<_> = workflow
+            .edges
+            .iter()
             .map(|e| (e.from.as_str(), e.to.as_str()))
             .collect();
-        assert!(edges.contains(&("explore", "summarize")), "explore 应该指向 summarize");
+        assert!(
+            edges.contains(&("explore", "summarize")),
+            "explore 应该指向 summarize"
+        );
 
         println!("\n✅ 探索工作流结构验证通过！");
         println!("   - 2个节点：explore, summarize");

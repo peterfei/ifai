@@ -64,17 +64,17 @@ impl TaskStore {
     }
 
     /// 更新任务状态
-    pub fn update_task_status(
-        &self,
-        index: usize,
-        status: TaskStatus,
-    ) -> Result<(), String> {
+    pub fn update_task_status(&self, index: usize, status: TaskStatus) -> Result<(), String> {
         let mut store = self.tasks.write().unwrap();
         if index < store.len() {
             store[index].status = status;
             Ok(())
         } else {
-            Err(format!("Task index {} out of bounds (len: {})", index, store.len()))
+            Err(format!(
+                "Task index {} out of bounds (len: {})",
+                index,
+                store.len()
+            ))
         }
     }
 
@@ -108,7 +108,11 @@ impl TaskStore {
         if index < store.len() {
             Ok(store.remove(index))
         } else {
-            Err(format!("Task index {} out of bounds (len: {})", index, store.len()))
+            Err(format!(
+                "Task index {} out of bounds (len: {})",
+                index,
+                store.len()
+            ))
         }
     }
 }
@@ -154,13 +158,11 @@ mod tests {
     #[test]
     fn test_set_tasks() {
         let store = TaskStore::new();
-        let tasks = vec![
-            TaskItem {
-                content: "New Task".to_string(),
-                active_form: "Working on New Task".to_string(),
-                status: TaskStatus::Pending,
-            },
-        ];
+        let tasks = vec![TaskItem {
+            content: "New Task".to_string(),
+            active_form: "Working on New Task".to_string(),
+            status: TaskStatus::Pending,
+        }];
 
         store.set_tasks(tasks).unwrap();
         assert_eq!(store.task_count(), 1);
@@ -169,13 +171,11 @@ mod tests {
     #[test]
     fn test_update_task_status() {
         let store = TaskStore::new();
-        let tasks = vec![
-            TaskItem {
-                content: "Task 1".to_string(),
-                active_form: "Working".to_string(),
-                status: TaskStatus::Pending,
-            },
-        ];
+        let tasks = vec![TaskItem {
+            content: "Task 1".to_string(),
+            active_form: "Working".to_string(),
+            status: TaskStatus::Pending,
+        }];
 
         store.add_tasks(tasks).unwrap();
         store.update_task_status(0, TaskStatus::Completed).unwrap();
@@ -221,13 +221,11 @@ mod tests {
     #[test]
     fn test_clear() {
         let store = TaskStore::new();
-        let tasks = vec![
-            TaskItem {
-                content: "Task 1".to_string(),
-                active_form: "Working".to_string(),
-                status: TaskStatus::Pending,
-            },
-        ];
+        let tasks = vec![TaskItem {
+            content: "Task 1".to_string(),
+            active_form: "Working".to_string(),
+            status: TaskStatus::Pending,
+        }];
 
         store.add_tasks(tasks).unwrap();
         assert_eq!(store.task_count(), 1);

@@ -14,8 +14,8 @@
 //! println!("{}", results.summary());
 //! ```
 
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 /// 🎯 搜索配置（声明式）
 #[derive(Debug, Clone)]
@@ -117,7 +117,10 @@ impl SmartGlob {
         // 使用 WalkDir 递归搜索
         let walk_dir = WalkDir::new(&base_path).into_iter();
 
-        for entry in walk_dir.filter_map(|e| e.ok()).filter(|e| e.path().is_file()) {
+        for entry in walk_dir
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_file())
+        {
             let path = entry.path();
 
             // 应用扩展名过滤
@@ -131,7 +134,8 @@ impl SmartGlob {
 
             // 收集文件类型
             if let Some(ext) = path.extension() {
-                *file_types.entry(ext.to_string_lossy().to_string())
+                *file_types
+                    .entry(ext.to_string_lossy().to_string())
                     .or_insert(0) += 1;
             }
 
@@ -328,9 +332,7 @@ mod tests {
 
     #[test]
     fn test_execute_search() {
-        let result = SmartGlob::search(".")
-            .with_limit(10)
-            .execute();
+        let result = SmartGlob::search(".").with_limit(10).execute();
 
         // 应该有摘要
         assert!(result.summary.total_files >= 0);

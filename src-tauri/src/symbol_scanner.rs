@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -14,7 +14,7 @@ pub struct SymbolInfo {
 #[tauri::command]
 pub async fn get_file_symbols(path: String) -> Result<Vec<SymbolInfo>, String> {
     println!("[SymbolScanner] Dynamic scanning: {}", path);
-    
+
     let extension = Path::new(&path)
         .extension()
         .and_then(|s| s.to_str())
@@ -62,26 +62,46 @@ pub async fn get_file_symbols(path: String) -> Result<Vec<SymbolInfo>, String> {
     for (idx, line) in reader.lines().enumerate() {
         if let Ok(l) = line {
             let trimmed = l.trim();
-            if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("#") || trimmed.starts_with("/*") || trimmed.starts_with("*") {
+            if trimmed.is_empty()
+                || trimmed.starts_with("//")
+                || trimmed.starts_with("#")
+                || trimmed.starts_with("/*")
+                || trimmed.starts_with("*")
+            {
                 continue;
             }
 
             if let Some(cap) = re_func.captures(trimmed) {
                 // 提取第一个非空捕获组
-                let name = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str().to_string());
+                let name = cap
+                    .get(1)
+                    .or_else(|| cap.get(2))
+                    .map(|m| m.as_str().to_string());
                 if let Some(n) = name {
                     if !["if", "while", "for", "switch", "catch", "return"].contains(&n.as_str()) {
-                        symbols.push(SymbolInfo { name: n, kind: "Function".into(), line: idx + 1 });
+                        symbols.push(SymbolInfo {
+                            name: n,
+                            kind: "Function".into(),
+                            line: idx + 1,
+                        });
                     }
                 }
             } else if let Some(cap) = re_type.captures(trimmed) {
                 if let Some(n) = cap.get(1).map(|m| m.as_str().to_string()) {
-                    symbols.push(SymbolInfo { name: n, kind: "Type".into(), line: idx + 1 });
+                    symbols.push(SymbolInfo {
+                        name: n,
+                        kind: "Type".into(),
+                        line: idx + 1,
+                    });
                 }
             }
         }
     }
 
-    println!("[SymbolScanner] Extracted {} symbols for .{}", symbols.len(), extension);
+    println!(
+        "[SymbolScanner] Extracted {} symbols for .{}",
+        symbols.len(),
+        extension
+    );
     Ok(symbols)
 }

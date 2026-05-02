@@ -28,8 +28,8 @@
 //! └──────┘  └──────┘  └──────┘  └──────┘
 //! ```
 
-use crate::harness::api::types::{Message, MessageContent, StreamRequest, StreamEvent};
 use crate::harness::api::provider_metadata::ProviderSpec;
+use crate::harness::api::types::{Message, MessageContent, StreamEvent, StreamRequest};
 use async_trait::async_trait;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -84,12 +84,13 @@ pub trait FormatAdapter: Send + Sync + Clone {
     /// - Gemini: `x-goog-api-key: xxx`
     fn build_headers(&self, api_key: &str) -> Vec<(String, String)> {
         let spec = self.spec();
-        let mut headers = vec![
-            ("Content-Type".to_string(), "application/json".to_string()),
-        ];
+        let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
 
         match &spec.api_spec.auth {
-            crate::harness::api::provider_metadata::AuthSpec::BearerHeader { header_name, format } => {
+            crate::harness::api::provider_metadata::AuthSpec::BearerHeader {
+                header_name,
+                format,
+            } => {
                 let auth_value = format.replace("{key}", api_key);
                 headers.push((header_name.clone(), auth_value));
             }
@@ -202,10 +203,7 @@ impl FormatAdapter for OpenAIFormatAdapter {
         });
 
         // 转换消息格式
-        let messages = transform_messages_openai(
-            &request.messages,
-            &self.spec.request_format,
-        )?;
+        let messages = transform_messages_openai(&request.messages, &self.spec.request_format)?;
         body["messages"] = serde_json::to_value(messages)
             .map_err(|e| format!("Failed to serialize messages: {}", e))?;
 
@@ -235,16 +233,18 @@ impl FormatAdapter for OpenAIFormatAdapter {
         //
         // ⚠️ CRITICAL: finish_reason: null 不应该被视为结束事件！
         // 只有当 finish_reason 存在且不为 null 时才是结束事件
-        let is_finish_event = if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
+        let is_finish_event = if let Some(choices) = json.get("choices").and_then(|c| c.as_array())
+        {
             // 标准 OpenAI 格式
-            choices.first()
+            choices
+                .first()
                 .and_then(|c| c.get("finish_reason"))
-                .and_then(|v| v.as_str())  // 🔥 关键：获取字符串值，null 不会通过
+                .and_then(|v| v.as_str()) // 🔥 关键：获取字符串值，null 不会通过
                 .is_some()
         } else {
             // Kimi 格式：顶层 finish_reason
             json.get("finish_reason")
-                .and_then(|v| v.as_str())  // 🔥 关键：获取字符串值，null 不会通过
+                .and_then(|v| v.as_str()) // 🔥 关键：获取字符串值，null 不会通过
                 .is_some()
         };
 
@@ -280,9 +280,7 @@ impl FormatAdapter for OpenAIFormatAdapter {
             // 没有内容的事件（如工具调用开始等）
             Ok(None)
         } else {
-            Ok(Some(StreamEvent::TextDelta {
-                text: content,
-            }))
+            Ok(Some(StreamEvent::TextDelta { text: content }))
         }
     }
 }
@@ -326,10 +324,11 @@ impl FormatAdapter for GeminiFormatAdapter {
         // 先尝试解析为数组
         if let Ok(json_array) = serde_json::from_str::<Vec<JsonValue>>(event_data) {
             if let Some(first_item) = json_array.first() {
-                let content = extract_content_by_path(first_item, &self.spec.response_format.content_extraction)?;
-                return Ok(Some(StreamEvent::TextDelta {
-                    text: content,
-                }));
+                let content = extract_content_by_path(
+                    first_item,
+                    &self.spec.response_format.content_extraction,
+                )?;
+                return Ok(Some(StreamEvent::TextDelta { text: content }));
             }
         }
 
@@ -337,10 +336,9 @@ impl FormatAdapter for GeminiFormatAdapter {
         let json: JsonValue = serde_json::from_str(event_data)
             .map_err(|e| format!("Failed to parse SSE JSON (tried array and object): {}", e))?;
 
-        let content = extract_content_by_path(&json, &self.spec.response_format.content_extraction)?;
-        Ok(Some(StreamEvent::TextDelta {
-            text: content,
-        }))
+        let content =
+            extract_content_by_path(&json, &self.spec.response_format.content_extraction)?;
+        Ok(Some(StreamEvent::TextDelta { text: content }))
     }
 }
 
@@ -362,7 +360,7 @@ fn transform_messages_openai(
                 crate::harness::api::types::MessageRole::System => {
                     match handling.as_str() {
                         "separate_message" => "system",
-                        "prefix_in_user" => "user",  // 系统提示词前缀到用户消息
+                        "prefix_in_user" => "user", // 系统提示词前缀到用户消息
                         _ => "user",
                     }
                 }
@@ -372,7 +370,8 @@ fn transform_messages_openai(
             };
 
             let content = if handling == "prefix_in_user"
-                && matches!(msg.role, crate::harness::api::types::MessageRole::System) {
+                && matches!(msg.role, crate::harness::api::types::MessageRole::System)
+            {
                 // 系统提示词前缀模式：添加 "System: " 前缀
                 crate::harness::api::types::MessageContent::Text(format!("System: {}", msg.content))
             } else {
@@ -395,7 +394,7 @@ fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, Str
         .iter()
         .map(|msg| {
             let role = match &msg.role {
-                crate::harness::api::types::MessageRole::System => "user",  // Gemini 没有 system 角色
+                crate::harness::api::types::MessageRole::System => "user", // Gemini 没有 system 角色
                 crate::harness::api::types::MessageRole::User => "user",
                 crate::harness::api::types::MessageRole::Assistant => "model",
                 _ => "user",
@@ -404,13 +403,13 @@ fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, Str
             // 处理系统提示词前缀
             let content = if matches!(msg.role, crate::harness::api::types::MessageRole::System) {
                 match &msg.content {
-                    MessageContent::Text(text) => {
-                        MessageContent::Text(format!("System: {}", text))
-                    }
+                    MessageContent::Text(text) => MessageContent::Text(format!("System: {}", text)),
                     MessageContent::MultiModal(parts) => {
                         // 如果系统消息是多模态，在第一个文本部分添加前缀
                         let mut new_parts = parts.clone();
-                        if let Some(first_text) = new_parts.iter_mut().find(|p| p.part_type == "text") {
+                        if let Some(first_text) =
+                            new_parts.iter_mut().find(|p| p.part_type == "text")
+                        {
                             if let Some(text) = &first_text.text {
                                 first_text.text = Some(format!("System: {}", text));
                             }
@@ -446,7 +445,8 @@ fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, Str
                                         if parts.len() >= 2 {
                                             let mime_part = parts[1]; // image/jpeg
                                             let remaining = parts.get(2).unwrap_or(&"");
-                                            let data_parts: Vec<&str> = remaining.splitn(2, ',').collect();
+                                            let data_parts: Vec<&str> =
+                                                remaining.splitn(2, ',').collect();
                                             if data_parts.len() == 2 {
                                                 let base64_data = data_parts[1];
                                                 return Ok(serde_json::json!({
@@ -488,23 +488,36 @@ fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, Str
 /// - `parts.0.text` → `json["parts"][0]["text"]`
 pub fn extract_content_by_path(json: &JsonValue, path: &str) -> Result<String, String> {
     println!("[extract_content_by_path] 🔍 Extracting path: {}", path);
-    println!("[extract_content_by_path] JSON: {}", serde_json::to_string(json).unwrap_or_else(|_| "Cannot serialize".to_string()));
+    println!(
+        "[extract_content_by_path] JSON: {}",
+        serde_json::to_string(json).unwrap_or_else(|_| "Cannot serialize".to_string())
+    );
 
     let parts: Vec<&str> = path.split('.').collect();
     println!("[extract_content_by_path] Path parts: {:?}", parts);
 
     let mut current = json;
     for (i, part) in parts.iter().enumerate() {
-        println!("[extract_content_by_path] Step {}: current key/index = '{}'", i, part);
+        println!(
+            "[extract_content_by_path] Step {}: current key/index = '{}'",
+            i, part
+        );
         current = if let Ok(idx) = part.parse::<usize>() {
             // 数组索引
             match current.get(idx) {
                 Some(val) => {
-                    println!("[extract_content_by_path] ✅ Got array index {}, value: {}", idx, serde_json::to_string(val).unwrap_or_else(|_| "?".to_string()));
+                    println!(
+                        "[extract_content_by_path] ✅ Got array index {}, value: {}",
+                        idx,
+                        serde_json::to_string(val).unwrap_or_else(|_| "?".to_string())
+                    );
                     val
                 }
                 None => {
-                    println!("[extract_content_by_path] ❌ Array index {} out of bounds", idx);
+                    println!(
+                        "[extract_content_by_path] ❌ Array index {} out of bounds",
+                        idx
+                    );
                     return Err(format!("Index {} out of bounds", idx));
                 }
             }
@@ -512,7 +525,11 @@ pub fn extract_content_by_path(json: &JsonValue, path: &str) -> Result<String, S
             // 对象键
             match current.get(*part) {
                 Some(val) => {
-                    println!("[extract_content_by_path] ✅ Got key '{}', value: {}", part, serde_json::to_string(val).unwrap_or_else(|_| "?".to_string()));
+                    println!(
+                        "[extract_content_by_path] ✅ Got key '{}', value: {}",
+                        part,
+                        serde_json::to_string(val).unwrap_or_else(|_| "?".to_string())
+                    );
                     val
                 }
                 None => {
@@ -526,16 +543,25 @@ pub fn extract_content_by_path(json: &JsonValue, path: &str) -> Result<String, S
     let result = current
         .as_str()
         .map(|s| {
-            println!("[extract_content_by_path] ✅ Final value as string: '{}'", s);
+            println!(
+                "[extract_content_by_path] ✅ Final value as string: '{}'",
+                s
+            );
             s.to_string()
         })
         .ok_or_else(|| {
-            println!("[extract_content_by_path] ❌ Value is not a string, type: {:?}", current);
+            println!(
+                "[extract_content_by_path] ❌ Value is not a string, type: {:?}",
+                current
+            );
             "Value is not a string".to_string()
         });
 
     match &result {
-        Ok(s) => println!("[extract_content_by_path] ✨ SUCCESS: extracted '{}' from path '{}'", s, path),
+        Ok(s) => println!(
+            "[extract_content_by_path] ✨ SUCCESS: extracted '{}' from path '{}'",
+            s, path
+        ),
         Err(e) => println!("[extract_content_by_path] 💥 FAILURE: {}", e),
     }
 
@@ -699,8 +725,12 @@ error_mapping: {}
 
         let headers = adapter.build_headers("sk-test123");
 
-        assert!(headers.iter().any(|(k, v)| k == "Authorization" && v == "Bearer sk-test123"));
-        assert!(headers.iter().any(|(k, v)| k == "Content-Type" && v == "application/json"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "Authorization" && v == "Bearer sk-test123"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "Content-Type" && v == "application/json"));
     }
 
     #[test]
@@ -772,7 +802,10 @@ error_mapping: {}
 
         // 系统消息转换为 "System: " 前缀
         assert_eq!(body["contents"][0]["role"], "user");
-        assert_eq!(body["contents"][0]["parts"][0]["text"], "System: You are helpful");
+        assert_eq!(
+            body["contents"][0]["parts"][0]["text"],
+            "System: You are helpful"
+        );
         assert_eq!(body["contents"][1]["role"], "user");
         assert_eq!(body["contents"][1]["parts"][0]["text"], "Hello");
     }
@@ -880,7 +913,8 @@ error_mapping: {}
         let spec: ProviderSpec = serde_yaml::from_str(spec_yaml).unwrap();
         let adapter = OpenAIFormatAdapter::new(spec);
 
-        let event_data = r#"{"id": "chatcmpl-123", "choices": [{"index": 0, "delta": {"content": "Hello"}}]}"#;
+        let event_data =
+            r#"{"id": "chatcmpl-123", "choices": [{"index": 0, "delta": {"content": "Hello"}}]}"#;
 
         let event = adapter.parse_sse_event(event_data).unwrap();
         assert!(event.is_some());

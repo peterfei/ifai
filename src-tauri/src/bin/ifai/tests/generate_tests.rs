@@ -50,8 +50,9 @@ fn generate_tests() -> Result<(), Box<dyn std::error::Error>> {
         let entry = entry?;
         let path = entry.path();
 
-        if path.extension().and_then(|s| s.to_str()) == Some("yaml") ||
-           path.extension().and_then(|s| s.to_str()) == Some("yml") {
+        if path.extension().and_then(|s| s.to_str()) == Some("yaml")
+            || path.extension().and_then(|s| s.to_str()) == Some("yml")
+        {
             println!("正在处理: {:?}", path);
 
             // 读取 YAML 内容
@@ -64,7 +65,8 @@ fn generate_tests() -> Result<(), Box<dyn std::error::Error>> {
             let test_code = generate_test_from_schema(&schema, &path)?;
 
             // 写入生成的测试文件
-            let file_name = path.file_stem()
+            let file_name = path
+                .file_stem()
                 .and_then(|s| s.to_str())
                 .ok_or("Invalid file name")?;
             let output_path = generated_dir.join(format!("{}.rs", file_name));
@@ -84,14 +86,15 @@ fn generate_test_from_schema(
     schema: &serde_yaml::Value,
     yaml_path: &Path,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let suite = schema.get("test_suite")
-        .ok_or("Missing test_suite")?;
+    let suite = schema.get("test_suite").ok_or("Missing test_suite")?;
 
-    let name = suite.get("name")
+    let name = suite
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("Unknown");
 
-    let tests = suite.get("tests")
+    let tests = suite
+        .get("tests")
         .and_then(|v| v.as_sequence())
         .ok_or("Missing tests")?;
 
@@ -120,7 +123,7 @@ fn generate_test_from_schema(
 
 fn generate_single_test(
     test: &serde_yaml::Value,
-    used_names: &mut std::collections::HashSet<String>
+    used_names: &mut std::collections::HashSet<String>,
 ) -> Option<String> {
     let name = test.get("name")?.as_str()?;
     let description = test.get("description").and_then(|v| v.as_str());
@@ -153,19 +156,22 @@ fn generate_single_test(
     }
 
     // 检查是否需要 Mock
-    let needs_mock = test.get("when")
+    let needs_mock = test
+        .get("when")
         .and_then(|w| w.get("mock_response"))
         .is_some()
-        || test.get("when")
-        .and_then(|w| w.get("mock_streaming"))
-        .is_some();
+        || test
+            .get("when")
+            .and_then(|w| w.get("mock_streaming"))
+            .is_some();
 
     if let Some(given) = test.get("given") {
         code.push_str(&generate_given(given, needs_mock));
     }
 
     // 从 given 中获取 args
-    let args = test.get("given")
+    let args = test
+        .get("given")
         .and_then(|g| g.get("args"))
         .and_then(|a| a.as_sequence());
 
@@ -202,31 +208,38 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
 
     if let Some(config) = given.get("config") {
         if let Some(config_str) = config.as_str() {
-            code.push_str(&format!("    env.write_config(\"{}\").await.unwrap();\n",
-                config_str.escape_default()));
+            code.push_str(&format!(
+                "    env.write_config(\"{}\").await.unwrap();\n",
+                config_str.escape_default()
+            ));
         }
     }
 
     // 支持 config_content（多行配置）
     if let Some(config_content) = given.get("config_content") {
         if let Some(config_str) = config_content.as_str() {
-            code.push_str(&format!("    env.write_config(\"{}\").await.unwrap();\n",
-                config_str.escape_default()));
+            code.push_str(&format!(
+                "    env.write_config(\"{}\").await.unwrap();\n",
+                config_str.escape_default()
+            ));
         }
     }
 
     // 支持 stdin 输入
     if let Some(stdin) = given.get("stdin") {
         if let Some(stdin_str) = stdin.as_str() {
-            code.push_str(&format!("    env.set_stdin(\"{}\");\n",
-                stdin_str.escape_default()));
+            code.push_str(&format!(
+                "    env.set_stdin(\"{}\");\n",
+                stdin_str.escape_default()
+            ));
         }
     }
 
     // 支持 stdin_lines 输入（多行，用于 REPL 测试）
     if let Some(stdin_lines) = given.get("stdin_lines") {
         if let Some(lines) = stdin_lines.as_sequence() {
-            let lines_str: Vec<String> = lines.iter()
+            let lines_str: Vec<String> = lines
+                .iter()
                 .filter_map(|v| v.as_str())
                 .map(|s| s.to_string())
                 .collect();
@@ -238,7 +251,11 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
     code
 }
 
-fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Sequence>, needs_mock: bool) -> String {
+fn generate_when(
+    when: &serde_yaml::Value,
+    given_args: Option<&serde_yaml::Sequence>,
+    needs_mock: bool,
+) -> String {
     let mut code = String::new();
 
     // Mock 设置
@@ -260,14 +277,18 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
     // 优先使用 given 中的 args，其次使用 when 中的 args，最后使用默认值
     let args = given_args
         .or(when.get("args").and_then(|v| v.as_sequence()))
-        .map(|v| v.iter()
-             .filter_map(|a| a.as_str())
-             .map(|a| format!("\"{}\"", a.escape_default()))
-             .collect::<Vec<_>>())
+        .map(|v| {
+            v.iter()
+                .filter_map(|a| a.as_str())
+                .map(|a| format!("\"{}\"", a.escape_default()))
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_else(|| vec!["\"hello\"".to_string()]);
 
-    code.push_str(&format!("    let output = env.run_cli(&[{}]).await.unwrap();\n",
-        args.join(", ")));
+    code.push_str(&format!(
+        "    let output = env.run_cli(&[{}]).await.unwrap();\n",
+        args.join(", ")
+    ));
 
     code
 }
@@ -286,38 +307,64 @@ fn generate_then(then: &serde_yaml::Value) -> String {
     }
 
     if let Some(text) = then.get("assert_contains").and_then(|v| v.as_str()) {
-        code.push_str(&format!("    output.assert_contains(\"{}\");\n",
-            text.escape_default()));
+        code.push_str(&format!(
+            "    output.assert_contains(\"{}\");\n",
+            text.escape_default()
+        ));
     }
 
     if let Some(pattern) = then.get("assert_match").and_then(|v| v.as_str()) {
-        code.push_str(&format!("    output.assert_match(r\"{}\");\n",
-            pattern.escape_default()));
+        code.push_str(&format!(
+            "    output.assert_match(r\"{}\");\n",
+            pattern.escape_default()
+        ));
     }
 
     if let Some(tool) = then.get("assert_tool_called").and_then(|v| v.as_str()) {
-        code.push_str(&format!("    output.assert_tool_called(\"{}\");\n",
-            tool.escape_default()));
+        code.push_str(&format!(
+            "    output.assert_tool_called(\"{}\");\n",
+            tool.escape_default()
+        ));
     }
 
     if let Some(count) = then.get("assert_token_count").and_then(|v| v.as_u64()) {
         code.push_str(&format!("    output.assert_token_count({});\n", count));
     }
 
-    if then.get("assert_compression_triggered").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if then
+        .get("assert_compression_triggered")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         code.push_str("    output.assert_compression_triggered();\n");
     }
 
-    if let Some(threshold) = then.get("assert_token_count_below").and_then(|v| v.as_u64()) {
-        code.push_str(&format!("    output.assert_token_count_below({});\n", threshold));
+    if let Some(threshold) = then
+        .get("assert_token_count_below")
+        .and_then(|v| v.as_u64())
+    {
+        code.push_str(&format!(
+            "    output.assert_token_count_below({});\n",
+            threshold
+        ));
     }
 
-    if then.get("assert_system_prompt_preserved").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if then
+        .get("assert_system_prompt_preserved")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         code.push_str("    output.assert_system_prompt_preserved();\n");
     }
 
-    if let Some(count) = then.get("assert_recent_messages_count").and_then(|v| v.as_u64()) {
-        code.push_str(&format!("    output.assert_recent_messages_count({});\n", count));
+    if let Some(count) = then
+        .get("assert_recent_messages_count")
+        .and_then(|v| v.as_u64())
+    {
+        code.push_str(&format!(
+            "    output.assert_recent_messages_count({});\n",
+            count
+        ));
     }
 
     code
@@ -453,7 +500,8 @@ fn to_test_name(name: &str) -> String {
     }
 
     // 移除剩余的非 ASCII 字符
-    let result: String = result.chars()
+    let result: String = result
+        .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() {
                 c.to_ascii_lowercase()
@@ -466,7 +514,8 @@ fn to_test_name(name: &str) -> String {
         .collect();
 
     // 清理连续的下划线
-    let result = result.split('_')
+    let result = result
+        .split('_')
         .filter(|s| !s.is_empty())
         .collect::<Vec<&str>>()
         .join("_");

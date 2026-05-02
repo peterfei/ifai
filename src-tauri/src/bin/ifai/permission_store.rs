@@ -6,10 +6,10 @@
 //! - TOOL_DISPLAY_NAMES 表：tool_name + display_title + color
 //! - MATCH_ENGINES 表：match_type → 函数指针映射
 
-use crate::permission::{ToolCategory, should_auto_approve};
+use crate::permission::{should_auto_approve, ToolCategory};
+use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use ratatui::style::Color;
 use std::fs;
 use std::path::PathBuf;
 
@@ -72,33 +72,45 @@ pub struct ApprovalOptionRequest {
 
 /// 模式提取策略表
 struct PatternStrategy {
-    args_field: &'static str,    // 从哪个 JSON 字段提取
-    match_type: MatchType,       // 匹配策略
-    suffix: &'static str,        // 自动追加后缀
-    word_count: Option<usize>,   // Prefix 模式取前 N 个词
+    args_field: &'static str,  // 从哪个 JSON 字段提取
+    match_type: MatchType,     // 匹配策略
+    suffix: &'static str,      // 自动追加后缀
+    word_count: Option<usize>, // Prefix 模式取前 N 个词
 }
 
 const PATTERN_STRATEGIES: &[(&[&str], PatternStrategy)] = &[
-    (&["bash"],
-        PatternStrategy { args_field: "cmd",  match_type: MatchType::Prefix,
-                          suffix: ":*", word_count: Some(2) }),
-    (&["write_file", "edit_file", "delete_file"],
-        PatternStrategy { args_field: "path", match_type: MatchType::GlobDir,
-                          suffix: "/**", word_count: None }),
+    (
+        &["bash"],
+        PatternStrategy {
+            args_field: "cmd",
+            match_type: MatchType::Prefix,
+            suffix: ":*",
+            word_count: Some(2),
+        },
+    ),
+    (
+        &["write_file", "edit_file", "delete_file"],
+        PatternStrategy {
+            args_field: "path",
+            match_type: MatchType::GlobDir,
+            suffix: "/**",
+            word_count: None,
+        },
+    ),
 ];
 
 /// 审批选项类型
 #[derive(Debug, Clone, Copy)]
 pub enum ApprovalOptionType {
-    Always,   // 持久化白名单
-    Session,  // 会话级白名单
+    Always,  // 持久化白名单
+    Session, // 会话级白名单
 }
 
 /// 审批选项定义表
 struct ToolApprovalOptionDef {
     categories: &'static [ToolCategory],
     option_type: ApprovalOptionType,
-    label_template: &'static str,  // "{pattern}" / "{dir}" 占位符
+    label_template: &'static str, // "{pattern}" / "{dir}" 占位符
 }
 
 const APPROVAL_OPTION_DEFS: &[ToolApprovalOptionDef] = &[
@@ -116,19 +128,19 @@ const APPROVAL_OPTION_DEFS: &[ToolApprovalOptionDef] = &[
 
 /// 工具面板标题表
 const TOOL_DISPLAY_NAMES: &[(&str, &str, Color)] = &[
-    ("bash",        "Bash command",  Color::Magenta),
-    ("write_file",  "Write file",    Color::Cyan),
-    ("edit_file",   "Edit file",     Color::Cyan),
-    ("delete_file", "Delete file",   Color::Red),
+    ("bash", "Bash command", Color::Magenta),
+    ("write_file", "Write file", Color::Cyan),
+    ("edit_file", "Edit file", Color::Cyan),
+    ("delete_file", "Delete file", Color::Red),
 ];
 
 /// 匹配引擎策略表
 type MatchFn = fn(pattern: &str, target: &str) -> bool;
 
 const MATCH_ENGINES: &[(MatchType, MatchFn)] = &[
-    (MatchType::Prefix,  match_prefix),
+    (MatchType::Prefix, match_prefix),
     (MatchType::GlobDir, match_glob_dir),
-    (MatchType::Exact,   match_exact),
+    (MatchType::Exact, match_exact),
 ];
 
 // ═══════════════════════════════════════════════════════════
@@ -263,7 +275,12 @@ impl PermissionStore {
                     MatchType::Prefix => {
                         let words: Vec<&str> = field_value.split_whitespace().collect();
                         let count = strategy.word_count.unwrap_or(words.len());
-                        let prefix = words.iter().take(count).cloned().collect::<Vec<_>>().join(" ");
+                        let prefix = words
+                            .iter()
+                            .take(count)
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" ");
                         format!("{}{}", prefix, strategy.suffix)
                     }
                     MatchType::GlobDir => {
@@ -296,7 +313,12 @@ impl PermissionStore {
                     MatchType::Prefix => {
                         let words: Vec<&str> = field_value.split_whitespace().collect();
                         let count = strategy.word_count.unwrap_or(words.len());
-                        words.iter().take(count).cloned().collect::<Vec<_>>().join(" ")
+                        words
+                            .iter()
+                            .take(count)
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" ")
                     }
                     MatchType::GlobDir => field_value.to_string(),
                     MatchType::Exact => field_value.to_string(),
@@ -328,12 +350,10 @@ impl PermissionStore {
 
     /// 查表构建选项（APPROVAL_OPTION_DEFS 驱动）
     pub fn build_options(req: &ApprovalOptionRequest) -> Vec<ApprovalOption> {
-        let mut options = vec![
-            ApprovalOption {
-                label: "Yes".to_string(),
-                decision: ApprovalDecision::ApproveOnce,
-            },
-        ];
+        let mut options = vec![ApprovalOption {
+            label: "Yes".to_string(),
+            decision: ApprovalDecision::ApproveOnce,
+        }];
 
         // 遍历 APPROVAL_OPTION_DEFS，过滤 category
         for def in APPROVAL_OPTION_DEFS {
@@ -343,7 +363,9 @@ impl PermissionStore {
                         // 从 args_preview 提取 pattern（需要构造正确的工具参数 JSON）
                         let args_json = match req.tool_name.as_str() {
                             "bash" => json!({"cmd": req.args_preview}),
-                            "write_file" | "edit_file" | "delete_file" => json!({"path": req.args_preview}),
+                            "write_file" | "edit_file" | "delete_file" => {
+                                json!({"path": req.args_preview})
+                            }
                             _ => json!(req.args_preview),
                         };
                         let pattern = Self::extract_pattern(&req.tool_name, &args_json);
@@ -399,38 +421,55 @@ impl PermissionStore {
         // 确保目录存在
         if let Some(parent) = path.parent() {
             if !parent.exists() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+                fs::create_dir_all(parent).map_err(|e| {
+                    format!("Failed to create directory {}: {}", parent.display(), e)
+                })?;
             }
         }
 
         // 序列化为 TOML
-        let allow_rules: Vec<_> = self.persistent.iter()
+        let allow_rules: Vec<_> = self
+            .persistent
+            .iter()
             .filter(|r| r.rule_type == RuleType::Allow)
-            .map(|r| toml::value::Table::from_iter([
-                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
-                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
-            ]))
+            .map(|r| {
+                toml::value::Table::from_iter([
+                    ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                    (
+                        "pattern".to_string(),
+                        toml::Value::String(r.pattern.clone()),
+                    ),
+                ])
+            })
             .collect();
 
-        let deny_rules: Vec<_> = self.persistent.iter()
+        let deny_rules: Vec<_> = self
+            .persistent
+            .iter()
             .filter(|r| r.rule_type == RuleType::Deny)
-            .map(|r| toml::value::Table::from_iter([
-                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
-                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
-            ]))
+            .map(|r| {
+                toml::value::Table::from_iter([
+                    ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                    (
+                        "pattern".to_string(),
+                        toml::Value::String(r.pattern.clone()),
+                    ),
+                ])
+            })
             .collect();
 
         let mut root = toml::value::Table::new();
         if !allow_rules.is_empty() {
-            root.insert("allow".to_string(), toml::Value::Array(
-                allow_rules.into_iter().map(toml::Value::Table).collect()
-            ));
+            root.insert(
+                "allow".to_string(),
+                toml::Value::Array(allow_rules.into_iter().map(toml::Value::Table).collect()),
+            );
         }
         if !deny_rules.is_empty() {
-            root.insert("deny".to_string(), toml::Value::Array(
-                deny_rules.into_iter().map(toml::Value::Table).collect()
-            ));
+            root.insert(
+                "deny".to_string(),
+                toml::Value::Array(deny_rules.into_iter().map(toml::Value::Table).collect()),
+            );
         }
 
         // 写入文件
@@ -447,7 +486,7 @@ impl PermissionStore {
     pub fn add_persistent_rule(&mut self, rule: PermissionRule) {
         self.persistent.push(rule);
         // 持久化到文件
-        let _ = self.save();  // 忽略错误，避免阻塞审批流程
+        let _ = self.save(); // 忽略错误，避免阻塞审批流程
     }
 
     /// 统一查询管道：deny → allow → fallback ToolApprovalEngine
@@ -460,7 +499,7 @@ impl PermissionStore {
             if rule.tool_name == tool_name {
                 if rule.rule_type == RuleType::Deny {
                     if Self::match_rule(&rule.pattern, &target) {
-                        return false;  // deny 命中，阻止
+                        return false; // deny 命中，阻止
                     }
                 }
             }
@@ -471,7 +510,7 @@ impl PermissionStore {
             if rule.tool_name == tool_name {
                 if rule.rule_type == RuleType::Allow {
                     if Self::match_rule(&rule.pattern, &target) {
-                        return true;  // allow 命中，放行
+                        return true; // allow 命中，放行
                     }
                 }
             }
@@ -612,14 +651,20 @@ mod tests {
 
     #[test]
     fn test_match_engine_prefix_exact() {
-        assert!(PermissionStore::match_rule("npm test:*", "npm test -- --watch"));
+        assert!(PermissionStore::match_rule(
+            "npm test:*",
+            "npm test -- --watch"
+        ));
         assert!(!PermissionStore::match_rule("npm test:*", "npm run test"));
     }
 
     #[test]
     fn test_match_engine_glob_dir_match() {
         assert!(PermissionStore::match_rule("src/**", "src/main.rs"));
-        assert!(PermissionStore::match_rule("src/**", "src/tauri/src/main.rs"));
+        assert!(PermissionStore::match_rule(
+            "src/**",
+            "src/tauri/src/main.rs"
+        ));
         assert!(PermissionStore::match_rule("src/**", "src/"));
         assert!(!PermissionStore::match_rule("src/**", "tests/main.rs"));
     }
@@ -645,7 +690,10 @@ mod tests {
 
         assert_eq!(options.len(), 3);
         assert!(matches!(options[0].decision, ApprovalDecision::ApproveOnce));
-        assert!(matches!(options[1].decision, ApprovalDecision::ApproveAlways));
+        assert!(matches!(
+            options[1].decision,
+            ApprovalDecision::ApproveAlways
+        ));
         assert!(options[1].label.contains("git diff"));
         assert!(matches!(options[2].decision, ApprovalDecision::Deny));
     }
@@ -661,7 +709,10 @@ mod tests {
 
         assert_eq!(options.len(), 3);
         assert!(matches!(options[0].decision, ApprovalDecision::ApproveOnce));
-        assert!(matches!(options[1].decision, ApprovalDecision::ApproveSession));
+        assert!(matches!(
+            options[1].decision,
+            ApprovalDecision::ApproveSession
+        ));
         assert!(options[1].label.contains("src/"));
         assert!(matches!(options[2].decision, ApprovalDecision::Deny));
     }
@@ -803,7 +854,10 @@ mod tests {
 
         // 测试不同的 ls 命令
         let args = make_args("bash", json!("ls -l"));
-        assert!(!store.is_allowed("bash", &args), "ls -l 不应该被允许（不同的命令）");
+        assert!(
+            !store.is_allowed("bash", &args),
+            "ls -l 不应该被允许（不同的命令）"
+        );
     }
 
     #[test]
@@ -852,18 +906,26 @@ mod tests {
         });
 
         // 手动保存到临时文件（因为 save() 是私有的）
-        let allow_rules: Vec<_> = store.persistent.iter()
+        let allow_rules: Vec<_> = store
+            .persistent
+            .iter()
             .filter(|r| r.rule_type == RuleType::Allow)
-            .map(|r| toml::value::Table::from_iter([
-                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
-                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
-            ]))
+            .map(|r| {
+                toml::value::Table::from_iter([
+                    ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                    (
+                        "pattern".to_string(),
+                        toml::Value::String(r.pattern.clone()),
+                    ),
+                ])
+            })
             .collect();
 
         let mut root = toml::value::Table::new();
-        root.insert("allow".to_string(), toml::Value::Array(
-            allow_rules.into_iter().map(toml::Value::Table).collect()
-        ));
+        root.insert(
+            "allow".to_string(),
+            toml::Value::Array(allow_rules.into_iter().map(toml::Value::Table).collect()),
+        );
 
         let content = toml::to_string_pretty(&root).unwrap();
         fs::write(&config_file, content).unwrap();
@@ -888,25 +950,30 @@ mod tests {
         let config_file = temp_dir.join("permissions.toml");
 
         // 创建 deny 规则
-        let deny_rules = vec![
-            PermissionRule {
-                tool_name: "bash".to_string(),
-                pattern: "rm -rf /*".to_string(),
-                rule_type: RuleType::Deny,
-            },
-        ];
+        let deny_rules = vec![PermissionRule {
+            tool_name: "bash".to_string(),
+            pattern: "rm -rf /*".to_string(),
+            rule_type: RuleType::Deny,
+        }];
 
-        let deny_toml: Vec<_> = deny_rules.iter()
-            .map(|r| toml::value::Table::from_iter([
-                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
-                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
-            ]))
+        let deny_toml: Vec<_> = deny_rules
+            .iter()
+            .map(|r| {
+                toml::value::Table::from_iter([
+                    ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                    (
+                        "pattern".to_string(),
+                        toml::Value::String(r.pattern.clone()),
+                    ),
+                ])
+            })
             .collect();
 
         let mut root = toml::value::Table::new();
-        root.insert("deny".to_string(), toml::Value::Array(
-            deny_toml.into_iter().map(toml::Value::Table).collect()
-        ));
+        root.insert(
+            "deny".to_string(),
+            toml::Value::Array(deny_toml.into_iter().map(toml::Value::Table).collect()),
+        );
 
         let content = toml::to_string_pretty(&root).unwrap();
         fs::write(&config_file, content).unwrap();
@@ -1006,7 +1073,10 @@ pattern = "rm -rf /*"
         assert_eq!(rules.len(), 3);
 
         // 验证 allow 规则
-        let allow_rules: Vec<_> = rules.iter().filter(|r| r.rule_type == RuleType::Allow).collect();
+        let allow_rules: Vec<_> = rules
+            .iter()
+            .filter(|r| r.rule_type == RuleType::Allow)
+            .collect();
         assert_eq!(allow_rules.len(), 2);
         assert_eq!(allow_rules[0].tool_name, "bash");
         assert_eq!(allow_rules[0].pattern, "git diff:*");
@@ -1014,7 +1084,10 @@ pattern = "rm -rf /*"
         assert_eq!(allow_rules[1].pattern, "ls -la:*");
 
         // 验证 deny 规则
-        let deny_rules: Vec<_> = rules.iter().filter(|r| r.rule_type == RuleType::Deny).collect();
+        let deny_rules: Vec<_> = rules
+            .iter()
+            .filter(|r| r.rule_type == RuleType::Deny)
+            .collect();
         assert_eq!(deny_rules.len(), 1);
         assert_eq!(deny_rules[0].tool_name, "bash");
         assert_eq!(deny_rules[0].pattern, "rm -rf /*");

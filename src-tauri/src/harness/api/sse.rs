@@ -197,7 +197,8 @@ mod tests {
         let mut parser = SseParser::new();
 
         // 模拟不完整的帧（真实 Anthropic SSE 格式）
-        let partial = b"data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"text\":\"hel";
+        let partial =
+            b"data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"text\":\"hel";
         let result = parser.push(partial);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());

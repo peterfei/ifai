@@ -14,12 +14,9 @@ pub fn example_linear_workflow() {
 
     // 添加节点
     workflow
-        .add_node(WorkflowNode::new("explore", AgentType::Explore)
-            .with_label("探索代码结构"))
-        .add_node(WorkflowNode::new("review", AgentType::Review)
-            .with_label("代码质量审查"))
-        .add_node(WorkflowNode::new("refactor", AgentType::Refactor)
-            .with_label("重构代码"));
+        .add_node(WorkflowNode::new("explore", AgentType::Explore).with_label("探索代码结构"))
+        .add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码质量审查"))
+        .add_node(WorkflowNode::new("refactor", AgentType::Refactor).with_label("重构代码"));
 
     // 添加边（依赖关系）
     workflow
@@ -42,14 +39,10 @@ pub fn example_parallel_workflow() {
 
     // 创建节点：explore -> (test, doc) -> merge
     workflow
-        .add_node(WorkflowNode::new("explore", AgentType::Explore)
-            .with_label("探索代码"))
-        .add_node(WorkflowNode::new("test", AgentType::Test)
-            .with_label("生成测试"))
-        .add_node(WorkflowNode::new("doc", AgentType::Doc)
-            .with_label("生成文档"))
-        .add_node(WorkflowNode::new("merge", AgentType::GeneralPurpose)
-            .with_label("合并结果"));
+        .add_node(WorkflowNode::new("explore", AgentType::Explore).with_label("探索代码"))
+        .add_node(WorkflowNode::new("test", AgentType::Test).with_label("生成测试"))
+        .add_node(WorkflowNode::new("doc", AgentType::Doc).with_label("生成文档"))
+        .add_node(WorkflowNode::new("merge", AgentType::GeneralPurpose).with_label("合并结果"));
 
     // 添加边
     workflow
@@ -216,10 +209,10 @@ pub fn example_custom_config() {
 
     // 自定义配置
     let config = RunnerConfig {
-        max_concurrent_nodes: 5,      // 最多并行 5 个节点
-        node_timeout_secs: 600,       // 每个节点超时 10 分钟
-        max_retries: 3,               // 失败后最多重试 3 次
-        fail_fast: true,              // 任何节点失败立即停止
+        max_concurrent_nodes: 5, // 最多并行 5 个节点
+        node_timeout_secs: 600,  // 每个节点超时 10 分钟
+        max_retries: 3,          // 失败后最多重试 3 次
+        fail_fast: true,         // 任何节点失败立即停止
     };
 
     match WorkflowRunner::new(workflow, config) {
@@ -232,8 +225,8 @@ pub fn example_custom_config() {
 ///
 /// 展示如何使用变量进行参数化
 pub fn example_variables() {
-    let mut workflow = Workflow::new("variables-example", "变量示例")
-        .with_description("展示如何使用变量");
+    let mut workflow =
+        Workflow::new("variables-example", "变量示例").with_description("展示如何使用变量");
 
     // 设置工作流变量
     let mut variables = HashMap::new();
@@ -280,11 +273,8 @@ pub fn example_conditional_edges() {
 ///
 /// 展示一个更真实的复杂工作流
 pub fn example_complex_workflow() {
-    let mut workflow = Workflow::new(
-        "complex-review-workflow",
-        "复杂代码审查工作流"
-    )
-    .with_description("完整的代码审查、重构、测试和文档生成流程");
+    let mut workflow = Workflow::new("complex-review-workflow", "复杂代码审查工作流")
+        .with_description("完整的代码审查、重构、测试和文档生成流程");
 
     // 定义变量
     let mut variables = HashMap::new();
@@ -295,38 +285,28 @@ pub fn example_complex_workflow() {
     // 添加节点
     workflow
         // 第一阶段：探索
-        .add_node(WorkflowNode::new("explore_structure", AgentType::Explore)
-            .with_label("探索项目结构"))
-        .add_node(WorkflowNode::new("explore_deps", AgentType::Explore)
-            .with_label("分析依赖关系"))
-
+        .add_node(
+            WorkflowNode::new("explore_structure", AgentType::Explore).with_label("探索项目结构"),
+        )
+        .add_node(WorkflowNode::new("explore_deps", AgentType::Explore).with_label("分析依赖关系"))
         // 第二阶段：审查
-        .add_node(WorkflowNode::new("code_review", AgentType::Review)
-            .with_label("代码质量审查"))
-
+        .add_node(WorkflowNode::new("code_review", AgentType::Review).with_label("代码质量审查"))
         // 第三阶段：并行改进
-        .add_node(WorkflowNode::new("refactor", AgentType::Refactor)
-            .with_label("重构建议"))
-        .add_node(WorkflowNode::new("test_gen", AgentType::Test)
-            .with_label("生成测试用例"))
-        .add_node(WorkflowNode::new("doc_gen", AgentType::Doc)
-            .with_label("生成文档"))
-
+        .add_node(WorkflowNode::new("refactor", AgentType::Refactor).with_label("重构建议"))
+        .add_node(WorkflowNode::new("test_gen", AgentType::Test).with_label("生成测试用例"))
+        .add_node(WorkflowNode::new("doc_gen", AgentType::Doc).with_label("生成文档"))
         // 第四阶段：验证
-        .add_node(WorkflowNode::new("final_review", AgentType::Review)
-            .with_label("最终审查"));
+        .add_node(WorkflowNode::new("final_review", AgentType::Review).with_label("最终审查"));
 
     // 添加依赖关系
     workflow
         // 探索阶段
         .add_edge(WorkflowEdge::new("explore_structure", "explore_deps"))
         .add_edge(WorkflowEdge::new("explore_deps", "code_review"))
-
         // 审查到改进
         .add_edge(WorkflowEdge::new("code_review", "refactor"))
         .add_edge(WorkflowEdge::new("code_review", "test_gen"))
         .add_edge(WorkflowEdge::new("code_review", "doc_gen"))
-
         // 改进到最终审查
         .add_edge(WorkflowEdge::new("refactor", "final_review"))
         .add_edge(WorkflowEdge::new("test_gen", "final_review"))

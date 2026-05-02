@@ -4,7 +4,6 @@
  *
  * 负责提案的文件读写和管理
  */
-
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -119,10 +118,19 @@ fn get_proposals_base_dir(root_path: &str) -> Result<PathBuf, String> {
     fs::create_dir_all(&ifai_dir)
         .map_err(|e| format!("Failed to create .ifai directory: {}", e))?;
 
-    for location in &[ProposalLocation::Proposals, ProposalLocation::Changes, ProposalLocation::Archive] {
+    for location in &[
+        ProposalLocation::Proposals,
+        ProposalLocation::Changes,
+        ProposalLocation::Archive,
+    ] {
         let dir = ifai_dir.join(location_str(location));
-        fs::create_dir_all(&dir)
-            .map_err(|e| format!("Failed to create {} directory: {}", location_str(location), e))?;
+        fs::create_dir_all(&dir).map_err(|e| {
+            format!(
+                "Failed to create {} directory: {}",
+                location_str(location),
+                e
+            )
+        })?;
     }
 
     Ok(ifai_dir)
@@ -138,7 +146,11 @@ fn location_str(location: &ProposalLocation) -> &str {
 }
 
 /// 获取提案目录路径
-fn get_proposal_dir(id: &str, location: &ProposalLocation, root_path: &str) -> Result<PathBuf, String> {
+fn get_proposal_dir(
+    id: &str,
+    location: &ProposalLocation,
+    root_path: &str,
+) -> Result<PathBuf, String> {
     let base_dir = get_proposals_base_dir(root_path)?;
     let dir = base_dir.join(location_str(location)).join(id);
     Ok(dir)
@@ -151,7 +163,10 @@ pub async fn save_proposal(
     location: ProposalLocation,
     root_path: String,
 ) -> Result<(), String> {
-    println!("[Proposal] Saving proposal: {} at root: {}", proposal.id, root_path);
+    println!(
+        "[Proposal] Saving proposal: {} at root: {}",
+        proposal.id, root_path
+    );
 
     let proposal_dir = get_proposal_dir(&proposal.id, &location, &root_path)?;
 
@@ -207,7 +222,10 @@ pub async fn load_proposal(
     location: ProposalLocation,
     root_path: String,
 ) -> Result<ProposalData, String> {
-    println!("[Proposal] Loading proposal: {} from root: {}", id, root_path);
+    println!(
+        "[Proposal] Loading proposal: {} from root: {}",
+        id, root_path
+    );
 
     let proposal_dir = get_proposal_dir(&id, &location, &root_path)?;
     let metadata_path = proposal_dir.join("metadata.json");
@@ -230,7 +248,10 @@ pub async fn delete_proposal(
     location: ProposalLocation,
     root_path: String,
 ) -> Result<(), String> {
-    println!("[Proposal] Deleting proposal: {} from root: {}", id, root_path);
+    println!(
+        "[Proposal] Deleting proposal: {} from root: {}",
+        id, root_path
+    );
 
     let proposal_dir = get_proposal_dir(&id, &location, &root_path)?;
 
@@ -249,7 +270,10 @@ pub async fn move_proposal(
     to: ProposalLocation,
     root_path: String,
 ) -> Result<(), String> {
-    println!("[Proposal] Moving proposal: {} from {:?} to {:?} (root: {})", id, from, to, root_path);
+    println!(
+        "[Proposal] Moving proposal: {} from {:?} to {:?} (root: {})",
+        id, from, to, root_path
+    );
 
     let from_dir = get_proposal_dir(&id, &from, &root_path)?;
     let to_dir = get_proposal_dir(&id, &to, &root_path)?;
@@ -262,8 +286,7 @@ pub async fn move_proposal(
     }
 
     // 移动目录
-    fs::rename(&from_dir, &to_dir)
-        .map_err(|e| format!("Failed to move proposal: {}", e))?;
+    fs::rename(&from_dir, &to_dir).map_err(|e| format!("Failed to move proposal: {}", e))?;
 
     // 更新元数据中的位置
     let metadata_path = to_dir.join("metadata.json");
@@ -311,7 +334,11 @@ pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, Stri
     let mut all_proposals = Vec::new();
 
     // 扫描所有位置
-    for location in &[ProposalLocation::Proposals, ProposalLocation::Changes, ProposalLocation::Archive] {
+    for location in &[
+        ProposalLocation::Proposals,
+        ProposalLocation::Changes,
+        ProposalLocation::Archive,
+    ] {
         let base_dir = get_proposals_base_dir(&root_path)?;
         let location_str_val = location_str(location);
         let location_dir = base_dir.join(location_str_val);
@@ -320,8 +347,8 @@ pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, Stri
             continue;
         }
 
-        let entries = fs::read_dir(&location_dir)
-            .map_err(|e| format!("Failed to read directory: {}", e))?;
+        let entries =
+            fs::read_dir(&location_dir).map_err(|e| format!("Failed to read directory: {}", e))?;
 
         for entry in entries.flatten() {
             let path = entry.path();
@@ -332,12 +359,11 @@ pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, Stri
                         // 尝试解析为元数据
                         if let Ok(meta) = serde_json::from_str::<ProposalMetadata>(&json) {
                             // 优先使用 title，如果没有则尝试使用 why，最后回退到 id
-                            let title = meta.title
-                                .or(meta.why)
-                                .unwrap_or_else(|| meta.id.clone());
-                            
+                            let title = meta.title.or(meta.why).unwrap_or_else(|| meta.id.clone());
+
                             // 确定位置：优先使用 metadata 中的，否则使用当前扫描目录
-                            let loc = meta.location
+                            let loc = meta
+                                .location
                                 .or(meta.legacy_location)
                                 .unwrap_or_else(|| location_str_val.to_string());
 
@@ -351,7 +377,10 @@ pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, Stri
                             });
                         } else {
                             if let Err(e) = serde_json::from_str::<ProposalMetadata>(&json) {
-                                println!("[Proposal] Failed to parse metadata for {:?}: {}", path, e);
+                                println!(
+                                    "[Proposal] Failed to parse metadata for {:?}: {}",
+                                    path, e
+                                );
                             }
                         }
                     }
@@ -376,7 +405,11 @@ pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, Stri
 }
 
 /// 更新索引
-fn update_index(proposal: &ProposalData, location: &ProposalLocation, root_path: &str) -> Result<(), String> {
+fn update_index(
+    proposal: &ProposalData,
+    location: &ProposalLocation,
+    root_path: &str,
+) -> Result<(), String> {
     let base_dir = get_proposals_base_dir(root_path)?;
     let location_str = location_str(location);
     let index_path = base_dir.join(location_str).join("index.json");
@@ -413,14 +446,15 @@ fn update_index(proposal: &ProposalData, location: &ProposalLocation, root_path:
     }
 
     // 按更新时间排序
-    index.proposals.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    index
+        .proposals
+        .sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
 
     // 写回文件
     let json = serde_json::to_string_pretty(&index)
         .map_err(|e| format!("Failed to serialize index: {}", e))?;
 
-    fs::write(&index_path, json)
-        .map_err(|e| format!("Failed to write index file: {}", e))?;
+    fs::write(&index_path, json).map_err(|e| format!("Failed to write index file: {}", e))?;
 
     Ok(())
 }
@@ -449,7 +483,11 @@ fn generate_proposal_md(proposal: &ProposalData) -> String {
         proposal.what_changes.join("\n"),
         proposal.impact.specs.join(", "),
         proposal.impact.files.join(", "),
-        if proposal.impact.breaking_changes { "Yes" } else { "No" }
+        if proposal.impact.breaking_changes {
+            "Yes"
+        } else {
+            "No"
+        }
     )
 }
 
@@ -465,7 +503,10 @@ fn generate_tasks_md(proposal: &ProposalData) -> String {
             task.category
         ));
         content.push_str(&format!("{}\n\n", task.description));
-        content.push_str(&format!("**Estimated**: {} hours\n\n", task.estimated_hours));
+        content.push_str(&format!(
+            "**Estimated**: {} hours\n\n",
+            task.estimated_hours
+        ));
     }
 
     content
@@ -486,7 +527,10 @@ fn generate_spec_delta_md(delta: &SpecDeltaData) -> String {
     if let Some(scenarios) = &delta.scenarios {
         for scenario in scenarios {
             content.push_str("### Scenario\n\n");
-            content.push_str(&format!("**{}**: {}\n\n", scenario.name, scenario.description));
+            content.push_str(&format!(
+                "**{}**: {}\n\n",
+                scenario.name, scenario.description
+            ));
 
             if let Some(given) = &scenario.given {
                 content.push_str(&format!("Given {}\n", given));
@@ -506,7 +550,8 @@ pub async fn init_demo_proposal(root_path: String) -> Result<bool, String> {
 
     // 检查 demo proposal 是否已存在
     let demo_proposal_id = "v0.2.6-demo-vue-login";
-    let proposal_dir = get_proposal_dir(demo_proposal_id, &ProposalLocation::Proposals, &root_path)?;
+    let proposal_dir =
+        get_proposal_dir(demo_proposal_id, &ProposalLocation::Proposals, &root_path)?;
 
     if proposal_dir.exists() {
         println!("[Proposal] Demo proposal already exists, skipping");
@@ -568,7 +613,12 @@ pub async fn init_demo_proposal(root_path: String) -> Result<bool, String> {
     };
 
     // 保存 demo proposal
-    save_proposal(demo_proposal.clone(), ProposalLocation::Proposals, root_path).await?;
+    save_proposal(
+        demo_proposal.clone(),
+        ProposalLocation::Proposals,
+        root_path,
+    )
+    .await?;
 
     println!("[Proposal] Demo proposal initialized successfully");
     Ok(true)

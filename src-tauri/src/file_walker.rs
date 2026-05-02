@@ -1,7 +1,7 @@
-use tauri::command;
-use std::path::PathBuf;
-use std::collections::HashMap;
 use ignore::WalkBuilder;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use tauri::command;
 use tokio::task::JoinSet;
 
 /// Parallel directory scanning configuration
@@ -21,7 +21,7 @@ pub async fn get_all_file_paths(root_dir: String) -> Result<Vec<String>, String>
     // Use ignore::WalkBuilder for high-performance, .gitignore-aware scanning
     for entry in WalkBuilder::new(&root_path)
         .standard_filters(true) // Respect .gitignore, .ignore, etc.
-        .hidden(true)           // Skip hidden files (.git, etc.)
+        .hidden(true) // Skip hidden files (.git, etc.)
         .max_depth(Some(MAX_DEPTH))
         .build()
         .filter_map(|e| e.ok())
@@ -46,11 +46,9 @@ pub async fn get_all_file_paths_parallel(root_dir: String) -> Result<Vec<String>
     }
 
     // Use tokio spawn_blocking for CPU-bound file system operations
-    let file_paths = tokio::task::spawn_blocking(move || {
-        scan_parallel_recursive(root_path, 0)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {}", e))??;
+    let file_paths = tokio::task::spawn_blocking(move || scan_parallel_recursive(root_path, 0))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))??;
 
     Ok(file_paths)
 }
@@ -73,7 +71,8 @@ fn scan_parallel_recursive(dir: PathBuf, current_depth: usize) -> Result<Vec<Str
         let path = entry.path();
 
         // Skip hidden files and directories
-        if path.file_name()
+        if path
+            .file_name()
             .and_then(|n| n.to_str())
             .map(|n| n.starts_with('.'))
             .unwrap_or(false)
@@ -81,7 +80,8 @@ fn scan_parallel_recursive(dir: PathBuf, current_depth: usize) -> Result<Vec<Str
             continue;
         }
 
-        let file_type = entry.file_type()
+        let file_type = entry
+            .file_type()
             .map_err(|e| format!("Failed to get file type for {}: {}", path.display(), e))?;
 
         if file_type.is_dir() {
@@ -104,7 +104,9 @@ fn scan_parallel_recursive(dir: PathBuf, current_depth: usize) -> Result<Vec<Str
         for chunk in subdirs.chunks((subdirs.len() + pool_size - 1) / pool_size) {
             let chunk_files: Vec<Vec<String>> = chunk
                 .iter()
-                .map(|subdir| scan_parallel_recursive(subdir.clone(), current_depth + 1).unwrap_or_default())
+                .map(|subdir| {
+                    scan_parallel_recursive(subdir.clone(), current_depth + 1).unwrap_or_default()
+                })
                 .collect();
 
             all_files.extend(chunk_files.into_iter().flatten());
@@ -125,7 +127,9 @@ fn scan_parallel_recursive(dir: PathBuf, current_depth: usize) -> Result<Vec<Str
 /// Get directory structure with metadata for caching
 /// Returns a HashMap of path -> (size, modified_time)
 #[command]
-pub async fn get_directory_metadata(root_dir: String) -> Result<HashMap<String, (u64, u64)>, String> {
+pub async fn get_directory_metadata(
+    root_dir: String,
+) -> Result<HashMap<String, (u64, u64)>, String> {
     let root_path = PathBuf::from(&root_dir);
     if !root_path.exists() {
         return Err(format!("Directory does not exist: {}", root_path.display()));
@@ -143,7 +147,8 @@ pub async fn get_directory_metadata(root_dir: String) -> Result<HashMap<String, 
         {
             let path = entry.path();
             if let Ok(metadata) = entry.metadata() {
-                let modified = metadata.modified()
+                let modified = metadata
+                    .modified()
                     .ok()
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs() as u64)
