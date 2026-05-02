@@ -68,7 +68,7 @@ export class ToolCallConverter {
   /**
    * 单个转换：前端 → API
    */
-  private static convertOneToAPI(tc: FrontendToolCall): APIToolCall {
+  public static convertOneToAPI(tc: FrontendToolCall): APIToolCall {
     return {
       id: tc.id,
       type: 'function',

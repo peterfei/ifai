@@ -1,5 +1,14 @@
 # IfAI — A Mature AI Native Harness 🚀
 
+### 🌟 v0.4.5 Highlights: TUI Enhancement & Testing Framework
+- **Ctrl+O Detail View Overlay**: Full-screen AI response viewer with toggle support, Transcript/File/DiffContext viewing, streaming-time access
+- **Ctrl+D Diff Mode**: Multi-file diff browsing with toggle switch, streaming key response
+- **Input Message Queue**: Smart queuing during streaming, auto-sequential sending
+- **Slash Command Popup**: Declarative metaprogramming architecture, intelligent command completion
+- **TUI Testing Infrastructure**: 510+ test cases with parametrize/parallel/snapshot/E2E support
+- **Metaprogramming Architecture**: Declarative key mapping, composition pattern, build.rs auto-generation
+- **10 Bug Fixes**: Streaming response buffer,熔断机制, UTF-8 safety truncation, Ctrl+C exit logic
+
 ### 🌟 v0.4.2 Highlights: Skill Center Refactor & Streaming Performance Optimization
 - **Skill Center Phase 7 UI Refactor**: Fullscreen layout with split-panel details, search & filter, grid/list view, batch operations, skill editor (create/edit/view/preview), stats display `Skills(3/12)`.
 - **Streaming Performance Optimization**: BatchEventStream batch event processing, high-frequency log cleanup (log I/O reduced from ~15% to <1%), VirtualMessageList 10k-message cache optimization.
@@ -82,6 +91,7 @@ As a mature AI Native Harness, IfAI provides:
 
 ### 📈 Project Status
 
+- **✅ v0.4.5** - May 02, 2026 (TUI Enhancement & Testing Framework)
 - **✅ v0.4.2** - Apr 21, 2026 (Skill Center Refactor & Streaming Performance Optimization)
 - **✅ v0.4.1** - Apr 2026 (Multi-Agent Collaboration & Message Stability)
 - **✅ v0.4.0** - Apr 08, 2026 (Prompt Ecosystem, Multi-Agent Architecture & Conversation Management — Mature Harness)

@@ -5,8 +5,8 @@ set -e
 
 # ========== 配置 ==========
 CLI_NAME="ifai"
-VERSION="${VERSION:-0.4.3}"  # 可通过环境变量覆盖
-GITHUB_USER="${GITHUB_USER:-your-username}"
+VERSION="${VERSION:-0.4.5}"  # 可通过环境变量覆盖
+GITHUB_USER="${GITHUB_USER:-peterfei}"
 GITHUB_REPO="${GITHUB_USER}/${CLI_NAME}"
 TAP_REPO="${GITHUB_USER}/homebrew-ifai"
 

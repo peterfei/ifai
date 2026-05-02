@@ -3,7 +3,7 @@ members = [".", "ifai-render-macro"]
 
 [package]
 name = "ifainew"
-version = "0.4.4"
+version = "0.4.5"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

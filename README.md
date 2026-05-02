@@ -16,6 +16,15 @@
 
 ---
 
+### 🌟 v0.4.5 新特性：TUI 增强与测试框架完善
+- **Ctrl+O Detail View Overlay**：全屏 AI 响应查看器，支持 Toggle 开关（再按 Ctrl+O 关闭）、Transcript 回放、File 查看器、DiffContext 对比视图（旧/新内容切换）、Streaming 期间实时访问。
+- **Ctrl+D Diff Mode**：多文件差异浏览，Toggle 开关模式（一键切换）、Streaming 期间按键响应（不会穿透到其他事件）。
+- **输入消息队列**：Streaming 期间智能排队，队列中的消息会在当前任务完成后依次自动发送，优化多轮对话体验。
+- **斜杠命令弹出框**：声明式元编程架构，输入 `/` 自动弹出命令列表，模糊搜索过滤，上下键选择 + Enter 确认，零代码添加新命令。
+- **TUI 快照测试基础设施**：510+ 测试用例全覆盖，参数化测试（`parametrize!` 宏）、并行测试执行（`rayon`）、快照测试（`insta`）、E2E 真实 API 测试，100% 通过率。
+- **元编程架构**：声明式键映射表（`SCROLL_KEYMAP`、`OVERLAY_EXTRA_KEYMAP`）、组合模式（`OverlayAction::Scroll(ScrollAction)`）、复用 `ScrollableDiff` 避免 95% 代码重复、Streaming Response Buffer 累积机制。
+- **10 项 Bug 修复**：Streaming Response Buffer 实时查看、熔断机制、UTF-8 安全截断、Ctrl+C 退出逻辑优化、状态栏更新、空参数处理。
+
 ### 🌟 v0.4.4 新特性：IfAI CLI 全面升级 — 工业级终端 AI 助手
 - **元数据驱动 CLI 架构**：Provider Dispatch Table + System Prompt 模板引擎，消除所有硬编码 match 分支，新增 provider 零 Rust 代码改动。
 - **元编程权限引擎**：从 GUI 端 `toolApprovalConfig.ts` 自动生成 Rust 权限引擎，O(1) 工具分类与风险分级，配置驱动续播限制。
@@ -103,6 +112,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.4.5** | **TUI 增强与测试框架完善** | **Ctrl+O Detail View Overlay（全屏查看）、Ctrl+D Diff Mode（Toggle 开关）、输入消息队列（Streaming 期间排队）、斜杠命令弹出框（元编程）、510+ 测试用例（参数化/并行/快照/E2E）、元编程架构、10 项 Bug 修复** |
 | **v0.4.4** | **CLI 全面升级 — 工业级终端 AI 助手** | **元数据驱动 CLI 架构、元编程权限引擎、Token 系统、TOML 配置、会话持久化、Pipeline 可视化、循环检测引擎、ratatui 全屏 TUI、智能 Glob 搜索、49 个测试** |
 | **v0.4.3** | **元数据驱动架构与国际化** | **元数据驱动 Provider 架构（YAML 配置）、5 家 AI 提供商 80+ 模型、完整多模态支持、三语言全覆盖（中/英/俄）、CI 集成与质量门禁、SSE 流解析修复** |
 | **v0.4.2** | **技能中心重构与流式性能优化** | **技能中心 Phase 7 全面重构、BatchEventStream 性能优化、工具调用竞态修复、E2E 测试框架 v2.0、10 项 Bug 修复** |
