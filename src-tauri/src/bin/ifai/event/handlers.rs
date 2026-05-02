@@ -409,19 +409,19 @@ impl EventHandler<Event> for HelpExitHandler {
 // Diff 模式处理器
 // ============================================================================
 
-/// Diff 进入处理器 - 按 `d` 键进入 diff 模式
+/// Diff 进入处理器 - 按 Ctrl+D 进入 diff 模式（与退出同一按键，toggle 语义）
 pub struct DiffEnterHandler;
 
 impl EventHandler<Event> for DiffEnterHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
         if let Event::Key(key) = event {
-            // 按 d 键进入 diff 模式（仅当有 diff 可用时）
-            if key.code == KeyCode::Char('d') && !app.is_diff_mode() {
-                if !app.diffs.is_empty() {
-                    app.enter_diff_mode();
-                    // 清除输入框（防止 d 被添加）
-                    app.input.clear();
-                }
+            if key.code == KeyCode::Char('d')
+                && key.modifiers.contains(KeyModifiers::CONTROL)
+                && !app.is_diff_mode()
+                && !app.diffs.is_empty()
+            {
+                app.enter_diff_mode();
+                return ControlFlow::Break(AppResult::Handled);
             }
         }
         ControlFlow::Continue

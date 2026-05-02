@@ -329,7 +329,7 @@ impl App {
 
         // 添加提示信息
         self.content_lines.push(Line::from(""));
-        self.content_lines.push(Line::from("按 d 查看详情"));
+        self.content_lines.push(Line::from("按 Ctrl+D 查看 diff 详情"));
         self.content_lines.push(Line::from(""));
 
         // 自动滚到底部
@@ -1140,7 +1140,7 @@ impl App {
     /// 注意：SearchInputHandler 的谓词需要访问 app 状态，
     /// 但由于 EventRouter 限制，我们使用一个技巧：
     /// SearchInputHandler 会检查 app.is_searching()，如果不是搜索模式就直接返回 Continue
-    fn build_event_router() -> EventRouter<crossterm::event::Event> {
+    pub(crate) fn build_event_router() -> EventRouter<crossterm::event::Event> {
         EventRouter::new()
             // 帮助进入 - 按 `?`
             .on(
@@ -1204,7 +1204,9 @@ impl App {
             if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
                 if let Ok(event) = event::read() {
                     match router.dispatch(&event, self) {
-                        ControlFlow::Break(result) => return result,
+                        ControlFlow::Break(AppResult::Submit(text)) => return AppResult::Submit(text),
+                        ControlFlow::Break(AppResult::Exit) => return AppResult::Exit,
+                        ControlFlow::Break(AppResult::Handled) => {} // 事件已消费，继续循环
                         ControlFlow::Continue => {}
                     }
                 }
@@ -2400,6 +2402,127 @@ mod tests {
         // 再 next_diff 不应超出边界
         app.next_diff();
         assert_eq!(app.diff_index, 2);
+    }
+
+    // ============================================================================
+    // Ctrl+D 事件路由测试
+    // ============================================================================
+
+    /// 测试：Ctrl+D 通过 EventRouter 进入 diff 模式
+    ///
+    /// 验证 run_loop 路径下 DiffEnterHandler 正确捕获 Ctrl+D 并进入 diff 模式，
+    /// 不会被后续的 CombinedKeyHandler 拦截为 Exit。
+    #[test]
+    fn test_ctrl_d_enters_diff_via_router() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use crossterm::event::{Event, KeyCode, KeyModifiers};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 准备 diff 数据
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("src/main.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("old\n".to_string()),
+            new_content: Some("new\n".to_string()),
+            added: 1,
+            removed: 1,
+        });
+
+        assert!(!app.is_diff_mode(), "初始状态不应在 diff 模式");
+
+        // 构建 EventRouter 并派发 Ctrl+D
+        let mut router = App::build_event_router();
+        let ctrl_d = Event::Key(crossterm::event::KeyEvent::new(
+            KeyCode::Char('d'),
+            KeyModifiers::CONTROL,
+        ));
+        let flow = router.dispatch(&ctrl_d, &mut app);
+
+        // 验证：进入 diff 模式，事件被消费
+        assert!(
+            app.is_diff_mode(),
+            "Ctrl+D 应进入 diff 模式，但 is_diff_mode() = false"
+        );
+        assert!(
+            matches!(flow, ControlFlow::Break(AppResult::Handled)),
+            "应返回 Break(Handled)，实际: {:?}",
+            flow
+        );
+
+        // 快照：验证 diff 模式布局
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "src/main.rs");
+        assert_tui_snapshot!("ctrl_d_enter_diff_router", &buf);
+    }
+
+    /// 测试：streaming 路径下 Ctrl+D 进入 diff 后不被 DiffModeHandler 立刻退出
+    ///
+    /// 模拟 main.rs streaming 循环中的按键处理逻辑，
+    /// 验证 Ctrl+D 进入 diff 后同一个事件不会被 DiffModeHandler 再次处理为 Exit。
+    #[test]
+    fn test_ctrl_d_streaming_no_immediate_exit() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use crossterm::event::{Event, KeyCode, KeyModifiers};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 准备 diff 数据
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("src/app.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("fn old() {}\n".to_string()),
+            new_content: Some("fn new() {}\n".to_string()),
+            added: 1,
+            removed: 1,
+        });
+
+        assert!(!app.is_diff_mode());
+
+        // === 模拟 streaming 路径的按键处理（复现 main.rs 逻辑） ===
+        let event = Event::Key(crossterm::event::KeyEvent::new(
+            KeyCode::Char('d'),
+            KeyModifiers::CONTROL,
+        ));
+
+        if let Event::Key(key) = event {
+            let mut consumed = false;
+
+            // Ctrl+D：进入 diff 模式
+            if key.code == KeyCode::Char('d')
+                && key.modifiers.contains(KeyModifiers::CONTROL)
+                && !app.is_diff_mode()
+                && !app.diffs.is_empty()
+            {
+                app.enter_diff_mode();
+                consumed = true;
+            }
+
+            // Diff 模式下的按键 — 这里是 Bug 所在：
+            // 之前用 `if`，进入 diff 后同一事件会立刻触发 DiffModeHandler 退出
+            if app.is_diff_mode() && !consumed {
+                use crate::event::handlers::DiffModeHandler;
+                use crate::event::EventHandler;
+                let mut handler = DiffModeHandler;
+                let _ = handler.handle(&event, &mut app);
+                consumed = true;
+            }
+
+            // 验证 consumed 只被设置一次（进入 diff）
+            assert!(consumed, "事件应被消费");
+        }
+
+        // 关键断言：diff 模式应保持开启，不能被立刻退出
+        assert!(
+            app.is_diff_mode(),
+            "Ctrl+D 应进入并保持在 diff 模式，不应被 DiffModeHandler 立刻退出"
+        );
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "src/app.rs");
+        assert_tui_snapshot!("ctrl_d_streaming_no_exit", &buf);
     }
 
     /// 快照测试：diff 模式下滚动

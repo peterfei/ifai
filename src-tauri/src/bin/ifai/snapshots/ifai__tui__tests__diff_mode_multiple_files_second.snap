@@ -2,8 +2,8 @@
 source: src/bin/ifai/tui.rs
 expression: text
 ---
-                                                                                
-                                                                                
+   1    0 -old content 2                                                        
+   0    1 +new content 2                                                        
                                                                                 
                                                                                 
                                                                                 

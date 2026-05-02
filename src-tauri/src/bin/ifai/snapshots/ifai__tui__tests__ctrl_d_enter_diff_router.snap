@@ -2,10 +2,10 @@
 source: src/bin/ifai/tui.rs
 expression: text
 ---
-   1    1  fn main() {                                                          
-   2    0 -    println!("Hello");                                               
-   0    2 +    println!("Hello, World!");                                       
-   3    3  }                                                                    
+   1    0 -old                                                                  
+   0    1 +new                                                                  
+                                                                                
+                                                                                
                                                                                 
                                                                                 
                                                                                 

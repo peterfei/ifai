@@ -45,6 +45,8 @@ pub enum AppResult {
     Submit(String),
     /// 用户请求退出
     Exit,
+    /// 事件已消费，无需额外动作
+    Handled,
 }
 
 /// TUI 输出消息（支持文本和 diff）
@@ -1033,20 +1035,16 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     break;
                                                 }
 
-                                                // === 特殊功能键（非输入框） ===
-                                                // d 键：进入 diff 模式
+                                                // === Ctrl+D：toggle diff 模式 ===
                                                 if key.code == KeyCode::Char('d')
-                                                    && !key.modifiers.contains(KeyModifiers::CONTROL)
+                                                    && key.modifiers.contains(KeyModifiers::CONTROL)
                                                     && !app.is_diff_mode()
                                                     && !app.diffs.is_empty()
                                                 {
                                                     app.enter_diff_mode();
-                                                    app.input.clear();
                                                     consumed = true;
-                                                }
-
-                                                // Diff 模式下的按键
-                                                if app.is_diff_mode() {
+                                                } else if app.is_diff_mode() {
+                                                    // Diff 模式下的按键（仅未 consumed 时）
                                                     use crate::event::{EventHandler, ControlFlow};
                                                     use crate::event::handlers::DiffModeHandler;
                                                     let mut handler = DiffModeHandler;
@@ -1232,6 +1230,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
             AppResult::Exit => {
                 break;
             }
+            AppResult::Handled => {}
         }
     }
 
