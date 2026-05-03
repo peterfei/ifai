@@ -1455,8 +1455,9 @@ impl App {
 
         let thread_id = self.thread_store.create_side_thread(current_id, name);
 
-        // 自动切换到新线程
-        self.thread_store.switch_to(thread_id);
+        // 🔥 Bug 修复：使用 self.switch_thread 而不是 thread_store.switch_to
+        // 这样会触发消息加载逻辑
+        self.switch_thread(thread_id);
 
         thread_id
     }
@@ -1464,10 +1465,21 @@ impl App {
     /// 切换线程
     pub fn switch_thread(&mut self, thread_id: ThreadId) -> bool {
         if self.thread_store.switch_to(thread_id) {
-            // 清空终端内容
+            // 🔥 Bug 修复：清空终端并加载目标线程的历史消息
             self.content_lines.clear();
             self.scroll_offset = 0;
             self.user_scrolled = false;
+
+            // 加载目标线程的历史消息（先收集到 Vec 以避免借用问题）
+            let messages_to_load: Vec<String> = self.thread_messages
+                .get(thread_id)
+                .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
+                .unwrap_or_default();
+
+            for msg in messages_to_load {
+                self.push_line(msg);
+            }
+
             true
         } else {
             false
