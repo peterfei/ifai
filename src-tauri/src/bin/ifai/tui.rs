@@ -1337,6 +1337,45 @@ impl App {
                     ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
                 ));
 
+                // === 追加 streaming/queue/Ctrl+O 状态（与正常模式一致） ===
+                // 任务进度
+                if !tasks.is_empty() {
+                    let total = tasks.len();
+                    let completed = tasks
+                        .iter()
+                        .filter(|t| t.status == TaskStatus::Completed)
+                        .count();
+                    spans.push(Span::raw(" · "));
+                    spans.push(Span::styled(
+                        format!("Tasks {}/{}", completed, total),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                    ));
+                }
+                // Streaming/Busy 状态
+                if !status_text.is_empty() {
+                    spans.push(Span::raw(" · "));
+                    spans.push(Span::styled(
+                        status_text.clone(),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                    ));
+                }
+                // 队列计数
+                if !self.queue.is_empty() {
+                    spans.push(Span::raw(" · "));
+                    spans.push(Span::styled(
+                        format!("Queue: {}", self.queue.len()),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                    ));
+                }
+                // Ctrl+O 提示
+                if self.get_last_ai_response().is_some() || self.get_streaming_buffer().is_some() {
+                    spans.push(Span::raw(" · "));
+                    spans.push(Span::styled(
+                        "Ctrl+O 查看详情",
+                        ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                    ));
+                }
+
                 let status_line = Line::from(spans);
                 let status = Paragraph::new(status_line)
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
@@ -3247,5 +3286,98 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // 验证退出了 overlay 模式
         assert!(!app.is_overlay_mode());
         assert!(app.overlay.is_none());
+    }
+
+    // === Ctrl+T 线程模式状态栏测试 ===
+
+    #[test]
+    fn test_thread_mode_status_bar_shows_streaming() {
+        // 模拟：Ctrl+T 打开线程面板 + 正在 streaming
+        let mut app = App::new_for_test();
+        app.active_thread_mode = true;
+        app.status_text = "Streaming...".to_string();
+        app.content_lines
+            .push(ratatui::text::Line::from("AI response text"));
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+
+        // 线程面板信息应显示
+        assert_buffer_contains!(&buf, "Main");
+        assert_buffer_contains!(&buf, "Esc");
+        assert_buffer_contains!(&buf, "to return");
+        // streaming 状态也应显示
+        assert_buffer_contains!(&buf, "Streaming...");
+    }
+
+    #[test]
+    fn test_thread_mode_status_bar_shows_queue() {
+        // 模拟：Ctrl+T 打开线程面板 + 有排队消息
+        let mut app = App::new_for_test();
+        app.active_thread_mode = true;
+        let main_id = app.thread_store.active_id().unwrap();
+        app.queue.push(("hello".to_string(), main_id));
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+
+        // 线程面板信息应显示
+        assert_buffer_contains!(&buf, "Main");
+        assert_buffer_contains!(&buf, "to return");
+        // 队列计数也应显示
+        assert_buffer_contains!(&buf, "Queue: 1");
+    }
+
+    #[test]
+    fn test_thread_mode_status_bar_shows_ctrl_o_hint() {
+        // 模拟：Ctrl+T 打开线程面板 + 有 AI 响应可查看
+        let mut app = App::new_for_test();
+        app.active_thread_mode = true;
+        let main_id = app.thread_store.active_id().unwrap();
+        app.last_ai_responses
+            .insert(main_id, "AI response".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+
+        // 线程面板信息应显示
+        assert_buffer_contains!(&buf, "Main");
+        assert_buffer_contains!(&buf, "to return");
+        // Ctrl+O 提示也应显示
+        assert_buffer_contains!(&buf, "Ctrl+O");
+    }
+
+    #[test]
+    fn test_thread_mode_status_bar_shows_all_combined() {
+        // 模拟：Ctrl+T + streaming + queue + AI 响应 全部同时存在
+        let mut app = App::new_for_test();
+        app.active_thread_mode = true;
+        app.status_text = "Streaming...".to_string();
+        let main_id = app.thread_store.active_id().unwrap();
+        app.queue.push(("next question".to_string(), main_id));
+        app.last_ai_responses
+            .insert(main_id, "previous AI response".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+
+        // 线程面板 + 所有状态信息应同时显示
+        assert_buffer_contains!(&buf, "Main");
+        assert_buffer_contains!(&buf, "to return");
+        assert_buffer_contains!(&buf, "Streaming...");
+        assert_buffer_contains!(&buf, "Queue: 1");
+        assert_buffer_contains!(&buf, "Ctrl+O");
+    }
+
+    #[test]
+    fn test_thread_mode_no_extra_separators_when_idle() {
+        // 模拟：Ctrl+T 打开线程面板，无 streaming/queue，不应有多余分隔符
+        let mut app = App::new_for_test();
+        app.active_thread_mode = true;
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+
+        // 线程面板信息应显示
+        assert_buffer_contains!(&buf, "Main");
+        assert_buffer_contains!(&buf, "to return");
+        // 不应有 queue/streaming 状态
+        assert_buffer_not_contains!(&buf, "Queue:");
+        assert_buffer_not_contains!(&buf, "Streaming");
     }
 }

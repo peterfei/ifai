@@ -752,4 +752,349 @@ mod tests {
         println!("OK streaming 切换线程状态栏测试通过！（真实LLM）");
         println!("============================================================");
     }
+
+    // ========================================================================
+    // 用例 10：同线程待办队列 — main streaming 期间排队第二条消息
+    //           验证 streaming 完成后自动处理队列中的消息
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_queue_same_thread_real_llm() {
+        println!("\n============================================================");
+        println!("用例 10: 同线程待办队列（真实LLM）");
+        println!("   main: 发送第一条 → 期间排队第二条 → 验证两条都处理");
+        println!("============================================================");
+
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+
+        // ---- 步骤 1: main 发送第一条消息 ----
+        println!("\n步骤 1: main 发送 '1+1等于几'");
+        app.switch_thread(main_id);
+        app.thread_messages.push(main_id, Message::user("1+1等于几".to_string()));
+        app.set_thread_busy(main_id, true);
+
+        let mut session1 = create_real_session();
+        let handle1 = tokio::spawn(async move {
+            let start = Instant::now();
+            match session1.stream_prompt("1+1等于几").await {
+                Ok(response) => {
+                    println!("  [消息1] LLM 响应: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    response
+                }
+                Err(e) => format!("ERROR: {}", e)
+            }
+        });
+
+        // ---- 步骤 2: streaming 期间排队第二条消息 ----
+        println!("\n步骤 2: streaming 期间排队 '2+2等于几'");
+        // 模拟 enqueue：捕获当前活动线程 ID
+        app.enqueue("2+2等于几".to_string());
+
+        assert_eq!(app.queue_len(), 1, "队列应该有 1 条消息");
+        println!("  OK 队列长度: {}", app.queue_len());
+
+        // ---- 步骤 3: 等待第一条完成 ----
+        let response1 = handle1.await.unwrap();
+        assert!(!response1.starts_with("ERROR"), "消息1 LLM 调用失败: {}", response1);
+
+        // 模拟 main.rs streaming 完成后的处理
+        app.end_streaming(main_id);
+        app.set_thread_busy(main_id, false);
+        println!("  OK 消息1 完成（{} 字符）", response1.len());
+        app.thread_messages.push(main_id, Message::assistant(response1));
+
+        // ---- 步骤 4: dequeue 并处理第二条 ----
+        println!("\n步骤 3: dequeue 并发送第二条消息");
+        let pending = app.dequeue();
+        assert!(pending.is_some(), "队列应该有消息可出队！");
+
+        let (input2, target_id) = pending.unwrap();
+        assert_eq!(input2, "2+2等于几", "出队消息内容应为 '2+2等于几'");
+        assert_eq!(target_id, main_id, "目标线程应为 main");
+
+        // 写入用户输入到 thread_messages
+        app.thread_messages.push(main_id, Message::user(input2.clone()));
+        app.set_thread_busy(main_id, true);
+
+        let mut session2 = create_real_session();
+        let handle2 = tokio::spawn(async move {
+            let start = Instant::now();
+            match session2.stream_prompt(&input2).await {
+                Ok(response) => {
+                    println!("  [消息2] LLM 响应: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    response
+                }
+                Err(e) => format!("ERROR: {}", e)
+            }
+        });
+
+        let response2 = handle2.await.unwrap();
+        assert!(!response2.starts_with("ERROR"), "消息2 LLM 调用失败: {}", response2);
+
+        app.end_streaming(main_id);
+        app.set_thread_busy(main_id, false);
+        println!("  OK 消息2 完成（{} 字符）", response2.len());
+        app.thread_messages.push(main_id, Message::assistant(response2));
+
+        // ---- 步骤 5: 验证 main 的 thread_messages 包含两条完整的对话 ----
+        println!("\n步骤 4: 验证 thread_messages 完整性");
+        app.switch_thread(main_id);
+
+        let main_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.clone())
+            .collect::<String>();
+
+        // 两条用户输入都应存在
+        assert!(main_text.contains("1+1等于几"), "main 应包含第一条用户输入");
+        assert!(main_text.contains("2+2等于几"), "main 应包含第二条用户输入");
+        println!("  OK 两条用户输入都在 thread_messages 中");
+
+        // 队列应该为空
+        assert_eq!(app.queue_len(), 0, "处理完后队列应为空");
+        println!("  OK 队列已清空");
+
+        println!("\n============================================================");
+        println!("OK 同线程待办队列测试通过！（真实LLM）");
+        println!("============================================================");
+    }
+
+    // ========================================================================
+    // 用例 11：跨线程排队 — main streaming 期间切到 thread1 排队消息
+    //           验证各线程的队列独立、消息不串台
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_queue_cross_thread_real_llm() {
+        println!("\n============================================================");
+        println!("用例 11: 跨线程排队（真实LLM）");
+        println!("   main streaming → 切 thread1 排队 → 切回 main 排队");
+        println!("============================================================");
+
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
+
+        // ---- 步骤 1: main 开始 streaming ----
+        println!("\n步骤 1: main 发送 '你好'");
+        app.switch_thread(main_id);
+        app.thread_messages.push(main_id, Message::user("你好".to_string()));
+        app.set_thread_busy(main_id, true);
+
+        let mut session_main = create_real_session();
+        let main_handle = tokio::spawn(async move {
+            match session_main.stream_prompt("你好").await {
+                Ok(r) => r,
+                Err(e) => format!("ERROR: {}", e)
+            }
+        });
+
+        // ---- 步骤 2: 切到 thread1 排队消息 ----
+        println!("\n步骤 2: 切到 thread1 排队 '什么是闭包'");
+        app.switch_thread(thread1_id);
+        // thread1 不 busy，所以 enqueue 的目标是 thread1
+        app.enqueue("什么是闭包".to_string());
+
+        // ---- 步骤 3: 切回 main 排队消息 ----
+        println!("\n步骤 3: 切回 main 排队 '天气如何'");
+        app.switch_thread(main_id);
+        // main busy，所以 enqueue 的目标是 main
+        app.enqueue("天气如何".to_string());
+
+        println!("  OK 队列长度: {}", app.queue_len());
+        assert_eq!(app.queue_len(), 2, "队列应该有 2 条消息");
+
+        // ---- 步骤 4: 等待 main streaming 完成 ----
+        println!("\n步骤 4: 等待 main streaming 完成");
+        let main_response = main_handle.await.unwrap();
+        assert!(!main_response.starts_with("ERROR"), "main LLM 调用失败: {}", main_response);
+
+        app.end_streaming(main_id);
+        app.set_thread_busy(main_id, false);
+        app.thread_messages.push(main_id, Message::assistant(main_response));
+        println!("  OK main streaming 完成");
+
+        // ---- 步骤 5: 验证队列中消息的目标线程 ----
+        println!("\n步骤 5: 验证队列消息路由");
+        // dequeue 第一条（thread1 的 "什么是闭包"）
+        let msg1 = app.dequeue().expect("应有第一条排队消息");
+        assert_eq!(msg1.0, "什么是闭包");
+        assert_eq!(msg1.1, thread1_id, "第一条消息应路由到 thread1");
+        println!("  OK 消息1 '什么是闭包' → thread1");
+
+        // dequeue 第二条（main 的 "天气如何"）
+        let msg2 = app.dequeue().expect("应有第二条排队消息");
+        assert_eq!(msg2.0, "天气如何");
+        assert_eq!(msg2.1, main_id, "第二条消息应路由到 main");
+        println!("  OK 消息2 '天气如何' → main");
+
+        // ---- 步骤 6: 处理 thread1 的排队消息 ----
+        println!("\n步骤 6: 处理 thread1 的排队消息");
+        app.switch_thread(thread1_id);
+        app.thread_messages.push(thread1_id, Message::user(msg1.0.clone()));
+        app.set_thread_busy(thread1_id, true);
+
+        let mut session_t1 = create_real_session();
+        let t1_handle = tokio::spawn(async move {
+            match session_t1.stream_prompt(&msg1.0).await {
+                Ok(r) => r,
+                Err(e) => format!("ERROR: {}", e)
+            }
+        });
+
+        let t1_response = t1_handle.await.unwrap();
+        assert!(!t1_response.starts_with("ERROR"), "thread1 LLM 调用失败: {}", t1_response);
+
+        app.end_streaming(thread1_id);
+        app.set_thread_busy(thread1_id, false);
+        println!("  OK thread1 消息完成（{} 字符）", t1_response.len());
+        app.thread_messages.push(thread1_id, Message::assistant(t1_response));
+
+        // ---- 步骤 7: 验证消息不串台 ----
+        println!("\n步骤 7: 验证消息不串台");
+
+        // thread1 的内容
+        app.switch_thread(thread1_id);
+        let t1_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.clone())
+            .collect::<String>();
+
+        assert!(t1_text.contains("什么是闭包"), "thread1 应包含自己的消息");
+        assert!(!t1_text.contains("天气如何"), "thread1 不应包含 main 的排队消息");
+        println!("  OK thread1 消息隔离正确");
+
+        // main 的内容
+        app.switch_thread(main_id);
+        let main_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.clone())
+            .collect::<String>();
+
+        assert!(main_text.contains("你好"), "main 应包含自己的第一条消息");
+        // 注意：main 的 "天气如何" 还在队列中等待处理（已被 dequeue 但尚未 push 到 thread_messages）
+        println!("  OK main 消息隔离正确");
+
+        println!("\n============================================================");
+        println!("OK 跨线程排队测试通过！（真实LLM）");
+        println!("============================================================");
+    }
+
+    // ========================================================================
+    // 用例 12：中断 streaming 后待办队列仍可用
+    //           main streaming → 切 thread1 提交（中断 main）→ main 排队应正常
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_queue_after_streaming_interrupt_real_llm() {
+        println!("\n============================================================");
+        println!("用例 12: 中断 streaming 后队列仍可用（真实LLM）");
+        println!("   main streaming → 切 thread1 提交 → main 应可继续排队");
+        println!("============================================================");
+
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
+
+        // ---- 步骤 1: main 开始 streaming ----
+        println!("\n步骤 1: main 开始 streaming");
+        app.switch_thread(main_id);
+        app.set_thread_busy(main_id, true);
+        app.begin_streaming(main_id);
+        println!("  OK main busy: {}", app.is_thread_busy(main_id));
+
+        // ---- 步骤 2: 模拟中断 main 的 streaming（切到 thread1 提交） ----
+        println!("\n步骤 2: 模拟中断 main streaming，切到 thread1");
+        app.switch_thread(thread1_id);
+
+        // 模拟 main.rs else 分支的行为：清除被中断线程的 busy
+        app.end_streaming(main_id);
+        app.set_thread_busy(main_id, false);
+        println!("  OK main busy after interrupt: {}", app.is_thread_busy(main_id));
+
+        // ---- 步骤 3: thread1 开始新的 AI 请求 ----
+        println!("\n步骤 3: thread1 发送 '什么是Rust'");
+        app.thread_messages.push(thread1_id, Message::user("什么是Rust".to_string()));
+        app.set_thread_busy(thread1_id, true);
+
+        let mut session_t1 = create_real_session();
+        let t1_handle = tokio::spawn(async move {
+            match session_t1.stream_prompt("什么是Rust").await {
+                Ok(r) => r,
+                Err(e) => format!("ERROR: {}", e)
+            }
+        });
+
+        // ---- 步骤 4: thread1 streaming 期间，切到 main 排队消息 ----
+        println!("\n步骤 4: 切到 main 排队 '推荐一本Python书'");
+        app.switch_thread(main_id);
+
+        // main 不再 busy（步骤 2 已清除），所以会走 else 分支
+        // 但在我们的测试中，我们直接测试 enqueue 路径
+        // 模拟：main 不 busy 时的 enqueue
+        assert!(!app.is_current_thread_busy(), "main 应该不再 busy");
+        app.enqueue("推荐一本Python书".to_string());
+        println!("  OK 队列长度: {}", app.queue_len());
+
+        // ---- 步骤 5: 等待 thread1 完成 ----
+        println!("\n步骤 5: 等待 thread1 完成");
+        let t1_response = t1_handle.await.unwrap();
+        assert!(!t1_response.starts_with("ERROR"), "thread1 LLM 调用失败: {}", t1_response);
+
+        app.end_streaming(thread1_id);
+        app.set_thread_busy(thread1_id, false);
+        println!("  OK thread1 完成（{} 字符）", t1_response.len());
+        app.thread_messages.push(thread1_id, Message::assistant(t1_response));
+
+        // ---- 步骤 6: 验证 main 的排队消息可正确出队 ----
+        println!("\n步骤 6: 验证 main 排队消息");
+        let pending = app.dequeue();
+        assert!(pending.is_some(), "main 的排队消息应该可以出队！");
+
+        let (input, target) = pending.unwrap();
+        assert_eq!(input, "推荐一本Python书");
+        assert_eq!(target, main_id);
+        println!("  OK main 排队消息正确出队: '{}' → main", input);
+
+        // ---- 步骤 7: 处理 main 的排队消息 ----
+        println!("\n步骤 7: 处理 main 排队消息");
+        app.thread_messages.push(main_id, Message::user(input.clone()));
+        app.set_thread_busy(main_id, true);
+
+        let mut session_main = create_real_session();
+        let main_handle = tokio::spawn(async move {
+            match session_main.stream_prompt(&input).await {
+                Ok(r) => r,
+                Err(e) => format!("ERROR: {}", e)
+            }
+        });
+
+        let main_response = main_handle.await.unwrap();
+        assert!(!main_response.starts_with("ERROR"), "main LLM 调用失败: {}", main_response);
+
+        app.end_streaming(main_id);
+        app.set_thread_busy(main_id, false);
+        println!("  OK main 排队消息处理完成（{} 字符）", main_response.len());
+        app.thread_messages.push(main_id, Message::assistant(main_response));
+
+        // ---- 步骤 8: 最终验证 ----
+        println!("\n步骤 8: 最终验证");
+        app.switch_thread(main_id);
+        let main_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.clone())
+            .collect::<String>();
+
+        assert!(main_text.contains("推荐一本Python书"), "main 应包含排队消息");
+        assert_eq!(app.queue_len(), 0, "队列应为空");
+        println!("  OK 所有验证通过");
+
+        println!("\n============================================================");
+        println!("OK 中断 streaming 后队列仍可用测试通过！（真实LLM）");
+        println!("============================================================");
+    }
 }

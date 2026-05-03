@@ -1381,6 +1381,9 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                             // 中断当前 streaming
                                                             stream_handle.abort();
                                                             app.end_streaming(target_thread_id);
+                                                            // 🔥 关键修复：清除被中断线程的 busy 状态
+                                                            // 否则该线程的待办队列将永远无法被处理
+                                                            app.set_thread_busy(target_thread_id, false);
 
                                                             // 设置当前线程 busy
                                                             app.set_thread_busy(current_thread_id, true);
