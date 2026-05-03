@@ -1099,9 +1099,9 @@ impl App {
                 // 构建线程模式状态栏
                 let mut spans: Vec<Span<'static>> = Vec::new();
 
-                // 线程图标
+                // 线程图标 (分支符号，工业级风格)
                 spans.push(Span::styled(
-                    "🧵 ",
+                    "» ",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                 ));
 
