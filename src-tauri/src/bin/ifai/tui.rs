@@ -278,10 +278,11 @@ pub struct App {
     pub diffs: Vec<crate::diff_render::DiffFileChange>,
     /// 当前查看的 diff 索引
     pub diff_index: usize,
-    /// Streaming 期间累积 AI 响应文本（用于 Transcript 缓存）
-    streaming_response_buffer: String,
-    /// 最近一次完整 AI 响应（用于 Transcript overlay）
-    pub last_ai_response: Option<String>,
+    /// 🔥 Per-thread streaming buffer（修复跨线程消息串台）
+    /// 每个线程有独立的 streaming buffer，避免切换线程时内容泄漏
+    streaming_response_buffers: std::collections::HashMap<crate::thread::ThreadId, String>,
+    /// 最近一次完整 AI 响应（per-thread，用于 Transcript overlay）
+    pub last_ai_responses: std::collections::HashMap<crate::thread::ThreadId, String>,
     /// 详情 overlay
     pub overlay: Option<crate::detail_overlay::DetailOverlay>,
     /// 线程存储
@@ -330,8 +331,8 @@ impl App {
             diff_view: None,
             diffs: Vec::new(),
             diff_index: 0,
-            streaming_response_buffer: String::new(),
-            last_ai_response: None,
+            streaming_response_buffers: std::collections::HashMap::new(),
+            last_ai_responses: std::collections::HashMap::new(),
             overlay: None,
             thread_store: ThreadStore::new(),
             thread_messages: ThreadMessages::new(),
@@ -370,8 +371,8 @@ impl App {
             diff_view: None,
             diffs: Vec::new(),
             diff_index: 0,
-            streaming_response_buffer: String::new(),
-            last_ai_response: None,
+            streaming_response_buffers: std::collections::HashMap::new(),
+            last_ai_responses: std::collections::HashMap::new(),
             overlay: None,
             thread_store: ThreadStore::new(),
             thread_messages: ThreadMessages::new(),
@@ -391,6 +392,18 @@ impl App {
         }
     }
 
+    /// 🔥 线程安全的 push_line：仅在当前活动线程匹配目标线程时才写入 content_lines
+    /// 用于 streaming loop 中，防止消息写入到错误的线程显示区
+    pub fn push_line_if_active_thread(&mut self, target_thread_id: crate::thread::ThreadId, text: String) {
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        if current_thread_id == target_thread_id {
+            self.push_line(text);
+        }
+    }
+
     /// 检测内容区是否为空（用于显示欢迎页）
     pub fn is_empty(&self) -> bool {
         self.content_lines.is_empty()
@@ -400,38 +413,59 @@ impl App {
     // AI 响应缓存机制（Transcript 核心支持）
     // ============================================================================
 
-    /// 开始 streaming 时清空 buffer
-    pub fn begin_streaming(&mut self) {
-        self.streaming_response_buffer.clear();
+    /// 开始 streaming 时清空目标线程的 buffer
+    pub fn begin_streaming(&mut self, thread_id: crate::thread::ThreadId) {
+        self.streaming_response_buffers.insert(thread_id, String::new());
     }
 
-    /// 接收 streaming 输出时累积（替代直接 push_line）
-    pub fn append_streaming_output(&mut self, text: String) {
-        // 累积原始文本到 buffer
-        self.streaming_response_buffer.push_str(&text);
+    /// 接收 streaming 输出时累积到目标线程的 buffer（替代直接 push_line）
+    pub fn append_streaming_output(&mut self, thread_id: crate::thread::ThreadId, text: String) {
+        // 累积原始文本到目标线程的 buffer
+        self.streaming_response_buffers
+            .entry(thread_id)
+            .or_insert_with(String::new)
+            .push_str(&text);
 
         // ⚠️ 关键修复：不直接渲染到 content_lines
         // 原因：
         // 1. 流式输出可能跨越多个线程（用户在输出期间切换）
         // 2. 直接 push_line 会导致内容显示在当前活动线程，而不是请求线程
-        // 3. 正确的渲染由 ThreadEvent 处理逻辑完成（main.rs:1342-1356）
+        // 3. 正确的渲染由 ThreadEvent 处理逻辑完成（main.rs:1566-1582）
         //
         // 修复前：self.push_line(text);  // ❌ 显示在当前活动线程
         // 修复后：不渲染，由 ThreadEvent 负责
     }
 
-    /// Streaming 完成时保存到 last_ai_response
-    pub fn end_streaming(&mut self) {
-        self.last_ai_response = Some(self.streaming_response_buffer.clone());
+    /// Streaming 完成时保存到目标线程的 last_ai_response
+    pub fn end_streaming(&mut self, thread_id: crate::thread::ThreadId) {
+        if let Some(buffer) = self.streaming_response_buffers.get(&thread_id) {
+            if !buffer.is_empty() {
+                self.last_ai_responses.insert(thread_id, buffer.clone());
+            }
+        }
     }
 
-    /// 获取当前 streaming buffer（用于 overlay 在 streaming 期间显示）
+    /// 获取当前活动线程的 streaming buffer（用于 overlay 在 streaming 期间显示）
     pub fn get_streaming_buffer(&self) -> Option<&str> {
-        if self.streaming_response_buffer.is_empty() {
-            None
-        } else {
-            Some(&self.streaming_response_buffer)
-        }
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        self.streaming_response_buffers
+            .get(&current_thread_id)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.as_str())
+    }
+
+    /// 获取当前活动线程的最近一次 AI 响应
+    pub fn get_last_ai_response(&self) -> Option<&str> {
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        self.last_ai_responses
+            .get(&current_thread_id)
+            .map(|s| s.as_str())
     }
 
     // ============================================================================
@@ -463,6 +497,17 @@ impl App {
         // 自动滚到底部
         if !self.user_scrolled {
             self.scroll_to_bottom();
+        }
+    }
+
+    /// 🔥 线程安全的 push_diff：仅在当前活动线程匹配目标线程时才写入 content_lines
+    pub fn push_diff_if_active_thread(&mut self, target_thread_id: crate::thread::ThreadId, diff: crate::diff_render::DiffFileChange) {
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        if current_thread_id == target_thread_id {
+            self.push_diff(diff);
         }
     }
 
@@ -1368,7 +1413,7 @@ impl App {
                     }
 
                     // Ctrl+O 提示（当有 AI 响应可查看时）
-                    if self.last_ai_response.is_some() || !self.streaming_response_buffer.is_empty() {
+                    if self.get_last_ai_response().is_some() || self.get_streaming_buffer().is_some() {
                         spans.push(Span::raw(" · "));
                         spans.push(Span::styled(
                             "Ctrl+O 查看详情",
@@ -1398,7 +1443,7 @@ impl App {
                         ));
                     }
                     // Ctrl+O 提示（当有 AI 响应可查看时）
-                    if self.last_ai_response.is_some() || !self.streaming_response_buffer.is_empty() {
+                    if self.get_last_ai_response().is_some() || self.get_streaming_buffer().is_some() {
                         spans.push(Span::raw(" · "));
                         spans.push(Span::styled(
                             "Ctrl+O 查看详情",
@@ -3014,7 +3059,7 @@ mod tests {
         // 模拟 AI 响应
         let ai_response = "Here is the code you requested:\n\n\
 ```rust\nfn main() {\n    println!(\"Hello, World!\");\n}\n```\n\nThis program prints a greeting.";
-        app.last_ai_response = Some(ai_response.to_string());
+        app.last_ai_responses.insert(app.thread_store.primary_id(), ai_response.to_string());
 
         // 创建并进入 overlay
         let overlay = DetailOverlay::new_transcript(ai_response.to_string());
@@ -3036,7 +3081,7 @@ mod tests {
         let long_response: String = (1..=30)
             .map(|i| format!("Line {}: Some content here\n", i))
             .collect();
-        app.last_ai_response = Some(long_response.clone());
+        app.last_ai_responses.insert(app.thread_store.primary_id(), long_response.clone());
 
         // 创建并进入 overlay
         let overlay = DetailOverlay::new_transcript(long_response);
@@ -3119,7 +3164,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let mut app = App::new_for_test();
 
         // 设置 AI 响应
-        app.last_ai_response = Some("Test response\nLine 2\nLine 3".to_string());
+        app.last_ai_responses.insert(app.thread_store.primary_id(), "Test response\nLine 2\nLine 3".to_string());
 
         // 模拟 Ctrl+O 按键
         let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
@@ -3174,7 +3219,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let mut app = App::new_for_test();
 
         // 设置 AI 响应
-        app.last_ai_response = Some("Test response".to_string());
+        app.last_ai_responses.insert(app.thread_store.primary_id(), "Test response".to_string());
 
         // 第一次 Ctrl+O - 进入 overlay
         let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(

@@ -538,8 +538,8 @@ impl EventHandler<Event> for DetailEnterHandler {
                 // 优先级：DiffContext > Transcript > File
                 // TODO: 实际实现需要根据上下文判断
                 // 这里先只支持 Transcript
-                if let Some(ref response) = app.last_ai_response {
-                    let overlay = DetailOverlay::new_transcript(response.clone());
+                if let Some(response) = app.get_last_ai_response() {
+                    let overlay = DetailOverlay::new_transcript(response.to_string());
                     app.enter_overlay_mode(overlay);
                     return ControlFlow::Break(AppResult::Handled);
                 }
