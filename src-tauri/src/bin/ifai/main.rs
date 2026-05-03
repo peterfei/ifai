@@ -29,6 +29,8 @@ mod stream_render; // 🔥 声明式流式渲染管道
 mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
 mod terminal; // 🔥 终端抽象层（ANSI 光标定位）
 mod thread; // 🔥 多线程对话系统 - 元编程架构
+#[cfg(test)]
+mod thread_event_test; // 🧪 ThreadEvent TDD 测试
 mod token; // 🔥 元编程 Token 显示层
 mod tui; // 🔥 ratatui 全屏 TUI 模块
 mod tui_layout; // 🔥 声明式 TUI 布局层
@@ -972,6 +974,13 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         // 显示用户输入（排队消息也需显示）
                         let theme = render::default_theme();
                         app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &input));
+
+                        // 🔥 Phase 4.3: 将用户消息存储到当前活动线程
+                        let active_thread_id = app.thread_store.active_thread()
+                            .map(|t| t.id)
+                            .unwrap_or_else(|| app.thread_store.primary_id());
+                        app.thread_messages.push(active_thread_id, thread::Message::user(input.clone()));
+
                         app.render();
 
                         // AI 调用 — 使用 channel 接收流式输出
@@ -986,6 +995,10 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<
                             approval_overlay::ApprovalRequest,
                         >();
+                        // 🔥 Phase 4.2: ThreadEvent channel（用于线程消息路由）
+                        let (thread_event_tx, mut thread_event_rx) = tokio::sync::mpsc::unbounded_channel::<thread::ThreadEvent>();
+                        // 克隆 sender 用于异步任务
+                        let thread_event_tx_task = thread_event_tx.clone();
 
                         let session_clone = session.clone();
 
@@ -995,7 +1008,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         // 在后台任务中运行 stream_prompt
                         let mut stream_handle = tokio::spawn(async move {
                             let mut s = session_clone.lock().await;
-                            s.stream_prompt_tui(&input, output_tx, status_tx, approval_tx)
+                            s.stream_prompt_tui(&input, output_tx, status_tx, approval_tx, thread_event_tx_task)
                                 .await
                         });
 
@@ -1005,7 +1018,17 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                 Some(msg) = output_rx.recv() => {
                                     match msg {
                                         OutputMessage::Text(line) => {
-                                            app.append_streaming_output(line);  // 🔥 缓存 AI 响应
+                                            app.append_streaming_output(line.clone());  // 🔥 缓存 AI 响应
+                                            // 🔥 Phase 4.3: 根据当前活动线程 ID 路由消息
+                                            let active_thread_id = app.thread_store.active_thread()
+                                                .map(|t| t.id)
+                                                .unwrap_or_else(|| app.thread_store.primary_id());
+                                            let _ = thread_event_tx.send(
+                                                thread::ThreadEvent::NewMessage {
+                                                    thread_id: active_thread_id, // 发送到当前活动线程
+                                                    message: line,
+                                                }
+                                            );
                                         }
                                         OutputMessage::Diff(diff) => {
                                             app.push_diff(diff);
@@ -1228,6 +1251,34 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     break;
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+                                // 🔥 Phase 4.2: ThreadEvent 接收分支（用于线程消息路由）
+                                Some(thread_event) = thread_event_rx.recv() => {
+                                    use thread::ThreadEvent;
+                                    match thread_event {
+                                        ThreadEvent::NewMessage { thread_id, message } => {
+                                            // 将消息路由到对应线程
+                                            app.thread_messages.push(thread_id, thread::Message::user(message.clone()));
+                                            // 如果是当前活动线程，渲染消息
+                                            if let Some(active) = app.thread_store.active_thread() {
+                                                if active.id == thread_id {
+                                                    app.push_line(message);
+                                                    app.render();
+                                                }
+                                            }
+                                        }
+                                        ThreadEvent::StatusChange { thread_id, status } => {
+                                            // 更新线程状态
+                                            app.thread_store.update_status(thread_id, status);
+                                            app.render();
+                                        }
+                                        ThreadEvent::Closed { thread_id } => {
+                                            // 关闭线程
+                                            app.thread_store.remove_thread(thread_id);
+                                            app.thread_messages.remove_thread(thread_id);
+                                            app.render();
                                         }
                                     }
                                 }

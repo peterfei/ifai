@@ -161,6 +161,50 @@ impl Default for ThreadStatus {
 
 // ============================================================================
 
+/// 线程事件（用于异步消息路由）
+///
+/// ## 设计决策
+///
+/// - **Channel 传输**: 通过 tokio::sync::mpsc 在异步任务间传递
+/// - **Clone 语义**: 事件可以克隆（用于多订阅者模式）
+/// - **声明式**: 枚举变体清晰表达事件类型
+///
+/// ## 示例
+///
+/// ```rust
+/// use tokio::sync::mpsc;
+///
+/// let (tx, mut rx) = mpsc::unbounded_channel::<ThreadEvent>();
+/// tx.send(ThreadEvent::NewMessage {
+///     thread_id: ThreadId::new(),
+///     message: "Hello".to_string(),
+/// });
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub enum ThreadEvent {
+    /// 新消息（用于 AI 响应路由）
+    NewMessage {
+        /// 目标线程 ID
+        thread_id: ThreadId,
+        /// 消息内容
+        message: String,
+    },
+    /// 状态变更（用于线程生命周期管理）
+    StatusChange {
+        /// 目标线程 ID
+        thread_id: ThreadId,
+        /// 新状态
+        status: ThreadStatus,
+    },
+    /// 线程关闭（用于清理资源）
+    Closed {
+        /// 要关闭的线程 ID
+        thread_id: ThreadId,
+    },
+}
+
+// ============================================================================
+
 /// 线程元数据（精简版，避免 Codex 的 20+ 字段）
 ///
 /// ## 设计决策
