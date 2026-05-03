@@ -40,6 +40,24 @@ mod tui_test;
 mod thread_switch_test; // 🧪 线程切换 E2E 快照测试
 #[cfg(test)]
 mod streaming_thread_switch_test; // 🧪 流式期间线程切换 E2E 测试
+#[cfg(test)]
+mod thread2_message_test; // 🧪 Thread-2 消息显示 E2E 测试
+#[cfg(test)]
+mod thread3_message_test; // 🧪 Thread-3 消息显示 E2E 测试
+#[cfg(test)]
+mod thread_cross_talk_test; // 🧪 线程消息串台 E2E 测试
+#[cfg(test)]
+mod input_help_bug_test; // 🧪 键盘输入触发帮助 E2E 测试
+#[cfg(test)]
+mod streaming_thread_leak_test; // 🧪 流式输出线程泄漏 E2E 测试
+#[cfg(test)]
+mod real_streaming_test; // 🧪 真实流式输出场景测试
+#[cfg(test)]
+mod queued_message_thread_test; // 🧪 排队消息线程错误 E2E 测试
+#[cfg(test)]
+mod approval_thread_leak_test; // 🧪 工具审批界面线程泄漏 E2E 测试
+#[cfg(test)]
+mod concurrent_processing_test; // 🧪 并发处理 E2E 测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
@@ -971,19 +989,20 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     }
                 } else {
                     // AI 调用 — 内层循环：自动出队连续发送
-                    let mut pending = Some(text);
+                    let mut pending = Some((text, app.thread_store.active_thread()
+                        .map(|t| t.id)
+                        .unwrap_or_else(|| app.thread_store.primary_id())));
                     loop {
-                        let input = pending.take().unwrap();
+                        let (input, target_thread_id) = pending.take().unwrap();
 
                         // 显示用户输入（排队消息也需显示）
                         let theme = render::default_theme();
                         app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &input));
 
-                        // 🔥 Phase 4.3: 将用户消息存储到当前活动线程
-                        let active_thread_id = app.thread_store.active_thread()
-                            .map(|t| t.id)
-                            .unwrap_or_else(|| app.thread_store.primary_id());
-                        app.thread_messages.push(active_thread_id, thread::Message::user(input.clone()));
+                        // 🔥 Phase 4.3: 将用户消息存储到目标线程
+                        // ⚠️ 关键修复：使用排队时捕获的目标线程 ID
+                        // 而不是处理队列时的当前活动线程 ID
+                        app.thread_messages.push(target_thread_id, thread::Message::user(input.clone()));
 
                         app.render();
 
@@ -1012,9 +1031,13 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         // 在后台任务中运行 stream_prompt
                         let mut stream_handle = tokio::spawn(async move {
                             let mut s = session_clone.lock().await;
-                            s.stream_prompt_tui(&input, output_tx, status_tx, approval_tx, thread_event_tx_task)
+                            // 🔥 Phase 4: 传递 target_thread_id 用于工具审批
+                            s.stream_prompt_tui(&input, output_tx, status_tx, approval_tx, thread_event_tx_task, target_thread_id)
                                 .await
                         });
+
+                        // 🔥 重要：记录请求线程 ID（用于流式输出路由）
+                        let request_thread_id = target_thread_id;
 
                         // 实时接收输出并渲染
                         loop {
@@ -1023,13 +1046,12 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                     match msg {
                                         OutputMessage::Text(line) => {
                                             app.append_streaming_output(line.clone());  // 🔥 缓存 AI 响应
-                                            // 🔥 Phase 4.3: 根据当前活动线程 ID 路由消息
-                                            let active_thread_id = app.thread_store.active_thread()
-                                                .map(|t| t.id)
-                                                .unwrap_or_else(|| app.thread_store.primary_id());
+                                            // 🔥 Phase 4.3: 使用用户输入时的线程 ID 路由消息
+                                            // ⚠️ 关键修复：必须使用 request_thread_id（用户输入时捕获的）
+                                            // 而不是当前的活动线程 ID（用户可能已经切换线程）
                                             let _ = thread_event_tx.send(
                                                 thread::ThreadEvent::NewMessage {
-                                                    thread_id: active_thread_id, // 发送到当前活动线程
+                                                    thread_id: request_thread_id, // 使用请求时的线程 ID
                                                     message: line,
                                                 }
                                             );
@@ -1119,7 +1141,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     && !app.is_overlay_mode()
                                                     && !app.is_diff_mode()
                                                     && !app.is_searching()
-                                                    && app.approval_state.is_none()
+                                                    && !app.is_approving()
                                                 {
                                                     // 检查线程数量限制
                                                     if app.thread_store.len() < 5 {
@@ -1136,7 +1158,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     && !app.is_overlay_mode()
                                                     && !app.is_diff_mode()
                                                     && !app.is_searching()
-                                                    && app.approval_state.is_none()
+                                                    && !app.is_approving()
                                                 {
                                                     if let Some(prev_id) = app.thread_store.previous_thread() {
                                                         app.switch_thread(prev_id);
@@ -1150,7 +1172,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     && !app.is_overlay_mode()
                                                     && !app.is_diff_mode()
                                                     && !app.is_searching()
-                                                    && app.approval_state.is_none()
+                                                    && !app.is_approving()
                                                 {
                                                     if let Some(next_id) = app.thread_store.next_thread() {
                                                         app.switch_thread(next_id);
@@ -1164,7 +1186,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     && !app.is_overlay_mode()
                                                     && !app.is_diff_mode()
                                                     && !app.is_searching()
-                                                    && app.approval_state.is_none()
+                                                    && !app.is_approving()
                                                 {
                                                     if app.return_to_parent() {
                                                         let active = app.thread_store.active_thread();
@@ -1329,14 +1351,18 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                     use thread::ThreadEvent;
                                     match thread_event {
                                         ThreadEvent::NewMessage { thread_id, message } => {
-                                            // 将消息路由到对应线程
+                                            // 将消息路由到对应线程的持久存储
                                             app.thread_messages.push(thread_id, thread::Message::user(message.clone()));
-                                            // 如果是当前活动线程，渲染消息
+
+                                            // 只在目标线程是活动线程时才渲染到 content_lines
+                                            // 这样避免消息串台：每个线程的消息只显示在自己的线程上
                                             if let Some(active) = app.thread_store.active_thread() {
                                                 if active.id == thread_id {
                                                     app.push_line(message);
                                                     app.render();
                                                 }
+                                                // 如果目标线程不是活动线程，消息存储在 thread_messages 中
+                                                // 用户切换到目标线程时，switch_thread() 会加载完整历史
                                             }
                                         }
                                         ThreadEvent::StatusChange { thread_id, status } => {

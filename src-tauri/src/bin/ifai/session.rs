@@ -1043,6 +1043,8 @@ impl Session {
         approval_tx: tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
         // 🔥 Phase 4.2: ThreadEvent sender（用于线程消息路由）
         thread_event_tx: tokio::sync::mpsc::UnboundedSender<crate::thread::ThreadEvent>,
+        // 🔥 Phase 4: 线程 ID - 工具审批需要知道属于哪个线程
+        thread_id: crate::thread::ThreadId,
     ) -> Result<String, String> {
         let spec = resolve_provider(&self.provider)
             .map_err(|e| format!("Failed to resolve provider: {}", e))?;
@@ -1401,8 +1403,9 @@ impl Session {
 
             // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
             let _ = output_tx.send(String::new().into());
+            // 🔥 Phase 4: 传递 thread_id 用于工具审批
             let tool_results = match self
-                .execute_tools_tui(&collected_tool_calls, &output_tx, &approval_tx)
+                .execute_tools_tui(&collected_tool_calls, &output_tx, &approval_tx, thread_id)
                 .await
             {
                 Ok(results) => results,
@@ -1542,6 +1545,8 @@ impl Session {
         tools: &[PendingToolCall],
         output_tx: &tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
         approval_tx: &tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
+        // 🔥 Phase 4: 线程 ID - 工具审批需要知道属于哪个线程
+        thread_id: crate::thread::ThreadId,
     ) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
 
@@ -1679,8 +1684,9 @@ impl Session {
             if !auto_approve {
                 // 通过 channel 发送审批请求，等待用户决策
                 let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+                // 🔥 Phase 4: 传递 thread_id 用于工具审批
                 let request =
-                    crate::approval_overlay::ApprovalRequest::from_tool(tool, response_tx);
+                    crate::approval_overlay::ApprovalRequest::from_tool(tool, thread_id, response_tx);
                 if approval_tx.send(request).is_err() {
                     let error_msg = format!("Tool '{}': approval channel closed", tool.name);
                     self.pipeline_tracker

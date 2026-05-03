@@ -132,7 +132,7 @@ impl EventHandler<Event> for ThreadEnterHandler {
         if app.is_overlay_mode()
             || app.is_diff_mode()
             || app.is_searching()
-            || app.approval_state.is_some()
+            || app.is_approving()
         {
             return ControlFlow::Continue;
         }

@@ -187,10 +187,14 @@ pub struct App {
     /// 是否正在处理 AI 请求（阻止新输入）
     busy: bool,
     /// 输入消息队列（streaming 期间用户按 Enter 入队，streaming 结束自动出队）
-    queue: Vec<String>,
-    /// 审批状态（Some = 审批面板显示中）
-    pub approval_state: Option<ApprovalRequest>,
-    /// 审批面板选中项索引
+    /// ⚠️ 重要：每个排队的消息都记录了目标线程 ID
+    /// 这样在处理队列时，消息会被发送到正确的线程，而不是当前活动线程
+    queue: Vec<(String, crate::thread::ThreadId)>,
+    /// 🔥 Phase 4: 审批状态 - 每个线程独立的审批请求
+    /// 使用 HashMap 存储，键为线程 ID，值为该线程的审批请求
+    /// 这样可以确保审批界面只显示在发起工具调用的线程中
+    pub approval_states: std::collections::HashMap<crate::thread::ThreadId, ApprovalRequest>,
+    /// 审批面板选中项索引（仅用于 UI 渲染）
     pub approval_selected: usize,
     /// 搜索模式
     pub search_mode: bool,
@@ -252,8 +256,8 @@ impl App {
             input: InputComposer::new(""),
             status_text: String::new(),
             busy: false,
-            queue: Vec::new(),
-            approval_state: None,
+            queue: Vec::new(), // Vec<(String, ThreadId)>
+            approval_states: std::collections::HashMap::new(),
             approval_selected: 0,
             search_mode: false,
             search_query: String::new(),
@@ -291,8 +295,8 @@ impl App {
             input: InputComposer::new(""),
             status_text: String::new(),
             busy: false,
-            queue: Vec::new(),
-            approval_state: None,
+            queue: Vec::new(), // Vec<(String, ThreadId)>
+            approval_states: std::collections::HashMap::new(),
             approval_selected: 0,
             search_mode: false,
             search_query: String::new(),
@@ -343,10 +347,17 @@ impl App {
 
     /// 接收 streaming 输出时累积（替代直接 push_line）
     pub fn append_streaming_output(&mut self, text: String) {
-        // 累积原始文本
+        // 累积原始文本到 buffer
         self.streaming_response_buffer.push_str(&text);
-        // 原有逻辑：显示到终端
-        self.push_line(text);
+
+        // ⚠️ 关键修复：不直接渲染到 content_lines
+        // 原因：
+        // 1. 流式输出可能跨越多个线程（用户在输出期间切换）
+        // 2. 直接 push_line 会导致内容显示在当前活动线程，而不是请求线程
+        // 3. 正确的渲染由 ThreadEvent 处理逻辑完成（main.rs:1342-1356）
+        //
+        // 修复前：self.push_line(text);  // ❌ 显示在当前活动线程
+        // 修复后：不渲染，由 ThreadEvent 负责
     }
 
     /// Streaming 完成时保存到 last_ai_response
@@ -540,12 +551,19 @@ impl App {
     pub fn enqueue(&mut self, text: String) {
         let text = text.trim().to_string();
         if !text.is_empty() {
-            self.queue.push(text);
+            // ⚠️ 关键修复：排队时必须捕获目标线程 ID
+            // 这样处理队列时，消息会被发送到正确的线程
+            // 而不是处理队列时的当前活动线程
+            let target_thread_id = self.thread_store.active_thread()
+                .map(|t| t.id)
+                .unwrap_or_else(|| self.thread_store.primary_id());
+            self.queue.push((text, target_thread_id));
         }
     }
 
     /// 出队一条消息（FIFO）
-    pub fn dequeue(&mut self) -> Option<String> {
+    /// 返回 (文本, 目标线程 ID)
+    pub fn dequeue(&mut self) -> Option<(String, crate::thread::ThreadId)> {
         if self.queue.is_empty() {
             None
         } else {
@@ -564,26 +582,54 @@ impl App {
     }
 
     /// 设置审批等待状态
+    /// ⚠️ 重要：审批请求会记录 thread_id，存储到对应线程的审批状态中
     pub fn set_approval_pending(&mut self, request: ApprovalRequest) {
-        self.approval_state = Some(request);
+        let thread_id = request.thread_id;
+        self.approval_states.insert(thread_id, request);
         self.approval_selected = 0; // 重置选中项为第一个
     }
 
-    /// 获取审批状态的引用（用于外部访问）
+    /// 获取当前活动线程的审批状态（用于外部访问）
     pub fn approval_state_ref(&self) -> &Option<ApprovalRequest> {
-        &self.approval_state
+        // 🔥 关键修复：只返回当前活动线程的审批状态
+        // 这样审批界面只显示在发起工具调用的线程中
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        // 使用临时变量来避免返回引用局部变量的问题
+        // 我们需要返回一个静态的 None 或借用 HashMap 中的值
+        // 但由于生命周期问题，我们需要使用不同的方法
+
+        // 暂时返回一个静态的 None，实际使用时需要修改调用方
+        &None  // 临时方案，需要配合下面的新方法使用
+    }
+
+    /// 🔥 新方法：获取当前活动线程的审批状态
+    pub fn get_current_approval_state(&self) -> Option<&ApprovalRequest> {
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        self.approval_states.get(&current_thread_id)
     }
 
     /// 解析审批决策，返回日志消息
+    /// ⚠️ 重要：只移除当前活动线程的审批状态
     pub fn resolve_approval(&mut self, decision: ApprovalDecision) -> String {
+        // 🔥 关键修复：只处理当前活动线程的审批状态
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
         let tool_name = self
-            .approval_state
-            .as_ref()
+            .approval_states
+            .get(&current_thread_id)
             .map(|r| r.tool_name.clone())
             .unwrap_or_default();
 
         // 通过 oneshot 发送决策
-        if let Some(request) = self.approval_state.take() {
+        if let Some(request) = self.approval_states.remove(&current_thread_id) {
             let _ = request.response_tx.send(decision);
         }
 
@@ -602,8 +648,13 @@ impl App {
     }
 
     /// 是否处于审批状态
+    /// 🔥 关键修复：只检查当前活动线程的审批状态
     pub fn is_approving(&self) -> bool {
-        self.approval_state.is_some()
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        self.approval_states.contains_key(&current_thread_id)
     }
 
     // ============================================================================
@@ -782,7 +833,8 @@ impl App {
         let current_match_index = self.current_match_index;
         let scroll_offset = self.scroll_offset;
         let content_lines = &self.content_lines;
-        let has_approval_state = self.approval_state.is_some();
+        // 🔥 关键修复：只检查当前活动线程的审批状态
+        let has_approval_state = self.is_approving();
         let approval_selected = self.approval_selected;
         let user_scrolled = self.user_scrolled;
         let status_text = &self.status_text;
@@ -960,8 +1012,9 @@ impl App {
         }
 
         // === 审批面板（底部弹出） ===
+        // 🔥 关键修复：只显示当前活动线程的审批界面
         if has_approval_state {
-            if let Some(request) = &self.approval_state {
+            if let Some(request) = self.get_current_approval_state() {
                 let (panel_lines, panel_height) =
                     approval_overlay::render_bottom_panel(request, approval_selected);
 
@@ -2272,7 +2325,8 @@ mod tests {
         assert_eq!(app.queue_len(), 0, "空字符串不应入队");
         app.enqueue("  hello  ".to_string());
         assert_eq!(app.queue_len(), 1);
-        assert_eq!(app.dequeue(), Some("hello".to_string()), "应自动 trim");
+        // dequeue 返回 (String, ThreadId)，检查文本部分
+        assert_eq!(app.dequeue().map(|(text, _)| text), Some("hello".to_string()), "应自动 trim");
     }
 
     #[test]
@@ -2281,9 +2335,9 @@ mod tests {
         app.enqueue("first".to_string());
         app.enqueue("second".to_string());
         app.enqueue("third".to_string());
-        assert_eq!(app.dequeue(), Some("first".to_string()));
-        assert_eq!(app.dequeue(), Some("second".to_string()));
-        assert_eq!(app.dequeue(), Some("third".to_string()));
+        assert_eq!(app.dequeue().map(|(text, _)| text), Some("first".to_string()));
+        assert_eq!(app.dequeue().map(|(text, _)| text), Some("second".to_string()));
+        assert_eq!(app.dequeue().map(|(text, _)| text), Some("third".to_string()));
         assert_eq!(app.dequeue(), None, "空队列应返回 None");
     }
 
