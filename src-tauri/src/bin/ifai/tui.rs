@@ -1086,6 +1086,99 @@ impl App {
                     + (search_input_cursor_col as u16).min(input_area.width.saturating_sub(2));
                 let cursor_y = input_area.y;
                 f.set_cursor_position((cursor_x, cursor_y));
+            } else if self.active_thread_mode {
+                // === 线程模式 ===
+                // 获取当前线程信息
+                let thread_name = self.current_thread_name();
+                let thread_info = self.thread_store.active_thread();
+                let total_threads = self.thread_store.len();
+                let thread_index = thread_info
+                    .and_then(|t| self.thread_store.thread_index(t.id))
+                    .unwrap_or(0);
+
+                // 构建线程模式状态栏
+                let mut spans: Vec<Span<'static>> = Vec::new();
+
+                // 线程图标
+                spans.push(Span::styled(
+                    "🧵 ",
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+
+                // 线程名称
+                spans.push(Span::styled(
+                    thread_name.clone(),
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+
+                // 线程索引 (2/5)
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(
+                    format!("({}/{})", thread_index + 1, total_threads),
+                    ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                ));
+
+                // 父线程信息（如果有）
+                if let Some(thread) = thread_info {
+                    if let Some(parent_id) = thread.parent_id {
+                        if let Some(parent) = self.thread_store.get_thread(parent_id) {
+                            spans.push(Span::raw(" "));
+                            spans.push(Span::styled(
+                                "(",
+                                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                            ));
+                            spans.push(Span::styled(
+                                parent.display_name(),
+                                ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                            ));
+                            spans.push(Span::styled(
+                                ")",
+                                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                            ));
+                        }
+                    }
+                }
+
+                // Esc 提示
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(
+                    "Esc",
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+                spans.push(Span::styled(
+                    " ↩ ",
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                ));
+                spans.push(Span::styled(
+                    "to return",
+                    ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                ));
+
+                let status_line = Line::from(spans);
+                let status = Paragraph::new(status_line)
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                f.render_widget(status, status_area);
+
+                // === 分隔线 ===
+                let separator_line = "─".repeat(separator_area.width as usize);
+                let separator = Paragraph::new(separator_line)
+                    .style(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray));
+                f.render_widget(separator, separator_area);
+
+                // === 输入框 ===
+                let prompt = Span::styled(
+                    format!("{}⟩ ", self.input.prompt()),
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                );
+                let input_text = Span::raw(input_value);
+                let input_line = Line::from(vec![prompt, input_text]);
+                let input = Paragraph::new(input_line);
+                f.render_widget(input, input_area);
+
+                // 设置终端光标位置
+                let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
+                let cursor_y = input_area.y;
+                f.set_cursor_position((cursor_x, cursor_y));
             } else {
                 // === 正常模式 ===
                 // === 状态栏 ===
