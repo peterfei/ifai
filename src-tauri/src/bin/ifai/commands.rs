@@ -174,6 +174,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         min_permission: PermissionMode::None,
         handler: cmd_task,
     },
+    CommandSpec {
+        name: "thread",
+        summary: "线程管理（创建/列表/切换/关闭/重命名）",
+        arg_hint: Some("[list|switch <N>|close|rename <name>]"),
+        min_permission: PermissionMode::None,
+        handler: cmd_thread_stub,
+    },
 ];
 
 // ============================================================================
@@ -900,6 +907,19 @@ fn cmd_task(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     }
 }
 
+/// /thread 占位 handler（TUI 模式下由 main.rs 拦截，仅在 REPL 模式生效）
+fn cmd_thread_stub(_session: &mut Session, arg: Option<&str>) -> CommandResult {
+    Ok(Some(
+        "线程管理命令（TUI 模式专用）:\n\
+         /thread          创建侧线程\n\
+         /thread list     列出所有线程\n\
+         /thread switch N 切换到第 N 个线程\n\
+         /thread close    关闭当前侧线程\n\
+         /thread rename X 重命名当前线程"
+            .to_string(),
+    ))
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -927,6 +947,7 @@ mod tests {
         assert!(find_command("view").is_some());
         assert!(find_command("glob").is_some());
         assert!(find_command("task").is_some());
+        assert!(find_command("thread").is_some());
     }
 
     #[test]

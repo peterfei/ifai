@@ -407,6 +407,16 @@ impl ThreadStore {
         }
     }
 
+    /// 重命名线程
+    pub fn rename_thread(&mut self, thread_id: ThreadId, new_name: String) -> bool {
+        if let Some(thread) = self.threads.iter_mut().find(|t| t.id == thread_id) {
+            thread.name = Some(new_name);
+            true
+        } else {
+            false
+        }
+    }
+
     // ========================================================================
     // 查询操作（声明式，零显式循环）
     // ========================================================================
