@@ -28,6 +28,7 @@ mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版
 mod stream_render; // 🔥 声明式流式渲染管道
 mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
 mod terminal; // 🔥 终端抽象层（ANSI 光标定位）
+mod thread; // 🔥 多线程对话系统 - 元编程架构
 mod token; // 🔥 元编程 Token 显示层
 mod tui; // 🔥 ratatui 全屏 TUI 模块
 mod tui_layout; // 🔥 声明式 TUI 布局层

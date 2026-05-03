@@ -30,6 +30,7 @@ use ifainew_lib::harness::task::{self, TaskStatus};
 
 use super::approval_overlay::{self, ApprovalDecision, ApprovalRequest};
 use super::input_composer::{self, InputAction, InputComposer};
+use super::thread::{self, ThreadId, ThreadMessages, ThreadStore};
 
 /// 剥离 ANSI 转义序列（按 char 边界，保留 UTF-8 多字节字符）
 fn strip_ansi(s: &str) -> String {
@@ -221,6 +222,12 @@ pub struct App {
     pub last_ai_response: Option<String>,
     /// 详情 overlay
     pub overlay: Option<crate::detail_overlay::DetailOverlay>,
+    /// 线程存储
+    pub thread_store: ThreadStore,
+    /// 线程消息
+    pub thread_messages: ThreadMessages,
+    /// 线程模式标记
+    pub active_thread_mode: bool,
 }
 
 impl App {
@@ -263,6 +270,9 @@ impl App {
             streaming_response_buffer: String::new(),
             last_ai_response: None,
             overlay: None,
+            thread_store: ThreadStore::new(),
+            thread_messages: ThreadMessages::new(),
+            active_thread_mode: false,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -299,6 +309,9 @@ impl App {
             streaming_response_buffer: String::new(),
             last_ai_response: None,
             overlay: None,
+            thread_store: ThreadStore::new(),
+            thread_messages: ThreadMessages::new(),
+            active_thread_mode: false,
         }
     }
 
@@ -1323,6 +1336,60 @@ impl App {
                 }
             }
         }
+    }
+
+    // ========================================================================
+    // 线程管理方法
+    // ========================================================================
+
+    /// 创建侧线程
+    pub fn create_side_thread(&mut self, name: Option<String>) -> ThreadId {
+        let current_id = self
+            .thread_store
+            .active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        let thread_id = self.thread_store.create_side_thread(current_id, name);
+
+        // 自动切换到新线程
+        self.thread_store.switch_to(thread_id);
+
+        thread_id
+    }
+
+    /// 切换线程
+    pub fn switch_thread(&mut self, thread_id: ThreadId) -> bool {
+        if self.thread_store.switch_to(thread_id) {
+            // 清空终端内容
+            self.content_lines.clear();
+            self.scroll_offset = 0;
+            self.user_scrolled = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// 返回父线程
+    pub fn return_to_parent(&mut self) -> bool {
+        if let Some(current) = self.thread_store.active_thread() {
+            if let Some(parent_id) = current.parent_id {
+                self.switch_thread(parent_id)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// 获取当前线程的显示名称
+    pub fn current_thread_name(&self) -> String {
+        self.thread_store
+            .active_thread()
+            .map(|t| t.display_name())
+            .unwrap_or("Unknown".to_string())
     }
 }
 
