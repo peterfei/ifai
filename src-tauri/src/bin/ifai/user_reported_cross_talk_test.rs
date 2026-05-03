@@ -26,7 +26,7 @@ mod tests {
         app.switch_thread(main_id);
         app.thread_messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
         app.set_thread_busy(main_id, true);
-        app.begin_streaming();
+        app.begin_streaming(main_id);
 
         println!("  → main is busy: {}", app.is_thread_busy(main_id));
         println!("  → thread1 is busy: {}", app.is_thread_busy(thread1_id));

@@ -277,8 +277,8 @@ mod tests {
         app.switch_thread(main_id);
         app.thread_messages.push(main_id, crate::thread::Message::user("Main question".to_string()));
         app.set_thread_busy(main_id, true);
-        app.begin_streaming();
-        app.append_streaming_output("Partial response from main".to_string());
+        app.begin_streaming(main_id);
+        app.append_streaming_output(main_id, "Partial response from main".to_string());
 
         println!("步骤 1: main 开始 streaming");
         println!("  → main is busy: {}", app.is_thread_busy(main_id));

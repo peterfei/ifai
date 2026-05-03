@@ -156,10 +156,10 @@ mod tests {
         // === 步骤 1：Main 开始流式输出 ===
         app.switch_thread(main_id);
         app.set_thread_busy(main_id, true);
-        app.begin_streaming();
+        app.begin_streaming(main_id);
 
         // 模拟 Main 的流式输出
-        app.append_streaming_output("北京".to_string());
+        app.append_streaming_output(main_id, "北京".to_string());
         app.thread_messages.push(main_id, crate::thread::Message::user("北京".to_string()));
 
         // 快照 1：Main 正在 streaming
@@ -202,10 +202,10 @@ mod tests {
 
         // === 步骤 3：模拟 Thread-1 开始新的 AI 请求（中断 Main 的 streaming） ===
         app.set_thread_busy(thread1_id, true);
-        app.begin_streaming();
+        app.begin_streaming(thread1_id);
 
         // 模拟 Thread-1 的流式输出
-        app.append_streaming_output("file1.txt".to_string());
+        app.append_streaming_output(thread1_id, "file1.txt".to_string());
         app.thread_messages.push(thread1_id, crate::thread::Message::user("file1.txt".to_string()));
 
         // 快照 3：Thread-1 正在 streaming

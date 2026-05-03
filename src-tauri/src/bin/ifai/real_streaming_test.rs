@@ -20,7 +20,7 @@ mod tests {
         app.switch_thread(primary_id);
 
         // 模拟流式输出
-        app.append_streaming_output("Rust is".to_string());
+        app.append_streaming_output(primary_id, "Rust is".to_string());
 
         // 快照：append_streaming_output 不应该直接推送到 content_lines
         insta::assert_snapshot!(format!(
@@ -51,7 +51,7 @@ mod tests {
         let request_thread_id = primary_id;
 
         // 模拟流式输出第一行
-        app.append_streaming_output("Rust is".to_string());
+        app.append_streaming_output(request_thread_id, "Rust is".to_string());
 
         // 通过 ThreadEvent 存储
         app.thread_messages.push(request_thread_id, crate::thread::Message::user("Rust is".to_string()));
@@ -60,7 +60,7 @@ mod tests {
         app.switch_thread(thread2_id);
 
         // 模拟流式输出第二行
-        app.append_streaming_output(" a systems".to_string());
+        app.append_streaming_output(request_thread_id, " a systems".to_string());
 
         // 通过 ThreadEvent 存储（仍然到主线程）
         app.thread_messages.push(request_thread_id, crate::thread::Message::user(" a systems".to_string()));
@@ -97,7 +97,7 @@ mod tests {
         let request_thread_id = primary_id;
 
         // 模拟流式输出
-        app.append_streaming_output("Line 1".to_string());
+        app.append_streaming_output(request_thread_id, "Line 1".to_string());
         app.thread_messages.push(request_thread_id, crate::thread::Message::user("Line 1".to_string()));
 
         // 模拟 ThreadEvent 处理逻辑（main.rs:1342-1356）

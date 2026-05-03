@@ -68,6 +68,8 @@ mod concurrent_message_cross_talk_test; // 🔥 并发消息串台 E2E 测试
 mod user_reported_cross_talk_test; // 🔥 用户报告的消息串台场景测试
 #[cfg(test)]
 mod e2e_concurrent_approval_test; // 🔥 Phase 6: 并发和审批 E2E 高保真测试
+#[cfg(test)]
+mod real_llm_e2e_test; // 🔥 Phase 6: 真实 LLM API E2E 并发测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
@@ -1007,7 +1009,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                         // 显示用户输入（排队消息也需显示）
                         let theme = render::default_theme();
-                        app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &input));
+                        app.push_line_if_active_thread(target_thread_id, format!("{}⟩{} {}", theme.brand, render::RESET, &input));
 
                         // 🔥 Phase 4.3: 将用户消息存储到目标线程
                         // ⚠️ 关键修复：使用排队时捕获的目标线程 ID
@@ -1039,7 +1041,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         let session_clone = session.clone();
 
                         // 🔥 开始缓存 AI 响应（Phase 2.5）
-                        app.begin_streaming();
+                        app.begin_streaming(target_thread_id);
 
                         // 在后台任务中运行 stream_prompt
                         let mut stream_handle = tokio::spawn(async move {
@@ -1058,7 +1060,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                 Some(msg) = output_rx.recv() => {
                                     match msg {
                                         OutputMessage::Text(line) => {
-                                            app.append_streaming_output(line.clone());  // 🔥 缓存 AI 响应
+                                            app.append_streaming_output(request_thread_id, line.clone());  // 🔥 缓存 AI 响应到目标线程
                                             // 🔥 Phase 4.3: 使用用户输入时的线程 ID 路由消息
                                             // ⚠️ 关键修复：必须使用 request_thread_id（用户输入时捕获的）
                                             // 而不是当前的活动线程 ID（用户可能已经切换线程）
@@ -1070,7 +1072,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                             );
                                         }
                                         OutputMessage::Diff(diff) => {
-                                            app.push_diff(diff);
+                                            app.push_diff_if_active_thread(request_thread_id, diff);
                                         }
                                     }
                                     app.render();
@@ -1169,7 +1171,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                 // 如果做出决策，中断当前 streaming 并退出循环
                                                 if should_break {
                                                     stream_handle.abort();
-                                                    app.end_streaming();
+                                                    app.end_streaming(target_thread_id);
                                                     app.set_thread_busy(target_thread_id, false);
                                                     break;
                                                 }
@@ -1195,9 +1197,9 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                 {
                                                     app.clear_queue();
                                                     stream_handle.abort();
-                                                    app.end_streaming();  // 🔥 保存已缓存的响应
-                                                    app.push_line(String::new());
-                                                    app.push_line("^C 已中断 AI 响应".to_string());
+                                                    app.end_streaming(target_thread_id);  // 🔥 保存已缓存的响应
+                                                    app.push_line_if_active_thread(target_thread_id, String::new());
+                                                    app.push_line_if_active_thread(target_thread_id, "^C 已中断 AI 响应".to_string());
                                                     break;
                                                 }
 
@@ -1226,8 +1228,8 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     // 优先显示已完成的响应，否则显示当前 streaming buffer
                                                     use crate::detail_overlay::DetailOverlay;
 
-                                                    if let Some(ref response) = app.last_ai_response {
-                                                        let overlay = DetailOverlay::new_transcript(response.clone());
+                                                    if let Some(response) = app.get_last_ai_response() {
+                                                        let overlay = DetailOverlay::new_transcript(response.to_string());
                                                         app.enter_overlay_mode(overlay);
                                                         consumed = true;
                                                     } else if let Some(buffer) = app.get_streaming_buffer() {
@@ -1378,7 +1380,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                                                             // 中断当前 streaming
                                                             stream_handle.abort();
-                                                            app.end_streaming();
+                                                            app.end_streaming(target_thread_id);
 
                                                             // 设置当前线程 busy
                                                             app.set_thread_busy(current_thread_id, true);
@@ -1397,7 +1399,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                             let new_thread_event_tx_task = new_thread_event_tx.clone();
 
                                                             let session_clone = session.clone();
-                                                            app.begin_streaming();
+                                                            app.begin_streaming(current_thread_id);
 
                                                             // 启动新的 AI 请求
                                                             let mut new_stream_handle = tokio::spawn(async move {
@@ -1566,7 +1568,8 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                     match thread_event {
                                         ThreadEvent::NewMessage { thread_id, message } => {
                                             // 将消息路由到对应线程的持久存储
-                                            app.thread_messages.push(thread_id, thread::Message::user(message.clone()));
+                                            // 🔥 修复：AI 响应消息应使用 assistant 类型（不是 user）
+                                            app.thread_messages.push(thread_id, thread::Message::assistant(message.clone()));
 
                                             // 只在目标线程是活动线程时才渲染到 content_lines
                                             // 这样避免消息串台：每个线程的消息只显示在自己的线程上
@@ -1596,10 +1599,10 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                     match result {
                                         Ok(Ok(_)) => {}
                                         Ok(Err(e)) => {
-                                            app.push_line(format!("Error: {}", e));
+                                            app.push_line_if_active_thread(target_thread_id, format!("Error: {}", e));
                                         }
                                         Err(e) => {
-                                            app.push_line(format!("Task error: {}", e));
+                                            app.push_line_if_active_thread(target_thread_id, format!("Task error: {}", e));
                                         }
                                     }
                                     break;
@@ -1607,11 +1610,11 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                             }
                         }
 
-                        app.end_streaming();  // 🔥 保存完整的 AI 响应
+                        app.end_streaming(target_thread_id);  // 🔥 保存完整的 AI 响应
                         // 🔥 Phase 6: 使用 per-thread busy 状态
                         app.set_thread_busy(target_thread_id, false);
                         app.set_status(String::new());
-                        app.push_line(String::new());
+                        app.push_line_if_active_thread(target_thread_id, String::new());
                         app.render();
 
                         // 尝试出队下一条消息
