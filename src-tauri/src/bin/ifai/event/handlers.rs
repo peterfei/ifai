@@ -379,7 +379,10 @@ pub struct HelpEnterHandler;
 impl EventHandler<Event> for HelpEnterHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
         if let Event::Key(key) = event {
-            if key.code == KeyCode::Char('?') && !app.help_mode && !app.is_searching() {
+            // ⚠️ 重要：只在输入框为空时才允许 '?' 触发帮助
+            // 这样可以避免用户在正常输入时不小心按到 '?' 而进入帮助模式
+            // 导致无法继续输入的问题
+            if key.code == KeyCode::Char('?') && !app.help_mode && !app.is_searching() && app.input.value().is_empty() {
                 app.help_mode = true;
                 // 清除输入框（防止 ? 被添加）
                 app.input.clear();

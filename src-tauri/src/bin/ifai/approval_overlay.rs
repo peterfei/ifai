@@ -46,6 +46,9 @@ impl From<ApprovalDecision> for Option<bool> {
 
 /// 审批请求（Session → App）
 pub struct ApprovalRequest {
+    /// 🔥 Phase 4: 线程 ID - 记录审批请求属于哪个线程
+    /// 这样可以确保审批界面只显示在正确的线程中
+    pub thread_id: crate::thread::ThreadId,
     pub tool_id: String,
     pub tool_name: String,
     pub args_json: serde_json::Value,
@@ -58,6 +61,7 @@ impl ApprovalRequest {
     /// 从 PendingToolCall 构造审批请求
     pub fn from_tool(
         tool: &PendingToolCall,
+        thread_id: crate::thread::ThreadId,
         response_tx: tokio::sync::oneshot::Sender<ApprovalDecision>,
     ) -> Self {
         let args_json: serde_json::Value =
@@ -66,6 +70,7 @@ impl ApprovalRequest {
         let category = approval::categorize_tool(&tool.name);
 
         Self {
+            thread_id,
             tool_id: tool.tool_id.clone(),
             tool_name: tool.name.clone(),
             args_json,
@@ -607,7 +612,9 @@ mod tests {
             args: args.to_string(),
         };
         let (tx, _rx) = tokio::sync::oneshot::channel();
-        ApprovalRequest::from_tool(&tool, tx)
+        // 使用一个 dummy thread_id
+        let thread_id = crate::thread::ThreadId::new();
+        ApprovalRequest::from_tool(&tool, thread_id, tx)
     }
 
     // ── Phase 1.2: resolve_approval_key ──
@@ -740,7 +747,8 @@ mod tests {
             args: r#"{"cmd": "rm -rf /tmp/test"}"#.to_string(),
         };
         let (tx, _rx) = tokio::sync::oneshot::channel();
-        let req = ApprovalRequest::from_tool(&tool, tx);
+        let thread_id = crate::thread::ThreadId::new();
+        let req = ApprovalRequest::from_tool(&tool, thread_id, tx);
         assert_eq!(req.tool_name, "bash");
         assert_eq!(req.category, ToolCategory::Destructive);
         assert_eq!(req.risk_level, RiskLevel::High);
@@ -754,7 +762,8 @@ mod tests {
             args: r#"{"path": "/tmp/test.rs"}"#.to_string(),
         };
         let (tx, _rx) = tokio::sync::oneshot::channel();
-        let req = ApprovalRequest::from_tool(&tool, tx);
+        let thread_id = crate::thread::ThreadId::new();
+        let req = ApprovalRequest::from_tool(&tool, thread_id, tx);
         assert_eq!(req.tool_name, "read_file");
         assert_eq!(req.category, ToolCategory::Safe);
     }
