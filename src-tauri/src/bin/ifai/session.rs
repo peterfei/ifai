@@ -1041,6 +1041,8 @@ impl Session {
         output_tx: tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
         status_tx: tokio::sync::mpsc::UnboundedSender<String>,
         approval_tx: tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
+        // 🔥 Phase 4.2: ThreadEvent sender（用于线程消息路由）
+        thread_event_tx: tokio::sync::mpsc::UnboundedSender<crate::thread::ThreadEvent>,
     ) -> Result<String, String> {
         let spec = resolve_provider(&self.provider)
             .map_err(|e| format!("Failed to resolve provider: {}", e))?;
