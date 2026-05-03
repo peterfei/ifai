@@ -36,6 +36,10 @@ mod tui; // 🔥 ratatui 全屏 TUI 模块
 mod tui_layout; // 🔥 声明式 TUI 布局层
 #[cfg(test)]
 mod tui_test;
+#[cfg(test)]
+mod thread_switch_test; // 🧪 线程切换 E2E 快照测试
+#[cfg(test)]
+mod streaming_thread_switch_test; // 🧪 流式期间线程切换 E2E 测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
@@ -1104,6 +1108,72 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     use crate::event::handlers::DetailModeHandler;
                                                     let mut handler = DetailModeHandler;
                                                     let _ = handler.handle(&event, &mut app);
+                                                    consumed = true;
+                                                }
+
+                                                // 🔥 Bug 修复：流式期间支持线程快捷键
+                                                // === Ctrl+T：创建侧线程 ===
+                                                if !consumed
+                                                    && key.code == KeyCode::Char('t')
+                                                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                                                    && !app.is_overlay_mode()
+                                                    && !app.is_diff_mode()
+                                                    && !app.is_searching()
+                                                    && app.approval_state.is_none()
+                                                {
+                                                    // 检查线程数量限制
+                                                    if app.thread_store.len() < 5 {
+                                                        let name = format!("Thread-{}", app.thread_store.len());
+                                                        app.create_side_thread(Some(name));
+                                                        app.active_thread_mode = true;
+                                                        consumed = true;
+                                                    }
+                                                }
+                                                // === Alt+Left：上一个线程 ===
+                                                else if !consumed
+                                                    && key.code == KeyCode::Left
+                                                    && key.modifiers.contains(KeyModifiers::ALT)
+                                                    && !app.is_overlay_mode()
+                                                    && !app.is_diff_mode()
+                                                    && !app.is_searching()
+                                                    && app.approval_state.is_none()
+                                                {
+                                                    if let Some(prev_id) = app.thread_store.previous_thread() {
+                                                        app.switch_thread(prev_id);
+                                                    }
+                                                    consumed = true;
+                                                }
+                                                // === Alt+Right：下一个线程 ===
+                                                else if !consumed
+                                                    && key.code == KeyCode::Right
+                                                    && key.modifiers.contains(KeyModifiers::ALT)
+                                                    && !app.is_overlay_mode()
+                                                    && !app.is_diff_mode()
+                                                    && !app.is_searching()
+                                                    && app.approval_state.is_none()
+                                                {
+                                                    if let Some(next_id) = app.thread_store.next_thread() {
+                                                        app.switch_thread(next_id);
+                                                    }
+                                                    consumed = true;
+                                                }
+                                                // === Esc：返回父线程 ===
+                                                else if !consumed
+                                                    && key.code == KeyCode::Esc
+                                                    && app.active_thread_mode
+                                                    && !app.is_overlay_mode()
+                                                    && !app.is_diff_mode()
+                                                    && !app.is_searching()
+                                                    && app.approval_state.is_none()
+                                                {
+                                                    if app.return_to_parent() {
+                                                        let active = app.thread_store.active_thread();
+                                                        if let Some(thread) = active {
+                                                            if thread.kind == crate::thread::ThreadKind::Main {
+                                                                app.active_thread_mode = false;
+                                                            }
+                                                        }
+                                                    }
                                                     consumed = true;
                                                 }
 
