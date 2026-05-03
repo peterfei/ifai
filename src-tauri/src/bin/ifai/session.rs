@@ -315,6 +315,8 @@ pub struct Session {
     base_url: Option<String>,
     /// 🔥 禁用工具调用（--no-tool 标志）
     tools_disabled: bool,
+    /// 🔥 自动批准所有工具调用（测试用）
+    auto_approve_all: bool,
     /// 🔥 自定义系统提示词（--system 参数）
     custom_system_prompt: Option<String>,
     /// 🔥 权限存储（用户白名单）- 使用 RefCell 实现内部可变性
@@ -372,6 +374,7 @@ impl Session {
             api_key: None,
             base_url: None,
             tools_disabled: false,
+            auto_approve_all: false,
             custom_system_prompt: None,
             permission_store: RefCell::new(PermissionStore::load()),
             session_rules: RefCell::new(Vec::new()),
@@ -404,6 +407,11 @@ impl Session {
     /// 🔥 禁用工具调用（--no-tool 标志）
     pub fn disable_tools(&mut self) {
         self.tools_disabled = true;
+    }
+
+    /// 🔥 自动批准所有工具调用（测试用）
+    pub fn set_auto_approve_all(&mut self, value: bool) {
+        self.auto_approve_all = value;
     }
 
     /// 🔥 获取会话持续时间
@@ -1981,7 +1989,7 @@ impl Session {
                 &serde_json::from_str::<serde_json::Value>(&tool.args)
                     .unwrap_or(serde_json::json!({})),
             );
-            let auto_approve = approval::should_auto_approve(&tool.name, false); // CLI 中无沙箱
+            let auto_approve = self.auto_approve_all || approval::should_auto_approve(&tool.name, false); // CLI 中无沙箱
 
             if !auto_approve {
                 // 🔥 在 CLI 中，所有需要审批的工具都需要用户确认（Safe 除外）

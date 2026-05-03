@@ -17,6 +17,7 @@ mod tests {
     use crate::session::Session;
     use crate::config::EffectiveConfig;
     use crate::thread::Message;
+    use crate::tui_test::{render_to_buffer, buffer_to_string};
     use std::time::Instant;
 
     /// 从 ~/.ifai/config.toml 创建真实 Session（与 main.rs 启动逻辑一致）
@@ -1095,6 +1096,158 @@ mod tests {
 
         println!("\n============================================================");
         println!("OK 中断 streaming 后队列仍可用测试通过！（真实LLM）");
+        println!("============================================================");
+    }
+
+    // ========================================================================
+    // 用例 13：同线程连续 16 次真实 LLM 调用 — 检测上下文断链
+    //   包含"帮我生成2048小游戏"等复杂工具调用任务
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_same_thread_12_rounds_no_context_break() {
+        println!("\n============================================================");
+        println!("用例 13: 同线程连续 16 轮对话 — 上下文断链检测");
+        println!("   策略: 建立上下文 → 2048生成 → 工具调用 → 验证上下文");
+        println!("============================================================");
+
+        let mut session = create_real_session();
+        // 设置工作目录，让工具调用能找到项目文件
+        session.set_project_root(std::env::current_dir().unwrap_or_default().to_string_lossy().to_string());
+        // 自动批准所有工具调用（测试环境无法交互审批）
+        session.set_auto_approve_all(true);
+
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        app.switch_thread(main_id);
+
+        // 设计有上下文依赖的对话序列（混合普通对话 + 复杂工具调用）
+        // 阶段1: 建立上下文
+        // 阶段2: 简单工具调用
+        // 阶段3: 2048 小游戏生成（大量 write_file 工具调用）
+        // 阶段4: 更多上下文验证
+        let prompts: Vec<(&str, &str)> = vec![
+            // ── 阶段1: 建立上下文 ──
+            ("我叫小明，请记住我的名字", "小明"),
+            ("我最喜欢的颜色是蓝色，请记住", "蓝色"),
+            ("我有一个数字密码是 42，请记住", "42"),
+            // ── 阶段2: 简单工具调用 ──
+            ("请帮我查看当前目录下有哪些文件", "文件"),  // 工具调用：list_directory
+            ("刚才列出的文件中，有没有 .toml 文件？", "toml"),  // 依赖上一轮工具结果
+            // ── 阶段3: 2048 小游戏生成（大量 write_file，压力测试） ──
+            ("帮我生成2048小游戏", "2048"),  // 触发多次 write_file 工具调用
+            // ── 阶段4: 2048 后的上下文验证 ──
+            ("请用一句话总结：我叫什么名字、喜欢什么颜色、密码是什么", "小明"),
+            ("我刚才告诉你我喜欢什么颜色？", "蓝色"),
+            ("我的密码是多少？", "42"),
+            // ── 阶段5: 更多工具调用 + 上下文验证 ──
+            ("请读取项目中的 Cargo.toml 文件内容", "Cargo"),  // 工具调用：read_file
+            ("Cargo.toml 里的项目名称是什么？", "ifa"),  // 依赖上一轮工具结果
+            ("再帮我查看一下当前目录", "文件"),  // 再次工具调用
+            ("刚才生成的2048游戏，你把代码写到哪个文件了？", "2048"),  // 验证 LLM 记得 2048 任务
+            ("最后确认：我的名字是？喜欢的颜色是？密码是？", "小明"),  // 最终验证
+        ];
+
+        let total = prompts.len();
+        let mut context_breaks: Vec<usize> = Vec::new();
+        let mut round_times: Vec<u128> = Vec::new();
+
+        for (i, (prompt, keyword)) in prompts.iter().enumerate() {
+            let round = i + 1;
+            println!("\n============================================================");
+            println!("  轮次 {}/{}: {}", round, total, prompt);
+            println!("============================================================");
+
+            app.thread_messages.push(main_id, Message::user(prompt.to_string()));
+            app.push_line(format!("⟩ {}", prompt));
+
+            let start = Instant::now();
+            let response = match session.stream_prompt(prompt).await {
+                Ok(r) => r,
+                Err(e) => {
+                    println!("  ❌ API 错误: {}", e);
+                    context_breaks.push(round);
+                    round_times.push(start.elapsed().as_millis());
+                    continue;
+                }
+            };
+            let elapsed = start.elapsed();
+            round_times.push(elapsed.as_millis());
+
+            let response_preview = if response.chars().count() > 100 {
+                let truncated: String = response.chars().take(100).collect();
+                format!("{}...", truncated)
+            } else {
+                response.clone()
+            };
+            println!("  响应 ({}ms, {}字): {}", elapsed.as_millis(), response.len(), response_preview);
+
+            // 检测断链：响应中是否包含关键词
+            let contains_keyword = response.contains(keyword);
+            if contains_keyword {
+                println!("  ✅ 上下文正常 — 包含关键词 '{}'", keyword);
+            } else {
+                println!("  ⚠️  可能断链 — 未找到关键词 '{}'", keyword);
+                context_breaks.push(round);
+            }
+
+            app.thread_messages.push(main_id, Message::assistant(response.clone()));
+            app.push_line(response);
+
+            // === TUI 快照：渲染当前 App 画面并保存到文件 ===
+            let buf = render_to_buffer(&mut app, 120, 30);
+            let snapshot_text = buffer_to_string(&buf);
+            let snapshot_dir = std::path::PathBuf::from("/tmp/ifai_thread_12_snapshots");
+            let _ = std::fs::create_dir_all(&snapshot_dir);
+            let snapshot_path = snapshot_dir.join(format!("round_{:02}.txt", round));
+            let _ = std::fs::write(&snapshot_path, format!(
+                "// Round {}/{}: {}\n// Response keyword: {}\n// Status: {}\n\n{}",
+                round, total, prompt, keyword,
+                if contains_keyword { "OK" } else { "BREAK" },
+                snapshot_text
+            ));
+            println!("  📸 快照已保存: {}", snapshot_path.display());
+        }
+
+        // ==================== 总结报告 ====================
+        println!("\n\n");
+        println!("╔══════════════════════════════════════════════════════════════╗");
+        println!("║           上下文断链检测报告（共 {} 轮）                    ║", total);
+        println!("╠══════════════════════════════════════════════════════════════╣");
+
+        if context_breaks.is_empty() {
+            println!("║  ✅ 全部 {} 轮对话上下文正常，未检测到断链                  ║", total);
+        } else {
+            println!("║  ⚠️  检测到 {} 次可能的断链：{:?}                  ║", context_breaks.len(), context_breaks);
+            for &r in &context_breaks {
+                let (prompt, keyword) = prompts[r - 1];
+                println!("║     轮次 {}: '{}' (关键词: '{}')", r, prompt, keyword);
+            }
+        }
+
+        println!("╠══════════════════════════════════════════════════════════════╣");
+        println!("║  每轮耗时：                                                  ║");
+        for (i, t) in round_times.iter().enumerate() {
+            println!("║    轮次 {:>2}: {:>5}ms", i + 1, t);
+        }
+        let total_time: u128 = round_times.iter().sum();
+        let avg_time: u128 = total_time / round_times.len() as u128;
+        println!("║  ─────────────────────────────────────────                   ║");
+        println!("║  总耗时: {}ms  平均: {}ms", total_time, avg_time);
+        println!("║  Session 消息数: {}", session.messages.len());
+        println!("╚══════════════════════════════════════════════════════════════╝");
+
+        // 断言：上下文断链不超过 1 次（允许 LLM 偶尔回答不精确）
+        assert!(
+            context_breaks.len() <= 1,
+            "上下文断链次数过多: {} 次，断链轮次: {:?}",
+            context_breaks.len(),
+            context_breaks
+        );
+
+        println!("\n============================================================");
+        println!("OK 同线程 12 轮对话断链检测完成！");
         println!("============================================================");
     }
 }
