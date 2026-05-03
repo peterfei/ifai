@@ -21,13 +21,13 @@ mod http_api; // v0.4.1 新增：HTTP API 服务器（为 E2E 测试提供真实
 mod intelligence_router;
 mod local_model;
 mod lsp;
-mod meta; // v0.5.0 新增：极简元编程框架 (SmartScanner)
 mod multimodal; // v0.3.0 新增：多模态功能
 mod openspec; // v0.2.6 新增：OpenSpec 集成
 mod performance;
 mod project_config;
 pub mod prompt_manager; // 🔥 公开 prompt_manager 供 CLI 使用
 mod scanners;
+mod meta; // 🔥 Scanner 配置和缓存系统
 mod search;
 mod stream_schema_generated; // 🆕 Schema-Driven 代码生成：StreamPhase、PermissionMode、ToolPermissions
 mod symbol_engine;

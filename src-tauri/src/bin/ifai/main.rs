@@ -57,7 +57,17 @@ mod queued_message_thread_test; // 🧪 排队消息线程错误 E2E 测试
 #[cfg(test)]
 mod approval_thread_leak_test; // 🧪 工具审批界面线程泄漏 E2E 测试
 #[cfg(test)]
+mod approval_thread_switch_test; // 🧪 审批期间线程切换 E2E 测试
+#[cfg(test)]
 mod concurrent_processing_test; // 🧪 并发处理 E2E 测试
+#[cfg(test)]
+mod realistic_concurrent_test; // 🔥 高保真 LLM E2E 并发测试
+#[cfg(test)]
+mod concurrent_message_cross_talk_test; // 🔥 并发消息串台 E2E 测试
+#[cfg(test)]
+mod user_reported_cross_talk_test; // 🔥 用户报告的消息串台场景测试
+#[cfg(test)]
+mod e2e_concurrent_approval_test; // 🔥 Phase 6: 并发和审批 E2E 高保真测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
@@ -1007,7 +1017,8 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         app.render();
 
                         // AI 调用 — 使用 channel 接收流式输出
-                        app.set_busy(true);
+                        // 🔥 Phase 6: 使用 per-thread busy 状态
+                        app.set_thread_busy(target_thread_id, true);
                         app.set_status("Thinking...".to_string());
                         app.render();
 
@@ -1018,10 +1029,12 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<
                             approval_overlay::ApprovalRequest,
                         >();
+                        // 🔥 Phase 6: 克隆 approval_tx 用于主循环中的待处理审批重发
+                        let approval_tx_for_resend = approval_tx.clone();
                         // 🔥 Phase 4.2: ThreadEvent channel（用于线程消息路由）
-                        let (thread_event_tx, mut thread_event_rx) = tokio::sync::mpsc::unbounded_channel::<thread::ThreadEvent>();
+                        let (mut thread_event_tx, mut thread_event_rx) = tokio::sync::mpsc::unbounded_channel::<thread::ThreadEvent>();
                         // 克隆 sender 用于异步任务
-                        let thread_event_tx_task = thread_event_tx.clone();
+                        let mut thread_event_tx_task = thread_event_tx.clone();
 
                         let session_clone = session.clone();
 
@@ -1037,7 +1050,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         });
 
                         // 🔥 重要：记录请求线程 ID（用于流式输出路由）
-                        let request_thread_id = target_thread_id;
+                        let mut request_thread_id = target_thread_id;
 
                         // 实时接收输出并渲染
                         loop {
@@ -1068,6 +1081,104 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                 }
                                 // Streaming 期间轮询键盘事件（允许用户提前输入下一条消息）
                                 _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                                    // 🔥 Phase 6: 优先处理审批键盘输入
+                                    // 如果当前线程有审批，先处理审批相关的按键
+                                    if app.is_approving() {
+                                        // 当前线程有待处理的审批，优先处理审批键盘输入
+                                        if crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
+                                            if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+                                                use crossterm::event::KeyCode;
+                                                use crossterm::event::KeyEvent;
+
+                                                // 获取当前审批请求的选项数量
+                                                let options_count = if let Some(ref req) = app.approval_state_ref() {
+                                                    approval_overlay::build_approval_options(req).len()
+                                                } else {
+                                                    0
+                                                };
+
+                                                let mut should_break = false;
+
+                                                // 处理审批按键
+                                                match key.code {
+                                                    KeyCode::Up | KeyCode::Down => {
+                                                        if options_count > 0 {
+                                                            if key.code == KeyCode::Up {
+                                                                if app.approval_selected > 0 {
+                                                                    app.approval_selected -= 1;
+                                                                } else {
+                                                                    app.approval_selected = options_count - 1;
+                                                                }
+                                                            } else {
+                                                                if app.approval_selected + 1 < options_count {
+                                                                    app.approval_selected += 1;
+                                                                } else {
+                                                                    app.approval_selected = 0;
+                                                                }
+                                                            }
+                                                            app.render();
+                                                        }
+                                                    }
+                                                    KeyCode::Enter => {
+                                                        if options_count > 0 {
+                                                            if let Some(ref req) = app.approval_state_ref() {
+                                                                let options = approval_overlay::build_approval_options(req);
+                                                                if app.approval_selected < options.len() {
+                                                                    let decision = options[app.approval_selected].decision;
+                                                                    let msg = app.resolve_approval(decision);
+                                                                    app.push_line(msg);
+                                                                    app.render();
+                                                                    should_break = true;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    KeyCode::Char(c) if c.is_ascii_digit() => {
+                                                        let digit = c.to_digit(10).unwrap() as usize;
+                                                        if digit > 0 && digit <= options_count {
+                                                            if let Some(ref req) = app.approval_state_ref() {
+                                                                let options = approval_overlay::build_approval_options(req);
+                                                                let decision = options[digit - 1].decision;
+                                                                let msg = app.resolve_approval(decision);
+                                                                app.push_line(msg);
+                                                                app.render();
+                                                                should_break = true;
+                                                            }
+                                                        }
+                                                    }
+                                                    KeyCode::Esc => {
+                                                        // Esc 键：中止审批
+                                                        if let Some(decision) = approval_overlay::resolve_approval_key(key) {
+                                                            let msg = app.resolve_approval(decision);
+                                                            app.push_line(msg);
+                                                            app.render();
+                                                            should_break = true;
+                                                        }
+                                                    }
+                                                    _ => {
+                                                        // 尝试单键快捷键
+                                                        if let Some(decision) = approval_overlay::resolve_approval_key(key) {
+                                                            let msg = app.resolve_approval(decision);
+                                                            app.push_line(msg);
+                                                            app.render();
+                                                            should_break = true;
+                                                        }
+                                                    }
+                                                }
+
+                                                // 如果做出决策，中断当前 streaming 并退出循环
+                                                if should_break {
+                                                    stream_handle.abort();
+                                                    app.end_streaming();
+                                                    app.set_thread_busy(target_thread_id, false);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        // 继续处理下一个轮询周期
+                                        continue;
+                                    }
+
                                     // 处理所有待处理的键盘事件
                                     while crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
                                         if let Ok(event) = crossterm::event::read() {
@@ -1162,6 +1273,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                 {
                                                     if let Some(prev_id) = app.thread_store.previous_thread() {
                                                         app.switch_thread(prev_id);
+                                                        app.render(); // 🔥 立即渲染以清除旧线程的审批界面
                                                     }
                                                     consumed = true;
                                                 }
@@ -1176,6 +1288,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                 {
                                                     if let Some(next_id) = app.thread_store.next_thread() {
                                                         app.switch_thread(next_id);
+                                                        app.render(); // 🔥 立即渲染以清除旧线程的审批界面
                                                     }
                                                     consumed = true;
                                                 }
@@ -1189,6 +1302,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     && !app.is_approving()
                                                 {
                                                     if app.return_to_parent() {
+                                                        app.render(); // 🔥 立即渲染以清除旧线程的审批界面
                                                         let active = app.thread_store.active_thread();
                                                         if let Some(thread) = active {
                                                             if thread.kind == crate::thread::ThreadKind::Main {
@@ -1233,9 +1347,81 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                 let action = app.input.handle_key(key);
                                                 match action {
                                                     InputAction::Submit(text) => {
-                                                        // Streaming 期间 Enter 入队（不清空输入框）
-                                                        app.enqueue(text);
-                                                        app.render();
+                                                        // 🔥 Phase 6: 检查当前线程是否 busy
+                                                        // 只有当前线程 busy 时才入队，否则立即处理
+                                                        if app.is_current_thread_busy() {
+                                                            // 当前线程正在 streaming，入队
+                                                            app.enqueue(text);
+                                                            app.render();
+                                                        } else {
+                                                            // 🔥 当前线程不 busy（可能是其他线程 busy）
+                                                            // 立即存储到当前线程，不排队
+                                                            let current_thread_id = app.thread_store.active_thread()
+                                                                .map(|t| t.id)
+                                                                .unwrap_or_else(|| app.thread_store.primary_id());
+
+                                                            // 存储消息到当前线程
+                                                            app.thread_messages.push(current_thread_id, thread::Message::user(text.clone()));
+
+                                                            // ⚠️ 关键修改：立即将当前线程的消息加入 pending 队列
+                                                            // 这样内层循环会在当前 streaming 完成后立即处理
+                                                            // 注意：这里使用 trick，将消息插入到 pending 的前面
+
+                                                            // 显示用户输入
+                                                            let theme = render::default_theme();
+                                                            app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &text));
+                                                            app.render();
+
+                                                            // 🔥 立即开始处理当前线程的 AI 请求
+                                                            // 将当前消息加入 pending，并中断当前 streaming
+                                                            // 这样内层循环会立即处理新消息
+
+                                                            // 中断当前 streaming
+                                                            stream_handle.abort();
+                                                            app.end_streaming();
+
+                                                            // 设置当前线程 busy
+                                                            app.set_thread_busy(current_thread_id, true);
+                                                            app.set_status("Thinking...".to_string());
+                                                            app.render();
+
+                                                            // 创建新的 channels
+                                                            let (new_output_tx, mut new_output_rx) =
+                                                                tokio::sync::mpsc::unbounded_channel::<OutputMessage>();
+                                                            let (new_status_tx, mut new_status_rx) =
+                                                                tokio::sync::mpsc::unbounded_channel::<String>();
+                                                            let (new_approval_tx, mut new_approval_rx) =
+                                                                tokio::sync::mpsc::unbounded_channel::<approval_overlay::ApprovalRequest>();
+                                                            let (new_thread_event_tx, mut new_thread_event_rx) =
+                                                                tokio::sync::mpsc::unbounded_channel::<thread::ThreadEvent>();
+                                                            let new_thread_event_tx_task = new_thread_event_tx.clone();
+
+                                                            let session_clone = session.clone();
+                                                            app.begin_streaming();
+
+                                                            // 启动新的 AI 请求
+                                                            let mut new_stream_handle = tokio::spawn(async move {
+                                                                let mut s = session_clone.lock().await;
+                                                                s.stream_prompt_tui(&text, new_output_tx, new_status_tx, new_approval_tx, new_thread_event_tx_task, current_thread_id)
+                                                                    .await
+                                                            });
+
+                                                            // 🔥 替换当前循环中的变量，继续处理新的 streaming
+                                                            // 这样就实现了立即切换到新线程的请求
+                                                            output_rx = new_output_rx;
+                                                            status_rx = new_status_rx;
+                                                            approval_rx = new_approval_rx;
+                                                            thread_event_rx = new_thread_event_rx;
+                                                            thread_event_tx = new_thread_event_tx;
+                                                            request_thread_id = current_thread_id;
+                                                            stream_handle = new_stream_handle;
+
+                                                            // ⚠️ 关键修复：break 退出内层循环，而不是 continue
+                                                            // 原因：旧的 output_rx 仍在 tokio::select! 中被监听
+                                                            // 如果 continue，会导致旧的消息仍被接收，造成消息串台
+                                                            // break 后进入下一次外层循环迭代，使用新的 channels
+                                                            break;
+                                                        }
                                                     }
                                                     InputAction::Exit => {
                                                         // Streaming 期间 Ctrl+D 不退出
@@ -1258,53 +1444,91 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                     }
                                 }
                                 Some(request) = approval_rx.recv() => {
-                                    app.set_approval_pending(request);
-                                    app.render();
+                                    // 🔥 Phase 6: 只处理属于当前线程的审批请求
+                                    // 其他线程的审批请求会被存储，但不进入键盘拦截模式
+                                    let current_thread_id = app.thread_store.active_thread()
+                                        .map(|t| t.id)
+                                        .unwrap_or_else(|| app.thread_store.primary_id());
 
-                                    // 审批模式：拦截按键直到决策
-                                    loop {
-                                        if crossterm::event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
-                                            if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
-                                                use crossterm::event::KeyCode;
+                                    if request.thread_id == current_thread_id {
+                                        // 审批请求属于当前线程，进入审批模式
+                                        // 🔥 保存 thread_id 因为 request 将被移动
+                                        let approval_thread_id = request.thread_id;
+                                        app.set_approval_pending(request);
+                                        app.render();
 
-                                                // 获取当前审批请求的选项数量
-                                                let options_count = if let Some(ref req) = app.approval_state_ref() {
-                                                    approval_overlay::build_approval_options(req).len()
-                                                } else {
-                                                    0
-                                                };
+                                        // 审批模式：拦截按键直到决策
+                                        loop {
+                                            // 🔥 Phase 6: 检测线程切换
+                                            // 如果用户切换到其他线程，退出审批 loop 并重新渲染以清除残留的审批界面
+                                            let current_active_thread_id = app.thread_store.active_thread()
+                                                .map(|t| t.id)
+                                                .unwrap_or_else(|| app.thread_store.primary_id());
 
-                                                let mut should_break = false;
+                                            if current_active_thread_id != approval_thread_id {
+                                                // 用户已切换到其他线程，退出审批 loop
+                                                // 重新渲染以清除残留的审批界面
+                                                app.render();
+                                                break;
+                                            }
 
-                                                // 处理按键
-                                                match key.code {
-                                                    KeyCode::Up | KeyCode::Down => {
-                                                        // 箭头键：更新选中项并继续等待（不退出循环）
-                                                        if options_count > 0 {
-                                                            if key.code == KeyCode::Up {
-                                                                if app.approval_selected > 0 {
-                                                                    app.approval_selected -= 1;
+                                            if crossterm::event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
+                                                if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+                                                    use crossterm::event::KeyCode;
+
+                                                    // 获取当前审批请求的选项数量
+                                                    let options_count = if let Some(ref req) = app.approval_state_ref() {
+                                                        approval_overlay::build_approval_options(req).len()
+                                                    } else {
+                                                        0
+                                                    };
+
+                                                    let mut should_break = false;
+
+                                                    // 处理按键
+                                                    match key.code {
+                                                        KeyCode::Up | KeyCode::Down => {
+                                                            // 箭头键：更新选中项并继续等待（不退出循环）
+                                                            if options_count > 0 {
+                                                                if key.code == KeyCode::Up {
+                                                                    if app.approval_selected > 0 {
+                                                                        app.approval_selected -= 1;
+                                                                    } else {
+                                                                        app.approval_selected = options_count - 1; // 循环到最后
+                                                                    }
                                                                 } else {
-                                                                    app.approval_selected = options_count - 1; // 循环到最后
+                                                                    if app.approval_selected + 1 < options_count {
+                                                                        app.approval_selected += 1;
+                                                                    } else {
+                                                                        app.approval_selected = 0; // 循环到第一个
+                                                                    }
                                                                 }
-                                                            } else {
-                                                                if app.approval_selected + 1 < options_count {
-                                                                    app.approval_selected += 1;
-                                                                } else {
-                                                                    app.approval_selected = 0; // 循环到第一个
+                                                                app.render();
+                                                            }
+                                                            // 箭头键不退出循环，继续等待下一个按键
+                                                        }
+                                                        KeyCode::Enter => {
+                                                            // Enter：确认当前选中项并退出循环
+                                                            if options_count > 0 {
+                                                                if let Some(ref req) = app.approval_state_ref() {
+                                                                    let options = approval_overlay::build_approval_options(req);
+                                                                    if app.approval_selected < options.len() {
+                                                                        let decision = options[app.approval_selected].decision;
+                                                                        let msg = app.resolve_approval(decision);
+                                                                        app.push_line(msg);
+                                                                        app.render();
+                                                                        should_break = true;
+                                                                    }
                                                                 }
                                                             }
-                                                            app.render();
                                                         }
-                                                        // 箭头键不退出循环，继续等待下一个按键
-                                                    }
-                                                    KeyCode::Enter => {
-                                                        // Enter：确认当前选中项并退出循环
-                                                        if options_count > 0 {
-                                                            if let Some(ref req) = app.approval_state_ref() {
-                                                                let options = approval_overlay::build_approval_options(req);
-                                                                if app.approval_selected < options.len() {
-                                                                    let decision = options[app.approval_selected].decision;
+                                                        KeyCode::Char(c) if c.is_ascii_digit() => {
+                                                            // 数字键：直接选择并退出循环
+                                                            let digit = c.to_digit(10).unwrap() as usize;
+                                                            if digit > 0 && digit <= options_count {
+                                                                if let Some(ref req) = app.approval_state_ref() {
+                                                                    let options = approval_overlay::build_approval_options(req);
+                                                                    let decision = options[digit - 1].decision;
                                                                     let msg = app.resolve_approval(decision);
                                                                     app.push_line(msg);
                                                                     app.render();
@@ -1312,14 +1536,9 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                                 }
                                                             }
                                                         }
-                                                    }
-                                                    KeyCode::Char(c) if c.is_ascii_digit() => {
-                                                        // 数字键：直接选择并退出循环
-                                                        let digit = c.to_digit(10).unwrap() as usize;
-                                                        if digit > 0 && digit <= options_count {
-                                                            if let Some(ref req) = app.approval_state_ref() {
-                                                                let options = approval_overlay::build_approval_options(req);
-                                                                let decision = options[digit - 1].decision;
+                                                        _ => {
+                                                            // 尝试单键快捷键（向后兼容）
+                                                            if let Some(decision) = approval_overlay::resolve_approval_key(key) {
                                                                 let msg = app.resolve_approval(decision);
                                                                 app.push_line(msg);
                                                                 app.render();
@@ -1327,23 +1546,18 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                             }
                                                         }
                                                     }
-                                                    _ => {
-                                                        // 尝试单键快捷键（向后兼容）
-                                                        if let Some(decision) = approval_overlay::resolve_approval_key(key) {
-                                                            let msg = app.resolve_approval(decision);
-                                                            app.push_line(msg);
-                                                            app.render();
-                                                            should_break = true;
-                                                        }
-                                                    }
-                                                }
 
-                                                // 只有做出决策后才退出循环
-                                                if should_break {
-                                                    break;
+                                                    // 只有做出决策后才退出循环
+                                                    if should_break {
+                                                        break;
+                                                    }
                                                 }
                                             }
                                         }
+                                    } else {
+                                        // 审批请求属于其他线程，仅存储不进入审批模式
+                                        app.set_approval_pending(request);
+                                        // 不 render，因为用户不在该线程上
                                     }
                                 }
                                 // 🔥 Phase 4.2: ThreadEvent 接收分支（用于线程消息路由）
@@ -1394,7 +1608,8 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         }
 
                         app.end_streaming();  // 🔥 保存完整的 AI 响应
-                        app.set_busy(false);
+                        // 🔥 Phase 6: 使用 per-thread busy 状态
+                        app.set_thread_busy(target_thread_id, false);
                         app.set_status(String::new());
                         app.push_line(String::new());
                         app.render();

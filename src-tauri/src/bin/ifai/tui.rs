@@ -32,6 +32,61 @@ use super::approval_overlay::{self, ApprovalDecision, ApprovalRequest};
 use super::input_composer::{self, InputAction, InputComposer};
 use super::thread::{self, ThreadId, ThreadMessages, ThreadStore};
 
+// ============================================================================
+// 🔥 Phase 6: Per-Thread 并发支持
+// ============================================================================
+
+/// 活跃的 AI 请求
+#[derive(Debug)]
+pub struct ActiveRequest {
+    pub thread_id: crate::thread::ThreadId,
+    pub stream_handle: tokio::task::JoinHandle<Result<String, String>>,
+    pub output_tx: tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
+}
+
+/// 活跃请求管理器（简单手写版本）
+pub struct ActiveRequests {
+    requests: std::collections::HashMap<crate::thread::ThreadId, ActiveRequest>,
+}
+
+impl ActiveRequests {
+    pub fn new() -> Self {
+        Self {
+            requests: std::collections::HashMap::new(),
+        }
+    }
+
+    pub fn start_request(&mut self, thread_id: crate::thread::ThreadId, request: ActiveRequest) {
+        self.requests.insert(thread_id, request);
+    }
+
+    pub fn finish_request(&mut self, thread_id: &crate::thread::ThreadId) -> Option<ActiveRequest> {
+        self.requests.remove(thread_id)
+    }
+
+    pub fn is_thread_busy(&self, thread_id: &crate::thread::ThreadId) -> bool {
+        self.requests.contains_key(thread_id)
+    }
+
+    pub fn get_thread_request(&self, thread_id: &crate::thread::ThreadId) -> Option<&ActiveRequest> {
+        self.requests.get(thread_id)
+    }
+
+    pub fn active_count(&self) -> usize {
+        self.requests.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.requests.is_empty()
+    }
+}
+
+impl Default for ActiveRequests {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// 剥离 ANSI 转义序列（按 char 边界，保留 UTF-8 多字节字符）
 fn strip_ansi(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
@@ -184,8 +239,11 @@ pub struct App {
     pub input: InputComposer,
     /// 状态栏文本
     status_text: String,
-    /// 是否正在处理 AI 请求（阻止新输入）
-    busy: bool,
+    /// 🔥 Phase 6: Per-thread busy 状态（替代全局 busy: bool）
+    /// 每个线程独立管理自己的 AI 处理状态
+    pub thread_busy: std::collections::HashMap<crate::thread::ThreadId, bool>,
+    /// 🔥 Phase 6: 活跃请求管理器
+    pub active_requests: ActiveRequests,
     /// 输入消息队列（streaming 期间用户按 Enter 入队，streaming 结束自动出队）
     /// ⚠️ 重要：每个排队的消息都记录了目标线程 ID
     /// 这样在处理队列时，消息会被发送到正确的线程，而不是当前活动线程
@@ -255,7 +313,8 @@ impl App {
             user_scrolled: false,
             input: InputComposer::new(""),
             status_text: String::new(),
-            busy: false,
+            thread_busy: std::collections::HashMap::new(),
+            active_requests: ActiveRequests::new(),
             queue: Vec::new(), // Vec<(String, ThreadId)>
             approval_states: std::collections::HashMap::new(),
             approval_selected: 0,
@@ -294,7 +353,8 @@ impl App {
             user_scrolled: false,
             input: InputComposer::new(""),
             status_text: String::new(),
-            busy: false,
+            thread_busy: std::collections::HashMap::new(),
+            active_requests: ActiveRequests::new(),
             queue: Vec::new(), // Vec<(String, ThreadId)>
             approval_states: std::collections::HashMap::new(),
             approval_selected: 0,
@@ -537,14 +597,35 @@ impl App {
         self.status_text = strip_ansi(&text);
     }
 
-    /// 设置忙碌状态
-    pub fn set_busy(&mut self, busy: bool) {
-        self.busy = busy;
+    /// 🔥 Phase 6: 检查指定线程是否 busy
+    pub fn is_thread_busy(&self, thread_id: crate::thread::ThreadId) -> bool {
+        self.thread_busy.get(&thread_id).copied().unwrap_or(false)
     }
 
-    /// 是否正在处理 AI 请求（阻止新输入）
+    /// 🔥 Phase 6: 设置指定线程的 busy 状态
+    pub fn set_thread_busy(&mut self, thread_id: crate::thread::ThreadId, busy: bool) {
+        self.thread_busy.insert(thread_id, busy);
+    }
+
+    /// 🔥 Phase 6: 检查当前活动线程是否 busy
+    pub fn is_current_thread_busy(&self) -> bool {
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+        self.is_thread_busy(current_thread_id)
+    }
+
+    /// 设置忙碌状态（向后兼容：操作当前线程）
+    pub fn set_busy(&mut self, busy: bool) {
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+        self.set_thread_busy(current_thread_id, busy);
+    }
+
+    /// 是否正在处理 AI 请求（向后兼容：检查当前线程）
     pub fn is_busy(&self) -> bool {
-        self.busy
+        self.is_current_thread_busy()
     }
 
     /// 入队一条消息（自动 trim + 空检查）
@@ -590,19 +671,14 @@ impl App {
     }
 
     /// 获取当前活动线程的审批状态（用于外部访问）
-    pub fn approval_state_ref(&self) -> &Option<ApprovalRequest> {
-        // 🔥 关键修复：只返回当前活动线程的审批状态
-        // 这样审批界面只显示在发起工具调用的线程中
+    /// 🔥 关键修复：返回当前活动线程的审批状态引用
+    /// 注意：由于生命周期限制，调用方需要在作用域内使用返回值
+    pub fn approval_state_ref(&self) -> Option<&ApprovalRequest> {
         let current_thread_id = self.thread_store.active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread_store.primary_id());
 
-        // 使用临时变量来避免返回引用局部变量的问题
-        // 我们需要返回一个静态的 None 或借用 HashMap 中的值
-        // 但由于生命周期问题，我们需要使用不同的方法
-
-        // 暂时返回一个静态的 None，实际使用时需要修改调用方
-        &None  // 临时方案，需要配合下面的新方法使用
+        self.approval_states.get(&current_thread_id)
     }
 
     /// 🔥 新方法：获取当前活动线程的审批状态
@@ -655,6 +731,15 @@ impl App {
             .unwrap_or_else(|| self.thread_store.primary_id());
 
         self.approval_states.contains_key(&current_thread_id)
+    }
+
+    /// 🔥 获取并移除当前线程的待处理审批请求（用于重新发送到审批 loop）
+    pub fn take_pending_approval(&mut self) -> Option<ApprovalRequest> {
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+
+        self.approval_states.remove(&current_thread_id)
     }
 
     // ============================================================================
