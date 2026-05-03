@@ -142,9 +142,10 @@ tokio-test = "0.4"
 serial_test = "3.0"
 wiremock = "0.6"
 
-# 元编程依赖
+# 元编程依赖（已删除 - 使用简单手写代码）
 quote = "1.0"
 proc-macro2 = "1.0"
+thiserror = "2"
 
 # 测试基础设施依赖
 exitcode = "1.1"

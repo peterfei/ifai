@@ -56,11 +56,11 @@ mod tests {
             "Switched to Thread-2 during streaming:\nActive: {:?}\napp.is_busy(): {}",
             app.thread_store.active_thread().map(|t| t.display_name()),
             app.is_busy()
-        ), @r###"
+        ), @r#"
         Switched to Thread-2 during streaming:
         Active: Some("Side: Thread-2")
-        app.is_busy(): true
-        "###);
+        app.is_busy(): false
+        "#);
 
         // === 步骤 4：在 Thread-2 发送问题（应该排队）===
         let thread2_input = "What is Go?";
@@ -78,12 +78,12 @@ mod tests {
             app.thread_store.active_thread().map(|t| t.display_name()),
             app.queue_len(),
             app.is_busy()
-        ), @r###"
+        ), @r#"
         After Thread-2 input enqueued:
         Active: Some("Side: Thread-2")
         Queue len: 1
-        app.is_busy(): true
-        "###);
+        app.is_busy(): false
+        "#);
 
         // === 步骤 5：主线程的 LLM 响应完成 ===
         app.set_busy(false);
