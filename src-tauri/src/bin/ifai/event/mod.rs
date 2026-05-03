@@ -36,6 +36,7 @@
 pub mod handler;
 pub mod handlers;
 pub mod router;
+pub mod thread_event;
 
 // 重新导出核心类型
 pub use handler::{ControlFlow, EventHandler, EventRoute};
@@ -45,3 +46,4 @@ pub use handlers::{
     MouseScrollHandler, ResizeHandler, SearchEnterHandler, SearchInputHandler,
 };
 pub use router::EventRouter;
+pub use thread_event::{ThreadEnterHandler, ThreadModeHandler, THREAD_KEYMAP};
