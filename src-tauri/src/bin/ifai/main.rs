@@ -920,6 +920,180 @@ fn run_tui_repl(resume_name: Option<String>) -> Result<(), String> {
     rt.block_on(async { run_tui_repl_async(resume_name).await })
 }
 
+/// /thread 系列命令处理（需要 App 访问，不走 Session dispatch）
+fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
+    let theme = render::default_theme();
+
+    match arg {
+        None | Some("") => {
+            // /thread — 创建侧线程（同 Ctrl+T）
+            if app.thread_store.len() >= 5 {
+                app.push_line(format!(
+                    "{}已达到最大线程数（5）{}",
+                    render::RESET, render::RESET
+                ));
+                return;
+            }
+            let name = format!("Thread-{}", app.thread_store.len());
+            let id = app.create_side_thread(Some(name));
+            app.active_thread_mode = true;
+            app.push_line(format!(
+                "{}✓ 已创建侧线程 {}{}",
+                theme.success,
+                app.thread_store.get_thread(id).map(|t| t.display_name()).unwrap_or_default(),
+                render::RESET
+            ));
+        }
+        Some("list") => {
+            // /thread list — 列出所有线程
+            let thread_count = app.thread_store.len();
+            let active_id = app.thread_store.active_id();
+            // 先收集显示信息，避免借用冲突
+            let display_infos: Vec<(usize, String, &'static str, bool)> = app
+                .thread_store
+                .all_threads()
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
+                    let is_active = active_id == Some(t.id);
+                    let kind = match t.kind {
+                        crate::thread::ThreadKind::Main => "主线程",
+                        crate::thread::ThreadKind::Side => "侧线程",
+                    };
+                    (i + 1, t.display_name(), kind, is_active)
+                })
+                .collect();
+
+            app.push_line(format!(
+                "{}线程列表（共 {} 个）:{}",
+                theme.heading,
+                thread_count,
+                render::RESET
+            ));
+            for (idx, name, kind, is_active) in &display_infos {
+                let marker = if *is_active { " ← 活跃" } else { "" };
+                app.push_line(format!(
+                    "  {}{}. {} [{}]{}",
+                    theme.brand, idx, name, kind, marker
+                ));
+            }
+        }
+        Some(subcmd) => {
+            let parts: Vec<&str> = subcmd.splitn(2, ' ').collect();
+            match parts[0] {
+                "switch" => {
+                    if parts.len() < 2 {
+                        app.push_line(format!(
+                            "{}用法: /thread switch <N>{}（N 为线程编号，从 1 开始）",
+                            theme.muted, render::RESET
+                        ));
+                        return;
+                    }
+                    match parts[1].parse::<usize>() {
+                        Ok(n) if n >= 1 && n <= app.thread_store.len() => {
+                            let threads = app.thread_store.all_threads();
+                            let target = &threads[n - 1];
+                            let target_id = target.id;
+                            let display_name = target.display_name();
+                            if app.switch_thread(target_id) {
+                                app.push_line(format!(
+                                    "{}✓ 已切换到线程 {}{}",
+                                    theme.success,
+                                    display_name,
+                                    render::RESET
+                                ));
+                            } else {
+                                app.push_line(format!(
+                                    "{}切换失败{}",
+                                    theme.error, render::RESET
+                                ));
+                            }
+                        }
+                        _ => {
+                            app.push_line(format!(
+                                "{}无效的线程编号 '{}'，范围: 1-{}{}",
+                                theme.error,
+                                parts[1],
+                                app.thread_store.len(),
+                                render::RESET
+                            ));
+                        }
+                    }
+                }
+                "close" => {
+                    let active = app.thread_store.active_thread();
+                    match active {
+                        Some(t) if t.kind == crate::thread::ThreadKind::Main => {
+                            app.push_line(format!(
+                                "{}不能关闭主线程{}",
+                                theme.error, render::RESET
+                            ));
+                        }
+                        Some(t) => {
+                            let name = t.display_name();
+                            let parent_id = t.parent_id;
+                            let closed = app.thread_store.remove_thread(t.id);
+                            if closed {
+                                // 切回父线程
+                                if let Some(pid) = parent_id {
+                                    app.switch_thread(pid);
+                                }
+                                app.active_thread_mode = false;
+                                app.push_line(format!(
+                                    "{}✓ 已关闭线程 '{}'{}",
+                                    theme.success,
+                                    name,
+                                    render::RESET
+                                ));
+                            }
+                        }
+                        None => {
+                            app.push_line(format!("{}没有活跃线程{}", theme.error, render::RESET));
+                        }
+                    }
+                }
+                "rename" => {
+                    if parts.len() < 2 || parts[1].trim().is_empty() {
+                        app.push_line(format!(
+                            "{}用法: /thread rename <新名称>{}",
+                            theme.muted, render::RESET
+                        ));
+                        return;
+                    }
+                    let new_name = parts[1].trim().to_string();
+                    let active_id = match app.thread_store.active_id() {
+                        Some(id) => id,
+                        None => {
+                            app.push_line(format!("{}没有活跃线程{}", theme.error, render::RESET));
+                            return;
+                        }
+                    };
+                    if app.rename_thread(active_id, new_name.clone()) {
+                        app.push_line(format!(
+                            "{}✓ 线程已重命名为 '{}'{}",
+                            theme.success,
+                            new_name,
+                            render::RESET
+                        ));
+                    } else {
+                        app.push_line(format!("{}重命名失败{}", theme.error, render::RESET));
+                    }
+                }
+                _ => {
+                    app.push_line(format!(
+                        "{}未知子命令: '{}'{}",
+                        theme.error, parts[0], render::RESET
+                    ));
+                    app.push_line(format!(
+                        "{}用法: /thread [list|switch <N>|close|rename <name>]{}",
+                        theme.muted, render::RESET
+                    ));
+                }
+            }
+        }
+    }
+}
+
 /// 🖥️ TUI 全屏 REPL 核心（async）
 async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 🔇 全局禁用调试日志
@@ -986,6 +1160,12 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     let parts: Vec<&str> = text.splitn(2, ' ').collect();
                     let cmd = &parts[0][1..];
                     let arg = parts.get(1).map(|s| s.to_string());
+
+                    // === /thread 系列命令拦截（需要 App 访问，不走 Session dispatch） ===
+                    if cmd == "thread" {
+                        handle_thread_command(&mut app, arg.as_deref());
+                        continue;
+                    }
 
                     let mut s = session.lock().await;
                     match commands::dispatch_command(&mut s, cmd, arg.as_deref()) {

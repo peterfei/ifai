@@ -1381,6 +1381,25 @@ impl App {
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                 f.render_widget(status, status_area);
 
+                // === 命令弹出框（输入框上方） ===
+                if show_tasks && task_height > 0 {
+                    let task_y = status_area.y.saturating_sub(task_height);
+                    let task_area =
+                        Rect::new(content_area.x, task_y, content_area.width, task_height);
+                    f.render_widget(Clear, task_area);
+                    let task_content = Paragraph::new(task_lines.clone())
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(task_content, task_area);
+                } else if popup_visible && popup_height > 0 {
+                    let popup_y = status_area.y.saturating_sub(popup_height);
+                    let popup_area =
+                        Rect::new(content_area.x, popup_y, content_area.width, popup_height);
+                    f.render_widget(Clear, popup_area);
+                    let popup_content = Paragraph::new(popup_lines)
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(popup_content, popup_area);
+                }
+
                 // === 分隔线 ===
                 let separator_line = "─".repeat(separator_area.width as usize);
                 let separator = Paragraph::new(separator_line)
@@ -1682,6 +1701,11 @@ impl App {
         self.switch_thread(thread_id);
 
         thread_id
+    }
+
+    /// 重命名线程
+    pub fn rename_thread(&mut self, thread_id: ThreadId, new_name: String) -> bool {
+        self.thread_store.rename_thread(thread_id, new_name)
     }
 
     /// 切换线程
