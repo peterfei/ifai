@@ -21,7 +21,7 @@ use ratatui::{
 use crate::event::{
     CombinedKeyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
     HelpEnterHandler, HelpExitHandler, IgnoreHandler, MouseScrollHandler, ResizeHandler,
-    SearchEnterHandler, SearchInputHandler,
+    SearchEnterHandler, SearchInputHandler, ThreadModeHandler, ThreadEnterHandler,
 };
 use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::render;
@@ -1391,6 +1391,16 @@ impl App {
                         || matches!(e, crossterm::event::Event::Mouse(_))
                 },
                 DetailModeHandler,
+            )
+            // 线程模式处理（优先级高，需要在正常输入之前）
+            .on(
+                |e| matches!(e, crossterm::event::Event::Key(_)),
+                ThreadModeHandler,
+            )
+            // 线程进入处理（创建/切换线程）
+            .on(
+                |e| matches!(e, crossterm::event::Event::Key(_)),
+                ThreadEnterHandler,
             )
             // 组合键盘处理器（输入 + 滚动）
             .on(
