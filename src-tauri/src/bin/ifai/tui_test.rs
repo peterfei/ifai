@@ -113,6 +113,8 @@ pub fn render_to_buffer(
     width: u16,
     height: u16,
 ) -> ratatui::buffer::Buffer {
+    // 设置 test_size 使 content_area() 与实际渲染尺寸一致
+    app.set_test_size(width, height);
     let backend = ratatui::backend::TestBackend::new(width, height);
     let mut terminal = ratatui::Terminal::new(backend).unwrap();
     terminal.draw(|f| app.draw_frame(f)).unwrap();

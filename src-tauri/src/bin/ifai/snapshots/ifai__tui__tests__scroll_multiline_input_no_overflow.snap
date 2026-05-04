@@ -1,0 +1,16 @@
+---
+source: src/bin/ifai/tui.rs
+expression: text
+---
+Content line 06                    ↑50% 
+Content line 07                         
+Content line 08                         
+Content line 09                         
+Content line 10                         
+Content line 11                         
+Content line 12                         
+Content line 13                         
+ [Ready]                                
+────────────────────────────────────────
+⟩ hi                                    
+  there

@@ -291,6 +291,9 @@ pub struct App {
     pub thread_messages: ThreadMessages,
     /// 线程模式标记
     pub active_thread_mode: bool,
+    /// 测试模式下的终端尺寸（None 表示使用实际 terminal 尺寸）
+    #[cfg(test)]
+    test_size: Option<(u16, u16)>,
 }
 
 impl App {
@@ -338,6 +341,8 @@ impl App {
             thread_store: ThreadStore::new(),
             thread_messages: ThreadMessages::new(),
             active_thread_mode: false,
+            #[cfg(test)]
+            test_size: None,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -377,7 +382,15 @@ impl App {
             thread_store: ThreadStore::new(),
             thread_messages: ThreadMessages::new(),
             active_thread_mode: false,
+            #[cfg(test)]
+            test_size: None,
         }
+    }
+
+    /// 设置测试模式下的终端尺寸（使 content_area() 与 TestBackend 一致）
+    #[cfg(test)]
+    pub fn set_test_size(&mut self, width: u16, height: u16) {
+        self.test_size = Some((width, height));
     }
 
     /// 推送一行文本到内容区（自动剥离 ANSI 转义码）
@@ -928,17 +941,24 @@ impl App {
         self.scroll_offset = (self.scroll_offset + n).min(max_offset);
     }
 
-    /// 获取内容区域（减去底部 2 行）
+    /// 获取内容区域（减去状态栏 + 分隔线 + 输入框高度）
     fn content_area(&self) -> Rect {
+        let input_height = self.input.line_count().min(10) as u16;
         if let Some(terminal) = &self.terminal {
             let size = terminal
                 .size()
                 .unwrap_or(ratatui::layout::Size::new(80, 24));
-            let height = size.height.saturating_sub(2);
+            // 布局：内容区 + 状态栏(1) + 分隔线(1) + 输入框(input_height)
+            let height = size.height.saturating_sub(2 + input_height);
             Rect::new(0, 0, size.width, height)
         } else {
-            // 测试模式：返回固定大小
-            Rect::new(0, 0, 80, 22)
+            // 测试模式：使用 test_size 或默认值
+            #[cfg(test)]
+            let (w, h): (u16, u16) = self.test_size.unwrap_or((80, 24));
+            #[cfg(not(test))]
+            let (w, h): (u16, u16) = (80, 24);
+            let height = h.saturating_sub(2 + input_height);
+            Rect::new(0, 0, w, height)
         }
     }
 
@@ -1962,14 +1982,15 @@ mod tests {
     // 注意：由于 App 的 terminal 字段类型为 Terminal<CrosstermBackend<Stdout>>，
     // 在测试环境中无法直接构造。我们通过提取滚动计算逻辑到纯函数进行测试。
 
-    /// 模拟 content_area 计算（给定终端高度）
-    fn content_height(terminal_height: u16) -> usize {
-        terminal_height.saturating_sub(2) as usize
+    /// 模拟 content_area 计算（给定终端高度和输入行数）
+    fn content_height(terminal_height: u16, input_lines: u16) -> usize {
+        let input_height = input_lines.min(10);
+        terminal_height.saturating_sub(2 + input_height) as usize
     }
 
     /// 计算最大滚动偏移（与 App::scroll_to_bottom 逻辑一致）
-    fn max_scroll_offset(total_lines: usize, terminal_height: u16) -> u16 {
-        let visible = content_height(terminal_height);
+    fn max_scroll_offset(total_lines: usize, terminal_height: u16, input_lines: u16) -> u16 {
+        let visible = content_height(terminal_height, input_lines);
         if total_lines > visible {
             (total_lines - visible) as u16
         } else {
@@ -1979,61 +2000,74 @@ mod tests {
 
     #[test]
     fn test_scroll_no_overflow() {
-        // 4 行内容，10 行高终端 → 可见 8 行，无溢出
-        assert_eq!(max_scroll_offset(4, 10), 0);
+        // 4 行内容，10 行高终端，1 行输入 → 可见 7 行，无溢出
+        assert_eq!(max_scroll_offset(4, 10, 1), 0);
     }
 
     #[test]
     fn test_scroll_exact_fit() {
-        // 8 行内容，10 行高终端 → 可见 8 行，恰好无溢出
-        assert_eq!(max_scroll_offset(8, 10), 0);
+        // 7 行内容，10 行高终端，1 行输入 → 可见 7 行，恰好无溢出
+        assert_eq!(max_scroll_offset(7, 10, 1), 0);
     }
 
     #[test]
     fn test_scroll_overflow() {
-        // 14 行内容，5 行高终端 → 可见 3 行，scroll_offset = 11
-        assert_eq!(max_scroll_offset(14, 5), 11);
+        // 14 行内容，5 行高终端，1 行输入 → 可见 2 行，scroll_offset = 12
+        assert_eq!(max_scroll_offset(14, 5, 1), 12);
     }
 
     #[test]
     fn test_scroll_small_terminal() {
-        // 最小 3 行高终端：内容区 1 行
-        assert_eq!(content_height(3), 1);
-        assert_eq!(max_scroll_offset(5, 3), 4);
+        // 最小 3 行高终端，1 行输入：内容区 0 行
+        assert_eq!(content_height(3, 1), 0);
+        assert_eq!(max_scroll_offset(5, 3, 1), 5);
     }
 
     #[test]
     fn test_scroll_tiny_terminal() {
         // 2 行高终端：内容区 0 行
-        assert_eq!(content_height(2), 0);
+        assert_eq!(content_height(2, 1), 0);
     }
 
     #[test]
     fn test_scroll_calculation() {
         // 模拟 scroll_up/scroll_down 的偏移量计算
-        let max_off = max_scroll_offset(24, 5); // 24 行内容，3 行可见 → 21
-        assert_eq!(max_off, 21);
+        let max_off = max_scroll_offset(24, 5, 1); // 24 行内容，2 行可见 → 22
+        assert_eq!(max_off, 22);
 
         // scroll_up(5) 从底部
         let offset = max_off.saturating_sub(5);
-        assert_eq!(offset, 16);
+        assert_eq!(offset, 17);
         assert!(offset < max_off); // 不在底部
 
         // scroll_down(3)
         let offset = (offset + 3).min(max_off);
-        assert_eq!(offset, 19);
+        assert_eq!(offset, 20);
 
         // scroll_down(10) 到底部
         let offset = (offset + 10).min(max_off);
-        assert_eq!(offset, 21);
+        assert_eq!(offset, 22);
         assert!(offset >= max_off); // 在底部
     }
 
     #[test]
     fn test_scroll_no_underflow() {
-        let max_off = max_scroll_offset(24, 5);
+        let max_off = max_scroll_offset(24, 5, 1);
         let offset = 0u16.saturating_sub(5);
         assert_eq!(offset, 0);
+    }
+
+    #[test]
+    fn test_scroll_with_multiline_input() {
+        // 多行输入（3 行）时，内容区更小，max_offset 更大
+        // 14 行内容，5 行高终端，3 行输入 → 可见 0 行（5-2-3=0）
+        assert_eq!(max_scroll_offset(14, 5, 3), 14);
+
+        // 14 行内容，10 行高终端，3 行输入 → 可见 5 行，max_offset = 9
+        assert_eq!(max_scroll_offset(14, 10, 3), 9);
+
+        // 同样的内容，1 行输入 → 可见 7 行，max_offset = 7
+        assert_eq!(max_scroll_offset(14, 10, 1), 7);
     }
 
     // === Smart auto-scroll 测试 ===
@@ -3715,5 +3749,96 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
             sep_line_2, sep_line_1 - 1,
             "多行输入时分隔线应上移一行"
         );
+    }
+
+    #[test]
+    fn test_scroll_up_with_multiline_input_no_overflow() {
+        // 高保真快照：多行输入时向上翻历史，不应看到空白或输入框内容溢出到内容区
+        let mut app = App::new_for_test();
+        app.set_test_size(40, 12);
+
+        // 添加 20 行内容
+        for i in 0..20 {
+            app.push_line(format!("Content line {:02}", i));
+        }
+        app.scroll_to_bottom();
+
+        // 输入 2 行文本（Ctrl+J 换行）
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+        assert_eq!(app.input.value(), "hi\nthere");
+        assert_eq!(app.input.line_count(), 2);
+
+        // 向上翻 5 行
+        app.scroll_up(5);
+
+        let buf = render_to_buffer(&mut app, 40, 12);
+        let text = buffer_to_string(&buf);
+
+        // 快照回归
+        assert_tui_snapshot!("scroll_multiline_input_no_overflow", &buf);
+
+        // 验证：内容区只显示内容行，不应出现空白行或输入框泄漏
+        let lines: Vec<&str> = text.lines().collect();
+        // 找分隔线位置
+        let sep_idx = lines.iter().position(|l| l.contains('─')).unwrap();
+
+        // 分隔线之前的所有行都应该是内容行（非空白）
+        for i in 0..sep_idx {
+            let trimmed = lines[i].trim();
+            // 允许行尾的空白，但不允许完全空白的行出现在内容区
+            // （内容区应该填满可见行）
+            assert!(
+                !trimmed.is_empty() || i == sep_idx.saturating_sub(1),
+                "内容区第 {} 行为空，可能存在滚动溢出 bug",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_scroll_to_bottom_with_multiline_input() {
+        // 验证多行输入时 scroll_to_bottom 正确计算底部位置
+        let mut app = App::new_for_test();
+        app.set_test_size(40, 10);
+
+        for i in 0..15 {
+            app.push_line(format!("Line {:02}", i));
+        }
+
+        // 输入 3 行
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+        assert_eq!(app.input.line_count(), 3);
+
+        app.scroll_to_bottom();
+        assert!(app.at_bottom());
+
+        // 渲染并验证最后一行内容可见
+        let buf = render_to_buffer(&mut app, 40, 10);
+        let text = buffer_to_string(&buf);
+        assert_buffer_contains!(&buf, "Line 14");
     }
 }
