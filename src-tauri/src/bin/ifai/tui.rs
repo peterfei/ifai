@@ -11,7 +11,6 @@ use crossterm::{
     terminal::{
         disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     },
-    event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -236,8 +235,6 @@ pub struct App {
     pub content_lines: Vec<Line<'static>>,
     /// 内容区滚动偏移
     pub scroll_offset: u16,
-    /// 用户是否手动上翻（禁用 auto_scroll）
-    user_scrolled: bool,
     /// 输入框
     pub input: InputComposer,
     /// 状态栏文本
@@ -300,25 +297,13 @@ impl App {
     /// 创建并初始化 TUI
     pub fn new() -> io::Result<Self> {
         enable_raw_mode()?;
-        // 启用键盘增强模式（kitty protocol），使终端能区分 Shift+Enter 和 Enter
-        // 某些终端不支持，降级为普通模式（可用 Alt+Enter 替代）
-        let enh_flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
-            | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
-            | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
-            | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES;
-        if execute!(
+        // 不启用键盘增强模式（kitty protocol），因为会破坏 CJK IME 输入法组合
+        // 多行输入使用 Ctrl+J（ASCII LineFeed，终端通用）
+        execute!(
             io::stdout(),
             EnterAlternateScreen,
             crossterm::event::EnableMouseCapture,
-            PushKeyboardEnhancementFlags(enh_flags)
-        ).is_err() {
-            // 降级：不含键盘增强
-            execute!(
-                io::stdout(),
-                EnterAlternateScreen,
-                crossterm::event::EnableMouseCapture
-            )?;
-        }
+        )?;
 
         let backend = CrosstermBackend::new(io::stdout());
         let mut terminal = Terminal::new(backend)?;
@@ -328,7 +313,6 @@ impl App {
             terminal: Some(terminal),
             content_lines: Vec::new(),
             scroll_offset: 0,
-            user_scrolled: false,
             input: InputComposer::new(""),
             status_text: String::new(),
             thread_busy: std::collections::HashMap::new(),
@@ -368,7 +352,6 @@ impl App {
             terminal: None,
             content_lines: Vec::new(),
             scroll_offset: 0,
-            user_scrolled: false,
             input: InputComposer::new(""),
             status_text: String::new(),
             thread_busy: std::collections::HashMap::new(),
@@ -399,12 +382,13 @@ impl App {
 
     /// 推送一行文本到内容区（自动剥离 ANSI 转义码）
     pub fn push_line(&mut self, text: String) {
+        // 在添加内容前记住是否在底部（follow-bottom 模式）
+        let was_at_bottom = self.at_bottom();
         let text = strip_ansi(&text);
         for line in text.split('\n') {
             self.content_lines.push(Line::from(line.to_string()));
         }
-        // 仅在用户未手动上翻时自动滚到底部
-        if !self.user_scrolled {
+        if was_at_bottom {
             self.scroll_to_bottom();
         }
     }
@@ -460,6 +444,13 @@ impl App {
                 self.last_ai_responses.insert(thread_id, buffer.clone());
             }
         }
+        // AI 回复结束后自动回到底部，确保用户看到完整回复
+        let current_thread_id = self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id());
+        if thread_id == current_thread_id {
+            self.scroll_to_bottom();
+        }
     }
 
     /// 获取当前活动线程的 streaming buffer（用于 overlay 在 streaming 期间显示）
@@ -497,6 +488,7 @@ impl App {
         self.diffs.push(diff);
 
         // 渲染所有 diff 的摘要（显示完整的文件列表）
+        let was_at_bottom = self.at_bottom();
         let summary_lines = diff_render::render_diff_summary(&self.diffs);
         // 清除之前的摘要（如果需要，可以添加标记来追踪）
         // 这里简化处理：每次都重新渲染所有摘要
@@ -512,7 +504,7 @@ impl App {
         self.content_lines.push(Line::from(""));
 
         // 自动滚到底部
-        if !self.user_scrolled {
+        if was_at_bottom {
             self.scroll_to_bottom();
         }
     }
@@ -909,18 +901,21 @@ impl App {
         } else {
             self.scroll_offset = 0;
         }
-        self.user_scrolled = false;
     }
 
-    /// 向上滚动 n 行
-    pub fn scroll_up(&mut self, n: u16) {
-        self.scroll_offset = self.scroll_offset.saturating_sub(n);
+    /// 判断当前是否在内容底部
+    pub fn at_bottom(&self) -> bool {
         let area = self.content_area();
         let max_offset = self
             .content_lines
             .len()
             .saturating_sub(area.height as usize) as u16;
-        self.user_scrolled = self.scroll_offset < max_offset;
+        self.scroll_offset >= max_offset
+    }
+
+    /// 向上滚动 n 行
+    pub fn scroll_up(&mut self, n: u16) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(n);
     }
 
     /// 向下滚动 n 行
@@ -931,9 +926,6 @@ impl App {
             .len()
             .saturating_sub(area.height as usize) as u16;
         self.scroll_offset = (self.scroll_offset + n).min(max_offset);
-        if self.scroll_offset >= max_offset {
-            self.user_scrolled = false;
-        }
     }
 
     /// 获取内容区域（减去底部 2 行）
@@ -983,7 +975,7 @@ impl App {
         // 🔥 关键修复：只检查当前活动线程的审批状态
         let has_approval_state = self.is_approving();
         let approval_selected = self.approval_selected;
-        let user_scrolled = self.user_scrolled;
+        let user_scrolled = !self.at_bottom();
         let status_text = &self.status_text;
         let input_value = self.input.value();
         let input_cursor_col = input_composer::cursor_col(&self.input);
@@ -1625,11 +1617,6 @@ impl App {
         if let Some(terminal) = &mut self.terminal {
             terminal.show_cursor()?;
         }
-        // PopKeyboardEnhancementFlags 可能失败（终端不支持增强模式时未 Push）
-        let _ = execute!(
-            io::stdout(),
-            PopKeyboardEnhancementFlags,
-        );
         execute!(
             io::stdout(),
             LeaveAlternateScreen,
@@ -1715,9 +1702,9 @@ impl App {
                 |e| matches!(e, crossterm::event::Event::Key(_)),
                 CombinedKeyHandler,
             )
-            // 鼠标滚轮路由（带选择支持）
+            // 鼠标滚轮 + 焦点恢复路由（带选择支持）
             .on(
-                |e| matches!(e, crossterm::event::Event::Mouse(_)),
+                |e| matches!(e, crossterm::event::Event::Mouse(_) | crossterm::event::Event::FocusGained),
                 MouseScrollHandler::new(),
             )
             // Resize 路由
@@ -1738,6 +1725,10 @@ impl App {
 
             if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
                 if let Ok(event) = event::read() {
+                    // 过滤键盘释放事件（键盘增强模式会发送 Press + Release）
+                    if matches!(event, Event::Key(ref k) if k.kind == event::KeyEventKind::Release) {
+                        continue;
+                    }
                     match router.dispatch(&event, self) {
                         ControlFlow::Break(AppResult::Submit(text)) => return AppResult::Submit(text),
                         ControlFlow::Break(AppResult::Exit) => return AppResult::Exit,
@@ -1781,7 +1772,6 @@ impl App {
             // 🔥 Bug 修复：清空终端并加载目标线程的历史消息
             self.content_lines.clear();
             self.scroll_offset = 0;
-            self.user_scrolled = false;
 
             // 加载目标线程的历史消息（先收集到 Vec 以避免借用问题）
             let messages_to_load: Vec<String> = self.thread_messages
@@ -2027,7 +2017,7 @@ mod tests {
         // scroll_up(5) 从底部
         let offset = max_off.saturating_sub(5);
         assert_eq!(offset, 16);
-        assert!(offset < max_off); // user_scrolled = true
+        assert!(offset < max_off); // 不在底部
 
         // scroll_down(3)
         let offset = (offset + 3).min(max_off);
@@ -2036,7 +2026,7 @@ mod tests {
         // scroll_down(10) 到底部
         let offset = (offset + 10).min(max_off);
         assert_eq!(offset, 21);
-        assert!(offset >= max_off); // user_scrolled = false
+        assert!(offset >= max_off); // 在底部
     }
 
     #[test]
@@ -2044,6 +2034,95 @@ mod tests {
         let max_off = max_scroll_offset(24, 5);
         let offset = 0u16.saturating_sub(5);
         assert_eq!(offset, 0);
+    }
+
+    // === Smart auto-scroll 测试 ===
+
+    #[test]
+    fn test_at_bottom_empty() {
+        // 空内容时 at_bottom 返回 true
+        let app = App::new_for_test();
+        assert!(app.at_bottom());
+    }
+
+    #[test]
+    fn test_at_bottom_with_scroll_space() {
+        // 内容超出可视区域，scroll_offset 在最大值时 at_bottom = true
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+        app.scroll_to_bottom();
+        assert!(app.at_bottom());
+
+        // 向上滚动 3 行，不再在底部
+        app.scroll_up(3);
+        assert!(!app.at_bottom());
+
+        // 滚回底部
+        app.scroll_to_bottom();
+        assert!(app.at_bottom());
+    }
+
+    #[test]
+    fn test_at_bottom_no_scroll_space() {
+        // 内容不超过可视区域，at_bottom 始终为 true
+        let mut app = App::new_for_test();
+        app.push_line("short".to_string());
+        assert!(app.at_bottom());
+        app.scroll_up(3); // saturating_sub，不会变负
+        assert!(app.at_bottom());
+    }
+
+    #[test]
+    fn test_push_line_auto_scroll_at_bottom() {
+        // 在底部时 push_line 自动滚动
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+        app.scroll_to_bottom();
+        let last_offset = app.scroll_offset;
+
+        // 再添加一行
+        app.push_line("New line".to_string());
+        assert_eq!(app.scroll_offset, last_offset + 1);
+    }
+
+    #[test]
+    fn test_push_line_preserves_scroll_position() {
+        // 不在底部时 push_line 不改变滚动位置
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+        app.scroll_to_bottom();
+        app.scroll_up(5); // 向上翻 5 行
+        let offset_before = app.scroll_offset;
+
+        // 添加新内容
+        app.push_line("New line".to_string());
+        assert_eq!(app.scroll_offset, offset_before);
+    }
+
+    #[test]
+    fn test_end_streaming_auto_scroll_to_bottom() {
+        // end_streaming 后自动回到底部
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+        app.scroll_to_bottom();
+        app.scroll_up(10); // 向上翻
+        assert!(!app.at_bottom());
+
+        // 模拟 streaming（写入 buffer）
+        let thread_id = app.thread_store.primary_id();
+        app.streaming_response_buffers.insert(thread_id, "AI response".to_string());
+
+        // end_streaming 应自动回底
+        app.end_streaming(thread_id);
+        assert!(app.at_bottom());
     }
 
     // === push_line 行分割逻辑测试 ===
@@ -3475,17 +3554,17 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     // === 多行输入测试 ===
 
     #[test]
-    fn test_multiline_input_shift_enter() {
-        // 验证 Shift+Enter 插入换行，输入框正确渲染多行
+    fn test_multiline_input_ctrl_j() {
+        // 验证 Ctrl+J 插入换行，输入框正确渲染多行
         let mut app = App::new_for_test();
 
-        // 输入 "hello" + Shift+Enter + "world"
+        // 输入 "hello" + Ctrl+J + "world"
         for c in "hello".chars() {
             app.input
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
         }
         app.input
-            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
         for c in "world".chars() {
             app.input
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
@@ -3516,13 +3595,13 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
         }
         app.input
-            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
         for c in "line2".chars() {
             app.input
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
         }
         app.input
-            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
         for c in "line3".chars() {
             app.input
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
@@ -3545,7 +3624,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
         }
         app.input
-            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
         for c in "测试多行".chars() {
             app.input
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
@@ -3570,7 +3649,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
         }
         app.input
-            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
         for c in "def".chars() {
             app.input
                 .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
@@ -3621,7 +3700,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.input
             .handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
         app.input
-            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
         app.input
             .handle_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
 

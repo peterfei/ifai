@@ -68,8 +68,19 @@ impl Default for MouseScrollHandler {
 
 impl EventHandler<Event> for MouseScrollHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        if let Event::Mouse(mouse) = event {
-            match mouse.kind {
+        match event {
+            // 焦点恢复时，确保鼠标捕获状态正确
+            Event::FocusGained => {
+                if self.selecting {
+                    self.selecting = false;
+                    let _ = crossterm::execute!(
+                        std::io::stdout(),
+                        crossterm::event::EnableMouseCapture
+                    );
+                }
+                ControlFlow::Continue
+            }
+            Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::ScrollUp => {
                     app.scroll_up(3);
                     ControlFlow::Continue
@@ -102,8 +113,7 @@ impl EventHandler<Event> for MouseScrollHandler {
                 }
                 _ => ControlFlow::Continue,
             }
-        } else {
-            ControlFlow::Continue
+            _ => ControlFlow::Continue,
         }
     }
 }

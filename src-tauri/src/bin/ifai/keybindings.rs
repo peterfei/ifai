@@ -148,6 +148,10 @@ pub fn get_all_categories() -> Vec<KeybindingCategory> {
                     description: "提交输入",
                 },
                 KeyBinding {
+                    keys: "Ctrl+J",
+                    description: "插入换行",
+                },
+                KeyBinding {
                     keys: "Ctrl+C",
                     description: "清空输入 / 退出（空输入框时）",
                 },

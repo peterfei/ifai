@@ -1,5 +1,6 @@
 ---
 source: src/bin/ifai/tui.rs
+assertion_line: 3685
 expression: text
 ---
                                                                                 
@@ -9,8 +10,8 @@ expression: text
                                                                                 
                                     快 捷 键 ：                                     
                      Ctrl+F  搜 索 内 容       Ctrl+O  查 看 详 情                      
-                     Ctrl+D  退 出 程 序       Enter    提 交 输 入                     
-                      Ctrl+C  清 空 /退 出       ?        帮 助                       
+                     Ctrl+D  退 出 程 序       Ctrl+J   换 行 输 入                     
+                    Ctrl+C  清 空 /退 出       Enter    提 交 输 入                     
                                                                                 
                                                                                 
                                                                                 

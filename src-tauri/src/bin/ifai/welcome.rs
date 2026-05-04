@@ -100,7 +100,7 @@ impl WelcomeWidget {
                 Span::default(),
                 Span::default(),
                 Span::styled(
-                    "Ctrl+D  退出程序      Enter    提交输入",
+                    "Ctrl+D  退出程序      Ctrl+J   换行输入",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
                 ),
             ]),
@@ -109,7 +109,7 @@ impl WelcomeWidget {
                 Span::default(),
                 Span::default(),
                 Span::styled(
-                    "Ctrl+C  清空/退出      ?        帮助",
+                    "Ctrl+C  清空/退出      Enter    提交输入",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
                 ),
             ]),

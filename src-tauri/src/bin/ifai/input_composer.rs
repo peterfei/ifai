@@ -75,6 +75,11 @@ impl InputComposer {
                             return InputAction::Exit;
                         }
                     }
+                    'j' => {
+                        // Ctrl+J: 插入换行（ASCII LineFeed，终端通用）
+                        self.buffer.insert(self.cursor_pos, '\n');
+                        self.cursor_pos += 1;
+                    }
                     _ => {}
                 }
                 InputAction::None
@@ -238,22 +243,12 @@ impl InputComposer {
                 InputAction::None
             }
             KeyCode::Enter => {
-                if key.modifiers.contains(KeyModifiers::SHIFT)
-                    || key.modifiers.contains(KeyModifiers::ALT)
-                {
-                    // Shift+Enter 或 Alt+Enter: 插入换行
-                    // Alt+Enter 作为兼容方案（Alt 修饰符在更多终端可区分）
-                    self.buffer.insert(self.cursor_pos, '\n');
-                    self.cursor_pos += 1;
-                    InputAction::None
-                } else {
-                    // Enter: 提交
-                    let text = self.buffer.clone();
-                    self.buffer.clear();
-                    self.cursor_pos = 0;
-                    self.history_index = None;
-                    InputAction::Submit(text)
-                }
+                // Enter: 始终提交（换行使用 Ctrl+J）
+                let text = self.buffer.clone();
+                self.buffer.clear();
+                self.cursor_pos = 0;
+                self.history_index = None;
+                InputAction::Submit(text)
             }
             _ => InputAction::None,
         }
@@ -830,17 +825,17 @@ mod tests {
 
     // === 多行输入 ===
 
-    /// 辅助：创建 Shift+Enter 按键
-    fn shift_enter_key() -> KeyEvent {
-        KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT)
+    /// 辅助：创建 Ctrl+J 按键（换行）
+    fn ctrl_j_key() -> KeyEvent {
+        KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL)
     }
 
     #[test]
-    fn test_shift_enter_inserts_newline() {
+    fn test_ctrl_j_inserts_newline() {
         let mut ic = InputComposer::new("");
         ic.handle_key(char_key('h'));
         ic.handle_key(char_key('i'));
-        let action = ic.handle_key(shift_enter_key());
+        let action = ic.handle_key(ctrl_j_key());
         assert!(matches!(action, InputAction::None));
         assert_eq!(ic.value(), "hi\n");
         assert_eq!(ic.cursor_pos, 3);
@@ -850,7 +845,7 @@ mod tests {
     fn test_enter_submits_multiline() {
         let mut ic = InputComposer::new("");
         ic.handle_key(char_key('a'));
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         ic.handle_key(char_key('b'));
         let action = ic.handle_key(code_key(KeyCode::Enter));
         if let InputAction::Submit(text) = action {
@@ -869,11 +864,11 @@ mod tests {
         ic.handle_key(char_key('a'));
         assert_eq!(ic.line_count(), 1);
 
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         assert_eq!(ic.line_count(), 2);
 
         ic.handle_key(char_key('b'));
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         assert_eq!(ic.line_count(), 3);
     }
 
@@ -885,7 +880,7 @@ mod tests {
         ic.handle_key(char_key('a'));
         assert_eq!(ic.cursor_row(), 0);
 
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         assert_eq!(ic.cursor_row(), 1);
 
         ic.handle_key(char_key('b'));
@@ -901,7 +896,7 @@ mod tests {
         ic.handle_key(char_key('l'));
         ic.handle_key(char_key('l'));
         ic.handle_key(char_key('o'));
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         ic.handle_key(char_key('w'));
         ic.handle_key(char_key('o'));
         ic.handle_key(char_key('r'));
@@ -934,7 +929,7 @@ mod tests {
         for c in "hello".chars() {
             ic.handle_key(char_key(c));
         }
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         for c in "ab".chars() {
             ic.handle_key(char_key(c));
         }
@@ -953,7 +948,7 @@ mod tests {
         // 输入 "hi\nthere"
         ic.handle_key(char_key('h'));
         ic.handle_key(char_key('i'));
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         for c in "there".chars() {
             ic.handle_key(char_key(c));
         }
@@ -975,7 +970,7 @@ mod tests {
         // 输入 "hi\nthere"
         ic.handle_key(char_key('h'));
         ic.handle_key(char_key('i'));
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         for c in "there".chars() {
             ic.handle_key(char_key(c));
         }
@@ -994,7 +989,7 @@ mod tests {
     fn test_cursor_col_multiline() {
         let mut ic = InputComposer::new("cli");
         ic.handle_key(char_key('a'));
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
         ic.handle_key(char_key('b'));
 
         // 光标在第二行 "b" 后，col 应只计算第二行内容
@@ -1006,7 +1001,7 @@ mod tests {
     fn test_cursor_col_first_line_multiline() {
         let mut ic = InputComposer::new("cli");
         ic.handle_key(char_key('a'));
-        ic.handle_key(shift_enter_key());
+        ic.handle_key(ctrl_j_key());
 
         // 光标在第二行行首（\n 后），col 应为 prompt + ⟩space = 5
         assert_eq!(cursor_col(&ic), 5);

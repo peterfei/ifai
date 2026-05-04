@@ -1155,8 +1155,8 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     // 显示命令输入
                     let theme = render::default_theme();
                     app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &text));
+                    app.scroll_to_bottom();
                     app.render();
-                    // REPL 命令
                     let parts: Vec<&str> = text.splitn(2, ' ').collect();
                     let cmd = &parts[0][1..];
                     let arg = parts.get(1).map(|s| s.to_string());
@@ -1269,6 +1269,10 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                         // 当前线程有待处理的审批，优先处理审批键盘输入
                                         if crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
                                             if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+                                                // 过滤键盘释放事件
+                                                if key.kind == crossterm::event::KeyEventKind::Release {
+                                                    continue;
+                                                }
                                                 use crossterm::event::KeyCode;
                                                 use crossterm::event::KeyEvent;
 
@@ -1364,6 +1368,10 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                     // 处理所有待处理的键盘事件
                                     while crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
                                         if let Ok(event) = crossterm::event::read() {
+                                            // 过滤键盘释放事件
+                                            if matches!(event, crossterm::event::Event::Key(ref k) if k.kind == crossterm::event::KeyEventKind::Release) {
+                                                continue;
+                                            }
                                             // 先处理特殊按键（diff 模式、滚动等）
                                             let mut consumed = false;
 
@@ -1552,6 +1560,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                             // 显示用户输入
                                                             let theme = render::default_theme();
                                                             app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &text));
+                                                            app.scroll_to_bottom();
                                                             app.render();
 
                                                             // 🔥 立即开始处理当前线程的 AI 请求
@@ -1659,6 +1668,10 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                                             if crossterm::event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
                                                 if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+                                                    // 过滤键盘释放事件
+                                                    if key.kind == crossterm::event::KeyEventKind::Release {
+                                                        continue;
+                                                    }
                                                     use crossterm::event::KeyCode;
 
                                                     // 获取当前审批请求的选项数量
