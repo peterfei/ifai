@@ -8,7 +8,10 @@ use std::time::Instant;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    },
+    event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -297,11 +300,25 @@ impl App {
     /// 创建并初始化 TUI
     pub fn new() -> io::Result<Self> {
         enable_raw_mode()?;
-        execute!(
+        // 启用键盘增强模式（kitty protocol），使终端能区分 Shift+Enter 和 Enter
+        // 某些终端不支持，降级为普通模式（可用 Alt+Enter 替代）
+        let enh_flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+            | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+            | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
+            | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES;
+        if execute!(
             io::stdout(),
             EnterAlternateScreen,
-            crossterm::event::EnableMouseCapture
-        )?;
+            crossterm::event::EnableMouseCapture,
+            PushKeyboardEnhancementFlags(enh_flags)
+        ).is_err() {
+            // 降级：不含键盘增强
+            execute!(
+                io::stdout(),
+                EnterAlternateScreen,
+                crossterm::event::EnableMouseCapture
+            )?;
+        }
 
         let backend = CrosstermBackend::new(io::stdout());
         let mut terminal = Terminal::new(backend)?;
@@ -970,6 +987,8 @@ impl App {
         let status_text = &self.status_text;
         let input_value = self.input.value();
         let input_cursor_col = input_composer::cursor_col(&self.input);
+        let input_line_count = self.input.line_count() as u16;
+        let input_cursor_row = self.input.cursor_row() as u16;
         let search_input_value = self.search_input.value();
         let search_input_cursor_col = input_composer::cursor_col(&self.search_input);
         let is_empty = self.is_empty();
@@ -991,14 +1010,15 @@ impl App {
             return;
         }
 
-        // 布局：内容区 + 状态栏(1行) + 分隔线(1行) + 输入框(1行)
+        // 布局：内容区 + 状态栏(1行) + 分隔线(1行) + 输入框(动态行数)
+        let input_height = input_line_count.min(10); // 最多 10 行
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),    // 内容区
-                Constraint::Length(1), // 状态栏
-                Constraint::Length(1), // 分隔线
-                Constraint::Length(1), // 输入框
+                Constraint::Min(1),             // 内容区
+                Constraint::Length(1),          // 状态栏
+                Constraint::Length(1),          // 分隔线
+                Constraint::Length(input_height), // 输入框
             ])
             .split(size);
 
@@ -1411,14 +1431,35 @@ impl App {
                     format!("{}⟩ ", self.input.prompt()),
                     ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
                 );
-                let input_text = Span::raw(input_value);
-                let input_line = Line::from(vec![prompt, input_text]);
-                let input = Paragraph::new(input_line);
+                let input_text = if input_value.contains('\n') {
+                    // 多行输入：拆分为多行，后续行带缩进
+                    let indent_span = Span::raw(format!(
+                        "{:width$}",
+                        "",
+                        width = self.input.prompt().len() + 2
+                    ));
+                    let lines: Vec<Line<'_>> = input_value
+                        .lines()
+                        .enumerate()
+                        .map(|(i, line_text)| {
+                            if i == 0 {
+                                Line::from(vec![prompt.clone(), Span::raw(line_text)])
+                            } else {
+                                Line::from(vec![indent_span.clone(), Span::raw(line_text)])
+                            }
+                        })
+                        .collect();
+                    ratatui::text::Text::from(lines)
+                } else {
+                    let input_line = Line::from(vec![prompt, Span::raw(input_value)]);
+                    ratatui::text::Text::from(input_line)
+                };
+                let input = Paragraph::new(input_text);
                 f.render_widget(input, input_area);
 
                 // 设置终端光标位置
                 let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
-                let cursor_y = input_area.y;
+                let cursor_y = input_area.y + input_cursor_row.min(input_area.height - 1);
                 f.set_cursor_position((cursor_x, cursor_y));
             } else {
                 // === 正常模式 ===
@@ -1545,14 +1586,35 @@ impl App {
                     format!("{}⟩ ", self.input.prompt()),
                     ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
                 );
-                let input_text = Span::raw(input_value);
-                let input_line = Line::from(vec![prompt, input_text]);
-                let input = Paragraph::new(input_line);
+                let input_text = if input_value.contains('\n') {
+                    // 多行输入：拆分为多行，后续行带缩进
+                    let indent_span = Span::raw(format!(
+                        "{:width$}",
+                        "",
+                        width = self.input.prompt().len() + 2
+                    ));
+                    let lines: Vec<Line<'_>> = input_value
+                        .lines()
+                        .enumerate()
+                        .map(|(i, line_text)| {
+                            if i == 0 {
+                                Line::from(vec![prompt.clone(), Span::raw(line_text)])
+                            } else {
+                                Line::from(vec![indent_span.clone(), Span::raw(line_text)])
+                            }
+                        })
+                        .collect();
+                    ratatui::text::Text::from(lines)
+                } else {
+                    let input_line = Line::from(vec![prompt, Span::raw(input_value)]);
+                    ratatui::text::Text::from(input_line)
+                };
+                let input = Paragraph::new(input_text);
                 f.render_widget(input, input_area);
 
                 // 设置终端光标位置（input_cursor_col 已包含 prompt 和 ⟩ 的宽度）
                 let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
-                let cursor_y = input_area.y;
+                let cursor_y = input_area.y + input_cursor_row.min(input_area.height - 1);
                 f.set_cursor_position((cursor_x, cursor_y));
             }
         }
@@ -1563,6 +1625,11 @@ impl App {
         if let Some(terminal) = &mut self.terminal {
             terminal.show_cursor()?;
         }
+        // PopKeyboardEnhancementFlags 可能失败（终端不支持增强模式时未 Push）
+        let _ = execute!(
+            io::stdout(),
+            PopKeyboardEnhancementFlags,
+        );
         execute!(
             io::stdout(),
             LeaveAlternateScreen,
@@ -3403,5 +3470,171 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // 不应有 queue/streaming 状态
         assert_buffer_not_contains!(&buf, "Queue:");
         assert_buffer_not_contains!(&buf, "Streaming");
+    }
+
+    // === 多行输入测试 ===
+
+    #[test]
+    fn test_multiline_input_shift_enter() {
+        // 验证 Shift+Enter 插入换行，输入框正确渲染多行
+        let mut app = App::new_for_test();
+
+        // 输入 "hello" + Shift+Enter + "world"
+        for c in "hello".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+        for c in "world".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+
+        assert_eq!(app.input.value(), "hello\nworld");
+        assert_eq!(app.input.line_count(), 2);
+        assert_eq!(app.input.cursor_row(), 1);
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+
+        // 验证两行都可见
+        assert_buffer_contains!(&buf, "hello");
+        assert_buffer_contains!(&buf, "world");
+
+        // 快照回归：确保布局正确
+        assert_tui_snapshot!("multiline_input_basic", &buf);
+    }
+
+    #[test]
+    fn test_multiline_input_three_lines() {
+        // 验证三行输入，布局扩展正确
+        let mut app = App::new_for_test();
+
+        for c in "line1".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+        for c in "line2".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+        for c in "line3".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+
+        assert_eq!(app.input.value(), "line1\nline2\nline3");
+        assert_eq!(app.input.line_count(), 3);
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("multiline_input_three_lines", &buf);
+    }
+
+    #[test]
+    fn test_multiline_input_with_cjk() {
+        // 验证 CJK 多行输入正确渲染
+        let mut app = App::new_for_test();
+
+        for c in "你好世界".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+        for c in "测试多行".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+
+        assert_eq!(app.input.value(), "你好世界\n测试多行");
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        // CJK 字符在终端中占 2 列，buffer_to_string 输出带空格填充
+        assert_buffer_contains!(&buf, "你 好 世 界");
+        assert_buffer_contains!(&buf, "测 试 多 行");
+        assert_tui_snapshot!("multiline_input_cjk", &buf);
+    }
+
+    #[test]
+    fn test_multiline_input_cursor_position() {
+        // 验证多行光标位置正确
+        let mut app = App::new_for_test();
+
+        for c in "abc".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+        for c in "def".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+
+        // 光标在第二行末尾
+        assert_eq!(app.input.cursor_row(), 1);
+
+        // 移到第一行
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.input.cursor_row(), 0);
+
+        // 移回第二行
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.input.cursor_row(), 1);
+    }
+
+    #[test]
+    fn test_single_line_layout_unchanged() {
+        // 回归测试：单行输入的布局应与之前完全一致
+        let mut app = App::new_for_test();
+
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+
+        assert_eq!(app.input.line_count(), 1);
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("single_line_input_unchanged", &buf);
+    }
+
+    #[test]
+    fn test_multiline_input_dynamic_height() {
+        // 验证输入框高度随行数动态变化，内容区缩小
+        let mut app = App::new_for_test();
+        app.push_line("Line 1 of content".to_string());
+        app.push_line("Line 2 of content".to_string());
+
+        // 单行输入
+        let buf1 = render_to_buffer(&mut app, 80, 10);
+        let text1 = buffer_to_string(&buf1);
+
+        // 添加多行
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+
+        let buf2 = render_to_buffer(&mut app, 80, 10);
+        let text2 = buffer_to_string(&buf2);
+
+        // 多行输入后，分隔线位置应上移（内容区变小）
+        // 找到分隔线 "─" 在两个 buffer 中的行号
+        let sep_line_1 = text1.lines().position(|l| l.starts_with('─')).unwrap();
+        let sep_line_2 = text2.lines().position(|l| l.starts_with('─')).unwrap();
+        assert_eq!(
+            sep_line_2, sep_line_1 - 1,
+            "多行输入时分隔线应上移一行"
+        );
     }
 }

@@ -142,6 +142,30 @@ impl InputComposer {
                 InputAction::None
             }
             KeyCode::Up => {
+                // 多行输入时，在行间移动光标
+                if self.buffer.contains('\n') {
+                    let before_cursor = &self.buffer[..self.cursor_pos];
+                    let line_start = before_cursor.rfind('\n').map(|i| i + 1).unwrap_or(0);
+                    if line_start > 0 {
+                        // 不在第一行，向上移动光标
+                        let prev_line_start = self.buffer[..line_start.saturating_sub(1)]
+                            .rfind('\n')
+                            .map(|i| i + 1)
+                            .unwrap_or(0);
+                        let current_col_offset = self.cursor_pos - line_start;
+                        // 目标行的字符偏移量（字节）
+                        let prev_line_end = line_start.saturating_sub(1);
+                        let prev_line = &self.buffer[prev_line_start..prev_line_end];
+                        // 计算 current_col_offset 在当前行的显示列
+                        let target_col = display_width_up_to(&self.buffer[line_start..self.cursor_pos]);
+                        // 找到上一行中不超过 target_col 的位置
+                        let new_offset = byte_offset_at_display_col(prev_line, target_col);
+                        self.cursor_pos = prev_line_start + new_offset;
+                        return InputAction::None;
+                    }
+                    // 在第一行，fallback 到历史浏览
+                }
+                // 单行或第一行：历史浏览
                 if !self.history.is_empty() {
                     if self.history_index.is_none() {
                         self.draft_backup = self.buffer.clone();
@@ -159,6 +183,48 @@ impl InputComposer {
                 InputAction::None
             }
             KeyCode::Down => {
+                // 多行输入时，在行间移动光标
+                if self.buffer.contains('\n') {
+                    // 判断是否不在最后一行：光标之后还有 \n，或者光标在 \n 字符上
+                    let after_cursor = &self.buffer[self.cursor_pos..];
+                    let at_newline = self.buffer.as_bytes().get(self.cursor_pos) == Some(&b'\n');
+                    if let Some(rel_newline) = after_cursor.find('\n') {
+                        let next_newline_pos = self.cursor_pos + rel_newline;
+                        if at_newline {
+                            // 光标在 \n 上，跳过它到下一行
+                            let next_line_start = self.cursor_pos + 1;
+                            if next_line_start < self.buffer.len() {
+                                self.cursor_pos = next_line_start;
+                            }
+                            return InputAction::None;
+                        }
+                        // 不在最后一行，向下移动光标
+                        let next_line_start = next_newline_pos + 1;
+                        let current_line_start = self.buffer[..self.cursor_pos]
+                            .rfind('\n')
+                            .map(|i| i + 1)
+                            .unwrap_or(0);
+                        let target_col = display_width_up_to(&self.buffer[current_line_start..self.cursor_pos]);
+                        // 找下一行结尾
+                        let next_line_end = self.buffer[next_line_start..]
+                            .find('\n')
+                            .map(|i| next_line_start + i)
+                            .unwrap_or(self.buffer.len());
+                        let next_line = &self.buffer[next_line_start..next_line_end];
+                        let new_offset = byte_offset_at_display_col(next_line, target_col);
+                        self.cursor_pos = next_line_start + new_offset;
+                        return InputAction::None;
+                    } else if at_newline {
+                        // 光标在最后一个 \n 上，跳到下一行
+                        let next_line_start = self.cursor_pos + 1;
+                        if next_line_start <= self.buffer.len() {
+                            self.cursor_pos = next_line_start;
+                        }
+                        return InputAction::None;
+                    }
+                    // 在最后一行，fallback 到历史浏览
+                }
+                // 单行或最后一行：历史浏览
                 if let Some(idx) = self.history_index {
                     if idx + 1 < self.history.len() {
                         self.history_index = Some(idx + 1);
@@ -172,11 +238,22 @@ impl InputComposer {
                 InputAction::None
             }
             KeyCode::Enter => {
-                let text = self.buffer.clone();
-                self.buffer.clear();
-                self.cursor_pos = 0;
-                self.history_index = None;
-                InputAction::Submit(text)
+                if key.modifiers.contains(KeyModifiers::SHIFT)
+                    || key.modifiers.contains(KeyModifiers::ALT)
+                {
+                    // Shift+Enter 或 Alt+Enter: 插入换行
+                    // Alt+Enter 作为兼容方案（Alt 修饰符在更多终端可区分）
+                    self.buffer.insert(self.cursor_pos, '\n');
+                    self.cursor_pos += 1;
+                    InputAction::None
+                } else {
+                    // Enter: 提交
+                    let text = self.buffer.clone();
+                    self.buffer.clear();
+                    self.cursor_pos = 0;
+                    self.history_index = None;
+                    InputAction::Submit(text)
+                }
             }
             _ => InputAction::None,
         }
@@ -197,6 +274,21 @@ impl InputComposer {
     /// 获取提示符
     pub fn prompt(&self) -> &str {
         &self.prompt
+    }
+
+    /// 获取当前文本的行数
+    pub fn line_count(&self) -> usize {
+        if self.buffer.is_empty() {
+            1
+        } else {
+            // lines() 在末尾 \n 处会产生空元素，用 chars().filter(\n).count()+1 更准确
+            self.buffer.chars().filter(|&c| c == '\n').count() + 1
+        }
+    }
+
+    /// 获取光标所在行号（0-based）
+    pub fn cursor_row(&self) -> usize {
+        self.buffer[..self.cursor_pos].matches('\n').count()
     }
 
     /// 加载历史记录
@@ -244,11 +336,32 @@ impl Widget for &mut InputComposer {
             format!("{}⟩ ", self.prompt),
             ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
         );
-        let input_span = Span::raw(&self.buffer);
 
-        let line = Line::from(vec![prompt_span, input_span]);
-
-        buf.set_line(area.x, area.y, &line, area.width);
+        if self.buffer.contains('\n') {
+            // 多行模式：逐行渲染
+            let lines: Vec<&str> = self.buffer.lines().collect();
+            for (i, line_text) in lines.iter().enumerate() {
+                if i as u16 >= area.height {
+                    break;
+                }
+                let y = area.y + i as u16;
+                if i == 0 {
+                    // 第一行带 prompt
+                    let line = Line::from(vec![prompt_span.clone(), Span::raw(*line_text)]);
+                    buf.set_line(area.x, y, &line, area.width);
+                } else {
+                    // 后续行带缩进（与 prompt 等宽的空格）
+                    let indent = " ".repeat(self.prompt.len() + 2); // +2 for "⟩ "
+                    let line = Line::from(vec![Span::raw(indent), Span::raw(*line_text)]);
+                    buf.set_line(area.x, y, &line, area.width);
+                }
+            }
+        } else {
+            // 单行模式（原有逻辑）
+            let input_span = Span::raw(&self.buffer);
+            let line = Line::from(vec![prompt_span, input_span]);
+            buf.set_line(area.x, area.y, &line, area.width);
+        }
     }
 }
 
@@ -267,14 +380,38 @@ fn char_width(c: char) -> usize {
 
 /// 获取光标列位置（供 App 设置终端光标）
 pub fn cursor_col(composer: &InputComposer) -> u16 {
-    // cursor_pos 是字节索引，取光标前的所有字符计算显示宽度
-    let display_width: usize = composer.buffer[..composer.cursor_pos]
+    // 找到光标所在行的起始位置
+    let line_start = composer.buffer[..composer.cursor_pos]
+        .rfind('\n')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    // 取光标所在行的字符计算显示宽度
+    let display_width: usize = composer.buffer[line_start..composer.cursor_pos]
         .chars()
         .map(char_width)
         .sum();
     // prompt 的显示宽度 + ⟩ 和空格的宽度 + 输入的显示宽度
-    // ⟩ (U+27E7) 的显示宽度是 1，加上空格是 2
     (composer.prompt.len() + display_width + 2) as u16
+}
+
+/// 计算一段文本到指定字节位置为止的显示宽度
+fn display_width_up_to(s: &str) -> usize {
+    s.chars().map(char_width).sum()
+}
+
+/// 给定一行文本和目标显示列，返回对应的字节偏移量
+fn byte_offset_at_display_col(line: &str, target_col: usize) -> usize {
+    let mut col = 0;
+    let mut byte_offset = 0;
+    for c in line.chars() {
+        let w = char_width(c);
+        if col + w > target_col {
+            break;
+        }
+        col += w;
+        byte_offset += c.len_utf8();
+    }
+    byte_offset
 }
 
 #[cfg(test)]
@@ -689,5 +826,202 @@ mod tests {
         assert_eq!(char_width('你'), 2);
         assert_eq!(char_width('好'), 2);
         assert_eq!(char_width('世'), 2);
+    }
+
+    // === 多行输入 ===
+
+    /// 辅助：创建 Shift+Enter 按键
+    fn shift_enter_key() -> KeyEvent {
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT)
+    }
+
+    #[test]
+    fn test_shift_enter_inserts_newline() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('i'));
+        let action = ic.handle_key(shift_enter_key());
+        assert!(matches!(action, InputAction::None));
+        assert_eq!(ic.value(), "hi\n");
+        assert_eq!(ic.cursor_pos, 3);
+    }
+
+    #[test]
+    fn test_enter_submits_multiline() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(shift_enter_key());
+        ic.handle_key(char_key('b'));
+        let action = ic.handle_key(code_key(KeyCode::Enter));
+        if let InputAction::Submit(text) = action {
+            assert_eq!(text, "a\nb");
+        } else {
+            panic!("Expected Submit action, got {:?}", action);
+        }
+        assert_eq!(ic.value(), "");
+    }
+
+    #[test]
+    fn test_line_count() {
+        let mut ic = InputComposer::new("");
+        assert_eq!(ic.line_count(), 1);
+
+        ic.handle_key(char_key('a'));
+        assert_eq!(ic.line_count(), 1);
+
+        ic.handle_key(shift_enter_key());
+        assert_eq!(ic.line_count(), 2);
+
+        ic.handle_key(char_key('b'));
+        ic.handle_key(shift_enter_key());
+        assert_eq!(ic.line_count(), 3);
+    }
+
+    #[test]
+    fn test_cursor_row() {
+        let mut ic = InputComposer::new("");
+        assert_eq!(ic.cursor_row(), 0);
+
+        ic.handle_key(char_key('a'));
+        assert_eq!(ic.cursor_row(), 0);
+
+        ic.handle_key(shift_enter_key());
+        assert_eq!(ic.cursor_row(), 1);
+
+        ic.handle_key(char_key('b'));
+        assert_eq!(ic.cursor_row(), 1);
+    }
+
+    #[test]
+    fn test_up_down_multiline_navigation() {
+        let mut ic = InputComposer::new("");
+        // 输入 "hello\nworld"
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('e'));
+        ic.handle_key(char_key('l'));
+        ic.handle_key(char_key('l'));
+        ic.handle_key(char_key('o'));
+        ic.handle_key(shift_enter_key());
+        ic.handle_key(char_key('w'));
+        ic.handle_key(char_key('o'));
+        ic.handle_key(char_key('r'));
+        ic.handle_key(char_key('l'));
+        ic.handle_key(char_key('d'));
+        assert_eq!(ic.value(), "hello\nworld");
+        assert_eq!(ic.cursor_pos, 11); // 在 "world" 后
+
+        // 光标在第二行末尾，按 Up 应移到第一行同列位置
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.cursor_pos, 5); // "hello" 后（\n 前）
+
+        // 再按 Up，在第一行，应触发历史浏览（无历史不报错）
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.cursor_pos, 5); // 没有历史，不变
+
+        // 光标在 \n 上，按 Down 跳到下一行行首
+        ic.handle_key(code_key(KeyCode::Down));
+        assert_eq!(ic.cursor_pos, 6); // "w" 前
+
+        // 再按 Down，在最后一行，无历史不报错
+        ic.handle_key(code_key(KeyCode::Down));
+        assert_eq!(ic.cursor_pos, 6); // 不变
+    }
+
+    #[test]
+    fn test_up_down_multiline_shorter_line() {
+        let mut ic = InputComposer::new("");
+        // 输入 "hello\nab" (第二行比第一行短)
+        for c in "hello".chars() {
+            ic.handle_key(char_key(c));
+        }
+        ic.handle_key(shift_enter_key());
+        for c in "ab".chars() {
+            ic.handle_key(char_key(c));
+        }
+        assert_eq!(ic.value(), "hello\nab");
+
+        // 光标在第二行末尾 (pos=8)，按 Up
+        ic.handle_key(code_key(KeyCode::Up));
+        // target_col = display_width("ab") = 2，第一行 "hello" 前两个字符 "he" = 2 列
+        assert_eq!(ic.cursor_pos, 2); // 在 "he" 后
+    }
+
+    #[test]
+    fn test_up_down_first_line_triggers_history() {
+        let mut ic = InputComposer::new("");
+        ic.history.push("old_cmd".to_string());
+        // 输入 "hi\nthere"
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('i'));
+        ic.handle_key(shift_enter_key());
+        for c in "there".chars() {
+            ic.handle_key(char_key(c));
+        }
+
+        // 移动到第一行（从第二行按 Up）
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.cursor_pos, 2); // 在 "hi" 后（pos=2 即 '\n' 前）
+
+        // 再按 Up，在第一行，应进入历史浏览
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.value(), "old_cmd");
+        assert!(ic.history_index.is_some());
+    }
+
+    #[test]
+    fn test_down_last_line_triggers_history() {
+        let mut ic = InputComposer::new("");
+        ic.history.push("old_cmd".to_string());
+        // 输入 "hi\nthere"
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('i'));
+        ic.handle_key(shift_enter_key());
+        for c in "there".chars() {
+            ic.handle_key(char_key(c));
+        }
+
+        // 进入历史浏览
+        ic.handle_key(code_key(KeyCode::Up));
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.value(), "old_cmd");
+
+        // 按 Down，应回到多行草稿
+        ic.handle_key(code_key(KeyCode::Down));
+        assert_eq!(ic.value(), "hi\nthere");
+    }
+
+    #[test]
+    fn test_cursor_col_multiline() {
+        let mut ic = InputComposer::new("cli");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(shift_enter_key());
+        ic.handle_key(char_key('b'));
+
+        // 光标在第二行 "b" 后，col 应只计算第二行内容
+        // prompt="cli" → 3, ⟩ + space = 2, "b" = 1, total = 6
+        assert_eq!(cursor_col(&ic), 6);
+    }
+
+    #[test]
+    fn test_cursor_col_first_line_multiline() {
+        let mut ic = InputComposer::new("cli");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(shift_enter_key());
+
+        // 光标在第二行行首（\n 后），col 应为 prompt + ⟩space = 5
+        assert_eq!(cursor_col(&ic), 5);
+
+        // 移回第一行（target_col=0，光标到行首）
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(cursor_col(&ic), 5); // 行首：prompt + ⟩space = 5
+    }
+
+    #[test]
+    fn test_byte_offset_at_display_col() {
+        assert_eq!(byte_offset_at_display_col("hello", 3), 3);
+        assert_eq!(byte_offset_at_display_col("hello", 10), 5); // 超出长度
+        assert_eq!(byte_offset_at_display_col("你好", 2), 3);   // 一个中文字符宽度 2
+        assert_eq!(byte_offset_at_display_col("你好", 3), 3);   // 不到第二个中文字符
+        assert_eq!(byte_offset_at_display_col("你好", 4), 6);   // 两个中文字符
     }
 }
