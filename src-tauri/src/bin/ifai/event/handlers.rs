@@ -195,32 +195,40 @@ impl EventHandler<Event> for CombinedKeyHandler {
 
             // 命令弹出框激活时：拦截导航键（不传给 InputComposer 的历史记录）
             if app.command_popup.is_visible() {
-                if let Some(cmd_text) = app.command_popup.handle_key(*key) {
-                    // 确认选择：替换输入框为完整命令 + 关闭弹出框
-                    // 用户按第二遍 Enter 时才提交（允许先补参数）
-                    app.command_popup.update(""); // 关闭弹出框
-                    app.input.clear();
-                    for c in cmd_text.chars() {
-                        let _ = app
-                            .input
-                            .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
-                    }
-                    return ControlFlow::Continue;
-                }
-                // Esc → 关闭弹出框（清除输入中的 /）
-                if key.code == KeyCode::Esc {
-                    app.input.clear();
-                    return ControlFlow::Continue;
-                }
-                // Up/Down/Ctrl+P/Ctrl+N → 已被 popup 消费，不传给 InputComposer
-                use crate::command_popup::PopupAction;
-                let popup_action = crate::command_popup::resolve_popup_key(*key);
-                if !matches!(popup_action, PopupAction::Pass) {
-                    // 非字符键（Up/Down/Tab 等）已被 popup 消费
-                    if !matches!(key.code, KeyCode::Char(_)) {
+                // 用户已输入参数（空格后有内容）时，不拦截任何键，让 Enter/Tab 直接提交
+                let input_val = app.input.value();
+                let has_args = input_val.starts_with('/')
+                    && input_val.contains(' ')
+                    && input_val.split_whitespace().count() > 1;
+
+                if !has_args {
+                    if let Some(cmd_text) = app.command_popup.handle_key(*key) {
+                        // 确认选择：替换输入框为完整命令 + 关闭弹出框
+                        // 用户按第二遍 Enter 时才提交（允许先补参数）
+                        app.command_popup.update(""); // 关闭弹出框
+                        app.input.clear();
+                        for c in cmd_text.chars() {
+                            let _ = app
+                                .input
+                                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+                        }
                         return ControlFlow::Continue;
                     }
-                    // 字符输入继续传给 InputComposer（下方处理）
+                    // Esc → 关闭弹出框（清除输入中的 /）
+                    if key.code == KeyCode::Esc {
+                        app.input.clear();
+                        return ControlFlow::Continue;
+                    }
+                    // Up/Down/Ctrl+P/Ctrl+N/Tab → 已被 popup 消费，不传给 InputComposer
+                    use crate::command_popup::PopupAction;
+                    let popup_action = crate::command_popup::resolve_popup_key(*key);
+                    if !matches!(popup_action, PopupAction::Pass) {
+                        // 非字符键（Up/Down/Tab 等）已被 popup 消费
+                        if !matches!(key.code, KeyCode::Char(_)) {
+                            return ControlFlow::Continue;
+                        }
+                        // 字符输入继续传给 InputComposer（下方处理）
+                    }
                 }
             }
 
