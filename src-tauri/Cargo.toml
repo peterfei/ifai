@@ -14,6 +14,7 @@ default = ["community"]
 community = []  # 社区版使用 Tauri 层的 MockMultimodalEngine
 commercial = ["ifainew-core", "ifainew-core/commercial"]  # Enable ifainew-core + commercial features (不含 local-llm)
 local-llm = ["ifainew-core"]  # Standalone local LLM support (tool parsing only)
+real-llm = []  # 编译真实 LLM API E2E 测试（cargo test --features real-llm -- --ignored）
 # LLM inference using llama.cpp (GGUF native support)
 llm-inference = ["llama-cpp-2", "num_cpus"]  # 本地 LLM 推理（不含 RAG）
 # RAG (Retrieval-Augmented Generation) using fastembed

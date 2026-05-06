@@ -69,7 +69,8 @@ mod user_reported_cross_talk_test; // 🔥 用户报告的消息串台场景测�
 #[cfg(test)]
 mod e2e_concurrent_approval_test; // 🔥 Phase 6: 并发和审批 E2E 高保真测试
 #[cfg(test)]
-mod real_llm_e2e_test; // 🔥 Phase 6: 真实 LLM API E2E 并发测试
+#[cfg(feature = "real-llm")]
+mod real_llm_e2e_test; // 🔥 Phase 6: 真实 LLM API E2E 并发测试（需要真实 API，默认不编译）
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
@@ -1821,7 +1822,8 @@ mod tests {
         include!("tests/generated/mod.rs");
     }
 
-    // E2E 真实 API 测试（默认 ignore，需 --ignored 手动运行）
+    // E2E 真实 API 测试（需要真实 API，默认不编译，需 --features real-llm）
+    #[cfg(feature = "real-llm")]
     mod e2e {
         use crate::tests::common::*;
         include!("tests/e2e/real_providers.rs");

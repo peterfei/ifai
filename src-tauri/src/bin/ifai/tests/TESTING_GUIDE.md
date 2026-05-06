@@ -619,6 +619,102 @@ test_suite:
         assert_success: true
 ```
 
+## Real LLM E2E 测试
+
+### 概述
+
+项目中包含真实 LLM API 的端到端测试（位于 `real_llm_e2e_test.rs`），这些测试会实际调用 AI API 进行验证。由于涉及网络请求和 API 费用，**默认不编译也不运行**。
+
+### 双重保护机制
+
+Real LLM 测试使用两层保护：
+
+| 层级 | 机制 | 作用 |
+|------|------|------|
+| 编译期 | `#[cfg(feature = "real-llm")]` | 不启用 feature 时，整个模块不会被编译 |
+| 运行期 | `#[ignore]` | 即使编译了，`cargo test` 默认也会跳过 |
+
+### 默认行为（不运行 Real LLM 测试）
+
+```bash
+# 全量测试 — 自动跳过 real LLM 测试
+cargo test --bin ifai
+
+# 运行特定模块的测试
+cargo test --bin ifai -- tui
+cargo test --bin ifai -- concurrent_processing
+```
+
+以上命令都不会编译或运行 `real_llm_e2e_test.rs` 中的测试。
+
+### 运行 Real LLM 测试
+
+`--ignored` 标志确保只跑标记了 `#[ignore]` 的测试，**不会触发全量 819 个测试**。
+
+```bash
+# 只运行 real LLM 测试（不跑全量）
+cargo test --bin ifai --features real-llm -- --ignored --nocapture
+
+# 只运行 e2e 真实 API 测试（real_providers.rs）
+cargo test --bin ifai --features real-llm -- e2e --ignored --nocapture
+
+# 只运行并发 E2E 测试（real_llm_e2e_test.rs）
+cargo test --bin ifai --features real-llm -- real_llm_e2e_test --ignored --nocapture
+
+# 运行某个特定测试
+cargo test --bin ifai --features real-llm -- --ignored --nocapture test_real_api_invalid_key
+```
+
+参数说明：
+- `--features real-llm`：启用 feature gate，编译 real LLM 测试模块
+- `--ignored`：只运行标记了 `#[ignore]` 的测试（不会跑全量）
+- `--nocapture`：显示测试输出（推荐，便于观察 LLM 响应）
+- `e2e` / `real_llm_e2e_test`：模块名过滤，进一步缩小范围
+
+### 前置条件
+
+运行 Real LLM 测试需要配置文件：
+
+```toml
+# ~/.ifai/config.toml
+provider = "zhipu"
+model = "glm-4-flash"
+api_key = "your-api-key-here"
+```
+
+没有有效配置时，测试会因 API 认证失败而报错。
+
+### 添加新的 Real LLM 测试
+
+在 `real_llm_e2e_test.rs` 中添加新测试时，必须同时使用两个属性：
+
+```rust
+#[test]
+#[ignore]  // 必须加 ignore，防止默认运行
+async fn test_my_new_real_llm_scenario() {
+    // 调用真实 API 的测试逻辑
+}
+```
+
+整个文件已被 `#[cfg(feature = "real-llm")]` 保护，所以不需要在每个函数上加 cfg 属性。
+
+### 常见问题
+
+**Q: `cargo test --bin ifai` 超时？**
+
+A: 旧版本没有 feature gate，real LLM 测试会被编译和运行，导致网络请求挂起。确保使用最新代码，real LLM 测试已默认隔离。
+
+**Q: 编译报错 `real_llm_e2e_test` 模块找不到？**
+
+A: 只有启用 `--features real-llm` 时才会编译该模块，这是正常行为。
+
+**Q: 想在 CI 中运行 real LLM 测试？**
+
+A: 在 CI workflow 中添加独立 job，配置好 API key 环境变量后运行：
+```bash
+cargo test --bin ifai --features real-llm -- --ignored
+```
+
 ## 参考资源
 
 - [YAML Schema 文档](./YAML_SCHEMA.md)
@@ -629,4 +725,4 @@ test_suite:
 ---
 
 **维护者**: peterfei
-**最后更新**: 2026-04-28
+**最后更新**: 2026-05-06
