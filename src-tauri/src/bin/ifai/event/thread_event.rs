@@ -73,9 +73,23 @@ impl KeyAction {
     }
 
     /// 匹配按键事件
+    ///
+    /// Windows 兼容：Windows 终端可能在 Alt 键上附带额外的修饰符位
+    /// （如 Shift、或 Win32 特有的标志），因此 Alt 匹配使用 contains 而非精确相等。
+    /// macOS/Linux 保持精确匹配。
     #[inline]
     pub fn matches(&self, key_event: &KeyEvent) -> bool {
-        self.key_code == key_event.code && self.modifiers == key_event.modifiers
+        if self.key_code != key_event.code {
+            return false;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // Windows：Alt 匹配使用 contains，容忍额外修饰符位
+            if self.modifiers.contains(KeyModifiers::ALT) {
+                return key_event.modifiers.contains(KeyModifiers::ALT);
+            }
+        }
+        self.modifiers == key_event.modifiers
     }
 }
 

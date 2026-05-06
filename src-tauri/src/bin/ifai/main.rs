@@ -1504,7 +1504,17 @@ struct RouteBinding {
 
 impl RouteBinding {
     fn matches(&self, key: &crossterm::event::KeyEvent) -> bool {
-        key.code == self.key && key.modifiers == self.modifiers
+        if key.code != self.key {
+            return false;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // Windows：Alt 匹配使用 contains，容忍额外修饰符位
+            if self.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
+                return key.modifiers.contains(crossterm::event::KeyModifiers::ALT);
+            }
+        }
+        key.modifiers == self.modifiers
     }
 }
 
