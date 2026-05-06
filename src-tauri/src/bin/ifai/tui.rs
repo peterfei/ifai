@@ -4425,4 +4425,176 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
         assert_tui_snapshot!("concurrent_todo_thread1_view", &buf2);
     }
+
+    // ========================================================================
+    // Normal 模式滚动快照测试 — 模拟 run_loop 的完整 render → dispatch → render 循环
+    // ========================================================================
+
+    #[test]
+    fn test_normal_scroll_pageup_snapshot() {
+        // 模拟 run_loop：创建内容 → render → PageUp → render → 快照对比
+        use crate::event::EventRouter;
+        use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+
+        let mut app = App::new_for_test();
+        app.set_test_size(80, 24);
+        app.mode = Mode::Normal;
+
+        // 填充 30 行内容（超过 24 行终端高度）
+        for i in 0..30 {
+            app.push_line(format!("Content line {:02} - some text here", i));
+        }
+        app.scroll_to_bottom();
+
+        // === 快照 1：底部状态（最后几行可见） ===
+        let buf_before = crate::tui_test::render_to_buffer(&mut app, 80, 24);
+        insta::assert_snapshot!("normal_scroll_before_pageup", crate::tui_test::buffer_to_string(&buf_before));
+
+        // === 模拟 run_loop: PageUp 事件通过 router dispatch ===
+        let mut router = App::build_event_router();
+        let event = Event::Key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::empty()));
+        let _ = router.dispatch(&event, &mut app);
+
+        // === 快照 2：PageUp 后（应该看到更早的内容） ===
+        let buf_after = crate::tui_test::render_to_buffer(&mut app, 80, 24);
+        insta::assert_snapshot!("normal_scroll_after_pageup", crate::tui_test::buffer_to_string(&buf_after));
+
+        // 验证：滚动后第一行应该包含更早的内容
+        let text_after = crate::tui_test::buffer_to_string(&buf_after);
+        let lines_after: Vec<&str> = text_after.lines().collect();
+        // 底部时最后可见行是 "Content line 29"，PageUp 后应该看到 "Content line 24" 左右
+        assert!(
+            !lines_after.iter().any(|l| l.contains("Content line 29")),
+            "PageUp 后不应看到最后一行 Content line 29"
+        );
+    }
+
+    #[test]
+    fn test_normal_scroll_mouse_wheel_snapshot() {
+        // 模拟鼠标滚轮滚动
+        use crate::event::EventRouter;
+        use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+
+        let mut app = App::new_for_test();
+        app.set_test_size(80, 24);
+        app.mode = Mode::Normal;
+
+        for i in 0..30 {
+            app.push_line(format!("Content line {:02} - some text here", i));
+        }
+        app.scroll_to_bottom();
+
+        // 鼠标滚轮向上
+        let mut router = App::build_event_router();
+        let event = Event::Mouse(MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 40,
+            row: 10,
+            modifiers: KeyModifiers::empty(),
+        });
+        let _ = router.dispatch(&event, &mut app);
+
+        let buf_after = crate::tui_test::render_to_buffer(&mut app, 80, 24);
+        insta::assert_snapshot!("normal_scroll_after_mouse_up", crate::tui_test::buffer_to_string(&buf_after));
+
+        let text_after = crate::tui_test::buffer_to_string(&buf_after);
+        assert!(
+            !text_after.contains("Content line 29"),
+            "鼠标上滑后不应看到最后一行"
+        );
+    }
+
+    #[test]
+    fn test_normal_scroll_shift_up_snapshot() {
+        // 模拟 Shift+Up 滚动
+        use crate::event::EventRouter;
+        use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+
+        let mut app = App::new_for_test();
+        app.set_test_size(80, 24);
+        app.mode = Mode::Normal;
+
+        for i in 0..30 {
+            app.push_line(format!("Content line {:02} - some text here", i));
+        }
+        app.scroll_to_bottom();
+
+        let mut router = App::build_event_router();
+        let event = Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT));
+        let _ = router.dispatch(&event, &mut app);
+
+        let buf_after = crate::tui_test::render_to_buffer(&mut app, 80, 24);
+        insta::assert_snapshot!("normal_scroll_after_shift_up", crate::tui_test::buffer_to_string(&buf_after));
+    }
+
+    /// 模拟真实 run_loop 事件循环 — 验证 poll → read → dispatch → render 完整路径
+    ///
+    /// 这个测试不依赖 TestBackend，而是模拟 run_loop 的实际控制流。
+    /// 如果 PageUp 被 router 错误消费（返回 Break 但没改 scroll_offset），
+    /// 或者被某个中间 handler 拦截，这里能捕获到。
+    #[test]
+    fn test_run_loop_scroll_flow_simulation() {
+        use crate::event::EventRouter;
+        use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+
+        let mut app = App::new_for_test();
+        app.set_test_size(80, 24);
+        app.mode = Mode::Normal;
+
+        // 填充 30 行内容
+        for i in 0..30 {
+            app.push_line(format!("Line {:02}", i));
+        }
+        app.scroll_to_bottom();
+        let offset_before = app.scroll_offset;
+        assert!(offset_before > 0, "底部 offset 应 > 0");
+
+        // ===== 模拟 run_loop 的一轮迭代 =====
+        let mut router = App::build_event_router();
+
+        // Step 1: render（run_loop 顶部）
+        // （测试中跳过真实 render，用 render_to_buffer 验证）
+
+        // Step 2: 审批检查（run_loop L1922）
+        assert!(!app.is_approving(), "Normal 模式不应在审批中");
+
+        // Step 3: 模拟收到 PageUp 事件（实际来自 crossterm::event::read()）
+        let event = Event::Key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::empty()));
+
+        // Step 4: router.dispatch（run_loop L2019）
+        let flow = router.dispatch(&event, &mut app);
+
+        // ===== 验证 =====
+        // dispatch 应该返回 Break(Handled)（滚动后 render + Break）
+        assert!(
+            matches!(flow, crate::event::ControlFlow::Break(crate::AppResult::Handled)),
+            "PageUp 应该被 Break(Handled) 消费，实际: {:?}",
+            flow
+        );
+
+        // scroll_offset 应该减小
+        assert!(
+            app.scroll_offset < offset_before,
+            "PageUp 后 scroll_offset 应减小: {} → {}",
+            offset_before,
+            app.scroll_offset
+        );
+
+        // Step 5: 验证渲染内容确实变了
+        let buf = crate::tui_test::render_to_buffer(&mut app, 80, 24);
+        let text = crate::tui_test::buffer_to_string(&buf);
+
+        // 滚动后不应该看到最后一行
+        assert!(
+            !text.contains("Line 29"),
+            "PageUp 后渲染不应包含 Line 29，实际内容:\n{}",
+            text.lines().take(5).collect::<Vec<_>>().join("\n")
+        );
+
+        // 应该看到更早的行
+        assert!(
+            text.contains("Line 04"),
+            "PageUp 后渲染应包含 Line 04"
+        );
+    }
 }

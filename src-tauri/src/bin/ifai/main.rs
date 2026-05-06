@@ -1298,7 +1298,7 @@ async fn run_streaming_loop(
                 StreamingControl::Continue
             }
 
-            // === 键盘事件（专用线程 + channel，与 stream output 公平竞争） ===
+            // === 键盘/鼠标事件（专用线程 + channel，与 stream output 公平竞争） ===
             Some(event) = kb_rx.recv() => {
                 // 检查所有线程的 stream 是否完成
                 let completed: Vec<_> = stream_states.iter()
@@ -1318,8 +1318,31 @@ async fn run_streaming_loop(
                 if stream_states.is_empty() {
                     StreamingControl::StreamFinished
                 } else {
-                    // 处理键盘事件
-                    handle_single_key_event(app, stream_states, &active_id, event)
+                    // 鼠标滚轮：streaming 期间也需要支持滚动
+                    let mouse_scrolled = if let crossterm::event::Event::Mouse(mouse) = &event {
+                        match mouse.kind {
+                            crossterm::event::MouseEventKind::ScrollUp => {
+                                app.scroll_up(3);
+                                app.render();
+                                true
+                            }
+                            crossterm::event::MouseEventKind::ScrollDown => {
+                                app.scroll_down(3);
+                                app.render();
+                                true
+                            }
+                            _ => false,
+                        }
+                    } else {
+                        false
+                    };
+
+                    if mouse_scrolled {
+                        StreamingControl::Continue
+                    } else {
+                        // 处理键盘事件
+                        handle_single_key_event(app, stream_states, &active_id, event)
+                    }
                 }
             }
         };

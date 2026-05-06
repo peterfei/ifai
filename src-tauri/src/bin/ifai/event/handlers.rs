@@ -70,45 +70,36 @@ impl EventHandler<Event> for MouseScrollHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
         match event {
             // 焦点恢复时，确保鼠标捕获状态正确
+            // 无论 selecting 状态如何都重新启用鼠标捕获，
+            // 因为 MouseUp 可能在 DisableMouseCapture 后丢失（终端不再转发鼠标事件）
             Event::FocusGained => {
-                if self.selecting {
-                    self.selecting = false;
-                    let _ = crossterm::execute!(
-                        std::io::stdout(),
-                        crossterm::event::EnableMouseCapture
-                    );
-                }
+                self.selecting = false;
+                let _ = crossterm::execute!(
+                    std::io::stdout(),
+                    crossterm::event::EnableMouseCapture
+                );
                 ControlFlow::Continue
             }
             Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::ScrollUp => {
                     app.scroll_up(3);
-                    ControlFlow::Continue
+                    app.render();
+                    ControlFlow::Break(AppResult::Handled)
                 }
                 MouseEventKind::ScrollDown => {
                     app.scroll_down(3);
-                    ControlFlow::Continue
+                    app.render();
+                    ControlFlow::Break(AppResult::Handled)
                 }
                 // 检测鼠标左键按下 - 可能是开始选择
+                // 只设置 selecting 标志，不禁用鼠标捕获（禁用会导致 MouseUp 丢失）
                 MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
                     self.selecting = true;
-                    // 禁用鼠标捕获，让终端处理选择
-                    let _ = crossterm::execute!(
-                        std::io::stdout(),
-                        crossterm::event::DisableMouseCapture
-                    );
                     ControlFlow::Continue
                 }
                 // 检测鼠标左键释放 - 结束选择
                 MouseEventKind::Up(crossterm::event::MouseButton::Left) => {
-                    if self.selecting {
-                        self.selecting = false;
-                        // 重新启用鼠标捕获
-                        let _ = crossterm::execute!(
-                            std::io::stdout(),
-                            crossterm::event::EnableMouseCapture
-                        );
-                    }
+                    self.selecting = false;
                     ControlFlow::Continue
                 }
                 _ => ControlFlow::Continue,
@@ -258,15 +249,23 @@ impl EventHandler<Event> for CombinedKeyHandler {
                     match key.code {
                         KeyCode::PageUp => {
                             app.scroll_up(5);
+                            app.render();
+                            return ControlFlow::Break(AppResult::Handled);
                         }
                         KeyCode::PageDown => {
                             app.scroll_down(5);
+                            app.render();
+                            return ControlFlow::Break(AppResult::Handled);
                         }
                         KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => {
                             app.scroll_up(3);
+                            app.render();
+                            return ControlFlow::Break(AppResult::Handled);
                         }
                         KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
                             app.scroll_down(3);
+                            app.render();
+                            return ControlFlow::Break(AppResult::Handled);
                         }
                         _ => {
                             // 其他键被 input_composer 消费了（字符输入等）
@@ -759,5 +758,61 @@ mod tests {
         handler.handle(&event, &mut app);
 
         assert!(app.scroll_offset >= initial_offset);
+    }
+
+    #[test]
+    fn test_combined_handler_pageup_scrolls_via_router() {
+        // 验证 CombinedKeyHandler 通过 router 能正确处理 PageUp 滚动
+        use crate::event::EventRouter;
+        use crate::tui::Mode;
+
+        let mut router = crate::tui::App::build_event_router();
+        let mut app = App::new_for_test();
+        app.mode = Mode::Normal;
+
+        // 填充足够多的内容使滚动有意义
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+        app.scroll_to_bottom();
+        let bottom_offset = app.scroll_offset;
+        assert!(bottom_offset > 0, "底部 offset 应 > 0");
+
+        // PageUp 通过 router
+        let event = Event::Key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::empty()));
+        let result = router.dispatch(&event, &mut app);
+        assert!(matches!(result, super::ControlFlow::Break(AppResult::Handled)));
+        assert!(app.scroll_offset < bottom_offset,
+            "PageUp 后 scroll_offset 应减小: {} < {}", app.scroll_offset, bottom_offset);
+    }
+
+    #[test]
+    fn test_combined_handler_mouse_scroll_via_router() {
+        // 验证 MouseScrollHandler 通过 router 能正确处理鼠标滚轮
+        use crate::event::EventRouter;
+        use crate::tui::Mode;
+
+        let mut router = crate::tui::App::build_event_router();
+        let mut app = App::new_for_test();
+        app.mode = Mode::Normal;
+
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+        app.scroll_to_bottom();
+        let bottom_offset = app.scroll_offset;
+        assert!(bottom_offset > 0);
+
+        // 鼠标滚轮向上
+        let event = Event::Mouse(MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        });
+        let result = router.dispatch(&event, &mut app);
+        assert!(matches!(result, super::ControlFlow::Break(AppResult::Handled)));
+        assert!(app.scroll_offset < bottom_offset,
+            "鼠标滚轮上滑后 scroll_offset 应减小: {} < {}", app.scroll_offset, bottom_offset);
     }
 }

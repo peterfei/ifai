@@ -1,0 +1,29 @@
+---
+source: src/bin/ifai/tui.rs
+assertion_line: 4498
+expression: "crate::tui_test::buffer_to_string(&buf_after)"
+---
+Content line 06 - some text here                                           ↑66% 
+Content line 07 - some text here                                                
+Content line 08 - some text here                                                
+Content line 09 - some text here                                                
+Content line 10 - some text here                                                
+Content line 11 - some text here                                                
+Content line 12 - some text here                                                
+Content line 13 - some text here                                                
+Content line 14 - some text here                                                
+Content line 15 - some text here                                                
+Content line 16 - some text here                                                
+Content line 17 - some text here                                                
+Content line 18 - some text here                                                
+Content line 19 - some text here                                                
+Content line 20 - some text here                                                
+Content line 21 - some text here                                                
+Content line 22 - some text here                                                
+Content line 23 - some text here                                                
+Content line 24 - some text here                                                
+Content line 25 - some text here                                                
+Content line 26 - some text here                                                
+ [Ready]                                                                        
+────────────────────────────────────────────────────────────────────────────────
+⟩
