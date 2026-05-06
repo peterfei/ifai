@@ -227,6 +227,27 @@ fn render_task_lines(tasks: &[task::TaskItem]) -> (Vec<Line<'static>>, bool) {
     (lines, false)
 }
 
+/// RAII Guard：streaming 作用域结束时自动清理所有状态
+///
+/// 在 streaming 循环入口创建，任何退出路径（break/return/panic）都会触发清理。
+/// 零运行时开销 — Drop 在编译时单态化。
+pub struct StreamGuard<'a> {
+    app: &'a mut App,
+    thread_id: crate::thread::ThreadId,
+}
+
+impl StreamGuard<'_> {
+    pub fn new(app: &mut App, thread_id: crate::thread::ThreadId) -> StreamGuard<'_> {
+        StreamGuard { app, thread_id }
+    }
+}
+
+impl Drop for StreamGuard<'_> {
+    fn drop(&mut self) {
+        self.app.cleanup_after_stream(self.thread_id);
+    }
+}
+
 /// TUI 应用
 pub struct App {
     /// Terminal（None 表示测试模式）
@@ -270,6 +291,10 @@ pub struct App {
     pub command_popup: super::command_popup::CommandPopup,
     /// 任务全部完成的时间点（用于延迟自动收起）
     task_all_done_at: Option<Instant>,
+    /// 🔥 Per-thread TaskStore（隔离 TodoWrite 任务，避免跨线程泄漏）
+    task_stores: std::collections::HashMap<crate::thread::ThreadId, task::TaskStore>,
+    /// 🔥 Per-thread Session 上下文（隔离 messages、tokens、pipeline）
+    thread_session_contexts: std::collections::HashMap<crate::thread::ThreadId, std::sync::Arc<tokio::sync::Mutex<super::session::ThreadSessionContext>>>,
     /// Diff 模式（Some = diff 详情显示中）
     pub diff_mode: bool,
     /// Diff 可滚动视图
@@ -331,6 +356,8 @@ impl App {
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
             task_all_done_at: None,
+            task_stores: std::collections::HashMap::new(),
+            thread_session_contexts: std::collections::HashMap::new(),
             diff_mode: false,
             diff_view: None,
             diffs: Vec::new(),
@@ -372,6 +399,8 @@ impl App {
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
             task_all_done_at: None,
+            task_stores: std::collections::HashMap::new(),
+            thread_session_contexts: std::collections::HashMap::new(),
             diff_mode: false,
             diff_view: None,
             diffs: Vec::new(),
@@ -391,6 +420,57 @@ impl App {
     #[cfg(test)]
     pub fn set_test_size(&mut self, width: u16, height: u16) {
         self.test_size = Some((width, height));
+    }
+
+    // ============================================================================
+    // 声明式线程感知辅助：消除散落的 thread_store.active_thread() 样板
+    // ============================================================================
+
+    /// 获取当前活动线程 ID（声明式：一处定义，处处复用）
+    pub fn current_thread_id(&self) -> crate::thread::ThreadId {
+        self.thread_store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread_store.primary_id())
+    }
+
+    /// 获取当前线程的 TaskStore（声明式：自动懒创建并缓存）
+    pub fn current_task_store(&self) -> task::TaskStore {
+        self.task_store_for(self.current_thread_id())
+    }
+
+    /// 获取指定线程的 TaskStore（声明式：自动懒创建并缓存）
+    /// 由于 TaskStore 内部使用 Arc<RwLock>，clone 后共享同一底层数据
+    pub fn task_store_for(&self, thread_id: crate::thread::ThreadId) -> task::TaskStore {
+        self.task_stores
+            .get(&thread_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                // 懒创建：返回新 store（调用方会通过 set_task_store 或 Arc 共享写入）
+                task::TaskStore::new()
+            })
+    }
+
+    /// 确保指定线程有 TaskStore（懒创建 + 缓存）
+    /// 在发起 AI 请求前调用，确保 TodoWrite 有地方写入
+    pub fn ensure_task_store(&mut self, thread_id: crate::thread::ThreadId) -> task::TaskStore {
+        self.task_stores
+            .entry(thread_id)
+            .or_insert_with(task::TaskStore::new)
+            .clone()
+    }
+
+    /// 设置指定线程的 TaskStore（幂等：覆盖写入）
+    pub fn set_task_store(&mut self, thread_id: crate::thread::ThreadId, store: task::TaskStore) {
+        self.task_stores.insert(thread_id, store);
+    }
+
+    /// 确保指定线程有 ThreadSessionContext（懒创建 + 缓存）
+    /// 返回 Arc<Mutex<>>，可在 tokio::spawn 中使用
+    pub fn ensure_session_context(&mut self, thread_id: crate::thread::ThreadId) -> std::sync::Arc<tokio::sync::Mutex<super::session::ThreadSessionContext>> {
+        self.thread_session_contexts
+            .entry(thread_id)
+            .or_insert_with(|| std::sync::Arc::new(tokio::sync::Mutex::new(super::session::ThreadSessionContext::new())))
+            .clone()
     }
 
     /// 推送一行文本到内容区（自动剥离 ANSI 转义码）
@@ -450,11 +530,11 @@ impl App {
         // 修复后：不渲染，由 ThreadEvent 负责
     }
 
-    /// Streaming 完成时保存到目标线程的 last_ai_response
+    /// Streaming 完成时保存 buffer 到 last_ai_response 并删除 buffer
     pub fn end_streaming(&mut self, thread_id: crate::thread::ThreadId) {
-        if let Some(buffer) = self.streaming_response_buffers.get(&thread_id) {
+        if let Some(buffer) = self.streaming_response_buffers.remove(&thread_id) {
             if !buffer.is_empty() {
-                self.last_ai_responses.insert(thread_id, buffer.clone());
+                self.last_ai_responses.insert(thread_id, buffer);
             }
         }
         // AI 回复结束后自动回到底部，确保用户看到完整回复
@@ -464,6 +544,15 @@ impl App {
         if thread_id == current_thread_id {
             self.scroll_to_bottom();
         }
+    }
+
+    /// 统一状态清理：flush buffer + 删除 buffer + 清除 busy + 清除 status
+    ///
+    /// 由 StreamGuard::drop() 自动调用，也可手动调用（幂等）。
+    pub fn cleanup_after_stream(&mut self, thread_id: crate::thread::ThreadId) {
+        self.end_streaming(thread_id);
+        self.set_thread_busy(thread_id, false);
+        self.set_status(String::new());
     }
 
     /// 获取当前活动线程的 streaming buffer（用于 overlay 在 streaming 期间显示）
@@ -965,7 +1054,8 @@ impl App {
     /// 渲染一帧
     pub fn render(&mut self) {
         // 更新任务面板状态（副作用，必须在 draw_frame 之前）
-        let tasks = task::get_global_task_store().get_tasks();
+        // 🔥 声明式：只读取当前线程的任务，其他线程的任务不泄漏
+        let tasks = self.current_task_store().get_tasks();
         let task_all_done = tasks
             .iter()
             .all(|t| t.status == task::TaskStatus::Completed);
@@ -1008,7 +1098,8 @@ impl App {
         let popup_visible = self.command_popup.is_visible();
         let (popup_lines, popup_height) = self.command_popup.render();
 
-        let tasks = task::get_global_task_store().get_tasks();
+        // 🔥 声明式：只渲染当前线程的任务
+        let tasks = self.current_task_store().get_tasks();
         let (task_lines, _) = render_task_lines(&tasks);
         let task_expired = self
             .task_all_done_at
@@ -1742,6 +1833,99 @@ impl App {
 
         loop {
             self.render();
+
+            // 🔥 审批模式拦截：如果当前线程有挂起的审批，优先处理审批键盘输入
+            // 场景：用户在 streaming 期间切换线程后切回，审批状态仍存在但审批循环已退出
+            if self.is_approving() {
+                if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
+                    if let Ok(event) = event::read() {
+                        if let Event::Key(key) = &event {
+                            if key.kind == event::KeyEventKind::Release {
+                                continue;
+                            }
+
+                            use event::KeyCode;
+
+                            let options_count = if let Some(ref req) = self.approval_state_ref() {
+                                crate::approval_overlay::build_approval_options(req).len()
+                            } else {
+                                0
+                            };
+
+                            let mut handled = false;
+
+                            match key.code {
+                                KeyCode::Up | KeyCode::Down => {
+                                    if options_count > 0 {
+                                        if key.code == KeyCode::Up {
+                                            if self.approval_selected > 0 {
+                                                self.approval_selected -= 1;
+                                            } else {
+                                                self.approval_selected = options_count - 1;
+                                            }
+                                        } else {
+                                            if self.approval_selected + 1 < options_count {
+                                                self.approval_selected += 1;
+                                            } else {
+                                                self.approval_selected = 0;
+                                            }
+                                        }
+                                        self.render();
+                                        handled = true;
+                                    }
+                                }
+                                KeyCode::Enter => {
+                                    if options_count > 0 {
+                                        if let Some(ref req) = self.approval_state_ref() {
+                                            let options = crate::approval_overlay::build_approval_options(req);
+                                            if self.approval_selected < options.len() {
+                                                let decision = options[self.approval_selected].decision;
+                                                let msg = self.resolve_approval(decision);
+                                                self.push_line(msg);
+                                                self.scroll_to_bottom();
+                                                self.render();
+                                                handled = true;
+                                            }
+                                        }
+                                    }
+                                }
+                                KeyCode::Char(c) if c.is_ascii_digit() => {
+                                    let digit = c.to_digit(10).unwrap() as usize;
+                                    if digit > 0 && digit <= options_count {
+                                        if let Some(ref req) = self.approval_state_ref() {
+                                            let options = crate::approval_overlay::build_approval_options(req);
+                                            let decision = options[digit - 1].decision;
+                                            let msg = self.resolve_approval(decision);
+                                            self.push_line(msg);
+                                            self.scroll_to_bottom();
+                                            self.render();
+                                            handled = true;
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    if let Some(decision) = crate::approval_overlay::resolve_approval_key(*key) {
+                                        let msg = self.resolve_approval(decision);
+                                        self.push_line(msg);
+                                        self.scroll_to_bottom();
+                                        self.render();
+                                        handled = true;
+                                    }
+                                }
+                            }
+
+                            if handled {
+                                // 审批决策已发送，检查审批状态是否已清除
+                                // 如果审批已解决，继续正常的事件循环
+                                continue;
+                            }
+                        }
+                    }
+                }
+                // 审批模式下：如果没有真正挂起的审批（状态残留），清除审批标记
+                // 正常情况 is_approving() 已经基于 approval_states 判断，这里是额外安全网
+                continue; // 审批模式下不处理其他事件
+            }
 
             if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
                 if let Ok(event) = event::read() {
@@ -3585,6 +3769,95 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         assert_buffer_not_contains!(&buf, "Streaming");
     }
 
+    // === R1: Stream Recovery — RAII Guard + 统一清理 ===
+
+    fn test_thread_id() -> crate::thread::ThreadId {
+        crate::thread::ThreadId(uuid::Uuid::new_v4())
+    }
+
+    fn setup_streaming(app: &mut App, thread_id: crate::thread::ThreadId) {
+        app.begin_streaming(thread_id);
+        app.append_streaming_output(thread_id, "partial response".to_string());
+        app.set_thread_busy(thread_id, true);
+        app.set_status("Streaming...".to_string());
+    }
+
+    #[test]
+    fn test_cleanup_after_stream_clears_all_state() {
+        let mut app = App::new_for_test();
+        let tid = test_thread_id();
+        setup_streaming(&mut app, tid);
+
+        assert!(app.is_thread_busy(tid));
+        assert_eq!(app.status_text, "Streaming...");
+        assert!(app.streaming_response_buffers.contains_key(&tid));
+
+        app.cleanup_after_stream(tid);
+
+        assert!(!app.is_thread_busy(tid), "busy should be false");
+        assert_eq!(app.status_text, "", "status should be empty");
+        assert!(!app.streaming_response_buffers.contains_key(&tid), "buffer should be removed");
+        assert!(app.last_ai_responses.contains_key(&tid), "response should be saved");
+        assert_eq!(app.last_ai_responses.get(&tid).unwrap(), "partial response");
+    }
+
+    #[test]
+    fn test_end_streaming_uses_remove() {
+        let mut app = App::new_for_test();
+        let tid = test_thread_id();
+        app.begin_streaming(tid);
+        app.append_streaming_output(tid, "hello".to_string());
+
+        assert!(app.streaming_response_buffers.contains_key(&tid));
+
+        app.end_streaming(tid);
+
+        assert!(!app.streaming_response_buffers.contains_key(&tid), "buffer should be removed after end_streaming");
+        assert_eq!(app.last_ai_responses.get(&tid).unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_end_streaming_empty_buffer_not_saved() {
+        let mut app = App::new_for_test();
+        let tid = test_thread_id();
+        app.begin_streaming(tid);
+        // 不写入任何内容
+
+        app.end_streaming(tid);
+
+        assert!(!app.streaming_response_buffers.contains_key(&tid));
+        assert!(!app.last_ai_responses.contains_key(&tid), "empty buffer should not be saved");
+    }
+
+    #[test]
+    fn test_stream_guard_drop_cleans_all() {
+        let mut app = App::new_for_test();
+        let tid = test_thread_id();
+        setup_streaming(&mut app, tid);
+
+        {
+            let _guard = StreamGuard::new(&mut app, tid);
+            // guard 持有 &mut app，无法同时通过 app 读取（RAII 的设计保证）
+        } // guard 被 drop → 自动清理
+
+        assert!(!app.is_thread_busy(tid));
+        assert_eq!(app.status_text, "");
+        assert!(!app.streaming_response_buffers.contains_key(&tid));
+    }
+
+    #[test]
+    fn test_stream_guard_idempotent() {
+        let mut app = App::new_for_test();
+        let tid = test_thread_id();
+        setup_streaming(&mut app, tid);
+
+        app.cleanup_after_stream(tid);
+        app.cleanup_after_stream(tid); // 第二次调用不应 panic
+
+        assert!(!app.is_thread_busy(tid));
+        assert_eq!(app.status_text, "");
+    }
+
     // === 多行输入测试 ===
 
     #[test]
@@ -3840,5 +4113,218 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let buf = render_to_buffer(&mut app, 40, 10);
         let text = buffer_to_string(&buf);
         assert_buffer_contains!(&buf, "Line 14");
+    }
+
+    // === Per-thread TaskStore 隔离测试 ===
+
+    #[test]
+    fn test_task_store_per_thread_isolation() {
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        let thread1_id = app.thread_store.create_side_thread(main_id, Some("thread1".to_string()));
+
+        // main 写入任务
+        let main_store = app.ensure_task_store(main_id);
+        main_store.set_tasks(vec![
+            task::TaskItem {
+                content: "main task 1".to_string(),
+                active_form: "doing main task".to_string(),
+                status: task::TaskStatus::Pending,
+            },
+        ]).unwrap();
+
+        // thread1 写入不同任务
+        let t1_store = app.ensure_task_store(thread1_id);
+        t1_store.set_tasks(vec![
+            task::TaskItem {
+                content: "thread1 task 1".to_string(),
+                active_form: "doing t1 task".to_string(),
+                status: task::TaskStatus::InProgress,
+            },
+        ]).unwrap();
+
+        // 验证：main 的渲染只看到 main 的任务
+        app.switch_thread(main_id);
+        let main_tasks = app.current_task_store().get_tasks();
+        assert_eq!(main_tasks.len(), 1);
+        assert_eq!(main_tasks[0].content, "main task 1");
+
+        // 验证：thread1 的渲染只看到 thread1 的任务
+        app.switch_thread(thread1_id);
+        let t1_tasks = app.current_task_store().get_tasks();
+        assert_eq!(t1_tasks.len(), 1);
+        assert_eq!(t1_tasks[0].content, "thread1 task 1");
+
+        // 验证：main 的任务不会出现在 thread1 视图中
+        assert!(t1_tasks.iter().all(|t| t.content != "main task 1"));
+    }
+
+    #[test]
+    fn test_task_store_render_only_shows_current_thread() {
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        let thread1_id = app.thread_store.create_side_thread(main_id, Some("thread1".to_string()));
+
+        // main 有任务
+        let main_store = app.ensure_task_store(main_id);
+        main_store.set_tasks(vec![
+            task::TaskItem {
+                content: "main visible task".to_string(),
+                active_form: "working".to_string(),
+                status: task::TaskStatus::InProgress,
+            },
+        ]).unwrap();
+
+        // thread1 有不同任务
+        let t1_store = app.ensure_task_store(thread1_id);
+        t1_store.set_tasks(vec![
+            task::TaskItem {
+                content: "thread1 visible task".to_string(),
+                active_form: "working".to_string(),
+                status: task::TaskStatus::Pending,
+            },
+        ]).unwrap();
+
+        // 切到 main，渲染，应包含 "main visible task"
+        app.switch_thread(main_id);
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("main visible task"), "main render should show main task");
+        assert!(!text.contains("thread1 visible task"), "main render should NOT show thread1 task");
+
+        // 切到 thread1，渲染，应包含 "thread1 visible task"
+        app.switch_thread(thread1_id);
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("thread1 visible task"), "thread1 render should show thread1 task");
+        assert!(!text.contains("main visible task"), "thread1 render should NOT show main task");
+    }
+
+    // === 并发 streaming / todo 快照测试 ===
+
+    #[test]
+    fn test_concurrent_both_busy() {
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        let thread1_id = app.thread_store.create_side_thread(main_id, Some("Thread-1".to_string()));
+
+        // main 线程 streaming：push_line 模拟已渲染的 AI 回复 + streaming buffer
+        app.switch_thread(main_id);
+        app.set_thread_busy(main_id, true);
+        app.set_status("Streaming (gpt)".to_string());
+        app.begin_streaming(main_id);
+        app.append_streaming_output(main_id, "Main thread AI response line 1\n".to_string());
+        app.append_streaming_output(main_id, "Main thread AI response line 2\n".to_string());
+        // push_line 模拟 ThreadEvent 处理逻辑将 streaming 内容推送到 content_lines
+        app.push_line("Main thread AI response line 1".to_string());
+        app.push_line("Main thread AI response line 2".to_string());
+
+        // thread1 也同时 busy（但不 append 输出）
+        app.set_thread_busy(thread1_id, true);
+
+        // 渲染当前视图（main）
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("Main thread AI response"), "应显示 main 的 streaming 输出");
+        // streaming buffer 存在，应显示 Ctrl+O 提示
+        assert!(app.get_streaming_buffer().is_some(), "main 线程应有 streaming buffer");
+
+        assert_tui_snapshot!("concurrent_both_busy_main_view", &buf);
+
+        // 切换到 thread1：content_lines 被清空并加载 thread1 的消息
+        app.switch_thread(thread1_id);
+        let buf2 = render_to_buffer(&mut app, 80, 24);
+        let text2 = buffer_to_string(&buf2);
+        assert!(!text2.contains("Main thread AI response"), "切换后不应显示 main 的输出");
+        // thread1 的 streaming buffer 为空（没有 begin_streaming/append）
+        assert!(app.get_streaming_buffer().is_none(), "thread1 无 streaming buffer");
+
+        assert_tui_snapshot!("concurrent_both_busy_thread1_view", &buf2);
+    }
+
+    #[test]
+    fn test_switch_while_other_streaming() {
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        let thread1_id = app.thread_store.create_side_thread(main_id, Some("Thread-1".to_string()));
+
+        // main 线程正在 streaming
+        app.switch_thread(main_id);
+        app.set_thread_busy(main_id, true);
+        app.set_status("Streaming (gpt)".to_string());
+        app.begin_streaming(main_id);
+        app.append_streaming_output(main_id, "Secret data from main thread\n".to_string());
+        app.append_streaming_output(main_id, "More secret output\n".to_string());
+        // push_line 模拟 ThreadEvent 处理逻辑将 streaming 内容推送到 content_lines
+        app.push_line("Secret data from main thread".to_string());
+        app.push_line("More secret output".to_string());
+
+        // 切换到空闲的 thread1
+        app.switch_thread(thread1_id);
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+
+        // thread1 视图不应显示 main 的 streaming 内容
+        assert!(!text.contains("Secret data"), "不应泄漏其他线程的 streaming 内容");
+        assert!(!text.contains("More secret"), "不应泄漏其他线程的 streaming 内容");
+        // thread1 无 streaming buffer
+        assert!(app.get_streaming_buffer().is_none(), "thread1 不应有 streaming buffer");
+
+        assert_tui_snapshot!("switch_while_other_busy", &buf);
+    }
+
+    #[test]
+    fn test_concurrent_todo_isolation() {
+        let mut app = App::new_for_test();
+        let main_id = app.thread_store.primary_id();
+        let thread1_id = app.thread_store.create_side_thread(main_id, Some("Thread-1".to_string()));
+
+        // main 线程有 TodoWrite 任务
+        app.switch_thread(main_id);
+        let main_store = app.ensure_task_store(main_id);
+        main_store.set_tasks(vec![
+            task::TaskItem {
+                content: "Main task 1".to_string(),
+                active_form: "Doing main work".to_string(),
+                status: task::TaskStatus::Pending,
+            },
+            task::TaskItem {
+                content: "Main task 2".to_string(),
+                active_form: "Doing more work".to_string(),
+                status: task::TaskStatus::Pending,
+            },
+        ]).unwrap();
+
+        // thread1 也有自己的 TodoWrite 任务
+        let t1_store = app.ensure_task_store(thread1_id);
+        t1_store.set_tasks(vec![
+            task::TaskItem {
+                content: "Thread1 task 1".to_string(),
+                active_form: "Doing thread1 work".to_string(),
+                status: task::TaskStatus::Pending,
+            },
+        ]).unwrap();
+
+        // 在 main 视图渲染
+        app.switch_thread(main_id);
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+
+        assert!(text.contains("Main task 1"), "应显示 main 的 todo");
+        assert!(text.contains("Main task 2"), "应显示 main 的 todo");
+        assert!(!text.contains("Thread1 task"), "不应显示 thread1 的 todo");
+
+        assert_tui_snapshot!("concurrent_todo_main_view", &buf);
+
+        // 在 thread1 视图渲染
+        app.switch_thread(thread1_id);
+        let buf2 = render_to_buffer(&mut app, 80, 24);
+        let text2 = buffer_to_string(&buf2);
+
+        assert!(text2.contains("Thread1 task 1"), "应显示 thread1 的 todo");
+        assert!(!text2.contains("Main task"), "不应显示 main 的 todo");
+
+        assert_tui_snapshot!("concurrent_todo_thread1_view", &buf2);
     }
 }

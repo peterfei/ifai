@@ -93,6 +93,16 @@ impl ToolRouter {
         set_global_project_root(root);
     }
 
+    /// 🔥 声明式：替换 TodoWrite 的 TaskStore（per-thread 隔离）
+    /// 在 stream_prompt_tui 开始时调用，确保 TodoWrite 操作的是当前线程的 store
+    pub fn set_task_store(&self, store: crate::harness::task::TaskStore) {
+        let mut executors = self.executors.lock().unwrap();
+        executors.insert(
+            "TodoWrite".to_string(),
+            Box::new(TodoWriteExecutor::new(store)),
+        );
+    }
+
     /// 执行工具
     pub fn execute(&self, name: &str, input: &Value) -> Result<String, ToolError> {
         let mut executors = self.executors.lock().unwrap();

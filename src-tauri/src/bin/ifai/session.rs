@@ -21,7 +21,7 @@ use futures_util::stream::StreamExt;
 use ifainew_lib::harness::api::types::{
     Message, MessageContent, MessageRole, StreamEvent, ToolCall, ToolCallFunction,
 };
-use ifainew_lib::harness::task::{get_global_task_store, TaskStatus};
+use ifainew_lib::harness::task::{get_global_task_store, TaskStore, TaskStatus};
 use ifainew_lib::harness::tool::{ToolRegistry, ToolRouter};
 use ifainew_lib::prompt_manager;
 use serde_json::json;
@@ -31,13 +31,50 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant}; // 📋 TodoWrite 任务状态自动推进
 
-/// 📋 自动推进 TodoWrite 任务状态
+/// 共享重试策略 — R2: 消除连接建立和 chunk 读取的重复重试逻辑
+pub struct RetryPolicy {
+    pub max: u32,
+    pub delays: Vec<Duration>,
+}
+
+/// 通用异步重试引擎
+///
+/// `f` 是异步闭包（返回 `Future<Output = Result>`），`is_retryable` 判断错误是否可重试。
+/// 重试时按 `policy.delays` 中的延迟 sleep。
+pub async fn with_retry<T, E, F, Fut, R>(
+    policy: &RetryPolicy,
+    is_retryable: R,
+    mut f: F,
+) -> Result<T, E>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, E>>,
+    R: Fn(&E) -> bool,
+{
+    let mut attempt: u32 = 0;
+    loop {
+        match f().await {
+            Ok(value) => return Ok(value),
+            Err(e) => {
+                if is_retryable(&e) && attempt < policy.max {
+                    if let Some(&delay) = policy.delays.get(attempt as usize) {
+                        tokio::time::sleep(delay).await;
+                    }
+                    attempt += 1;
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+}
+
+/// 📋 自动推进 TodoWrite 任务状态（thread-aware：操作指定线程的 store）
 ///
 /// AI（GLM）通常不会再次调用 TodoWrite 来更新状态，所以需要代码层面自动推进：
 /// - 将第一个 pending 任务标记为 in_progress
 /// - 当前已有 in_progress 时，如果还有 pending 任务，先将 in_progress 标记为 completed
-fn auto_advance_tasks() {
-    let store = get_global_task_store();
+fn auto_advance_tasks(store: &TaskStore) {
     let tasks = store.get_tasks();
     if tasks.is_empty() {
         return;
@@ -78,9 +115,8 @@ fn auto_advance_tasks() {
     }
 }
 
-/// 📋 将当前 in_progress 任务标记为 completed（当 TodoWrite 本身被调用时）
-fn complete_current_task() {
-    let store = get_global_task_store();
+/// 📋 将当前 in_progress 任务标记为 completed（thread-aware）
+fn complete_current_task(store: &TaskStore) {
     let tasks = store.get_tasks();
     for (i, t) in tasks.iter().enumerate() {
         if t.status == TaskStatus::InProgress {
@@ -295,20 +331,48 @@ impl Default for ContinuationCounter {
 }
 
 // ============================================================================
+// ThreadSessionContext — 每个线程独立的 Session 状态
+// ============================================================================
+
+/// 每个线程独立的 AI 对话上下文
+pub struct ThreadSessionContext {
+    /// 该线程的 AI 对话历史
+    pub messages: Vec<Message>,
+    /// 累积输入 token 数
+    pub cumulative_input_tokens: u32,
+    /// 累积输出 token 数
+    pub cumulative_output_tokens: u32,
+    /// 工具执行步骤跟踪
+    pub pipeline_tracker: crate::pipeline::tracker::PipelineTracker,
+}
+
+impl ThreadSessionContext {
+    pub fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+            cumulative_input_tokens: 0,
+            cumulative_output_tokens: 0,
+            pipeline_tracker: crate::pipeline::tracker::PipelineTracker::new(),
+        }
+    }
+}
+
+impl Default for ThreadSessionContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
 // Session State (Placeholder)
 // ============================================================================
 
 /// 🔥 会话状态（支持 token 追踪）
 pub struct Session {
-    pub messages: Vec<Message>,
     pub provider: String,
     pub model: String,
     pub tool_registry: ToolRegistry,
     pub tool_router: Arc<ToolRouter>,
-    /// 🔥 累积输入 token 数
-    pub cumulative_input_tokens: u32,
-    /// 🔥 累积输出 token 数
-    pub cumulative_output_tokens: u32,
     /// 🔥 API key（从配置读取，优先级：CLI > Env > TOML > Default）
     api_key: Option<String>,
     /// 🔥 Base URL（可选，从 TOML 配置读取）
@@ -323,10 +387,10 @@ pub struct Session {
     permission_store: RefCell<PermissionStore>,
     /// 🔥 会话级权限规则（重启失效）
     session_rules: RefCell<Vec<PermissionRule>>,
-    /// 🎨 Pipeline 跟踪器
-    pipeline_tracker: PipelineTracker,
     /// 🎯 统一底部状态栏
     bottom_status_bar: token::BottomStatusBar,
+    /// 🔥 CLI 模式默认线程上下文（TUI 模式使用 per-thread ThreadSessionContext）
+    pub default_ctx: ThreadSessionContext,
     /// 🔥 会话开始时间（用于计算总时长）
     session_start: Instant,
     /// 🎯 备用屏幕视图是否激活
@@ -364,13 +428,10 @@ impl Session {
         let animation_stop = Arc::new(AtomicBool::new(false));
 
         Self {
-            messages: Vec::new(),
             provider,
             model,
             tool_registry,
             tool_router,
-            cumulative_input_tokens: 0,
-            cumulative_output_tokens: 0,
             api_key: None,
             base_url: None,
             tools_disabled: false,
@@ -378,8 +439,8 @@ impl Session {
             custom_system_prompt: None,
             permission_store: RefCell::new(PermissionStore::load()),
             session_rules: RefCell::new(Vec::new()),
-            pipeline_tracker: PipelineTracker::new(),
             bottom_status_bar,
+            default_ctx: ThreadSessionContext::new(),
             session_start,
             alt_view_active: false,
             render_pipeline,
@@ -433,7 +494,7 @@ impl Session {
 
     pub fn add_message(&mut self, msg: String) {
         // 将简单字符串消息转换为 Message 格式
-        self.messages.push(Message {
+        self.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text(msg),
             tool_calls: None,
@@ -442,7 +503,7 @@ impl Session {
     }
 
     pub fn clear_history(&mut self) {
-        self.messages.clear();
+        self.default_ctx.messages.clear();
     }
 
     /// 设置项目根目录（用于 agent_* 工具）
@@ -551,7 +612,7 @@ impl Session {
             .collect();
 
         // 添加用户消息
-        self.messages.push(Message {
+        self.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text(prompt.to_string()),
             tool_calls: None,
@@ -572,12 +633,12 @@ impl Session {
         let start_time = Instant::now(); // 🔥 记录开始时间
 
         // 🎯 自动压缩：检查 token 数量并在超过阈值时压缩
-        let estimated_input = token::estimate_tokens(&self.messages);
+        let estimated_input = token::estimate_tokens(&self.default_ctx.messages);
         const COMPRESS_TOKEN_THRESHOLD: usize = 100_000; // 100k tokens
         const COMPRESS_MESSAGE_THRESHOLD: usize = 100; // 100 messages
 
         let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
-            || self.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
+            || self.default_ctx.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
 
         if need_compress {
             let theme = render::default_theme();
@@ -585,26 +646,26 @@ impl Session {
                 "{}⚠️  对话过长 ({} tokens, {} messages)，正在自动压缩...{}",
                 theme.warning,
                 estimated_input,
-                self.messages.len(),
+                self.default_ctx.messages.len(),
                 render::RESET
             );
 
             // 自动压缩：保留最后 50 条消息
-            let keep_last_n = 50.min(self.messages.len());
-            let total_messages = self.messages.len();
-            self.messages = self
+            let keep_last_n = 50.min(self.default_ctx.messages.len());
+            let total_messages = self.default_ctx.messages.len();
+            self.default_ctx.messages = self.default_ctx
                 .messages
                 .split_off(total_messages.saturating_sub(keep_last_n));
 
             // 保留第一条系统消息（如果有）
-            let has_system = self
+            let has_system = self.default_ctx
                 .messages
                 .first()
                 .map(|m| matches!(m.role, MessageRole::System))
                 .unwrap_or(false);
 
             if !has_system && !system_prompt.is_empty() {
-                self.messages.insert(
+                self.default_ctx.messages.insert(
                     0,
                     Message {
                         role: MessageRole::System,
@@ -618,7 +679,7 @@ impl Session {
                 );
             }
 
-            let new_tokens = token::estimate_tokens(&self.messages);
+            let new_tokens = token::estimate_tokens(&self.default_ctx.messages);
             eprintln!(
                 "{}✓ 压缩完成：{} → {} tokens (减少 {:.1}%){}",
                 theme.success,
@@ -634,7 +695,7 @@ impl Session {
             // 构建请求
             let request = ifainew_lib::harness::api::StreamRequest {
                 model: self.model.clone(),
-                messages: self.messages.clone(),
+                messages: self.default_ctx.messages.clone(),
                 max_tokens: 8192,
                 system: Some(system_prompt.clone()),
                 temperature: Some(0.7),
@@ -648,36 +709,24 @@ impl Session {
             };
 
             // 发送流式请求（带瞬时错误重试）
-            const MAX_RETRIES: u32 = 2;
-            const RETRY_DELAYS: [Duration; 2] = [Duration::from_secs(1), Duration::from_secs(2)];
-            let mut retry_attempt: u32 = 0;
-            let mut stream = loop {
-                match client.stream(request.clone()).await {
-                    Ok(s) => break s,
-                    Err(ref e) if e.is_retryable() && retry_attempt < MAX_RETRIES => {
-                        let theme = render::default_theme();
-                        eprintln!(
-                            "{}Retrying ({}/{})...{}",
-                            theme.warning,
-                            retry_attempt + 1,
-                            MAX_RETRIES,
-                            RESET
-                        );
-                        tokio::time::sleep(RETRY_DELAYS[retry_attempt as usize]).await;
-                        retry_attempt += 1;
+            let retry_policy = RetryPolicy {
+                max: 2,
+                delays: vec![Duration::from_secs(1), Duration::from_secs(2)],
+            };
+            let mut stream = match with_retry(
+                &retry_policy,
+                |e: &ifainew_lib::harness::api::types::ApiError| e.is_retryable(),
+                || client.stream(request.clone()),
+            )
+            .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    // 全部失败时回滚 User 消息（仅首次迭代）
+                    if continuation_count == 0 {
+                        self.default_ctx.messages.pop();
                     }
-                    Err(e) => {
-                        let suffix = if retry_attempt > 0 {
-                            format!(" (retried {} times)", retry_attempt)
-                        } else {
-                            String::new()
-                        };
-                        // 全部失败时回滚 User 消息（仅首次迭代）
-                        if continuation_count == 0 {
-                            self.messages.pop();
-                        }
-                        return Err(format!("Failed to start stream: {:?}{}", e, suffix));
-                    }
+                    return Err(format!("Failed to start stream: {:?}", e));
                 }
             };
 
@@ -717,6 +766,7 @@ impl Session {
             let theme = render::default_theme();
             let mut first_delta = true;
             let mut current_response = String::new();
+            let mut stream_retry_count: u32 = 0; // R3: chunk 级重试计数器
 
             // EventCollector - 收集 response_text
             let mut collector = EventCollector::new();
@@ -727,7 +777,7 @@ impl Session {
             let mut any_tool_done_received = false; // 区分"无工具调用"和"全部被过滤"
 
             // 🔥 元编程：估算输入 tokens（复用 token::estimate_tokens）
-            let estimated_input = token::estimate_tokens(&self.messages);
+            let estimated_input = token::estimate_tokens(&self.default_ctx.messages);
 
             // 🔥 元编程：创建流式状态追踪器
             let mut stream_status = token::StreamStatus::new(estimated_input);
@@ -823,7 +873,7 @@ impl Session {
                                                 tool_id, tool_name, result.len());
                                         }
 
-                                        self.pipeline_tracker.start_step(
+                                        self.default_ctx.pipeline_tracker.start_step(
                                             tool_id.clone(),
                                             tool_name.clone(),
                                             result.clone(),
@@ -846,8 +896,8 @@ impl Session {
                                     }
                                     StreamEvent::MessageDone { input_tokens, output_tokens } => {
                                         // 🔥 记录 token 使用量
-                                        self.cumulative_input_tokens += *input_tokens;
-                                        self.cumulative_output_tokens += *output_tokens;
+                                        self.default_ctx.cumulative_input_tokens += *input_tokens;
+                                        self.default_ctx.cumulative_output_tokens += *output_tokens;
 
                                         // 🎨 刷新 Markdown 渲染器（处理未闭合的代码块）
                                         if let Some(flushed) = self.markdown_state.flush() {
@@ -863,6 +913,23 @@ impl Session {
                                     }
                                     _ => {
                                         collector.dispatch(&event);
+                                    }
+                                }
+                            }
+                            Some(Err(e)) if e.is_retryable() && stream_retry_count < 1 => {
+                                // R3: chunk 级安全重试（CLI 模式，无行缓冲检查）
+                                stream_retry_count += 1;
+                                eprintln!("\n{}Stream interrupted, retrying...{}", theme.warning, RESET);
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                                match client.stream(request.clone()).await {
+                                    Ok(new_stream) => stream = new_stream,
+                                    Err(retry_err) => {
+                                        if first_delta {
+                                            spinner.finish(false);
+                                            print!("\r{}  \r", " ".repeat(30));
+                                        }
+                                        eprintln!("\n{}Stream error: {:?}{}", theme.error, retry_err, RESET);
+                                        return Err(format!("Stream error: {:?}", retry_err));
                                     }
                                 }
                             }
@@ -885,10 +952,10 @@ impl Session {
             // 流结束后检查是否有工具调用需要执行
             if collected_tool_calls.is_empty() && !any_tool_done_received {
                 // 📋 AI 返回纯文本（无工具调用）→ 完成最后一个 in_progress 任务
-                complete_current_task();
+                complete_current_task(get_global_task_store());
 
                 // 没有工具调用，正常结束
-                self.messages.push(Message {
+                self.default_ctx.messages.push(Message {
                     role: MessageRole::Assistant,
                     content: MessageContent::Text(current_response.clone()),
                     tool_calls: None,
@@ -899,8 +966,8 @@ impl Session {
                 let elapsed_secs = start_time.elapsed().as_secs_f64();
                 let summary = self.render_pipeline.render_summary(
                     elapsed_secs,
-                    self.cumulative_input_tokens,
-                    self.cumulative_output_tokens,
+                    self.default_ctx.cumulative_input_tokens,
+                    self.default_ctx.cumulative_output_tokens,
                 );
                 println!("{}", summary);
 
@@ -913,7 +980,7 @@ impl Session {
                 Ok(results) => results,
                 Err(e) if e == "GLOBAL_EMPTY_ARGS_TRIPPED" => {
                     println!("\n全局空参数熔断触发，终止执行");
-                    complete_current_task();
+                    complete_current_task(get_global_task_store());
                     break;
                 }
                 Err(e) => return Err(e),
@@ -927,7 +994,7 @@ impl Session {
                 })
             {
                 println!("\n所有工具调用均被阻止（空参数熔断或循环检测），终止执行");
-                complete_current_task();
+                complete_current_task(get_global_task_store());
                 break;
             }
 
@@ -945,7 +1012,7 @@ impl Session {
                 .collect();
 
             // 添加 assistant 消息（带 tool_calls）
-            self.messages.push(Message {
+            self.default_ctx.messages.push(Message {
                 role: MessageRole::Assistant,
                 content: MessageContent::Text(current_response.clone()),
                 tool_calls: Some(tool_calls_value),
@@ -954,7 +1021,7 @@ impl Session {
 
             // 添加工具结果消息
             for (tool_id, _name, result, _) in &tool_results {
-                self.messages.push(Message {
+                self.default_ctx.messages.push(Message {
                     role: MessageRole::Tool,
                     content: MessageContent::Text(result.clone()),
                     tool_calls: None,
@@ -965,7 +1032,7 @@ impl Session {
             // 🎨 元编程：渲染工具结果（使用 PipelineStep）
             for (tool_id, name, _result, _duration) in &tool_results {
                 // 从 pipeline_tracker 获取完成后的步骤
-                let completed_steps = self.pipeline_tracker.completed_steps();
+                let completed_steps = self.default_ctx.pipeline_tracker.completed_steps();
                 // 从最新到最旧查找，避免匹配到之前同名的旧步骤
                 if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name) {
                     // 使用派生宏生成的方法渲染最终状态
@@ -1019,6 +1086,9 @@ impl Session {
                 .unwrap_or(approval::ToolCategory::Safe);
             let dynamic_max = approval::max_iterations(current_category);
 
+            // R3: 重置 chunk 重试计数器（每轮 continuation 独立计数）
+            stream_retry_count = 0;
+
             // 续播检查
             continuation_count += 1;
             if continuation_count >= dynamic_max {
@@ -1026,7 +1096,7 @@ impl Session {
                     "\n{}Maximum tool iterations reached ({}) for {:?} tools{}",
                     theme.warning, dynamic_max, current_category, RESET
                 );
-                complete_current_task();
+                complete_current_task(get_global_task_store());
                 break;
             }
 
@@ -1043,8 +1113,15 @@ impl Session {
     }
 
     /// 🖥️ TUI 模式的流式提示（通过 channel 发送输出，不直接 print）
+    ///
+    /// 重构：接受 `Arc<Mutex<Self>>` 和 `Arc<Mutex<ThreadSessionContext>>`，
+    /// 实现三阶段锁策略：
+    /// - Phase 1 (Setup): 短暂持 Session + thread_ctx 锁，读取配置并写入消息
+    /// - Phase 2 (Streaming): 完全不持锁，仅使用局部变量和短暂 scoped lock
+    /// - Phase 3 (Post-Process): 短暂持双锁，执行工具调用和后处理
     pub async fn stream_prompt_tui(
-        &mut self,
+        session: Arc<tokio::sync::Mutex<Self>>,
+        thread_ctx: Arc<tokio::sync::Mutex<ThreadSessionContext>>,
         prompt: &str,
         output_tx: tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
         status_tx: tokio::sync::mpsc::UnboundedSender<String>,
@@ -1053,17 +1130,83 @@ impl Session {
         thread_event_tx: tokio::sync::mpsc::UnboundedSender<crate::thread::ThreadEvent>,
         // 🔥 Phase 4: 线程 ID - 工具审批需要知道属于哪个线程
         thread_id: crate::thread::ThreadId,
+        // 🔥 Per-thread TaskStore（隔离 TodoWrite 任务，避免跨线程泄漏）
+        task_store: TaskStore,
     ) -> Result<String, String> {
-        let spec = resolve_provider(&self.provider)
-            .map_err(|e| format!("Failed to resolve provider: {}", e))?;
+        // ═══════════════════════════════════════════════════════════════
+        // Phase 1: Setup — 短暂持 Session 锁 + thread_ctx 锁
+        // ═══════════════════════════════════════════════════════════════
 
-        // 🔥 优先使用自定义系统提示词（--system 参数）
-        let system_prompt = if let Some(custom) = &self.custom_system_prompt {
-            custom.clone()
-        } else {
-            build_cli_system_prompt(&spec)
-        };
+        // 1a. 读取 Session 配置（短暂持 Session 锁）
+        let (spec, system_prompt, model, tools_disabled, provider_config, tools) = {
+            let mut s = session.lock().await;
 
+            // 注入 per-thread TaskStore
+            s.tool_router.set_task_store(task_store.clone());
+
+            let spec = resolve_provider(&s.provider)
+                .map_err(|e| format!("Failed to resolve provider: {}", e))?;
+
+            // 优先使用自定义系统提示词（--system 参数）
+            let system_prompt = if let Some(custom) = &s.custom_system_prompt {
+                custom.clone()
+            } else {
+                build_cli_system_prompt(&spec)
+            };
+
+            let provider = match spec.metadata.id.as_str() {
+                "anthropic-official" => ifainew_lib::harness::api::AiProvider::Anthropic,
+                "deepseek-official" => ifainew_lib::harness::api::AiProvider::DeepSeek,
+                "openai-official" => ifainew_lib::harness::api::AiProvider::OpenAI,
+                "zhipu-official" => ifainew_lib::harness::api::AiProvider::Zhipu,
+                "kimi-official" => ifainew_lib::harness::api::AiProvider::Kimi,
+                "gemini-official" => ifainew_lib::harness::api::AiProvider::Gemini,
+                _ => return Err(format!("Unsupported provider: {}", spec.metadata.id)),
+            };
+
+            let env_key = match spec.metadata.id.as_str() {
+                "anthropic-official" => "ANTHROPIC_API_KEY",
+                "deepseek-official" => "DEEPSEEK_API_KEY",
+                "openai-official" => "OPENAI_API_KEY",
+                "zhipu-official" => "ZHIPU_API_KEY",
+                "kimi-official" => "KIMI_API_KEY",
+                "gemini-official" => "GEMINI_API_KEY",
+                _ => "API_KEY",
+            };
+
+            let api_key = s.get_api_key(env_key)?;
+
+            let provider_config = ifainew_lib::harness::api::ProviderConfig {
+                api_key,
+                base_url: s.base_url.clone(),
+                organization: None,
+            };
+
+            let model = s.model.clone();
+            let tools_disabled = s.tools_disabled;
+
+            let tools: Vec<serde_json::Value> = s
+                .tool_registry
+                .all()
+                .into_iter()
+                .map(|tool| {
+                    json!({
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.input_schema
+                        }
+                    })
+                })
+                .collect();
+
+            // drop(s) 在此处自动发生 — Session 锁释放
+
+            (spec, system_prompt, model, tools_disabled, provider_config, tools)
+        }; // Session 锁释放
+
+        // 1b. 创建 API client（纯局部变量，不需要任何锁）
         let provider = match spec.metadata.id.as_str() {
             "anthropic-official" => ifainew_lib::harness::api::AiProvider::Anthropic,
             "deepseek-official" => ifainew_lib::harness::api::AiProvider::DeepSeek,
@@ -1074,176 +1217,154 @@ impl Session {
             _ => return Err(format!("Unsupported provider: {}", spec.metadata.id)),
         };
 
-        let env_key = match spec.metadata.id.as_str() {
-            "anthropic-official" => "ANTHROPIC_API_KEY",
-            "deepseek-official" => "DEEPSEEK_API_KEY",
-            "openai-official" => "OPENAI_API_KEY",
-            "zhipu-official" => "ZHIPU_API_KEY",
-            "kimi-official" => "KIMI_API_KEY",
-            "gemini-official" => "GEMINI_API_KEY",
-            _ => "API_KEY",
-        };
-
-        let api_key = self.get_api_key(env_key)?;
-
-        let provider_config = ifainew_lib::harness::api::ProviderConfig {
-            api_key,
-            base_url: self.base_url.clone(),
-            organization: None,
-        };
-
         let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(
             provider,
             &provider_config,
         )
         .map_err(|e| format!("Failed to create client: {:?}", e))?;
 
-        let tools: Vec<serde_json::Value> = self
-            .tool_registry
-            .all()
-            .into_iter()
-            .map(|tool| {
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.input_schema
-                    }
-                })
-            })
-            .collect();
+        // 1c. 写入 thread_ctx（短暂持 thread_ctx 锁）
+        {
+            let mut ctx = thread_ctx.lock().await;
 
-        // 添加用户消息
-        self.messages.push(Message {
-            role: MessageRole::User,
-            content: MessageContent::Text(prompt.to_string()),
-            tool_calls: None,
-            tool_call_id: None,
-        });
+            // 添加用户消息
+            ctx.messages.push(Message {
+                role: MessageRole::User,
+                content: MessageContent::Text(prompt.to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            });
 
-        let start_time = Instant::now();
-        let mut full_response = String::new();
+            // 自动压缩检查
+            let estimated_input = token::estimate_tokens(&ctx.messages);
+            const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;
+            const COMPRESS_MESSAGE_THRESHOLD: usize = 100;
 
-        // 自动压缩检查
-        let estimated_input = token::estimate_tokens(&self.messages);
-        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;
-        const COMPRESS_MESSAGE_THRESHOLD: usize = 100;
+            let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
+                || ctx.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
 
-        let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
-            || self.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
+            if need_compress {
+                let _ = output_tx.send(
+                    format!(
+                        "⚠️ 对话过长 ({} tokens, {} messages)，正在自动压缩...",
+                        estimated_input,
+                        ctx.messages.len()
+                    )
+                    .into(),
+                );
+                let keep_last_n = 50.min(ctx.messages.len());
+                let total_messages = ctx.messages.len();
+                ctx.messages = ctx
+                    .messages
+                    .split_off(total_messages.saturating_sub(keep_last_n));
 
-        if need_compress {
-            let _ = output_tx.send(
-                format!(
-                    "⚠️ 对话过长 ({} tokens, {} messages)，正在自动压缩...",
-                    estimated_input,
-                    self.messages.len()
-                )
-                .into(),
-            );
-            let keep_last_n = 50.min(self.messages.len());
-            let total_messages = self.messages.len();
-            self.messages = self
-                .messages
-                .split_off(total_messages.saturating_sub(keep_last_n));
+                let has_system = ctx
+                    .messages
+                    .first()
+                    .map(|m| matches!(m.role, MessageRole::System))
+                    .unwrap_or(false);
 
-            let has_system = self
-                .messages
-                .first()
-                .map(|m| matches!(m.role, MessageRole::System))
-                .unwrap_or(false);
+                if !has_system && !system_prompt.is_empty() {
+                    ctx.messages.insert(
+                        0,
+                        Message {
+                            role: MessageRole::System,
+                            content: MessageContent::Text(format!(
+                                "(对话历史已压缩，保留最近 {} 条消息)",
+                                keep_last_n
+                            )),
+                            tool_calls: None,
+                            tool_call_id: None,
+                        },
+                    );
+                }
 
-            if !has_system && !system_prompt.is_empty() {
-                self.messages.insert(
-                    0,
-                    Message {
-                        role: MessageRole::System,
-                        content: MessageContent::Text(format!(
-                            "(对话历史已压缩，保留最近 {} 条消息)",
-                            keep_last_n
-                        )),
-                        tool_calls: None,
-                        tool_call_id: None,
-                    },
+                let new_tokens = token::estimate_tokens(&ctx.messages);
+                let _ = output_tx.send(
+                    format!(
+                        "✓ 压缩完成：{} → {} tokens",
+                        format_number(estimated_input),
+                        format_number(new_tokens)
+                    )
+                    .into(),
                 );
             }
 
-            let new_tokens = token::estimate_tokens(&self.messages);
-            let _ = output_tx.send(
-                format!(
-                    "✓ 压缩完成：{} → {} tokens",
-                    format_number(estimated_input),
-                    format_number(new_tokens)
-                )
-                .into(),
-            );
-        }
+            // TUI 上下文警告
+            let token_count = token::estimate_tokens(&ctx.messages);
+            let max_tokens = token::get_model_max_tokens(&model);
+            if token_count > (max_tokens * 80 / 100) && ctx.messages.len() >= 10 {
+                let _ = output_tx.send(format!("Warning: Context size ({} tokens, {} messages) exceeds 80% of model limit ({}).", token_count, ctx.messages.len(), max_tokens).into());
+                let _ = output_tx.send(
+                    "Tip: Use /compact to compress or /clear to start fresh."
+                        .to_string()
+                        .into(),
+                );
+            }
 
-        // TUI 上下文警告
-        let token_count = token::estimate_tokens(&self.messages);
-        let max_tokens = token::get_model_max_tokens(&self.model);
-        if token_count > (max_tokens * 80 / 100) && self.messages.len() >= 10 {
-            let _ = output_tx.send(format!("Warning: Context size ({} tokens, {} messages) exceeds 80% of model limit ({}).", token_count, self.messages.len(), max_tokens).into());
-            let _ = output_tx.send(
-                "Tip: Use /compact to compress or /clear to start fresh."
-                    .to_string()
-                    .into(),
-            );
-        }
+            // 清空 PipelineTracker 状态（确保不会显示上一次的工具结果）
+            ctx.pipeline_tracker.clear();
+        } // thread_ctx 锁释放
+
+        // ═══════════════════════════════════════════════════════════════
+        // Phase 2: Streaming — 不持任何锁
+        // （仅使用局部变量，thread_ctx 访问通过短暂 scoped lock）
+        // ═══════════════════════════════════════════════════════════════
+
+        let start_time = Instant::now();
+        let mut bottom_status_bar = token::BottomStatusBar::new(model.clone());
+        let mut full_response = String::new();
 
         let current_category = approval::ToolCategory::Safe;
         let max_continuations = approval::max_iterations(current_category);
         let mut continuation_count = 0;
 
-        // 重试策略常量
-        const MAX_RETRIES: u32 = 2;
-        const RETRY_DELAYS: [Duration; 2] = [Duration::from_secs(1), Duration::from_secs(2)];
-        let mut retry_attempt: u32 = 0;
-
-        // 🔥 清空 PipelineTracker 状态（确保不会显示上一次的工具结果）
-        self.pipeline_tracker.clear();
+        // 重试策略（共享 RetryPolicy — R2）
+        let retry_policy = RetryPolicy {
+            max: 2,
+            delays: vec![Duration::from_secs(1), Duration::from_secs(2)],
+        };
 
         loop {
             // 每轮开始时更新状态栏（多轮工具调用时需重新发送）
-            let _ = status_tx.send(format!("Streaming ({})", self.model));
+            let _ = status_tx.send(format!("Streaming ({})", model));
+
+            // 短暂获取 thread_ctx 锁来 clone messages 用于请求
+            let (messages_for_request, estimated_input) = {
+                let ctx = thread_ctx.lock().await;
+                (ctx.messages.clone(), token::estimate_tokens(&ctx.messages))
+            };
 
             let request = ifainew_lib::harness::api::StreamRequest {
-                model: self.model.clone(),
-                messages: self.messages.clone(),
+                model: model.clone(),
+                messages: messages_for_request,
                 max_tokens: 8192,
                 system: Some(system_prompt.clone()),
                 temperature: Some(0.7),
                 stream: true,
-                tools: if self.tools_disabled || tools.is_empty() {
+                tools: if tools_disabled || tools.is_empty() {
                     None
                 } else {
                     Some(tools.clone())
                 },
             };
 
-            let mut stream = loop {
-                match client.stream(request.clone()).await {
-                    Ok(s) => break s,
-                    Err(ref e) if e.is_retryable() && retry_attempt < MAX_RETRIES => {
-                        let _ = output_tx.send(
-                            format!("Retrying ({}/{})...", retry_attempt + 1, MAX_RETRIES).into(),
-                        );
-                        tokio::time::sleep(RETRY_DELAYS[retry_attempt as usize]).await;
-                        retry_attempt += 1;
+            let mut stream = match with_retry(
+                &retry_policy,
+                |e: &ifainew_lib::harness::api::types::ApiError| e.is_retryable(),
+                || client.stream(request.clone()),
+            )
+            .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    if continuation_count == 0 {
+                        // 短暂获取 thread_ctx 锁来 pop 错误消息
+                        let mut ctx = thread_ctx.lock().await;
+                        ctx.messages.pop();
                     }
-                    Err(e) => {
-                        let suffix = if retry_attempt > 0 {
-                            format!(" (retried {} times)", retry_attempt)
-                        } else {
-                            String::new()
-                        };
-                        if continuation_count == 0 {
-                            self.messages.pop();
-                        }
-                        let _ = output_tx.send(format!("Stream error: {:?}{}", e, suffix).into());
-                        return Err(format!("Failed to start stream: {:?}{}", e, suffix));
-                    }
+                    let _ = output_tx.send(format!("Stream error: {:?}", e).into());
+                    return Err(format!("Failed to start stream: {:?}", e));
                 }
             };
 
@@ -1251,8 +1372,8 @@ impl Session {
             let mut first_delta = true;
             let mut current_response = String::new();
             let mut collector = EventCollector::new();
-            let estimated_input = token::estimate_tokens(&self.messages);
             let mut line_buffer = String::new(); // 🖥️ TUI：缓冲未完成的行
+            let mut stream_retry_count: u32 = 0; // R3: chunk 级重试计数器
 
             // 工具调用直接收集：ToolDone 时构建 PendingToolCall
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
@@ -1268,7 +1389,7 @@ impl Session {
                             StreamEvent::TextDelta { text } => {
                                 if first_delta {
                                     first_delta = false;
-                                    self.bottom_status_bar
+                                    bottom_status_bar
                                         .transition(StatusBarState::Streaming {
                                             estimated_input,
                                             current_output: 0,
@@ -1277,7 +1398,7 @@ impl Session {
                                 }
 
                                 let _current_output =
-                                    self.bottom_status_bar.update_streaming_output(text);
+                                    bottom_status_bar.update_streaming_output(text);
                                 current_response.push_str(text);
                                 full_response.push_str(text);
 
@@ -1290,7 +1411,7 @@ impl Session {
                                 }
 
                                 // 更新状态栏
-                                let status = self.bottom_status_bar.render_fixed();
+                                let status = bottom_status_bar.render_fixed();
                                 let _ = status_tx.send(status);
 
                                 collector.dispatch(&event);
@@ -1302,7 +1423,7 @@ impl Session {
                             } => {
                                 if first_delta {
                                     first_delta = false;
-                                    self.bottom_status_bar
+                                    bottom_status_bar
                                         .transition(StatusBarState::Streaming {
                                             estimated_input,
                                             current_output: 0,
@@ -1333,11 +1454,15 @@ impl Session {
                                         tool_id, tool_name, result.len()).into());
                                 }
 
-                                self.pipeline_tracker.start_step(
-                                    tool_id.clone(),
-                                    tool_name.clone(),
-                                    result.clone(),
-                                );
+                                // 短暂获取 thread_ctx 锁来更新 pipeline_tracker
+                                {
+                                    let mut ctx = thread_ctx.lock().await;
+                                    ctx.pipeline_tracker.start_step(
+                                        tool_id.clone(),
+                                        tool_name.clone(),
+                                        result.clone(),
+                                    );
+                                }
 
                                 collected_tool_calls.push(PendingToolCall {
                                     tool_id: tool_id.clone(),
@@ -1358,21 +1483,38 @@ impl Session {
                                 input_tokens,
                                 output_tokens,
                             } => {
-                                self.cumulative_input_tokens += *input_tokens;
-                                self.cumulative_output_tokens += *output_tokens;
+                                // 短暂获取 thread_ctx 锁来累加 tokens
+                                {
+                                    let mut ctx = thread_ctx.lock().await;
+                                    ctx.cumulative_input_tokens += *input_tokens;
+                                    ctx.cumulative_output_tokens += *output_tokens;
+                                }
 
                                 // 🖥️ TUI：刷新剩余缓冲区
                                 if !line_buffer.is_empty() {
                                     let _ = output_tx.send(std::mem::take(&mut line_buffer).into());
                                 }
 
-                                self.bottom_status_bar.transition(StatusBarState::Idle);
+                                bottom_status_bar.transition(StatusBarState::Idle);
                                 let _ = status_tx.send("Done".to_string());
 
                                 collector.dispatch(&event);
                             }
                             _ => {
                                 collector.dispatch(&event);
+                            }
+                        }
+                    }
+                    Some(Err(e)) if e.is_retryable() && line_buffer.is_empty() && stream_retry_count < 1 => {
+                        // R3: chunk 级安全重试 — 仅在消息边界（line_buffer 为空）时重试
+                        stream_retry_count += 1;
+                        let _ = output_tx.send("Stream interrupted, retrying...".to_string().into());
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        match client.stream(request.clone()).await {
+                            Ok(new_stream) => stream = new_stream,
+                            Err(retry_err) => {
+                                let _ = output_tx.send(format!("Stream error: {:?}", retry_err).into());
+                                return Err(format!("Stream error: {:?}", retry_err));
                             }
                         }
                     }
@@ -1386,36 +1528,51 @@ impl Session {
                 }
             }
 
+            // ═══════════════════════════════════════════════════════════
+            // Phase 3: Post-Process — 短暂持双锁
+            // ═══════════════════════════════════════════════════════════
+
             // 流结束后检查是否有工具调用需要执行
             if collected_tool_calls.is_empty() && !any_tool_done_received {
-                // 📋 AI 返回纯文本（无工具调用）→ 完成最后一个 in_progress 任务
-                complete_current_task();
+                // 纯文本响应（无工具调用）— 短暂持双锁完成收尾
+                {
+                    let mut s = session.lock().await;
+                    let mut ctx = thread_ctx.lock().await;
 
-                self.messages.push(Message {
-                    role: MessageRole::Assistant,
-                    content: MessageContent::Text(current_response.clone()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                });
+                    // 完成最后一个 in_progress 任务
+                    complete_current_task(&task_store);
 
-                let elapsed_secs = start_time.elapsed().as_secs_f64();
-                let summary = self.render_pipeline.render_summary(
-                    elapsed_secs,
-                    self.cumulative_input_tokens,
-                    self.cumulative_output_tokens,
-                );
-                let _ = output_tx.send(summary.into());
+                    ctx.messages.push(Message {
+                        role: MessageRole::Assistant,
+                        content: MessageContent::Text(current_response.clone()),
+                        tool_calls: None,
+                        tool_call_id: None,
+                    });
+
+                    let elapsed_secs = start_time.elapsed().as_secs_f64();
+                    let summary = s.render_pipeline.render_summary(
+                        elapsed_secs,
+                        ctx.cumulative_input_tokens,
+                        ctx.cumulative_output_tokens,
+                    );
+                    let _ = output_tx.send(summary.into());
+                }
 
                 break;
             }
 
             // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
+            // 需要持 Session 锁（execute_tools_tui 需要 &mut self）和 thread_ctx 锁
             let _ = output_tx.send(String::new().into());
-            // 🔥 Phase 4: 传递 thread_id 用于工具审批
-            let tool_results = match self
-                .execute_tools_tui(&collected_tool_calls, &output_tx, &approval_tx, thread_id)
-                .await
-            {
+            let tool_results = {
+                let mut s = session.lock().await;
+                let mut ctx = thread_ctx.lock().await;
+                // 🔥 Phase 4: 传递 thread_id 用于工具审批
+                s.execute_tools_tui(&mut ctx, &mut bottom_status_bar, &collected_tool_calls, &output_tx, &approval_tx, thread_id, &task_store)
+                    .await
+            };
+
+            let tool_results = match tool_results {
                 Ok(results) => results,
                 Err(e) if e == "GLOBAL_EMPTY_ARGS_TRIPPED" => {
                     let _ = output_tx.send("全局空参数熔断触发，终止执行".to_string().into());
@@ -1435,95 +1592,99 @@ impl Session {
                         .to_string()
                         .into(),
                 );
-                complete_current_task();
+                complete_current_task(&task_store);
                 break;
             }
 
-            // 构建 tool_calls
-            let tool_calls_value: Vec<ToolCall> = tool_results
-                .iter()
-                .map(|(id, name, _, _)| ToolCall {
-                    id: id.clone(),
-                    call_type: "function".to_string(),
-                    function: ToolCallFunction {
-                        name: name.clone(),
-                        arguments: String::new(),
-                    },
-                })
-                .collect();
+            // 构建 tool_calls + 更新 thread_ctx — 短暂持 thread_ctx 锁
+            {
+                let mut ctx = thread_ctx.lock().await;
 
-            self.messages.push(Message {
-                role: MessageRole::Assistant,
-                content: MessageContent::Text(current_response.clone()),
-                tool_calls: Some(tool_calls_value),
-                tool_call_id: None,
-            });
+                let tool_calls_value: Vec<ToolCall> = tool_results
+                    .iter()
+                    .map(|(id, name, _, _)| ToolCall {
+                        id: id.clone(),
+                        call_type: "function".to_string(),
+                        function: ToolCallFunction {
+                            name: name.clone(),
+                            arguments: String::new(),
+                        },
+                    })
+                    .collect();
 
-            for (tool_id, _name, result, _) in &tool_results {
-                self.messages.push(Message {
-                    role: MessageRole::Tool,
-                    content: MessageContent::Text(result.clone()),
-                    tool_calls: None,
-                    tool_call_id: Some(tool_id.clone()),
+                ctx.messages.push(Message {
+                    role: MessageRole::Assistant,
+                    content: MessageContent::Text(current_response.clone()),
+                    tool_calls: Some(tool_calls_value),
+                    tool_call_id: None,
                 });
-            }
 
-            // 渲染工具结果
-            let theme = render::default_theme();
-            for (tool_id, name, _result, _duration) in &tool_results {
-                let completed_steps = self.pipeline_tracker.completed_steps();
-                // 从最新到最旧查找，避免匹配到之前同名的旧步骤
-                if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name) {
-                    let status_render = step.status.render_with_theme("zh", &theme, RESET);
-                    let args_preview = if step.tool_args.chars().count() > 50 {
-                        format!("{}...", step.tool_args.chars().take(47).collect::<String>())
-                    } else {
-                        step.tool_args.clone()
-                    };
+                for (tool_id, _name, result, _) in &tool_results {
+                    ctx.messages.push(Message {
+                        role: MessageRole::Tool,
+                        content: MessageContent::Text(result.clone()),
+                        tool_calls: None,
+                        tool_call_id: Some(tool_id.clone()),
+                    });
+                }
 
-                    if let Some(duration) = step.metadata.duration {
-                        let _ = output_tx.send(
-                            format!(
-                                "\n{} {}({})  [{}]",
-                                status_render,
-                                name,
-                                args_preview,
-                                format_duration(duration.as_secs_f64())
-                            )
-                            .into(),
-                        );
-                    } else {
-                        let _ = output_tx
-                            .send(format!("\n{} {}({})", status_render, name, args_preview).into());
-                    }
+                // 渲染工具结果
+                let theme = render::default_theme();
+                for (tool_id, name, _result, _duration) in &tool_results {
+                    let completed_steps = ctx.pipeline_tracker.completed_steps();
+                    // 从最新到最旧查找，避免匹配到之前同名的旧步骤
+                    if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name) {
+                        let status_render = step.status.render_with_theme("zh", &theme, RESET);
+                        let args_preview = if step.tool_args.chars().count() > 50 {
+                            format!("{}...", step.tool_args.chars().take(47).collect::<String>())
+                        } else {
+                            step.tool_args.clone()
+                        };
 
-                    match &step.output {
-                        crate::pipeline::StepOutput::Empty => {}
-                        crate::pipeline::StepOutput::Full { content } => {
+                        if let Some(duration) = step.metadata.duration {
                             let _ = output_tx.send(
                                 format!(
-                                    "   ╾ {}",
-                                    content.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                                    "\n{} {}({})  [{}]",
+                                    status_render,
+                                    name,
+                                    args_preview,
+                                    format_duration(duration.as_secs_f64())
                                 )
                                 .into(),
                             );
+                        } else {
+                            let _ = output_tx
+                                .send(format!("\n{} {}({})", status_render, name, args_preview).into());
                         }
-                        crate::pipeline::StepOutput::Truncated {
-                            preview,
-                            total_lines,
-                        } => {
-                            let _ = output_tx.send(
-                                format!(
-                                    "   ╾ {}",
-                                    preview.lines().collect::<Vec<_>>().join("\n   ╾ ")
-                                )
-                                .into(),
-                            );
-                            let _ = output_tx.send(format!("   ╾ (共 {} 行)", total_lines).into());
+
+                        match &step.output {
+                            crate::pipeline::StepOutput::Empty => {}
+                            crate::pipeline::StepOutput::Full { content } => {
+                                let _ = output_tx.send(
+                                    format!(
+                                        "   ╾ {}",
+                                        content.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                                    )
+                                    .into(),
+                                );
+                            }
+                            crate::pipeline::StepOutput::Truncated {
+                                preview,
+                                total_lines,
+                            } => {
+                                let _ = output_tx.send(
+                                    format!(
+                                        "   ╾ {}",
+                                        preview.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                                    )
+                                    .into(),
+                                );
+                                let _ = output_tx.send(format!("   ╾ (共 {} 行)", total_lines).into());
+                            }
                         }
                     }
                 }
-            }
+            } // thread_ctx 锁释放
 
             let current_category = collected_tool_calls
                 .first()
@@ -1531,11 +1692,14 @@ impl Session {
                 .unwrap_or(approval::ToolCategory::Safe);
             let dynamic_max = approval::max_iterations(current_category);
 
+            // R3: 重置 chunk 重试计数器（每轮 continuation 独立计数）
+            stream_retry_count = 0;
+
             continuation_count += 1;
             if continuation_count >= dynamic_max {
                 let _ = output_tx
                     .send(format!("Maximum tool iterations reached ({})", dynamic_max).into());
-                complete_current_task();
+                complete_current_task(&task_store);
                 break;
             }
 
@@ -1550,11 +1714,15 @@ impl Session {
     /// 🔧 TUI 模式执行工具（通过审批 channel 交互确认）
     async fn execute_tools_tui(
         &mut self,
+        thread_ctx: &mut ThreadSessionContext,
+        bottom_status_bar: &mut token::BottomStatusBar,
         tools: &[PendingToolCall],
         output_tx: &tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
         approval_tx: &tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
         // 🔥 Phase 4: 线程 ID - 工具审批需要知道属于哪个线程
         thread_id: crate::thread::ThreadId,
+        // 🔥 Per-thread TaskStore（隔离 TodoWrite 任务）
+        task_store: &TaskStore,
     ) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
 
@@ -1573,7 +1741,7 @@ impl Session {
                                 .to_string()
                                 .into(),
                         );
-                        self.pipeline_tracker
+                        thread_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
                         return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
                     }
@@ -1581,7 +1749,7 @@ impl Session {
                         // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
                         let _ = output_tx
                             .send(format!("⚡ 熔断跳过: {}({})", tool.name, tool.args).into());
-                        self.pipeline_tracker
+                        thread_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
                         // push "Skipped" 结果（匹配终止条件，防止 AI 无限重试空参数）
                         results.push((
@@ -1610,7 +1778,7 @@ impl Session {
 
                         let _ = output_tx
                             .send(format!("⚠️ 空参数阻止: {}({})", tool.name, tool.args).into());
-                        self.pipeline_tracker
+                        thread_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
                         results.push((
                             tool.tool_id.clone(),
@@ -1642,7 +1810,7 @@ impl Session {
                     let _ = output_tx.send(
                         format!("⚠️ 参数解析失败: {}({}) → {}", tool.name, preview, e).into(),
                     );
-                    self.pipeline_tracker.finish_step_error(
+                    thread_ctx.pipeline_tracker.finish_step_error(
                         &tool.tool_id,
                         error_msg.clone(),
                         Duration::ZERO,
@@ -1697,7 +1865,7 @@ impl Session {
                     crate::approval_overlay::ApprovalRequest::from_tool(tool, thread_id, response_tx);
                 if approval_tx.send(request).is_err() {
                     let error_msg = format!("Tool '{}': approval channel closed", tool.name);
-                    self.pipeline_tracker
+                    thread_ctx.pipeline_tracker
                         .skip_step(&tool.tool_id, error_msg.clone());
                     results.push((
                         tool.tool_id.clone(),
@@ -1738,7 +1906,7 @@ impl Session {
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::Deny) => {
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);
-                        self.pipeline_tracker
+                        thread_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, error_msg.clone());
                         results.push((
                             tool.tool_id.clone(),
@@ -1754,7 +1922,7 @@ impl Session {
                     }
                     Err(_) => {
                         let error_msg = format!("Tool '{}': approval channel closed", tool.name);
-                        self.pipeline_tracker
+                        thread_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, error_msg.clone());
                         results.push((
                             tool.tool_id.clone(),
@@ -1772,7 +1940,7 @@ impl Session {
             if loop_status.should_stop() {
                 if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
                     let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason).into());
-                    self.pipeline_tracker
+                    thread_ctx.pipeline_tracker
                         .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
                     let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
                     results.push((
@@ -1800,7 +1968,7 @@ impl Session {
             match self.tool_router.execute(&tool.name, &args_json) {
                 Ok(result) => {
                     let duration = start.elapsed();
-                    self.pipeline_tracker.finish_step_success(
+                    thread_ctx.pipeline_tracker.finish_step_success(
                         &tool.tool_id,
                         result.clone(),
                         duration,
@@ -1875,13 +2043,13 @@ impl Session {
 
                     // 📋 自动推进 TodoWrite 任务状态（非 TodoWrite 工具成功后）
                     if tool.name != "TodoWrite" {
-                        auto_advance_tasks();
+                        auto_advance_tasks(task_store);
                     }
                 }
                 Err(e) => {
                     let duration = start.elapsed();
                     let error_msg = format!("Error: {:?}", e);
-                    self.pipeline_tracker.finish_step_error(
+                    thread_ctx.pipeline_tracker.finish_step_error(
                         &tool.tool_id,
                         error_msg.clone(),
                         duration,
@@ -1917,7 +2085,7 @@ impl Session {
                             theme.warning,
                             render::RESET
                         );
-                        self.pipeline_tracker
+                        self.default_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
                         return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
                     }
@@ -1930,7 +2098,7 @@ impl Session {
                             tool.args,
                             render::RESET
                         );
-                        self.pipeline_tracker
+                        self.default_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
                         results.push((
                             tool.tool_id.clone(),
@@ -1963,7 +2131,7 @@ impl Session {
                             tool.args,
                             render::RESET
                         );
-                        self.pipeline_tracker
+                        self.default_ctx.pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
                         results.push((
                             tool.tool_id.clone(),
@@ -2029,7 +2197,7 @@ impl Session {
 
                     if input.trim() != "y" && input.trim() != "Y" {
                         // 🎨 元编程：标记步骤为跳过
-                        self.pipeline_tracker.skip_step(
+                        self.default_ctx.pipeline_tracker.skip_step(
                             &tool.tool_id,
                             format!("User denied execution of '{}'", tool.name),
                         );
@@ -2059,7 +2227,7 @@ impl Session {
                     );
 
                     // 🎨 元编程：标记步骤为跳过（循环阻止）
-                    self.pipeline_tracker
+                    self.default_ctx.pipeline_tracker
                         .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
 
                     // 返回错误给 AI，让 AI 知道这个工具调用被阻止了
@@ -2115,7 +2283,7 @@ impl Session {
                         e,
                         render::RESET
                     );
-                    self.pipeline_tracker.finish_step_error(
+                    self.default_ctx.pipeline_tracker.finish_step_error(
                         &tool.tool_id,
                         error_msg.clone(),
                         Duration::ZERO,
@@ -2138,7 +2306,7 @@ impl Session {
                     let duration = start.elapsed();
 
                     // 🎨 元编程：标记步骤为成功
-                    self.pipeline_tracker.finish_step_success(
+                    self.default_ctx.pipeline_tracker.finish_step_success(
                         &tool.tool_id,
                         result.clone(),
                         duration,
@@ -2148,7 +2316,7 @@ impl Session {
 
                     // 📋 自动推进 TodoWrite 任务状态（非 TodoWrite 工具成功后）
                     if tool.name != "TodoWrite" {
-                        auto_advance_tasks();
+                        auto_advance_tasks(get_global_task_store());
                     }
                 }
                 Err(e) => {
@@ -2156,7 +2324,7 @@ impl Session {
                     let error_msg = format!("Error: {:?}", e);
 
                     // 🎨 元编程：标记步骤为失败
-                    self.pipeline_tracker.finish_step_error(
+                    self.default_ctx.pipeline_tracker.finish_step_error(
                         &tool.tool_id,
                         error_msg.clone(),
                         duration,
@@ -2412,7 +2580,7 @@ mod tests {
         let session = Session::new("deepseek".to_string(), "deepseek-chat".to_string());
         assert_eq!(session.provider, "deepseek");
         assert_eq!(session.model, "deepseek-chat");
-        assert!(session.messages.is_empty());
+        assert!(session.default_ctx.messages.is_empty());
     }
 
     #[test]
@@ -2421,16 +2589,16 @@ mod tests {
         session.add_message("Hello".to_string());
         session.add_message("World".to_string());
 
-        assert_eq!(session.messages.len(), 2);
-        assert!(matches!(session.messages[0].role, MessageRole::User));
-        assert!(matches!(session.messages[1].role, MessageRole::User));
+        assert_eq!(session.default_ctx.messages.len(), 2);
+        assert!(matches!(session.default_ctx.messages[0].role, MessageRole::User));
+        assert!(matches!(session.default_ctx.messages[1].role, MessageRole::User));
 
         // 检查文本内容
-        match &session.messages[0].content {
+        match &session.default_ctx.messages[0].content {
             MessageContent::Text(text) => assert_eq!(text, "Hello"),
             _ => panic!("Expected Text content"),
         }
-        match &session.messages[1].content {
+        match &session.default_ctx.messages[1].content {
             MessageContent::Text(text) => assert_eq!(text, "World"),
             _ => panic!("Expected Text content"),
         }
@@ -2440,10 +2608,10 @@ mod tests {
     fn test_session_clear_history() {
         let mut session = Session::new("deepseek".to_string(), "deepseek-chat".to_string());
         session.add_message("test".to_string());
-        assert_eq!(session.messages.len(), 1);
+        assert_eq!(session.default_ctx.messages.len(), 1);
 
         session.clear_history();
-        assert!(session.messages.is_empty());
+        assert!(session.default_ctx.messages.is_empty());
     }
 
     #[test]
@@ -2514,7 +2682,7 @@ mod tests {
         session.disable_tools(); // 禁用工具避免测试复杂度
 
         // 3. 记录初始消息数
-        assert_eq!(session.messages.len(), 0, "初始应该没有消息");
+        assert_eq!(session.default_ctx.messages.len(), 0, "初始应该没有消息");
 
         // 4. 发送 55 轮对话（产生 110 条消息，超过 100 条阈值）
         for i in 1..=55 {
@@ -2531,15 +2699,15 @@ mod tests {
         // 5. 验证压缩被触发：消息数应该明显少于原始数量
         // 55 轮应该产生 110 条消息，压缩后应该 <= 100 条
         assert!(
-            session.messages.len() <= 100,
+            session.default_ctx.messages.len() <= 100,
             "压缩后应该保留最近 100 条消息以内，实际: {}",
-            session.messages.len()
+            session.default_ctx.messages.len()
         );
 
         // 6. 验证消息确实被压缩了（不是简单的 0 或 110）
-        assert!(session.messages.len() > 0, "压缩后应该还有消息");
+        assert!(session.default_ctx.messages.len() > 0, "压缩后应该还有消息");
         assert!(
-            session.messages.len() < 110,
+            session.default_ctx.messages.len() < 110,
             "压缩后消息数应该少于原始 110 条"
         );
     }
@@ -2565,20 +2733,21 @@ mod tests {
         }
 
         // 验证压缩前有 105 条消息
-        assert_eq!(session.messages.len(), 105, "压缩前应该有 105 条消息");
+        assert_eq!(session.default_ctx.messages.len(), 105, "压缩前应该有 105 条消息");
 
         // 手动触发压缩逻辑（模拟 stream_prompt 中的压缩）
-        let total_messages = session.messages.len();
+        let total_messages = session.default_ctx.messages.len();
         let keep_last_n = 50.min(total_messages);
-        session.messages = session
+        session.default_ctx.messages = session
+            .default_ctx
             .messages
             .split_off(total_messages.saturating_sub(keep_last_n));
 
         // 验证压缩后保留 50 条
-        assert_eq!(session.messages.len(), 50, "压缩后应该保留 50 条消息");
+        assert_eq!(session.default_ctx.messages.len(), 50, "压缩后应该保留 50 条消息");
 
         // 验证保留的是最近的消息（最后 50 条）
-        match &session.messages[0].content {
+        match &session.default_ctx.messages[0].content {
             MessageContent::Text(text) => {
                 assert_eq!(
                     text, "message_56",
@@ -2588,7 +2757,7 @@ mod tests {
             _ => panic!("Expected Text content"),
         }
 
-        match &session.messages[49].content {
+        match &session.default_ctx.messages[49].content {
             MessageContent::Text(text) => {
                 assert_eq!(text, "message_105", "最后一条应该是 message_105");
             }
@@ -2602,15 +2771,15 @@ mod tests {
         let session = Session::new("deepseek".to_string(), "deepseek-chat".to_string());
 
         // 所有字段都是 pub 的，可以直接验证
-        assert!(session.messages.is_empty(), "messages 应该为空");
+        assert!(session.default_ctx.messages.is_empty(), "messages 应该为空");
         assert_eq!(session.provider, "deepseek", "provider 应该正确");
         assert_eq!(session.model, "deepseek-chat", "model 应该正确");
         assert_eq!(
-            session.cumulative_input_tokens, 0,
+            session.default_ctx.cumulative_input_tokens, 0,
             "初始 input tokens 应该为 0"
         );
         assert_eq!(
-            session.cumulative_output_tokens, 0,
+            session.default_ctx.cumulative_output_tokens, 0,
             "初始 output tokens 应该为 0"
         );
     }
@@ -2738,5 +2907,150 @@ mod tests {
         let preview = format!("{}...", s.chars().take(47).collect::<String>());
         assert!(preview.is_char_boundary(preview.len()));
         assert_eq!(preview.chars().count(), 50); // 47 + "..."
+    }
+
+    // ========================================================================
+    // R2: RetryPolicy + with_retry() tests
+    // ========================================================================
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    #[tokio::test]
+    async fn test_with_retry_success_on_first_try() {
+        let policy = RetryPolicy {
+            max: 2,
+            delays: vec![Duration::from_millis(10), Duration::from_millis(10)],
+        };
+        let call_count = AtomicU32::new(0);
+
+        let result: Result<String, String> = with_retry(&policy, |_| true, || {
+            call_count.fetch_add(1, Ordering::SeqCst);
+            async { Ok("ok".to_string()) }
+        })
+        .await;
+
+        assert_eq!(result.unwrap(), "ok");
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_with_retry_retryable_triggers_retry() {
+        let policy = RetryPolicy {
+            max: 2,
+            delays: vec![Duration::from_millis(10), Duration::from_millis(10)],
+        };
+        let call_count = AtomicU32::new(0);
+
+        let result: Result<String, String> = with_retry(&policy, |_| true, || {
+            let count = call_count.fetch_add(1, Ordering::SeqCst);
+            async move {
+                if count < 1 {
+                    Err("transient".to_string())
+                } else {
+                    Ok("recovered".to_string())
+                }
+            }
+        })
+        .await;
+
+        assert_eq!(result.unwrap(), "recovered");
+        assert_eq!(call_count.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn test_with_retry_exhausted_returns_error() {
+        let policy = RetryPolicy {
+            max: 2,
+            delays: vec![Duration::from_millis(10), Duration::from_millis(10)],
+        };
+        let call_count = AtomicU32::new(0);
+
+        let result: Result<String, String> = with_retry(&policy, |_| true, || {
+            call_count.fetch_add(1, Ordering::SeqCst);
+            async { Err("always_fail".to_string()) }
+        })
+        .await;
+
+        assert_eq!(result.unwrap_err(), "always_fail");
+        // 1 initial + 2 retries = 3
+        assert_eq!(call_count.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn test_with_retry_non_retryable_no_retry() {
+        let policy = RetryPolicy {
+            max: 2,
+            delays: vec![Duration::from_millis(10), Duration::from_millis(10)],
+        };
+        let call_count = AtomicU32::new(0);
+
+        let result: Result<String, String> = with_retry(&policy, |e: &String| !e.contains("fatal"), || {
+            call_count.fetch_add(1, Ordering::SeqCst);
+            async { Err("fatal error".to_string()) }
+        })
+        .await;
+
+        assert_eq!(result.unwrap_err(), "fatal error");
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    // ================================================================
+    // ThreadSessionContext 测试
+    // ================================================================
+
+    #[test]
+    fn test_thread_ctx_messages_isolated() {
+        let mut ctx_main = ThreadSessionContext::new();
+        let mut ctx_t1 = ThreadSessionContext::new();
+
+        ctx_main.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("hello from main".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+        ctx_t1.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("hello from t1".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        assert_eq!(ctx_main.messages.len(), 1);
+        assert_eq!(ctx_t1.messages.len(), 1);
+        // 互不干扰
+        assert!(matches!(&ctx_main.messages[0].role, MessageRole::User));
+    }
+
+    #[test]
+    fn test_thread_ctx_tokens_independent() {
+        let mut ctx_main = ThreadSessionContext::new();
+        let mut ctx_t1 = ThreadSessionContext::new();
+
+        ctx_main.cumulative_input_tokens = 100;
+        ctx_main.cumulative_output_tokens = 200;
+        ctx_t1.cumulative_input_tokens = 50;
+        ctx_t1.cumulative_output_tokens = 80;
+
+        assert_eq!(ctx_main.cumulative_input_tokens, 100);
+        assert_eq!(ctx_t1.cumulative_input_tokens, 50);
+
+        // 累加互不影响
+        ctx_main.cumulative_input_tokens += 10;
+        assert_eq!(ctx_main.cumulative_input_tokens, 110);
+        assert_eq!(ctx_t1.cumulative_input_tokens, 50);
+    }
+
+    #[test]
+    fn test_thread_ctx_pipeline_tracker_independent() {
+        let mut ctx_main = ThreadSessionContext::new();
+        let mut ctx_t1 = ThreadSessionContext::new();
+
+        ctx_main.pipeline_tracker.start_step("tool-1".into(), "bash".into(), "ls".into());
+        ctx_t1.pipeline_tracker.start_step("tool-2".into(), "read_file".into(), "foo.rs".into());
+
+        // 各自的 active_steps 独立
+        assert_eq!(ctx_main.pipeline_tracker.active_steps().len(), 1);
+        assert_eq!(ctx_t1.pipeline_tracker.active_steps().len(), 1);
     }
 }

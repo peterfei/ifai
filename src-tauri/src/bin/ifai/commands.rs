@@ -253,18 +253,18 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     let keep_last_n = 20;
 
     // 🔥 检查是否需要压缩（消息数必须明显超过保留数）
-    if session.messages.len() <= keep_last_n + 2 {
+    if session.default_ctx.messages.len() <= keep_last_n + 2 {
         return Ok(Some(format!(
             "{}对话无需压缩（{} 条消息 < {} 条阈值）。使用 /clear 清空所有对话。{}",
             theme.muted,
-            session.messages.len(),
+            session.default_ctx.messages.len(),
             keep_last_n + 2,
             RESET
         )));
     }
 
-    let before_count = session.messages.len();
-    let before_tokens = super::token::estimate_tokens(&session.messages);
+    let before_count = session.default_ctx.messages.len();
+    let before_tokens = super::token::estimate_tokens(&session.default_ctx.messages);
 
     println!("{}🔄 压缩对话...{}", theme.heading, RESET);
     println!(
@@ -276,23 +276,23 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
     // 1. 保留系统提示词
     use ifainew_lib::harness::api::types::MessageRole;
-    if let Some(first) = session.messages.first() {
+    if let Some(first) = session.default_ctx.messages.first() {
         if matches!(first.role, MessageRole::System) {
             new_messages.push(first.clone());
         }
     }
 
     // 2. 保留最后 N 条消息
-    let tail_size = std::cmp::min(session.messages.len(), keep_last_n);
-    let start_idx = session.messages.len() - tail_size;
-    for i in start_idx..session.messages.len() {
-        new_messages.push(session.messages[i].clone());
+    let tail_size = std::cmp::min(session.default_ctx.messages.len(), keep_last_n);
+    let start_idx = session.default_ctx.messages.len() - tail_size;
+    for i in start_idx..session.default_ctx.messages.len() {
+        new_messages.push(session.default_ctx.messages[i].clone());
     }
 
-    session.messages = new_messages;
+    session.default_ctx.messages = new_messages;
 
-    let after_count = session.messages.len();
-    let after_tokens = super::token::estimate_tokens(&session.messages);
+    let after_count = session.default_ctx.messages.len();
+    let after_tokens = super::token::estimate_tokens(&session.default_ctx.messages);
 
     println!(
         "{}压缩后：{} 条消息，约 {} tokens{}",
@@ -320,21 +320,21 @@ fn cmd_cost(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     let theme = default_theme();
 
     // 🔥 使用 token display 模块格式化输出（包含进度条）
-    let cost_display = if session.cumulative_input_tokens == 0
-        && session.cumulative_output_tokens == 0
+    let cost_display = if session.default_ctx.cumulative_input_tokens == 0
+        && session.default_ctx.cumulative_output_tokens == 0
     {
         format!("{}No token usage recorded yet.{}", theme.muted, RESET)
     } else {
         // 🔥 显示成本 + Token 进度条
         let cost_line = token::format_cost(
-            &session.messages,
+            &session.default_ctx.messages,
             &session.model,
-            session.cumulative_input_tokens,
-            session.cumulative_output_tokens,
+            session.default_ctx.cumulative_input_tokens,
+            session.default_ctx.cumulative_output_tokens,
             &theme,
         );
 
-        let token_warning = token::format_token_warning(&session.messages, &session.model, &theme);
+        let token_warning = token::format_token_warning(&session.default_ctx.messages, &session.model, &theme);
 
         format!("{}\n{}", cost_line, token_warning)
     };
@@ -380,9 +380,9 @@ fn cmd_save(session: &mut Session, arg: Option<&str>) -> CommandResult {
         saved_at: chrono::Utc::now().to_rfc3339(),
         provider: session.provider.clone(),
         model: session.model.clone(),
-        messages: session.messages.clone(),
-        cumulative_input_tokens: session.cumulative_input_tokens,
-        cumulative_output_tokens: session.cumulative_output_tokens,
+        messages: session.default_ctx.messages.clone(),
+        cumulative_input_tokens: session.default_ctx.cumulative_input_tokens,
+        cumulative_output_tokens: session.default_ctx.cumulative_output_tokens,
     };
 
     // 🔥 保存会话
@@ -398,7 +398,7 @@ fn cmd_save(session: &mut Session, arg: Option<&str>) -> CommandResult {
         theme.success,
         filepath.display(),
         RESET,
-        session.messages.len()
+        session.default_ctx.messages.len()
     )))
 }
 
@@ -459,18 +459,18 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
                 .map_err(|e| format!("Failed to load session '{}': {}", name, e))?;
 
             // 🔥 恢复会话状态
-            session.messages = snapshot.messages;
+            session.default_ctx.messages = snapshot.messages;
             session.provider = snapshot.provider;
             session.model = snapshot.model;
-            session.cumulative_input_tokens = snapshot.cumulative_input_tokens;
-            session.cumulative_output_tokens = snapshot.cumulative_output_tokens;
+            session.default_ctx.cumulative_input_tokens = snapshot.cumulative_input_tokens;
+            session.default_ctx.cumulative_output_tokens = snapshot.cumulative_output_tokens;
 
             Ok(Some(format!(
                 "{}✓ 会话已恢复：{}{}（{} 条消息）",
                 theme.success,
                 name,
                 RESET,
-                session.messages.len()
+                session.default_ctx.messages.len()
             )))
         }
         None => Ok(Some(format!(
@@ -526,7 +526,7 @@ fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
     markdown.push_str(&format!("**Model:** {}\n\n", session.model));
     markdown.push_str("---\n\n");
 
-    for message in &session.messages {
+    for message in &session.default_ctx.messages {
         use ifainew_lib::harness::api::types::MessageRole;
 
         let role_name = match message.role {
@@ -583,8 +583,8 @@ fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
     Ok(Some(format!(
         "{}✓ Exported {} message{} to {}{}",
         theme.success,
-        session.messages.len(),
-        if session.messages.len() == 1 { "" } else { "s" },
+        session.default_ctx.messages.len(),
+        if session.default_ctx.messages.len() == 1 { "" } else { "s" },
         filename,
         RESET
     )))
@@ -598,7 +598,7 @@ fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
     // 🔥 查找最后一个用户消息的索引
     let last_user_index = session
-        .messages
+        .default_ctx.messages
         .iter()
         .rposition(|m| matches!(m.role, MessageRole::User));
 
@@ -612,13 +612,13 @@ fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
         }
         Some(index) => {
             // 记录删除前的消息数
-            let before_count = session.messages.len();
+            let before_count = session.default_ctx.messages.len();
 
             // 🔥 删除从最后一个用户消息开始的所有消息
             // 这会删除：User + Assistant + Tool（整个轮次）
-            session.messages.truncate(index);
+            session.default_ctx.messages.truncate(index);
 
-            let removed_count = before_count - session.messages.len();
+            let removed_count = before_count - session.default_ctx.messages.len();
 
             Ok(Some(format!(
                 "{}✓ Removed last turn ({} message{}){}",
@@ -654,13 +654,13 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
     // 🔥 统计轮次（用户消息数）
     let user_message_count = session
-        .messages
+        .default_ctx.messages
         .iter()
         .filter(|m| matches!(m.role, ifainew_lib::harness::api::types::MessageRole::User))
         .count();
 
     // 🔥 估算总 token 数
-    let total_tokens = session.cumulative_input_tokens + session.cumulative_output_tokens;
+    let total_tokens = session.default_ctx.cumulative_input_tokens + session.default_ctx.cumulative_output_tokens;
 
     // 🔥 格式化输出
     let mut output = String::new();
@@ -691,7 +691,7 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
         theme.table_border,
         RESET,
         theme.brand,
-        session.messages.len(),
+        session.default_ctx.messages.len(),
         RESET
     ));
     output.push_str(&format!(
@@ -701,7 +701,7 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
     // Token 统计
     if total_tokens > 0 {
-        let token_count = token::estimate_tokens(&session.messages);
+        let token_count = token::estimate_tokens(&session.default_ctx.messages);
         let max_tokens = token::get_model_max_tokens(&session.model);
         let percentage = (token_count * 100 / max_tokens.max(1)) as u32;
 
@@ -714,9 +714,9 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
             theme.table_border,
             RESET,
             theme.muted,
-            session.cumulative_input_tokens,
+            session.default_ctx.cumulative_input_tokens,
             theme.muted,
-            session.cumulative_output_tokens,
+            session.default_ctx.cumulative_output_tokens,
             RESET
         ));
     } else {
@@ -1125,13 +1125,13 @@ mod tests {
             Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 添加模拟消息
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("Hello".to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("How are you?".to_string()),
             tool_calls: None,
@@ -1195,13 +1195,13 @@ mod tests {
             Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 添加一轮对话
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("Hello".to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("Hi there!".to_string()),
             tool_calls: None,
@@ -1209,13 +1209,13 @@ mod tests {
         });
 
         // 撤销前：2 条消息
-        assert_eq!(session.messages.len(), 2);
+        assert_eq!(session.default_ctx.messages.len(), 2);
 
         let result = dispatch_command(&mut session, "undo", None);
         assert!(result.is_ok());
 
         // 撤销后：0 条消息
-        assert_eq!(session.messages.len(), 0);
+        assert_eq!(session.default_ctx.messages.len(), 0);
 
         let output = result.unwrap().unwrap();
         assert!(output.contains("撤销") || output.contains("Removed"));
@@ -1230,13 +1230,13 @@ mod tests {
             Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 第一轮
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("First question".to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("First answer".to_string()),
             tool_calls: None,
@@ -1244,13 +1244,13 @@ mod tests {
         });
 
         // 第二轮
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("Second question".to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("Second answer".to_string()),
             tool_calls: None,
@@ -1258,15 +1258,15 @@ mod tests {
         });
 
         // 撤销前：4 条消息
-        assert_eq!(session.messages.len(), 4);
+        assert_eq!(session.default_ctx.messages.len(), 4);
 
         let result = dispatch_command(&mut session, "undo", None);
         assert!(result.is_ok());
 
         // 撤销后：2 条消息（只保留第一轮）
-        assert_eq!(session.messages.len(), 2);
+        assert_eq!(session.default_ctx.messages.len(), 2);
         // 验证剩余消息的内容（通过模式匹配）
-        match &session.messages[1].content {
+        match &session.default_ctx.messages[1].content {
             MessageContent::Text(text) => assert_eq!(text, "First answer"),
             _ => panic!("Expected Text content"),
         }
@@ -1283,7 +1283,7 @@ mod tests {
             Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 用户消息
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("Use the calculator".to_string()),
             tool_calls: None,
@@ -1291,7 +1291,7 @@ mod tests {
         });
 
         // Assistant 响应（包含工具调用）
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("I'll calculate that.".to_string()),
             tool_calls: Some(vec![ToolCall {
@@ -1306,7 +1306,7 @@ mod tests {
         });
 
         // 工具结果
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Tool,
             content: MessageContent::Text("Result: 42".to_string()),
             tool_calls: None,
@@ -1314,13 +1314,13 @@ mod tests {
         });
 
         // 撤销前：3 条消息
-        assert_eq!(session.messages.len(), 3);
+        assert_eq!(session.default_ctx.messages.len(), 3);
 
         let result = dispatch_command(&mut session, "undo", None);
         assert!(result.is_ok());
 
         // 撤销后：0 条消息（整个轮次都被删除）
-        assert_eq!(session.messages.len(), 0);
+        assert_eq!(session.default_ctx.messages.len(), 0);
     }
 
     // ============================================================================
@@ -1359,14 +1359,14 @@ mod tests {
         let mut session =
             Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("What is Rust?".to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
 
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("Rust is a systems programming language.".to_string()),
             tool_calls: None,
@@ -1404,14 +1404,14 @@ mod tests {
         let mut session =
             Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("Show me code".to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
 
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text(
                 "Here's a example:\n```rust\nfn main() {\n    println!(\"Hello\");\n}\n```"
@@ -1460,14 +1460,14 @@ mod tests {
         let mut session =
             Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::User,
             content: MessageContent::Text("Calculate 2+2".to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
 
-        session.messages.push(Message {
+        session.default_ctx.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("I'll calculate that.".to_string()),
             tool_calls: Some(vec![ToolCall {

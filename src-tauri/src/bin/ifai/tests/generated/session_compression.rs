@@ -27,9 +27,9 @@ async fn test_ya_suochu_fa() {
 
     // 验证压缩被触发：消息数应该 <= 100
     assert!(
-        session.messages.len() <= 100,
+        session.default_ctx.messages.len() <= 100,
         "压缩后应该保留最近 100 条消息以内，实际: {}",
-        session.messages.len()
+        session.default_ctx.messages.len()
     );
 }
 
@@ -58,8 +58,8 @@ async fn test_ya_suobao_liushang_xia_wen() {
     }
 
     // 验证压缩后还有消息
-    assert!(session.messages.len() > 0, "压缩后应该还有消息");
-    assert!(session.messages.len() <= 100, "压缩后应该 <= 100 条消息");
+    assert!(session.default_ctx.messages.len() > 0, "压缩后应该还有消息");
+    assert!(session.default_ctx.messages.len() <= 100, "压缩后应该 <= 100 条消息");
 }
 
 #[tokio::test]
@@ -82,13 +82,13 @@ async fn test_ya_suohouji_xudui_hua() {
     }
 
     // 验证压缩触发
-    assert!(session.messages.len() <= 100, "应该触发压缩");
+    assert!(session.default_ctx.messages.len() <= 100, "应该触发压缩");
 
     // 压缩后继续对话
     let _ = session.stream_prompt("continue after compression").await;
 
     // 验证可以继续添加消息
-    assert!(session.messages.len() > 0, "压缩后应该能继续对话");
+    assert!(session.default_ctx.messages.len() > 0, "压缩后应该能继续对话");
 }
 
 #[tokio::test]
@@ -112,9 +112,9 @@ async fn test_ya_suozhong_gong_judiao_yong() {
 
     // 验证压缩触发
     assert!(
-        session.messages.len() <= 100,
+        session.default_ctx.messages.len() <= 100,
         "包含工具调用的会话应该也能正确压缩，实际: {}",
-        session.messages.len()
+        session.default_ctx.messages.len()
     );
 }
 
@@ -138,7 +138,7 @@ async fn test_ya_suo_token_ji_shu() {
     }
 
     // 验证压缩触发
-    assert!(session.messages.len() <= 100, "应该触发压缩");
+    assert!(session.default_ctx.messages.len() <= 100, "应该触发压缩");
 
     // 注意：由于 Mock 服务器不返回真实的 token 计数，
     // 我们这里主要验证消息数量减少了，token 统计在实际使用中会正确更新
@@ -173,10 +173,10 @@ async fn test_ya_suo() {
     }
 
     // 验证压缩触发
-    assert!(session.messages.len() <= 100, "应该触发压缩");
+    assert!(session.default_ctx.messages.len() <= 100, "应该触发压缩");
 
     // 验证压缩后还有消息（最近的对话应该被保留）
-    assert!(session.messages.len() > 0, "压缩后应该保留最近的对话");
+    assert!(session.default_ctx.messages.len() > 0, "压缩后应该保留最近的对话");
 }
 
 #[tokio::test]
@@ -196,7 +196,7 @@ async fn test_shou_dongchu_faya_suo() {
     // 发送少量消息
     let _ = session.stream_prompt("start conversation").await;
     let _ = session.stream_prompt("add some context").await;
-    let initial_count = session.messages.len();
+    let initial_count = session.default_ctx.messages.len();
 
     // 发送足够多的消息触发自动压缩
     for i in 1..=55 {
@@ -205,9 +205,9 @@ async fn test_shou_dongchu_faya_suo() {
 
     // 验证压缩被触发（消息数应该减少）
     assert!(
-        session.messages.len() < initial_count + 100,
+        session.default_ctx.messages.len() < initial_count + 100,
         "压缩后消息数应该明显减少，实际: {}",
-        session.messages.len()
+        session.default_ctx.messages.len()
     );
 }
 
@@ -232,9 +232,9 @@ async fn test_ya_suobao_liuxi_tongti_shi_ci() {
     }
 
     // 验证压缩触发
-    assert!(session.messages.len() <= 100, "应该触发压缩");
+    assert!(session.default_ctx.messages.len() <= 100, "应该触发压缩");
 
     // 验证压缩后还能继续对话
     let _ = session.stream_prompt("what is your role").await;
-    assert!(session.messages.len() > 0, "压缩后应该能继续对话");
+    assert!(session.default_ctx.messages.len() > 0, "压缩后应该能继续对话");
 }
