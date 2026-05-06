@@ -3173,7 +3173,7 @@ dependencies = [
 
 [[package]]
 name = "ifainew"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "anyhow",
  "assert_cmd",

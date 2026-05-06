@@ -1,5 +1,13 @@
 # IfAI — A Mature AI Native Harness 🚀
 
+### 🌟 v0.4.6 Highlights: Multi-Thread Concurrent Chat & TUI Architecture Refactor
+- **Multi-Thread Concurrent Chat System**: Per-Thread Session isolation with concurrent AI requests, Arc<Mutex> 3-stage lock strategy, ThreadEvent type-safe routing, concurrent streaming + approval isolation
+- **/thread Slash Commands**: `/thread new`, `/thread list`, `/thread switch <id>`, `/thread close` with thread mode popup rendering
+- **Multi-line Input**: Shift+Enter/Alt+Enter/Ctrl+J for line breaks, smart auto-scroll, focus restore fix
+- **TUI God Object Refactor Phase 1-4**: App struct 27→14 fields (5 subsystems extracted), Mode enum replacing 5 boolean flags, declarative routing table (handle_single_key_event 238→158 lines), unified StreamState cleanup
+- **14-Round Context Break E2E Tests**: Including 2048 game generation, concurrent approval tests, cross-thread isolation tests, streaming leak tests; total tests 830→862
+- **10 Bug Fixes**: Shortcut blocking, scroll failure, streaming mouse wheel, keyboard event loss, message loss, cross-thread crosstalk, multi-line scroll overflow
+
 ### 🌟 v0.4.5 Highlights: TUI Enhancement & Testing Framework
 - **Ctrl+O Detail View Overlay**: Full-screen AI response viewer with toggle support, Transcript/File/DiffContext viewing, streaming-time access
 - **Ctrl+D Diff Mode**: Multi-file diff browsing with toggle switch, streaming key response
@@ -91,6 +99,7 @@ As a mature AI Native Harness, IfAI provides:
 
 ### 📈 Project Status
 
+- **✅ v0.4.6** - May 06, 2026 (Multi-Thread Concurrent Chat & TUI Architecture Refactor)
 - **✅ v0.4.5** - May 02, 2026 (TUI Enhancement & Testing Framework)
 - **✅ v0.4.2** - Apr 21, 2026 (Skill Center Refactor & Streaming Performance Optimization)
 - **✅ v0.4.1** - Apr 2026 (Multi-Agent Collaboration & Message Stability)

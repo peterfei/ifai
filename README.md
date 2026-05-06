@@ -16,6 +16,14 @@
 
 ---
 
+### 🌟 v0.4.6 新特性：多线程并发对话系统 & TUI 架构重构
+- **多线程并发对话系统**：Per-Thread Session 隔离，支持多个 AI 对话线程同时运行，Arc<Mutex> 三阶段锁策略，ThreadEvent 类型安全事件路由，并发 Streaming + 审批隔离。
+- **/thread 系列斜杠命令**：`/thread new` 创建、`/thread list` 列出、`/thread switch <id>` 切换、`/thread close` 关闭线程，线程模式弹出框渲染。
+- **多行输入支持**：Shift+Enter/Alt+Enter/Ctrl+J 换行，智能自动滚动，焦点恢复修复。
+- **TUI God Object 重构 Phase 1-4**：App struct 从 27 字段降至 14 字段（5 个子系统提取），Mode enum 替代 5 个布尔标志（consumed 消除），声明式路由表替代 if-else（handle_single_key_event 238→158 行），StreamState cleanup 统一为单一入口。
+- **14 轮上下文断链 E2E 测试**：含 2048 游戏生成场景，并发审批测试、跨线程串台测试、Streaming 泄漏测试，测试总数从 830 增长至 862。
+- **10 项 Bug 修复**：快捷键阻塞、滚动失效、Streaming 鼠标滚轮、键盘事件失效、消息丢失、跨线程串台、多行输入滚动溢出等。
+
 ### 🌟 v0.4.5 新特性：TUI 增强与测试框架完善
 - **Ctrl+O Detail View Overlay**：全屏 AI 响应查看器，支持 Toggle 开关（再按 Ctrl+O 关闭）、Transcript 回放、File 查看器、DiffContext 对比视图（旧/新内容切换）、Streaming 期间实时访问。
 - **Ctrl+D Diff Mode**：多文件差异浏览，Toggle 开关模式（一键切换）、Streaming 期间按键响应（不会穿透到其他事件）。
@@ -112,6 +120,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.4.6** | **多线程并发对话系统 & TUI 架构重构** | **Per-Thread Session 隔离（并发 Streaming + 审批隔离）、/thread 斜杠命令、多行输入（Shift+Enter）、TUI God Object 重构 Phase 1-4（App 27→14 字段、Mode enum、声明式路由表、StreamState 统一 cleanup）、862 测试用例、10 项 Bug 修复** |
 | **v0.4.5** | **TUI 增强与测试框架完善** | **Ctrl+O Detail View Overlay（全屏查看）、Ctrl+D Diff Mode（Toggle 开关）、输入消息队列（Streaming 期间排队）、斜杠命令弹出框（元编程）、510+ 测试用例（参数化/并行/快照/E2E）、元编程架构、10 项 Bug 修复** |
 | **v0.4.4** | **CLI 全面升级 — 工业级终端 AI 助手** | **元数据驱动 CLI 架构、元编程权限引擎、Token 系统、TOML 配置、会话持久化、Pipeline 可视化、循环检测引擎、ratatui 全屏 TUI、智能 Glob 搜索、49 个测试** |
 | **v0.4.3** | **元数据驱动架构与国际化** | **元数据驱动 Provider 架构（YAML 配置）、5 家 AI 提供商 80+ 模型、完整多模态支持、三语言全覆盖（中/英/俄）、CI 集成与质量门禁、SSE 流解析修复** |
