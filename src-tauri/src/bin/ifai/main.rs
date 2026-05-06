@@ -1460,6 +1460,206 @@ fn spawn_stream_request(
     });
 }
 
+// ========================================================================
+// Phase 3: 声明式路由表
+// ========================================================================
+
+/// 路由 Action — 声明式 keybinding 表的执行单元
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RouteAction {
+    /// Ctrl+C：中断所有 streaming
+    AbortAll,
+    /// Ctrl+D：进入 Diff 模式（Normal only）
+    EnterDiff,
+    /// Ctrl+O：进入 Overlay 模式（Normal only）
+    EnterOverlay,
+    /// Ctrl+T：创建侧线程（Normal only）
+    CreateThread,
+    /// Alt+Left：切换到上一个线程（Normal only）
+    PrevThread,
+    /// Alt+Right：切换到下一个线程（Normal only）
+    NextThread,
+    /// Esc：返回父线程（Normal + active_mode only）
+    ReturnToParent,
+    /// PageUp：向上滚动（Normal only）
+    ScrollUp(u16),
+    /// PageDown：向下滚动（Normal only）
+    ScrollDown(u16),
+    /// Shift+Up：向上滚动（Normal only）
+    ScrollUpLine(u16),
+    /// Shift+Down：向下滚动（Normal only）
+    ScrollDownLine(u16),
+    /// 未匹配任何 binding → fallthrough 到 input composer
+    Fallthrough,
+}
+
+/// 声明式 keybinding 条目
+struct RouteBinding {
+    /// 匹配的按键
+    key: crossterm::event::KeyCode,
+    /// 匹配的修饰键
+    modifiers: crossterm::event::KeyModifiers,
+    /// 执行的 action
+    action: RouteAction,
+}
+
+impl RouteBinding {
+    fn matches(&self, key: &crossterm::event::KeyEvent) -> bool {
+        key.code == self.key && key.modifiers == self.modifiers
+    }
+}
+
+/// 声明式路由表 — Normal 模式下的所有快捷键绑定
+///
+/// 新增快捷键 = 添加一行 RouteBinding，不需要修改控制流。
+/// Diff/Overlay/Approving 模式在 route_key_event 中由专用 handler 拦截。
+const NORMAL_BINDINGS: &[RouteBinding] = &[
+    // Ctrl+D：进入 Diff
+    RouteBinding { key: crossterm::event::KeyCode::Char('d'), modifiers: crossterm::event::KeyModifiers::CONTROL, action: RouteAction::EnterDiff },
+    // Ctrl+O：进入 Overlay
+    RouteBinding { key: crossterm::event::KeyCode::Char('o'), modifiers: crossterm::event::KeyModifiers::CONTROL, action: RouteAction::EnterOverlay },
+    // Ctrl+T：创建侧线程
+    RouteBinding { key: crossterm::event::KeyCode::Char('t'), modifiers: crossterm::event::KeyModifiers::CONTROL, action: RouteAction::CreateThread },
+    // Alt+Left：上一个线程
+    RouteBinding { key: crossterm::event::KeyCode::Left, modifiers: crossterm::event::KeyModifiers::ALT, action: RouteAction::PrevThread },
+    // Alt+Right：下一个线程
+    RouteBinding { key: crossterm::event::KeyCode::Right, modifiers: crossterm::event::KeyModifiers::ALT, action: RouteAction::NextThread },
+    // Esc：返回父线程
+    RouteBinding { key: crossterm::event::KeyCode::Esc, modifiers: crossterm::event::KeyModifiers::NONE, action: RouteAction::ReturnToParent },
+    // 滚动
+    RouteBinding { key: crossterm::event::KeyCode::PageUp, modifiers: crossterm::event::KeyModifiers::NONE, action: RouteAction::ScrollUp(5) },
+    RouteBinding { key: crossterm::event::KeyCode::PageDown, modifiers: crossterm::event::KeyModifiers::NONE, action: RouteAction::ScrollDown(5) },
+];
+
+/// 路由分发：遍历 NORMAL_BINDINGS 匹配 key，执行 action
+///
+/// 返回 None 表示未匹配（fallthrough 到 input composer）
+fn route_normal_key(
+    app: &mut tui::App,
+    stream_states: &mut std::collections::HashMap<thread::ThreadId, StreamState>,
+    active_id: &thread::ThreadId,
+    key: crossterm::event::KeyEvent,
+) -> Option<StreamingControl> {
+    // Shift+Up/Down 需要特殊匹配（modifiers 包含 SHIFT，不是精确匹配）
+    if key.modifiers.contains(crossterm::event::KeyModifiers::SHIFT) {
+        match key.code {
+            crossterm::event::KeyCode::Up => {
+                app.scroll_up(3);
+                app.render();
+                return Some(StreamingControl::Continue);
+            }
+            crossterm::event::KeyCode::Down => {
+                app.scroll_down(3);
+                app.render();
+                return Some(StreamingControl::Continue);
+            }
+            _ => {}
+        }
+    }
+
+    // 遍历声明式路由表
+    for binding in NORMAL_BINDINGS {
+        if binding.matches(&key) {
+            return Some(execute_route_action(app, stream_states, active_id, binding.action));
+        }
+    }
+
+    None // fallthrough 到 input composer
+}
+
+/// 执行路由 action，返回控制信号
+fn execute_route_action(
+    app: &mut tui::App,
+    stream_states: &mut std::collections::HashMap<thread::ThreadId, StreamState>,
+    active_id: &thread::ThreadId,
+    action: RouteAction,
+) -> StreamingControl {
+    match action {
+        RouteAction::EnterDiff => {
+            if !app.diff.files.is_empty() {
+                app.enter_diff_mode();
+            }
+            app.render();
+            StreamingControl::Continue
+        }
+        RouteAction::EnterOverlay => {
+            use crate::detail_overlay::DetailOverlay;
+            if let Some(response) = app.get_last_ai_response() {
+                let overlay = DetailOverlay::new_transcript(response.to_string());
+                app.enter_overlay_mode(overlay);
+            } else if let Some(buffer) = app.get_streaming_buffer() {
+                let overlay = DetailOverlay::new_transcript(buffer.to_string());
+                app.enter_overlay_mode(overlay);
+            }
+            app.render();
+            StreamingControl::Continue
+        }
+        RouteAction::CreateThread => {
+            if app.thread.store.len() < 5 {
+                let name = format!("Thread-{}", app.thread.store.len());
+                app.create_side_thread(Some(name));
+                app.thread.active_mode = true;
+            }
+            app.render();
+            StreamingControl::Continue
+        }
+        RouteAction::PrevThread => {
+            if let Some(prev_id) = app.thread.store.previous_thread() {
+                app.switch_thread(prev_id);
+                app.render();
+                return StreamingControl::ThreadSwitch;
+            }
+            StreamingControl::Continue
+        }
+        RouteAction::NextThread => {
+            if let Some(next_id) = app.thread.store.next_thread() {
+                app.switch_thread(next_id);
+                app.render();
+                return StreamingControl::ThreadSwitch;
+            }
+            StreamingControl::Continue
+        }
+        RouteAction::ReturnToParent => {
+            if app.thread.active_mode {
+                if app.return_to_parent() {
+                    app.render();
+                    if let Some(thread) = app.thread.store.active_thread() {
+                        if thread.kind == crate::thread::ThreadKind::Main {
+                            app.thread.active_mode = false;
+                        }
+                    }
+                }
+            }
+            StreamingControl::Continue
+        }
+        RouteAction::ScrollUp(n) => {
+            app.scroll_up(n);
+            app.render();
+            StreamingControl::Continue
+        }
+        RouteAction::ScrollDown(n) => {
+            app.scroll_down(n);
+            app.render();
+            StreamingControl::Continue
+        }
+        RouteAction::ScrollUpLine(n) => {
+            app.scroll_up(n);
+            app.render();
+            StreamingControl::Continue
+        }
+        RouteAction::ScrollDownLine(n) => {
+            app.scroll_down(n);
+            app.render();
+            StreamingControl::Continue
+        }
+        RouteAction::AbortAll | RouteAction::Fallthrough => {
+            // AbortAll 在 route_key_event 中单独处理（所有模式生效）
+            // Fallthrough 不应到达此处
+            StreamingControl::Continue
+        }
+    }
+}
+
 /// 处理 streaming 期间的单个键盘事件（由 select! 键盘分支调用）
 fn handle_single_key_event(
     app: &mut tui::App,
@@ -1582,85 +1782,12 @@ fn handle_single_key_event(
             return StreamingControl::Continue;
         }
 
-        // === 以下仅在 Mode::Normal 下生效 ===
-
-        // Ctrl+D：进入 diff 模式
-        if key.code == KeyCode::Char('d') && key.modifiers.contains(KeyModifiers::CONTROL)
-            && !app.diff.files.is_empty()
-        {
-            app.enter_diff_mode();
-            app.render();
-            return StreamingControl::Continue;
+        // === 以下仅在 Mode::Normal 下生效（声明式路由表） ===
+        if let Some(control) = route_normal_key(app, stream_states, active_id, key) {
+            return control;
         }
 
-        // Ctrl+O：进入 overlay 模式
-        if key.code == KeyCode::Char('o') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            use crate::detail_overlay::DetailOverlay;
-            if let Some(response) = app.get_last_ai_response() {
-                let overlay = DetailOverlay::new_transcript(response.to_string());
-                app.enter_overlay_mode(overlay);
-                app.render();
-                return StreamingControl::Continue;
-            } else if let Some(buffer) = app.get_streaming_buffer() {
-                let overlay = DetailOverlay::new_transcript(buffer.to_string());
-                app.enter_overlay_mode(overlay);
-                app.render();
-                return StreamingControl::Continue;
-            }
-        }
-
-        // Ctrl+T：创建侧线程
-        if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
-            if app.thread.store.len() < 5 {
-                let name = format!("Thread-{}", app.thread.store.len());
-                app.create_side_thread(Some(name));
-                app.thread.active_mode = true;
-                app.render();
-            }
-            return StreamingControl::Continue;
-        }
-
-        // Alt+Left/Right：线程切换
-        if key.code == KeyCode::Left && key.modifiers.contains(KeyModifiers::ALT) {
-            if let Some(prev_id) = app.thread.store.previous_thread() {
-                app.switch_thread(prev_id);
-                app.render();
-                return StreamingControl::ThreadSwitch;
-            }
-            return StreamingControl::Continue;
-        }
-        if key.code == KeyCode::Right && key.modifiers.contains(KeyModifiers::ALT) {
-            if let Some(next_id) = app.thread.store.next_thread() {
-                app.switch_thread(next_id);
-                app.render();
-                return StreamingControl::ThreadSwitch;
-            }
-            return StreamingControl::Continue;
-        }
-
-        // Esc：返回父线程
-        if key.code == KeyCode::Esc && app.thread.active_mode {
-            if app.return_to_parent() {
-                app.render();
-                if let Some(thread) = app.thread.store.active_thread() {
-                    if thread.kind == crate::thread::ThreadKind::Main {
-                        app.thread.active_mode = false;
-                    }
-                }
-            }
-            return StreamingControl::Continue;
-        }
-
-        // 滚动
-        match key.code {
-            KeyCode::PageUp => { app.scroll_up(5); app.render(); return StreamingControl::Continue; }
-            KeyCode::PageDown => { app.scroll_down(5); app.render(); return StreamingControl::Continue; }
-            KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => { app.scroll_up(3); app.render(); return StreamingControl::Continue; }
-            KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => { app.scroll_down(3); app.render(); return StreamingControl::Continue; }
-            _ => {}
-        }
-
-        // === 输入框 ===
+        // === 输入框（fallthrough） ===
         use input_composer::InputAction;
         let action = app.input.handle_key(key);
         match action {
@@ -2279,4 +2406,152 @@ mod tests {
         // 输入框不应收到 release 事件
         assert!(app.input.value().is_empty());
     }
+
+    // ========================================================================
+    // Phase 3: 路由契约测试（路由表完整性行为验证）
+    // ========================================================================
+
+    #[test]
+    fn test_route_alt_left_switches_thread() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 创建一个侧线程
+        app.create_side_thread(Some("Thread-1".into()));
+        assert_eq!(app.thread.store.len(), 2);
+        // 当前在 main，切到 Thread-1 需要先切一次
+        // Alt+Left 在 main 时调用 previous_thread → 到 Thread-1
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Left, crossterm::event::KeyModifiers::ALT));
+
+        assert!(matches!(result, StreamingControl::ThreadSwitch));
+    }
+
+    #[test]
+    fn test_route_alt_right_switches_thread() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.create_side_thread(Some("Thread-1".into()));
+        // 先切到侧线程
+        let side_id = app.thread.store.all_threads().iter()
+            .find(|t| t.kind == crate::thread::ThreadKind::Side)
+            .map(|t| t.id).unwrap();
+        app.switch_thread(side_id);
+
+        let result = handle_single_key_event(&mut app, &mut states, &side_id,
+            key_event(crossterm::event::KeyCode::Right, crossterm::event::KeyModifiers::ALT));
+
+        assert!(matches!(result, StreamingControl::ThreadSwitch));
+    }
+
+    #[test]
+    fn test_route_enter_submits_input() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 通过 handle_key 注入文字 "hello"
+        app.input.handle_key(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('h'), crossterm::event::KeyModifiers::NONE));
+        app.input.handle_key(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('i'), crossterm::event::KeyModifiers::NONE));
+        assert_eq!(app.input.value(), "hi");
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::NONE));
+
+        assert!(matches!(result, StreamingControl::NewRequest { text, .. } if text == "hi"));
+    }
+
+    #[test]
+    fn test_route_enter_enqueued_when_busy() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.stream.thread_busy.insert(id, true);
+        app.input.handle_key(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('x'), crossterm::event::KeyModifiers::NONE));
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::NONE));
+
+        assert!(matches!(result, StreamingControl::Continue)); // 不返回 NewRequest
+        assert_eq!(app.stream.queue.len(), 1);
+        assert_eq!(app.stream.queue[0].0, "x");
+    }
+
+    #[test]
+    fn test_route_esc_exits_overlay() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        let overlay = crate::detail_overlay::DetailOverlay::new_transcript("test".into());
+        app.enter_overlay_mode(overlay);
+        assert!(app.is_overlay_mode());
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::NONE));
+
+        // DetailModeHandler 处理 Esc → 退出 overlay
+        assert!(!app.is_overlay_mode());
+        assert!(matches!(app.mode, tui::Mode::Normal));
+    }
+
+    #[test]
+    fn test_route_pageup_scrolls_in_normal() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        for i in 0..30u16 {
+            app.content_lines.push(ratatui::text::Line::from(format!("Line {:02}", i)));
+        }
+        // auto scroll to bottom
+        app.scroll_offset = 5;
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::PageUp, crossterm::event::KeyModifiers::NONE));
+
+        assert!(matches!(result, StreamingControl::Continue));
+        assert!(app.scroll_offset < 5); // 向上滚动了
+    }
+
+    #[test]
+    fn test_route_ctrl_t_creates_thread() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        assert_eq!(app.thread.store.len(), 1);
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert!(matches!(result, StreamingControl::Continue));
+        assert_eq!(app.thread.store.len(), 2);
+        assert!(app.thread.active_mode);
+    }
+
+    #[test]
+    fn test_route_fallthrough_to_input() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 普通字符应 fallthrough 到 input composer
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('a'), crossterm::event::KeyModifiers::NONE));
+
+        assert!(matches!(result, StreamingControl::Continue));
+        assert_eq!(app.input.value(), "a");
+    }
+
+    #[test]
+    fn test_route_approval_enter_resolves() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 创建审批请求
+        let (tx, _rx) = tokio::sync::oneshot::channel();
+        let request = crate::approval_overlay::ApprovalRequest {
+            thread_id: id,
+            tool_id: "test_tool".into(),
+            tool_name: "TestTool".into(),
+            args_json: serde_json::json!({}),
+            risk_level: crate::permission::RiskLevel::Low,
+            category: crate::permission::ToolCategory::Safe,
+            response_tx: tx,
+        };
+        app.set_approval_pending(request);
+        assert!(app.is_approving());
+
+        // Enter 选择第一个选项
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::NONE));
+
+        assert!(matches!(result, StreamingControl::Continue));
+        // 审批已解决，mode 回到 Normal
+        assert!(!app.is_approving());
+        assert!(matches!(app.mode, tui::Mode::Normal));
+    }
+
 }
