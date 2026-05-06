@@ -927,30 +927,30 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
     match arg {
         None | Some("") => {
             // /thread — 创建侧线程（同 Ctrl+T）
-            if app.thread_store.len() >= 5 {
+            if app.thread.store.len() >= 5 {
                 app.push_line(format!(
                     "{}已达到最大线程数（5）{}",
                     render::RESET, render::RESET
                 ));
                 return;
             }
-            let name = format!("Thread-{}", app.thread_store.len());
+            let name = format!("Thread-{}", app.thread.store.len());
             let id = app.create_side_thread(Some(name));
-            app.active_thread_mode = true;
+            app.thread.active_mode = true;
             app.push_line(format!(
                 "{}✓ 已创建侧线程 {}{}",
                 theme.success,
-                app.thread_store.get_thread(id).map(|t| t.display_name()).unwrap_or_default(),
+                app.thread.store.get_thread(id).map(|t| t.display_name()).unwrap_or_default(),
                 render::RESET
             ));
         }
         Some("list") => {
             // /thread list — 列出所有线程
-            let thread_count = app.thread_store.len();
-            let active_id = app.thread_store.active_id();
+            let thread_count = app.thread.store.len();
+            let active_id = app.thread.store.active_id();
             // 先收集显示信息，避免借用冲突
             let display_infos: Vec<(usize, String, &'static str, bool)> = app
-                .thread_store
+                .thread.store
                 .all_threads()
                 .iter()
                 .enumerate()
@@ -990,8 +990,8 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                         return;
                     }
                     match parts[1].parse::<usize>() {
-                        Ok(n) if n >= 1 && n <= app.thread_store.len() => {
-                            let threads = app.thread_store.all_threads();
+                        Ok(n) if n >= 1 && n <= app.thread.store.len() => {
+                            let threads = app.thread.store.all_threads();
                             let target = &threads[n - 1];
                             let target_id = target.id;
                             let display_name = target.display_name();
@@ -1014,14 +1014,14 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                                 "{}无效的线程编号 '{}'，范围: 1-{}{}",
                                 theme.error,
                                 parts[1],
-                                app.thread_store.len(),
+                                app.thread.store.len(),
                                 render::RESET
                             ));
                         }
                     }
                 }
                 "close" => {
-                    let active = app.thread_store.active_thread();
+                    let active = app.thread.store.active_thread();
                     match active {
                         Some(t) if t.kind == crate::thread::ThreadKind::Main => {
                             app.push_line(format!(
@@ -1032,13 +1032,13 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                         Some(t) => {
                             let name = t.display_name();
                             let parent_id = t.parent_id;
-                            let closed = app.thread_store.remove_thread(t.id);
+                            let closed = app.thread.store.remove_thread(t.id);
                             if closed {
                                 // 切回父线程
                                 if let Some(pid) = parent_id {
                                     app.switch_thread(pid);
                                 }
-                                app.active_thread_mode = false;
+                                app.thread.active_mode = false;
                                 app.push_line(format!(
                                     "{}✓ 已关闭线程 '{}'{}",
                                     theme.success,
@@ -1061,7 +1061,7 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                         return;
                     }
                     let new_name = parts[1].trim().to_string();
-                    let active_id = match app.thread_store.active_id() {
+                    let active_id = match app.thread.store.active_id() {
                         Some(id) => id,
                         None => {
                             app.push_line(format!("{}没有活跃线程{}", theme.error, render::RESET));
@@ -1164,9 +1164,9 @@ async fn run_streaming_loop(
 
     // 单层事件循环
     loop {
-        let active_id = app.thread_store.active_thread()
+        let active_id = app.thread.store.active_thread()
             .map(|t| t.id)
-            .unwrap_or_else(|| app.thread_store.primary_id());
+            .unwrap_or_else(|| app.thread.store.primary_id());
 
         // === 从 stream_states 取出当前线程的 receivers（借用，不移动所有权） ===
         // 用 Option::take() 临时取出，select! 结束后放回
@@ -1246,9 +1246,9 @@ async fn run_streaming_loop(
 
             // === 审批请求（全局 channel） ===
             Some(request) = approval_rx.recv() => {
-                let current_id = app.thread_store.active_thread()
+                let current_id = app.thread.store.active_thread()
                     .map(|t| t.id)
-                    .unwrap_or_else(|| app.thread_store.primary_id());
+                    .unwrap_or_else(|| app.thread.store.primary_id());
 
                 if request.thread_id == current_id {
                     app.set_approval_pending(request);
@@ -1272,8 +1272,8 @@ async fn run_streaming_loop(
                 if let Some(event) = event {
                     match event {
                         thread::ThreadEvent::NewMessage { thread_id, message } => {
-                            app.thread_messages.push(thread_id, thread::Message::assistant(message.clone()));
-                            if let Some(active) = app.thread_store.active_thread() {
+                            app.thread.messages.push(thread_id, thread::Message::assistant(message.clone()));
+                            if let Some(active) = app.thread.store.active_thread() {
                                 if active.id == thread_id {
                                     app.push_line(message);
                                     app.render();
@@ -1281,12 +1281,12 @@ async fn run_streaming_loop(
                             }
                         }
                         thread::ThreadEvent::StatusChange { thread_id, status } => {
-                            app.thread_store.update_status(thread_id, status);
+                            app.thread.store.update_status(thread_id, status);
                             app.render();
                         }
                         thread::ThreadEvent::Closed { thread_id } => {
-                            app.thread_store.remove_thread(thread_id);
-                            app.thread_messages.remove_thread(thread_id);
+                            app.thread.store.remove_thread(thread_id);
+                            app.thread.messages.remove_thread(thread_id);
                             app.render();
                         }
                     }
@@ -1374,7 +1374,7 @@ async fn run_streaming_loop(
     // 清理：streaming 循环退出时，清除所有残留的审批状态
     // 场景：AI 请求了审批但 streaming 已结束（response_tx 已关闭），
     // 审批状态残留在 approval_states 中，会导致 run_loop 的审批拦截吞掉所有键盘事件
-    app.approval_states.clear();
+    app.approval.states.clear();
 
     // 关闭键盘线程的 channel
     drop(kb_tx);
@@ -1395,7 +1395,7 @@ fn spawn_stream_request(
     // 显示用户输入
     let theme = render::default_theme();
     app.push_line_if_active_thread(thread_id, format!("{}⟩{} {}", theme.brand, render::RESET, &input));
-    app.thread_messages.push(thread_id, thread::Message::user(input.clone()));
+    app.thread.messages.push(thread_id, thread::Message::user(input.clone()));
     app.render();
 
     // 设置 busy
@@ -1462,9 +1462,9 @@ fn handle_single_key_event(
                 KeyCode::Up | KeyCode::Down => {
                     if options_count > 0 {
                         if key.code == KeyCode::Up {
-                            app.approval_selected = if app.approval_selected > 0 { app.approval_selected - 1 } else { options_count - 1 };
+                            app.approval.selected = if app.approval.selected > 0 { app.approval.selected - 1 } else { options_count - 1 };
                         } else {
-                            app.approval_selected = if app.approval_selected + 1 < options_count { app.approval_selected + 1 } else { 0 };
+                            app.approval.selected = if app.approval.selected + 1 < options_count { app.approval.selected + 1 } else { 0 };
                         }
                         app.render();
                     }
@@ -1474,8 +1474,8 @@ fn handle_single_key_event(
                     if options_count > 0 {
                         if let Some(ref req) = app.approval_state_ref() {
                             let options = approval_overlay::build_approval_options(req);
-                            if app.approval_selected < options.len() {
-                                decision = Some(options[app.approval_selected].decision);
+                            if app.approval.selected < options.len() {
+                                decision = Some(options[app.approval.selected].decision);
                             }
                         }
                     }
@@ -1540,7 +1540,7 @@ fn handle_single_key_event(
 
         // === Ctrl+D：diff 模式 ===
         if key.code == KeyCode::Char('d') && key.modifiers.contains(KeyModifiers::CONTROL)
-            && !app.is_diff_mode() && !app.diffs.is_empty()
+            && !app.is_diff_mode() && !app.diff.files.is_empty()
         {
             app.enter_diff_mode();
             consumed = true;
@@ -1578,10 +1578,10 @@ fn handle_single_key_event(
         if !consumed && key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL)
             && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
         {
-            if app.thread_store.len() < 5 {
-                let name = format!("Thread-{}", app.thread_store.len());
+            if app.thread.store.len() < 5 {
+                let name = format!("Thread-{}", app.thread.store.len());
                 app.create_side_thread(Some(name));
-                app.active_thread_mode = true;
+                app.thread.active_mode = true;
                 consumed = true;
             }
         }
@@ -1589,7 +1589,7 @@ fn handle_single_key_event(
         else if !consumed && key.code == KeyCode::Left && key.modifiers.contains(KeyModifiers::ALT)
             && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
         {
-            if let Some(prev_id) = app.thread_store.previous_thread() {
+            if let Some(prev_id) = app.thread.store.previous_thread() {
                 app.switch_thread(prev_id);
                 app.render();
                 return StreamingControl::ThreadSwitch;
@@ -1600,7 +1600,7 @@ fn handle_single_key_event(
         else if !consumed && key.code == KeyCode::Right && key.modifiers.contains(KeyModifiers::ALT)
             && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
         {
-            if let Some(next_id) = app.thread_store.next_thread() {
+            if let Some(next_id) = app.thread.store.next_thread() {
                 app.switch_thread(next_id);
                 app.render();
                 return StreamingControl::ThreadSwitch;
@@ -1608,14 +1608,14 @@ fn handle_single_key_event(
             consumed = true;
         }
         // === Esc ===
-        else if !consumed && key.code == KeyCode::Esc && app.active_thread_mode
+        else if !consumed && key.code == KeyCode::Esc && app.thread.active_mode
             && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
         {
             if app.return_to_parent() {
                 app.render();
-                if let Some(thread) = app.thread_store.active_thread() {
+                if let Some(thread) = app.thread.store.active_thread() {
                     if thread.kind == crate::thread::ThreadKind::Main {
-                        app.active_thread_mode = false;
+                        app.thread.active_mode = false;
                     }
                 }
             }
@@ -1643,9 +1643,9 @@ fn handle_single_key_event(
         let action = app.input.handle_key(key);
         match action {
             InputAction::Submit(text) => {
-                let current_thread_id = app.thread_store.active_thread()
+                let current_thread_id = app.thread.store.active_thread()
                     .map(|t| t.id)
-                    .unwrap_or_else(|| app.thread_store.primary_id());
+                    .unwrap_or_else(|| app.thread.store.primary_id());
 
                 if app.is_current_thread_busy() {
                     app.enqueue(text);
@@ -1758,9 +1758,9 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     }
                 } else {
                     // AI 调用 — 单层 select! 事件循环（StreamState per-thread）
-                    let thread_id = app.thread_store.active_thread()
+                    let thread_id = app.thread.store.active_thread()
                         .map(|t| t.id)
-                        .unwrap_or_else(|| app.thread_store.primary_id());
+                        .unwrap_or_else(|| app.thread.store.primary_id());
                     let (approval_tx, mut approval_rx) =
                         tokio::sync::mpsc::unbounded_channel::<approval_overlay::ApprovalRequest>();
                     let mut stream_states: std::collections::HashMap<thread::ThreadId, StreamState> =

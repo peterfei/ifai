@@ -25,14 +25,14 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("\n=== 场景 1：并发 AI 请求 ===\n");
 
         // === 步骤 1：main 发送消息 ===
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, crate::thread::Message::user("What is Rust?".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("What is Rust?".to_string()));
         app.set_thread_busy(main_id, true);
 
         println!("步骤 1: main 发送消息 'What is Rust?'");
@@ -41,7 +41,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Main started AI request:\nActive: {:?}\nMain is busy: {}\nThread-1 is busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(main_id),
             app.is_thread_busy(thread1_id)
         ), @r###"
@@ -53,7 +53,7 @@ mod tests {
 
         // === 步骤 2：thread1 发送消息（并发） ===
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("What is Python?".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("What is Python?".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         println!("\n步骤 2: thread1 发送消息 'What is Python?'");
@@ -62,7 +62,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Thread-1 started AI request:\nActive: {:?}\nMain is busy: {}\nThread-1 is busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(main_id),
             app.is_thread_busy(thread1_id)
         ), @r###"
@@ -86,7 +86,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
@@ -102,7 +102,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Thread-1 has approval:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Thread-1 has approval:
@@ -118,7 +118,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Switched to Thread-2:\nActive: {:?}\nThread-2 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Switched to Thread-2:
@@ -140,25 +140,25 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("\n=== 场景 3：消息路由隔离 ===\n");
 
         // === 步骤 1：main 收到 AI 响应 ===
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, crate::thread::Message::user("Main question".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("Main question".to_string()));
         let main_ai_response = "Rust is a systems programming language".to_string();
-        app.thread_messages.push(main_id, crate::thread::Message::user(main_ai_response.clone()));
+        app.thread.messages.push(main_id, crate::thread::Message::user(main_ai_response.clone()));
 
         println!("步骤 1: main 收到 AI 响应");
-        println!("  → main messages: {}", app.thread_messages.get(main_id).map_or(0, |m| m.len()));
+        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
 
         insta::assert_snapshot!(format!(
             "Main received AI response:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Main received AI response:
         Active: Some("Main")
@@ -170,14 +170,14 @@ mod tests {
         app.switch_thread(thread1_id);
 
         println!("\n步骤 2: 切换到 thread1");
-        println!("  → main messages: {}", app.thread_messages.get(main_id).map_or(0, |m| m.len()));
-        println!("  → thread1 messages: {}", app.thread_messages.get(thread1_id).map_or(0, |m| m.len()));
+        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
+        println!("  → thread1 messages: {}", app.thread.messages.get(thread1_id).map_or(0, |m| m.len()));
 
         insta::assert_snapshot!(format!(
             "After switching to Thread-1:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         After switching to Thread-1:
         Active: Some("Side: Thread-1")
@@ -199,7 +199,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("\n=== 场景 4：线程切换后审批持久化 ===\n");
@@ -214,7 +214,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Thread-1 with approval:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Thread-1 with approval:
@@ -230,7 +230,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Switched to Main:\nActive: {:?}\nMain is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Switched to Main:
@@ -246,7 +246,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Switched back to Thread-1:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Switched back to Thread-1:
@@ -268,14 +268,14 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("\n=== 场景 5：Streaming 期间切换线程 ===\n");
 
         // === 步骤 1：main 开始 streaming ===
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, crate::thread::Message::user("Main question".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("Main question".to_string()));
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
         app.append_streaming_output(main_id, "Partial response from main".to_string());
@@ -286,7 +286,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Main is streaming:\nActive: {:?}\nMain is busy: {}\nThread-1 is busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(main_id),
             app.is_thread_busy(thread1_id)
         ), @r###"
@@ -298,7 +298,7 @@ mod tests {
 
         // === 步骤 2：切换到 thread1 并发送消息 ===
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("Thread-1 question".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("Thread-1 question".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         println!("\n步骤 2: 切换到 thread1 并发送消息");
@@ -307,7 +307,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Thread-1 sent message during Main streaming:\nActive: {:?}\nMain is busy: {}\nThread-1 is busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(main_id),
             app.is_thread_busy(thread1_id)
         ), @r###"
@@ -319,14 +319,14 @@ mod tests {
 
         // === 步骤 3：验证消息隔离 ===
         println!("\n步骤 3: 验证消息隔离");
-        println!("  → main messages: {}", app.thread_messages.get(main_id).map_or(0, |m| m.len()));
-        println!("  → thread1 messages: {}", app.thread_messages.get(thread1_id).map_or(0, |m| m.len()));
+        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
+        println!("  → thread1 messages: {}", app.thread.messages.get(thread1_id).map_or(0, |m| m.len()));
 
         insta::assert_snapshot!(format!(
             "Message isolation verified:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Message isolation verified:
         Active: Some("Side: Thread-1")
@@ -349,24 +349,24 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("\n=== 场景 6：用户报告的确切问题 ===\n");
 
         // === 步骤 1：在 main 提问"天气如何" ===
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
 
         println!("步骤 1: 在 main 提问'天气如何'");
-        println!("  → Active: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
-        println!("  → main messages: {}", app.thread_messages.get(main_id).map_or(0, |m| m.len()));
+        println!("  → Active: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
+        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
 
         insta::assert_snapshot!(format!(
             "Step 1 - Main asked about weather:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Step 1 - Main asked about weather:
         Active: Some("Main")
@@ -376,18 +376,18 @@ mod tests {
 
         // === 步骤 2：在 thread1 提问"执行 ls -l" ===
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
 
         println!("\n步骤 2: 在 thread1 提问'执行 ls -l'");
-        println!("  → Active: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
-        println!("  → main messages: {}", app.thread_messages.get(main_id).map_or(0, |m| m.len()));
-        println!("  → thread1 messages: {}", app.thread_messages.get(thread1_id).map_or(0, |m| m.len()));
+        println!("  → Active: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
+        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
+        println!("  → thread1 messages: {}", app.thread.messages.get(thread1_id).map_or(0, |m| m.len()));
 
         insta::assert_snapshot!(format!(
             "Step 2 - Thread-1 asked to run ls:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Step 2 - Thread-1 asked to run ls:
         Active: Some("Side: Thread-1")
@@ -404,7 +404,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Step 3 - Thread-1 triggered tool approval:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Step 3 - Thread-1 triggered tool approval:
@@ -416,15 +416,15 @@ mod tests {
         app.switch_thread(main_id);
 
         println!("\n步骤 4: 回到 main");
-        println!("  → Active: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
+        println!("  → Active: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
         println!("  → main is_approving: {}", app.is_approving());
 
         insta::assert_snapshot!(format!(
             "Step 4 - Switched back to Main:\nActive: {:?}\nMain is_approving: {}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving(),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Step 4 - Switched back to Main:
         Active: Some("Main")
@@ -453,7 +453,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
@@ -478,7 +478,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "On Main:\nActive: {:?}\nMain is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         On Main:
@@ -492,7 +492,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "On Thread-1:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         On Thread-1:
@@ -506,7 +506,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "On Thread-2:\nActive: {:?}\nThread-2 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         On Thread-2:

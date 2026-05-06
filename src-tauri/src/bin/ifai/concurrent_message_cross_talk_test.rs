@@ -25,19 +25,19 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // === 步骤 1：在 Main 提问"天气如何" ===
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
 
         // 快照 1：Main 有 1 条消息
         insta::assert_snapshot!(format!(
             "After Main asks about weather:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         After Main asks about weather:
         Active: Some("Main")
@@ -47,14 +47,14 @@ mod tests {
 
         // === 步骤 2：切换到 Thread-1 提问"执行 ls -l" ===
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
 
         // 快照 2：Thread-1 有 1 条消息，Main 仍然有 1 条消息
         insta::assert_snapshot!(format!(
             "After Thread-1 asks to run ls:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         After Thread-1 asks to run ls:
         Active: Some("Side: Thread-1")
@@ -65,14 +65,14 @@ mod tests {
         // === 步骤 3：模拟 Thread-1 收到 AI 响应（需要审批 ls -l） ===
         // 模拟 AI 响应路由到 Thread-1
         let ai_response_for_thread1 = "我需要执行 ls -l 命令来列出文件".to_string();
-        app.thread_messages.push(thread1_id, crate::thread::Message::user(ai_response_for_thread1.clone()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user(ai_response_for_thread1.clone()));
 
         // 快照 3：Thread-1 收到 AI 响应
         insta::assert_snapshot!(format!(
             "After Thread-1 receives AI response:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         After Thread-1 receives AI response:
         Active: Some("Side: Thread-1")
@@ -86,9 +86,9 @@ mod tests {
         // 快照 4：Main 线程不应该包含 Thread-1 的消息
         insta::assert_snapshot!(format!(
             "After switching back to Main:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         After switching back to Main:
         Active: Some("Main")
@@ -106,7 +106,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // === 步骤 1：Thread-1 有工具审批 ===
@@ -119,7 +119,7 @@ mod tests {
         // 快照 1：Thread-1 有审批
         insta::assert_snapshot!(format!(
             "Thread-1 has approval:\nActive: {:?}\nThread-1 has approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Thread-1 has approval:
@@ -133,7 +133,7 @@ mod tests {
         // 快照 2：Main 不应该显示 Thread-1 的审批
         insta::assert_snapshot!(format!(
             "Main should not show Thread-1's approval:\nActive: {:?}\nMain has approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Main should not show Thread-1's approval:
@@ -150,7 +150,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // === 步骤 1：Main 开始流式输出 ===
@@ -160,14 +160,14 @@ mod tests {
 
         // 模拟 Main 的流式输出
         app.append_streaming_output(main_id, "北京".to_string());
-        app.thread_messages.push(main_id, crate::thread::Message::user("北京".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("北京".to_string()));
 
         // 快照 1：Main 正在 streaming
         insta::assert_snapshot!(format!(
             "Main is streaming:\nActive: {:?}\nMain is busy: {}\nMain messages: {}\nThread-1 is busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(main_id),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
             app.is_thread_busy(thread1_id)
         ), @r###"
         Main is streaming:
@@ -181,16 +181,16 @@ mod tests {
         app.switch_thread(thread1_id);
 
         // 模拟用户输入
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
 
         // 快照 2：切换到 Thread-1
         insta::assert_snapshot!(format!(
             "Switched to Thread-1:\nActive: {:?}\nMain is busy: {}\nThread-1 is busy: {}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(main_id),
             app.is_thread_busy(thread1_id),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Switched to Thread-1:
         Active: Some("Side: Thread-1")
@@ -206,16 +206,16 @@ mod tests {
 
         // 模拟 Thread-1 的流式输出
         app.append_streaming_output(thread1_id, "file1.txt".to_string());
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("file1.txt".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("file1.txt".to_string()));
 
         // 快照 3：Thread-1 正在 streaming
         insta::assert_snapshot!(format!(
             "Thread-1 is streaming:\nActive: {:?}\nMain is busy: {}\nThread-1 is busy: {}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(main_id),
             app.is_thread_busy(thread1_id),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Thread-1 is streaming:
         Active: Some("Side: Thread-1")
@@ -231,9 +231,9 @@ mod tests {
         // 快照 4：Main 的消息应该仍然是 1 条，不应该包含 Thread-1 的消息
         insta::assert_snapshot!(format!(
             "Back to Main:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Back to Main:
         Active: Some("Main")

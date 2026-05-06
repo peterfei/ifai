@@ -26,7 +26,7 @@ mod tests {
         println!("============================================================\n");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // 模拟 main 的 streaming（后台线程，channel 关闭）
@@ -82,8 +82,8 @@ mod tests {
             loop_count += 1;
             if loop_count > max_loops || start.elapsed() > timeout { break; }
 
-            let active_id = app.thread_store.active_thread().map(|t| t.id)
-                .unwrap_or_else(|| app.thread_store.primary_id());
+            let active_id = app.thread.store.active_thread().map(|t| t.id)
+                .unwrap_or_else(|| app.thread.store.primary_id());
 
             let (mut output_rx, mut status_rx, _, _, _, _) =
                 if let Some(state) = stream_states.get_mut(&active_id) {

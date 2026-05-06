@@ -36,20 +36,20 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：在 Thread-2 发送消息，触发工具调用 ===
         app.switch_thread(thread2_id);
 
         // 模拟 Thread-2 的消息
-        app.thread_messages.push(thread2_id, crate::thread::Message::user("Check weather".to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user("Check weather".to_string()));
 
         // 快照 1：Thread-2 用户输入后
         insta::assert_snapshot!(format!(
             "After user input in Thread-2:\nActive: {:?}\nthread_messages[Thread-2].len(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         After user input in Thread-2:
         Active: Some("Side: Thread-2")
@@ -65,7 +65,7 @@ mod tests {
         // 快照 2：审批界面在 Thread-2 弹出
         insta::assert_snapshot!(format!(
             "After approval popup in Thread-2:\nActive: {:?}\nHas approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r###"
         After approval popup in Thread-2:
@@ -79,10 +79,10 @@ mod tests {
         // 快照 3：切换到 Main 线程后
         insta::assert_snapshot!(format!(
             "After switching to Main:\nActive: {:?}\nHas approval: {}\nthread_messages[Main].len(): {}\nthread_messages[Thread-2].len(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some(),
-            app.thread_messages.get(primary_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r#"
         After switching to Main:
         Active: Some("Main")
@@ -115,7 +115,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 场景：Thread-2 有工具审批，Main 线程没有 ===
@@ -131,7 +131,7 @@ mod tests {
         // 3. 验证：Main 线程不应该显示 Thread-2 的审批界面
         insta::assert_snapshot!(format!(
             "Main thread should not show Thread-2's approval:\nActive: {:?}\nHas approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r###"
         Main thread should not show Thread-2's approval:
@@ -148,7 +148,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：在 Thread-2 设置审批 ===
@@ -158,7 +158,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Thread-2 with approval:\nActive: {:?}\nHas approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r###"
         Thread-2 with approval:
@@ -171,7 +171,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Switched to Main (approval should be hidden):\nActive: {:?}\nHas approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r###"
         Switched to Main (approval should be hidden):
@@ -186,7 +186,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Switched back to Thread-2 (approval should be visible again):\nActive: {:?}\nHas approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r###"
         Switched back to Thread-2 (approval should be visible again):
@@ -203,7 +203,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
         let thread3_id = app.create_side_thread(Some("Thread-3".to_string()));
 
@@ -229,7 +229,7 @@ mod tests {
         // 当前在 Thread-3
         insta::assert_snapshot!(format!(
             "Current thread: Thread-3\nShould show: Thread-3's approval only\nActive: {:?}\napproval_state exists: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r#"
         Current thread: Thread-3
@@ -243,7 +243,7 @@ mod tests {
         app.switch_thread(primary_id);
         insta::assert_snapshot!(format!(
             "Current thread: Main\nShould show: Main's approval only\nActive: {:?}\napproval_state exists: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r#"
         Current thread: Main
@@ -261,7 +261,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 场景：Thread-2 完成审批后，Main 线程不受影响 ===
@@ -282,7 +282,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "After Thread-2 completes approval:\nActive: {:?}\napproval_state exists: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r#"
         After Thread-2 completes approval:
@@ -294,7 +294,7 @@ mod tests {
         app.switch_thread(primary_id);
         insta::assert_snapshot!(format!(
             "Main thread approval should still exist:\nActive: {:?}\nHas approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.get_current_approval_state().is_some()
         ), @r###"
         Main thread approval should still exist:

@@ -144,25 +144,25 @@ impl EventHandler<Event> for ThreadEnterHandler {
                     match key_action.action {
                         ThreadAction::CreateSideThread => {
                             // 检查线程数量限制（最多 5 个）
-                            if app.thread_store.len() >= 5 {
+                            if app.thread.store.len() >= 5 {
                                 // TODO: 显示错误消息
                                 return ControlFlow::Break(AppResult::Handled);
                             }
 
-                            let name = format!("Thread-{}", app.thread_store.len());
+                            let name = format!("Thread-{}", app.thread.store.len());
                             app.create_side_thread(Some(name));
-                            app.active_thread_mode = true;
+                            app.thread.active_mode = true;
 
                             return ControlFlow::Break(AppResult::Handled);
                         }
                         ThreadAction::PreviousThread => {
-                            if let Some(prev_id) = app.thread_store.previous_thread() {
+                            if let Some(prev_id) = app.thread.store.previous_thread() {
                                 app.switch_thread(prev_id);
                             }
                             return ControlFlow::Break(AppResult::Handled);
                         }
                         ThreadAction::NextThread => {
-                            if let Some(next_id) = app.thread_store.next_thread() {
+                            if let Some(next_id) = app.thread.store.next_thread() {
                                 app.switch_thread(next_id);
                             }
                             return ControlFlow::Break(AppResult::Handled);
@@ -196,7 +196,7 @@ pub struct ThreadModeHandler;
 impl EventHandler<Event> for ThreadModeHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
         // 仅在线程模式下响应
-        if !app.active_thread_mode {
+        if !app.thread.active_mode {
             return ControlFlow::Continue;
         }
 
@@ -207,10 +207,10 @@ impl EventHandler<Event> for ThreadModeHandler {
                     if key_action.action == ThreadAction::ReturnToParent {
                         if app.return_to_parent() {
                             // 如果没有父线程了，退出线程模式
-                            let active = app.thread_store.active_thread();
+                            let active = app.thread.store.active_thread();
                             if let Some(thread) = active {
                                 if thread.kind == crate::thread::ThreadKind::Main {
-                                    app.active_thread_mode = false;
+                                    app.thread.active_mode = false;
                                 }
                             }
                         }

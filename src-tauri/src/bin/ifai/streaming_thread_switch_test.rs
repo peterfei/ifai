@@ -23,11 +23,11 @@ mod tests {
         // 模拟流式输出状态
         app.set_busy(true);  // 设置为 busy 状态（流式输出期间）
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
 
         // 添加一些消息
         app.push_line("Main thread message".to_string());
-        app.thread_messages.push(primary_id, crate::thread::Message::user("Main thread message".to_string()));
+        app.thread.messages.push(primary_id, crate::thread::Message::user("Main thread message".to_string()));
 
         // 创建 Ctrl+T 事件
         let ctrl_t_event = Event::Key(KeyEvent::new(
@@ -44,7 +44,7 @@ mod tests {
         // 快照：当前线程数量
         insta::assert_snapshot!(format!(
             "Thread count before Ctrl+T: {}",
-            app.thread_store.len()
+            app.thread.store.len()
         ), @"Thread count before Ctrl+T: 1");
 
         // ❌ Bug: 当前实现中，流式期间的键盘事件处理不包含线程快捷键
@@ -64,27 +64,27 @@ mod tests {
         // 模拟流式输出状态
         app.set_busy(true);
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
 
         // 添加主线程消息
-        app.thread_messages.push(primary_id, crate::thread::Message::user("Main message".to_string()));
+        app.thread.messages.push(primary_id, crate::thread::Message::user("Main message".to_string()));
 
         // 创建侧线程
         let side_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // 验证：应该成功创建侧线程
-        assert_eq!(app.thread_store.len(), 2);
+        assert_eq!(app.thread.store.len(), 2);
 
         // 切换回主线程
         app.switch_thread(primary_id);
 
         // 验证：应该成功切换
-        assert_eq!(app.thread_store.active_thread().unwrap().id, primary_id);
+        assert_eq!(app.thread.store.active_thread().unwrap().id, primary_id);
 
         // 快照：线程切换成功
         insta::assert_snapshot!(format!(
             "Active thread after switch: {:?}",
-            app.thread_store.active_thread().map(|t| t.display_name())
+            app.thread.store.active_thread().map(|t| t.display_name())
         ), @"Active thread after switch: Some(\"Main\")");
     }
 
@@ -107,7 +107,7 @@ mod tests {
         assert!(app.is_overlay_mode());
 
         // 尝试创建侧线程应该失败（模式守卫）
-        let initial_count = app.thread_store.len();
+        let initial_count = app.thread.store.len();
 
         // 由于模式守卫，这个操作应该被阻止
         // 实际的行为取决于 ThreadEnterHandler 的实现

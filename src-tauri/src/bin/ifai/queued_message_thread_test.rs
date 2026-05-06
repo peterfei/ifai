@@ -24,7 +24,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：在主线程发送消息 ===
@@ -32,13 +32,13 @@ mod tests {
 
         // 模拟用户输入
         app.push_line("⟩ What is Rust?".to_string());
-        app.thread_messages.push(primary_id, crate::thread::Message::user("What is Rust?".to_string()));
+        app.thread.messages.push(primary_id, crate::thread::Message::user("What is Rust?".to_string()));
 
         // 快照 1：主线程用户输入后
         insta::assert_snapshot!(format!(
             "After user input in main:\nActive: {:?}\nthread_messages[Main].len(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(primary_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(primary_id).map_or(0, |m| m.len())
         ), @r###"
         After user input in main:
         Active: Some("Main")
@@ -54,7 +54,7 @@ mod tests {
         // 快照 2：切换到 Thread-2
         insta::assert_snapshot!(format!(
             "Switched to Thread-2 during streaming:\nActive: {:?}\napp.is_busy(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_busy()
         ), @r#"
         Switched to Thread-2 during streaming:
@@ -75,7 +75,7 @@ mod tests {
         // 快照 3：Thread-2 输入排队后
         insta::assert_snapshot!(format!(
             "After Thread-2 input enqueued:\nActive: {:?}\nQueue len: {}\napp.is_busy(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.queue_len(),
             app.is_busy()
         ), @r#"
@@ -92,12 +92,12 @@ mod tests {
         // ❌ BUG：如果排队时没有记录目标线程
         // 这里可能会使用当前活动线程（main）而不是用户输入时的线程（Thread-2）
 
-        let current_active = app.thread_store.active_thread().map(|t| t.id);
+        let current_active = app.thread.store.active_thread().map(|t| t.id);
 
         // 快照 4：流式输出完成后的状态
         insta::assert_snapshot!(format!(
             "After streaming completes:\nActive: {:?}\nCurrent active thread ID: {}\nThread-2 ID: {}\nExpected: queued message should go to Thread-2",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             current_active.is_some(),
             current_active == Some(thread2_id)
         ), @r###"
@@ -118,7 +118,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 场景：用户在 Thread-2 输入，但 main 正在流式输出 ===
@@ -149,11 +149,11 @@ mod tests {
         // ❌ BUG：如果 enqueue() 没有捕获目标线程
         // 这里会使用当前活动线程（main），导致 Thread-2 的消息发送到 main
 
-        let current_active = app.thread_store.active_thread().map(|t| t.id);
+        let current_active = app.thread.store.active_thread().map(|t| t.id);
 
         insta::assert_snapshot!(format!(
             "❌ BUG - Queue processing uses wrong thread:\nCurrent active: {:?}\nOriginal target: Thread-2\nExpected: Thread-2, Got: {:?}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             current_active == Some(thread2_id)
         ), @r###"
         ❌ BUG - Queue processing uses wrong thread:
@@ -171,7 +171,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 正确的排队实现 ===
@@ -187,7 +187,7 @@ mod tests {
         let thread2_input = "Question for Thread-2";
 
         // ✅ 正确实现：排队时捕获目标线程
-        let target_thread_id = app.thread_store.active_thread().map(|t| t.id).unwrap();
+        let target_thread_id = app.thread.store.active_thread().map(|t| t.id).unwrap();
         app.enqueue(thread2_input.to_string());
 
         // 4. 用户切换回主线程
@@ -200,13 +200,13 @@ mod tests {
         // 而不是当前活动线程（main）
 
         // 模拟正确的处理逻辑
-        app.thread_messages.push(target_thread_id, crate::thread::Message::user(thread2_input.to_string()));
+        app.thread.messages.push(target_thread_id, crate::thread::Message::user(thread2_input.to_string()));
 
         // 验证：消息在 Thread-2
         insta::assert_snapshot!(format!(
             "✅ CORRECT - Queued message routed to target thread:\nTarget thread: Thread-2\nthread_messages[Thread-2].len(): {}\nthread_messages[Main].len(): {}",
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(primary_id).map_or(0, |m| m.len())
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(primary_id).map_or(0, |m| m.len())
         ), @r###"
         ✅ CORRECT - Queued message routed to target thread:
         Target thread: Thread-2

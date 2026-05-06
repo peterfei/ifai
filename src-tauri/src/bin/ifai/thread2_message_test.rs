@@ -31,27 +31,27 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // 场景：主线程和 Thread-2 的对话历史
         // 主线程：
         app.switch_thread(primary_id);
-        app.thread_messages.push(primary_id, crate::thread::Message::user("Main message 1".to_string()));
+        app.thread.messages.push(primary_id, crate::thread::Message::user("Main message 1".to_string()));
         app.push_line("⟩ Main message 1".to_string());
 
         // Thread-2：
         app.switch_thread(thread2_id);
-        app.thread_messages.push(thread2_id, crate::thread::Message::user("Thread-2 message 1".to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user("Thread-2 message 1".to_string()));
         app.push_line("⟩ Thread-2 message 1".to_string());
 
         // 快照 1：切换前，Thread-2 有 1 条消息
         insta::assert_snapshot!(format!(
             "Before switch:\nActive: {:?}\ncontent_lines.len(): {}\nLast line: {:?}\nthread_messages[Thread-2].len(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.content_lines.len(),
             app.content_lines.last().and_then(|line| line.spans.first()).map(|s| s.content.clone()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         Before switch:
         Active: Some("Side: Thread-2")
@@ -66,10 +66,10 @@ mod tests {
         // 快照 2：切换后，主线程有 1 条消息
         insta::assert_snapshot!(format!(
             "After switch to main:\nActive: {:?}\ncontent_lines.len(): {}\nLast line: {:?}\nthread_messages[Main].len(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.content_lines.len(),
             app.content_lines.last().and_then(|line| line.spans.first()).map(|s| s.content.clone()),
-            app.thread_messages.get(primary_id).map_or(0, |m| m.len())
+            app.thread.messages.get(primary_id).map_or(0, |m| m.len())
         ), @r#"
         After switch to main:
         Active: Some("Main")
@@ -84,17 +84,17 @@ mod tests {
         // 正确的修复：只在 thread_id 是活动线程时渲染
 
         // 模拟当前错误的逻辑：
-        app.thread_messages.push(thread2_id, crate::thread::Message::user("AI response to Thread-2".to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user("AI response to Thread-2".to_string()));
         app.push_line("AI response to Thread-2".to_string()); // ❌ 这会在主线程显示 Thread-2 的消息！
 
         // 快照 3：消息串台！
         insta::assert_snapshot!(format!(
             "❌ BUG - Message cross-talk:\nActive: {:?}\ncontent_lines.len(): {}\nLast line: {:?}\nthread_messages[Main].len(): {}\nthread_messages[Thread-2].len(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.content_lines.len(),
             app.content_lines.last().and_then(|line| line.spans.first()).map(|s| s.content.clone()),
-            app.thread_messages.get(primary_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         ❌ BUG - Message cross-talk:
         Active: Some("Main")
@@ -117,22 +117,22 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // 在 Thread-2 发送消息
         app.switch_thread(thread2_id);
-        app.thread_messages.push(thread2_id, crate::thread::Message::user("Thread-2 message".to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user("Thread-2 message".to_string()));
         app.push_line("⟩ Thread-2 message".to_string());
 
         // 切换到主线程
         app.switch_thread(primary_id);
 
         // Thread-2 的 AI 响应到达
-        app.thread_messages.push(thread2_id, crate::thread::Message::user("AI response".to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user("AI response".to_string()));
 
         // 正确逻辑：只在 thread_id == active_id 时渲染
-        let active_id = app.thread_store.active_thread().map(|t| t.id);
+        let active_id = app.thread.store.active_thread().map(|t| t.id);
         if active_id == Some(thread2_id) {
             app.push_line("AI response".to_string());
         }
@@ -140,10 +140,10 @@ mod tests {
         // 快照：消息不应该串台
         insta::assert_snapshot!(format!(
             "✅ CORRECT - No cross-talk:\nActive: {:?}\ncontent_lines.len(): {}\nthread_messages[Main].len(): {}\nthread_messages[Thread-2].len(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.content_lines.len(),
-            app.thread_messages.get(primary_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         ✅ CORRECT - No cross-talk:
         Active: Some("Main")
@@ -163,28 +163,28 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
 
         // 步骤 1: 创建 Thread-1（从主线程）
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
         println!("Created Thread-1: {:?}", thread1_id);
 
         // 验证当前在 Thread-1
-        assert_eq!(app.thread_store.active_thread().unwrap().id, thread1_id);
+        assert_eq!(app.thread.store.active_thread().unwrap().id, thread1_id);
 
         // 步骤 2: 创建 Thread-2（从 Thread-1）
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
         println!("Created Thread-2: {:?}", thread2_id);
 
         // 验证当前在 Thread-2
-        assert_eq!(app.thread_store.active_thread().unwrap().id, thread2_id);
+        assert_eq!(app.thread.store.active_thread().unwrap().id, thread2_id);
 
         // 快照 1：线程创建后状态
         insta::assert_snapshot!(format!(
             "Thread count: {}\nActive thread: {:?}\nThread-2 name: {:?}\ncontent_lines.len(): {}",
-            app.thread_store.len(),
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_store.get_thread(thread2_id).map(|t| t.display_name()),
+            app.thread.store.len(),
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.store.get_thread(thread2_id).map(|t| t.display_name()),
             app.content_lines.len()
         ), @r###"
         Thread count: 3
@@ -199,14 +199,14 @@ mod tests {
         app.push_line(format!("⟩ {}", user_input));
 
         // 步骤 4: 存储到 thread_messages（main.rs:988）
-        app.thread_messages.push(thread2_id, crate::thread::Message::user(user_input.to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user(user_input.to_string()));
 
         // 快照 2：用户输入后状态
         insta::assert_snapshot!(format!(
             "After user input:\ncontent_lines.len(): {}\ntext[0]: {:?}\nthread_messages[Thread-2].len(): {}",
             app.content_lines.len(),
             app.content_lines.first().and_then(|line| line.spans.first()).map(|s| s.content.clone()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r#"
         After user input:
         content_lines.len(): 1
@@ -227,13 +227,13 @@ mod tests {
 
         // 在流式输出循环中，ThreadEvent::NewMessage 会被处理
         // 但由于我们没有真正运行流式循环，我们模拟这个处理：
-        // main.rs:1335: app.thread_messages.push(thread_id, thread::Message::user(message.clone()));
+        // main.rs:1335: app.thread.messages.push(thread_id, thread::Message::user(message.clone()));
         // main.rs:1337-1342: 如果是当前活动线程，渲染消息
 
-        app.thread_messages.push(thread2_id, crate::thread::Message::user(ai_response.to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user(ai_response.to_string()));
 
         // 模拟：检查活动线程是否还是 Thread-2
-        let is_still_active = app.thread_store.active_thread()
+        let is_still_active = app.thread.store.active_thread()
             .map(|t| t.id == thread2_id)
             .unwrap_or(false);
 
@@ -247,7 +247,7 @@ mod tests {
             "After AI response:\ncontent_lines.len(): {}\nis_still_active: {}\nthread_messages[Thread-2].len(): {}",
             app.content_lines.len(),
             is_still_active,
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         After AI response:
         content_lines.len(): 2
@@ -267,7 +267,7 @@ mod tests {
         // 2. 消息也被渲染到当前活动线程的 content_lines
         // 这样设计是因为用户切换线程是主动行为，应该看到 AI 响应
 
-        app.thread_messages.push(thread2_id, crate::thread::Message::user("Second AI response".to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user("Second AI response".to_string()));
 
         // 模拟 ThreadEvent 处理：渲染到当前线程
         app.push_line("Second AI response".to_string());
@@ -276,8 +276,8 @@ mod tests {
         insta::assert_snapshot!(format!(
             "After switching to main thread and AI response:\ncontent_lines.len(): {}\nActive thread: {:?}\nthread_messages[Thread-2].len(): {}",
             app.content_lines.len(),
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         After switching to main thread and AI response:
         content_lines.len(): 1
@@ -295,8 +295,8 @@ mod tests {
         insta::assert_snapshot!(format!(
             "After switching back to Thread-2:\ncontent_lines.len(): {}\nActive thread: {:?}\nthread_messages[Thread-2].len(): {}",
             app.content_lines.len(),
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         After switching back to Thread-2:
         content_lines.len(): 3
@@ -313,16 +313,16 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
 
         // 创建 Thread-1 和 Thread-2
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // 验证线程层级（只检查是否有 parent_id，不检查具体值）
-        let primary_has_parent = app.thread_store.get_thread(primary_id).map(|t| t.parent_id.is_some());
-        let thread1_has_parent = app.thread_store.get_thread(thread1_id).map(|t| t.parent_id.is_some());
-        let thread2_has_parent = app.thread_store.get_thread(thread2_id).map(|t| t.parent_id.is_some());
+        let primary_has_parent = app.thread.store.get_thread(primary_id).map(|t| t.parent_id.is_some());
+        let thread1_has_parent = app.thread.store.get_thread(thread1_id).map(|t| t.parent_id.is_some());
+        let thread2_has_parent = app.thread.store.get_thread(thread2_id).map(|t| t.parent_id.is_some());
 
         insta::assert_snapshot!(format!(
             "Primary parent: {:?}\nThread-1 parent: {:?}\nThread-2 parent: {:?}",
@@ -336,7 +336,7 @@ mod tests {
         "#);
 
         // 在 Thread-2 添加消息
-        app.thread_messages.push(thread2_id, crate::thread::Message::user("Test message".to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user("Test message".to_string()));
 
         // 切换回主线程
         app.switch_thread(primary_id);
@@ -348,7 +348,7 @@ mod tests {
         insta::assert_snapshot!(format!(
             "After switching to Thread-2:\ncontent_lines.len(): {}\nthread_messages[Thread-2].len(): {}",
             app.content_lines.len(),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         After switching to Thread-2:
         content_lines.len(): 1
@@ -366,7 +366,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // 模拟完整的消息发送流程：
@@ -384,7 +384,7 @@ mod tests {
         app.push_line(format!("⟩ {}", user_input));
 
         // 然后存储到 thread_messages（main.rs:979-982）
-        app.thread_messages.push(thread2_id, crate::thread::Message::user(user_input.to_string()));
+        app.thread.messages.push(thread2_id, crate::thread::Message::user(user_input.to_string()));
 
         // 快照：检查状态
         insta::assert_snapshot!(format!(

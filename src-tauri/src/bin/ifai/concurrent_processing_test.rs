@@ -22,7 +22,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：Main 线程进入 busy 状态 ===
@@ -48,7 +48,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：Main 线程进入 busy 状态 ===
@@ -60,7 +60,7 @@ mod tests {
         // === 步骤 3：检查当前线程（Thread-2）是否 busy ===
         insta::assert_snapshot!(format!(
             "Thread-2 current busy check:\nActive: {:?}\nMain is busy: true\nThread-2 is busy: false\nis_current_thread_busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_current_thread_busy()
         ), @r###"
         Thread-2 current busy check:
@@ -79,7 +79,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：Main 线程进入 busy 状态 ===
@@ -89,7 +89,7 @@ mod tests {
         // === 步骤 2：验证 Main 线程 busy ===
         insta::assert_snapshot!(format!(
             "Backward compatible is_busy:\nActive: {:?}\nis_busy(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_busy()
         ), @r###"
         Backward compatible is_busy:
@@ -103,7 +103,7 @@ mod tests {
         // === 步骤 4：验证 is_busy() 现在检查 Thread-2 ===
         insta::assert_snapshot!(format!(
             "Switch to Thread-2:\nActive: {:?}\nis_busy(): {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_busy()
         ), @r###"
         Switch to Thread-2:
@@ -120,7 +120,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：Main 线程开始 AI 请求 ===
@@ -149,7 +149,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：两个线程都开始 AI 请求 ===
@@ -191,7 +191,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
         let thread3_id = app.create_side_thread(Some("Thread-3".to_string()));
 
@@ -236,7 +236,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：Main 线程进入 busy 状态 ===
@@ -251,7 +251,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Main state persisted:\nActive: {:?}\nMain is busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(primary_id)
         ), @r###"
         Main state persisted:
@@ -268,7 +268,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：Main 线程进入 busy 状态 ===
@@ -287,7 +287,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Thread-2 not queued:\nActive: {:?}\nMain is busy: {}\nThread-2 is busy: {}\nShould enqueue: {}\nQueue length: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(primary_id),
             app.is_thread_busy(thread2_id),
             should_enqueue,
@@ -323,17 +323,17 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === T1: Thread-1 发送消息，开始 AI 处理 ===
         app.switch_thread(primary_id);
-        app.thread_messages.push(primary_id, crate::thread::Message::user("Question for Thread-1".to_string()));
+        app.thread.messages.push(primary_id, crate::thread::Message::user("Question for Thread-1".to_string()));
         app.set_thread_busy(primary_id, true);
 
         insta::assert_snapshot!(format!(
             "T1: Thread-1 started AI processing:\nActive: {:?}\nThread-1 is busy: {}\nThread-2 is busy: {}\nQueue length: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_thread_busy(primary_id),
             app.is_thread_busy(thread2_id),
             app.queue_len()
@@ -350,7 +350,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "T2: Switched to Thread-2:\nActive: {:?}\nThread-1 is busy: true\nThread-2 is busy: false\nis_current_thread_busy: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_current_thread_busy()
         ), @r###"
         T2: Switched to Thread-2:
@@ -369,12 +369,12 @@ mod tests {
             app.enqueue("Question for Thread-2".to_string());
         } else {
             // 立即处理，不排队
-            app.thread_messages.push(thread2_id, crate::thread::Message::user("Question for Thread-2".to_string()));
+            app.thread.messages.push(thread2_id, crate::thread::Message::user("Question for Thread-2".to_string()));
         }
 
         insta::assert_snapshot!(format!(
             "T3: Thread-2 sent message:\nActive: {:?}\nThread-1 is busy: true\nThread-2 is busy: false\nMessage queued: {}\nQueue length: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             should_enqueue,
             app.queue_len()
         ), @r###"
@@ -389,8 +389,8 @@ mod tests {
         // === T4: 验证两个线程的消息都正确存储 ===
         insta::assert_snapshot!(format!(
             "T4: Both threads have messages:\nthread_messages[Thread-1].len(): {}\nthread_messages[Thread-2].len(): {}",
-            app.thread_messages.get(primary_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread2_id).map_or(0, |m| m.len())
+            app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
         ), @r###"
         T4: Both threads have messages:
         thread_messages[Thread-1].len(): 1
@@ -407,14 +407,14 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let primary_id = app.thread_store.primary_id();
+        let primary_id = app.thread.store.primary_id();
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // === 步骤 1：初始状态 ===
         insta::assert_snapshot!(format!(
             "ActiveRequests initial:\nis_empty: {}\nactive_count: {}",
-            app.active_requests.is_empty(),
-            app.active_requests.active_count()
+            app.stream.active_requests.is_empty(),
+            app.stream.active_requests.active_count()
         ), @r###"
         ActiveRequests initial:
         is_empty: true
@@ -428,8 +428,8 @@ mod tests {
         // === 步骤 3：检查线程是否 busy ===
         insta::assert_snapshot!(format!(
             "Thread busy check:\nMain is busy (via active_requests): {}\nThread-2 is busy (via active_requests): {}",
-            app.active_requests.is_thread_busy(&primary_id),
-            app.active_requests.is_thread_busy(&thread2_id)
+            app.stream.active_requests.is_thread_busy(&primary_id),
+            app.stream.active_requests.is_thread_busy(&thread2_id)
         ), @r###"
         Thread busy check:
         Main is busy (via active_requests): false

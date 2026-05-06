@@ -16,7 +16,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("\n=== 用户报告场景测试 ===\n");
@@ -24,23 +24,23 @@ mod tests {
         // === 步骤 1：在 main 提问"天气如何" ===
         println!("步骤 1: 在 main 提问'天气如何'");
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
 
         println!("  → main is busy: {}", app.is_thread_busy(main_id));
         println!("  → thread1 is busy: {}", app.is_thread_busy(thread1_id));
-        println!("  → 当前活动线程: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
+        println!("  → 当前活动线程: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
 
         // === 步骤 2：在 thread1 提问"执行 ls -l" ===
         println!("\n步骤 2: 切换到 thread1，提问'执行 ls -l'");
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         println!("  → main is busy: {}", app.is_thread_busy(main_id));
         println!("  → thread1 is busy: {}", app.is_thread_busy(thread1_id));
-        println!("  → 当前活动线程: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
+        println!("  → 当前活动线程: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
 
         // === 步骤 3：thread1 的工具调用需要审批 ===
         println!("\n步骤 3: thread1 的 AI 触发工具调用（需要审批）");
@@ -48,12 +48,12 @@ mod tests {
         app.set_approval_pending(approval_request);
 
         println!("  → thread1 has approval: {}", app.is_approving());
-        println!("  → 当前活动线程: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
+        println!("  → 当前活动线程: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
 
         // 快照：thread1 有审批
         insta::assert_snapshot!(format!(
             "Thread-1 has tool approval:\nActive: {:?}\nThread-1 has approval: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Thread-1 has tool approval:
@@ -67,16 +67,16 @@ mod tests {
 
         println!("  → main is busy: {}", app.is_thread_busy(main_id));
         println!("  → thread1 is busy: {}", app.is_thread_busy(thread1_id));
-        println!("  → 当前活动线程: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
+        println!("  → 当前活动线程: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
         println!("  → main has approval: {}", app.is_approving());
 
         // 快照：main 不应该显示 thread1 的审批
         insta::assert_snapshot!(format!(
             "After switching to Main:\nActive: {:?}\nMain has approval: {}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving(),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         After switching to Main:
         Active: Some("Main")
@@ -103,18 +103,18 @@ mod tests {
         let tool_result = "file1.txt\nfile2.txt\nfile3.txt".to_string();
 
         // 模拟 AI 响应路由到 thread1
-        app.thread_messages.push(thread1_id, crate::thread::Message::user(tool_result.clone()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user(tool_result.clone()));
 
-        println!("  → 当前活动线程: {:?}", app.thread_store.active_thread().map(|t| t.display_name()));
-        println!("  → Main messages: {}", app.thread_messages.get(main_id).map_or(0, |m| m.len()));
-        println!("  → Thread-1 messages: {}", app.thread_messages.get(thread1_id).map_or(0, |m| m.len()));
+        println!("  → 当前活动线程: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
+        println!("  → Main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
+        println!("  → Thread-1 messages: {}", app.thread.messages.get(thread1_id).map_or(0, |m| m.len()));
 
         // 快照：最终状态
         insta::assert_snapshot!(format!(
             "Final state:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
-            app.thread_messages.get(main_id).map_or(0, |m| m.len()),
-            app.thread_messages.get(thread1_id).map_or(0, |m| m.len())
+            app.thread.store.active_thread().map(|t| t.display_name()),
+            app.thread.messages.get(main_id).map_or(0, |m| m.len()),
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
         ), @r###"
         Final state:
         Active: Some("Main")

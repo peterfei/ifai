@@ -65,7 +65,7 @@ mod tests {
         // ==================== 步骤 1: 准备 ====================
         println!("\n📋 步骤 1: 创建 App 和线程");
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("  main ID: {:?}", main_id);
@@ -74,7 +74,7 @@ mod tests {
         // ==================== 步骤 2: main 发送 '执行ls -l' ====================
         println!("\n🔵 步骤 2: main 发送 '执行ls -l'");
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, Message::user("执行ls -l".to_string()));
+        app.thread.messages.push(main_id, Message::user("执行ls -l".to_string()));
         app.set_thread_busy(main_id, true);
 
         assert!(app.is_thread_busy(main_id), "main 应该 busy");
@@ -84,7 +84,7 @@ mod tests {
         // ==================== 步骤 3: thread1 发送 '你了解ruby语言吗' ====================
         println!("\n🟢 步骤 3: thread1 发送 '你了解ruby语言吗'");
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
+        app.thread.messages.push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         assert!(app.is_thread_busy(main_id), "main 仍然 busy");
@@ -178,20 +178,20 @@ mod tests {
 
         let mut app = App::new_for_test();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
 
         // main 添加消息
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, Message::user("Main: 执行ls -l".to_string()));
-        let main_count = app.thread_messages.get(main_id).map(|m| m.len()).unwrap_or(0);
+        app.thread.messages.push(main_id, Message::user("Main: 执行ls -l".to_string()));
+        let main_count = app.thread.messages.get(main_id).map(|m| m.len()).unwrap_or(0);
 
         // thread1 添加消息
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, Message::user("Thread1: 你了解ruby语言吗".to_string()));
-        let thread1_count = app.thread_messages.get(thread1_id).map(|m| m.len()).unwrap_or(0);
+        app.thread.messages.push(thread1_id, Message::user("Thread1: 你了解ruby语言吗".to_string()));
+        let thread1_count = app.thread.messages.get(thread1_id).map(|m| m.len()).unwrap_or(0);
 
         // 验证隔离
-        let main_count_after = app.thread_messages.get(main_id).map(|m| m.len()).unwrap_or(0);
+        let main_count_after = app.thread.messages.get(main_id).map(|m| m.len()).unwrap_or(0);
         assert_eq!(main_count, main_count_after, "thread1 不应影响 main 消息数");
         assert_eq!(thread1_count, 1, "thread1 应该有 1 条消息");
 
@@ -210,7 +210,7 @@ mod tests {
         println!("\n🔄 Streaming 期间线程切换测试");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // main streaming
@@ -241,7 +241,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // ---- 步骤 1: main 调用真实 LLM（执行ls -l） ----
@@ -250,7 +250,7 @@ mod tests {
         app.set_thread_busy(main_id, true);
 
         // 写入用户输入到 thread_messages（模拟 main.rs 中的行为）
-        app.thread_messages.push(main_id, crate::thread::Message::user("执行ls -l".to_string()));
+        app.thread.messages.push(main_id, crate::thread::Message::user("执行ls -l".to_string()));
 
         let mut session_main = create_real_session();
         let main_handle = tokio::spawn(async move {
@@ -269,7 +269,7 @@ mod tests {
         assert!(!main_response.starts_with("ERROR"), "main LLM 调用失败: {}", main_response);
 
         // 写入 thread_messages（switch_thread 时会自动加载到 content_lines）
-        app.thread_messages.push(main_id, crate::thread::Message::assistant(main_response.clone()));
+        app.thread.messages.push(main_id, crate::thread::Message::assistant(main_response.clone()));
         app.set_thread_busy(main_id, false);
         println!("  OK main 收到 AI 响应（{} 字符）", main_response.len());
 
@@ -292,7 +292,7 @@ mod tests {
         app.set_thread_busy(thread1_id, true);
 
         // 写入用户输入到 thread_messages（模拟 main.rs 中的行为）
-        app.thread_messages.push(thread1_id, crate::thread::Message::user("你了解ruby语言吗".to_string()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::user("你了解ruby语言吗".to_string()));
 
         let mut session_thread1 = create_real_session();
         let thread1_handle = tokio::spawn(async move {
@@ -309,7 +309,7 @@ mod tests {
         let thread1_response = thread1_handle.await.unwrap();
         assert!(!thread1_response.starts_with("ERROR"), "thread1 LLM 调用失败: {}", thread1_response);
 
-        app.thread_messages.push(thread1_id, crate::thread::Message::assistant(thread1_response.clone()));
+        app.thread.messages.push(thread1_id, crate::thread::Message::assistant(thread1_response.clone()));
         app.set_thread_busy(thread1_id, false);
         println!("  OK thread1 收到 AI 响应（{} 字符）", thread1_response.len());
 
@@ -361,7 +361,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // ---- 步骤 1: main 调用真实 LLM（执行ls -l，会触发工具调用审批） ----
@@ -378,7 +378,7 @@ mod tests {
             category: crate::permission::ToolCategory::Dangerous,
             response_tx: tx,
         };
-        app.approval_states.insert(main_id, request);
+        app.approval.states.insert(main_id, request);
 
         // 验证 main 下有审批
         assert!(app.is_approving(), "main 应该有审批");
@@ -474,7 +474,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // ---- 步骤 1: main 调用真实 LLM '执行ls -l'（会触发工具审批） ----
@@ -504,7 +504,7 @@ mod tests {
             category: crate::permission::ToolCategory::Dangerous,
             response_tx: tx,
         };
-        app.approval_states.insert(main_id, request);
+        app.approval.states.insert(main_id, request);
 
         // ---- 快照 1: main 下渲染（应有审批弹窗） ----
         let main_buf = crate::tui_test::render_to_buffer(&mut app, 80, 24);
@@ -587,7 +587,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string());
 
         // ---- 步骤 1: main 调用真实 LLM 开始 streaming ----
@@ -649,7 +649,7 @@ mod tests {
             category: crate::permission::ToolCategory::Dangerous,
             response_tx: tx,
         };
-        app.approval_states.insert(main_id, request);
+        app.approval.states.insert(main_id, request);
         app.set_status("Approval required".to_string());
 
         // main 有审批时快照
@@ -699,7 +699,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // ---- 步骤 1: main 调用真实 LLM ----
@@ -771,12 +771,12 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
 
         // ---- 步骤 1: main 发送第一条消息 ----
         println!("\n步骤 1: main 发送 '1+1等于几'");
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, Message::user("1+1等于几".to_string()));
+        app.thread.messages.push(main_id, Message::user("1+1等于几".to_string()));
         app.set_thread_busy(main_id, true);
 
         let mut session1 = create_real_session();
@@ -807,7 +807,7 @@ mod tests {
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
         println!("  OK 消息1 完成（{} 字符）", response1.len());
-        app.thread_messages.push(main_id, Message::assistant(response1));
+        app.thread.messages.push(main_id, Message::assistant(response1));
 
         // ---- 步骤 4: dequeue 并处理第二条 ----
         println!("\n步骤 3: dequeue 并发送第二条消息");
@@ -819,7 +819,7 @@ mod tests {
         assert_eq!(target_id, main_id, "目标线程应为 main");
 
         // 写入用户输入到 thread_messages
-        app.thread_messages.push(main_id, Message::user(input2.clone()));
+        app.thread.messages.push(main_id, Message::user(input2.clone()));
         app.set_thread_busy(main_id, true);
 
         let mut session2 = create_real_session();
@@ -840,7 +840,7 @@ mod tests {
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
         println!("  OK 消息2 完成（{} 字符）", response2.len());
-        app.thread_messages.push(main_id, Message::assistant(response2));
+        app.thread.messages.push(main_id, Message::assistant(response2));
 
         // ---- 步骤 5: 验证 main 的 thread_messages 包含两条完整的对话 ----
         println!("\n步骤 4: 验证 thread_messages 完整性");
@@ -879,13 +879,13 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // ---- 步骤 1: main 开始 streaming ----
         println!("\n步骤 1: main 发送 '你好'");
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, Message::user("你好".to_string()));
+        app.thread.messages.push(main_id, Message::user("你好".to_string()));
         app.set_thread_busy(main_id, true);
 
         let mut session_main = create_real_session();
@@ -918,7 +918,7 @@ mod tests {
 
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
-        app.thread_messages.push(main_id, Message::assistant(main_response));
+        app.thread.messages.push(main_id, Message::assistant(main_response));
         println!("  OK main streaming 完成");
 
         // ---- 步骤 5: 验证队列中消息的目标线程 ----
@@ -938,7 +938,7 @@ mod tests {
         // ---- 步骤 6: 处理 thread1 的排队消息 ----
         println!("\n步骤 6: 处理 thread1 的排队消息");
         app.switch_thread(thread1_id);
-        app.thread_messages.push(thread1_id, Message::user(msg1.0.clone()));
+        app.thread.messages.push(thread1_id, Message::user(msg1.0.clone()));
         app.set_thread_busy(thread1_id, true);
 
         let mut session_t1 = create_real_session();
@@ -955,7 +955,7 @@ mod tests {
         app.end_streaming(thread1_id);
         app.set_thread_busy(thread1_id, false);
         println!("  OK thread1 消息完成（{} 字符）", t1_response.len());
-        app.thread_messages.push(thread1_id, Message::assistant(t1_response));
+        app.thread.messages.push(thread1_id, Message::assistant(t1_response));
 
         // ---- 步骤 7: 验证消息不串台 ----
         println!("\n步骤 7: 验证消息不串台");
@@ -1001,7 +1001,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // ---- 步骤 1: main 开始 streaming ----
@@ -1022,7 +1022,7 @@ mod tests {
 
         // ---- 步骤 3: thread1 开始新的 AI 请求 ----
         println!("\n步骤 3: thread1 发送 '什么是Rust'");
-        app.thread_messages.push(thread1_id, Message::user("什么是Rust".to_string()));
+        app.thread.messages.push(thread1_id, Message::user("什么是Rust".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         let mut session_t1 = create_real_session();
@@ -1052,7 +1052,7 @@ mod tests {
         app.end_streaming(thread1_id);
         app.set_thread_busy(thread1_id, false);
         println!("  OK thread1 完成（{} 字符）", t1_response.len());
-        app.thread_messages.push(thread1_id, Message::assistant(t1_response));
+        app.thread.messages.push(thread1_id, Message::assistant(t1_response));
 
         // ---- 步骤 6: 验证 main 的排队消息可正确出队 ----
         println!("\n步骤 6: 验证 main 排队消息");
@@ -1066,7 +1066,7 @@ mod tests {
 
         // ---- 步骤 7: 处理 main 的排队消息 ----
         println!("\n步骤 7: 处理 main 排队消息");
-        app.thread_messages.push(main_id, Message::user(input.clone()));
+        app.thread.messages.push(main_id, Message::user(input.clone()));
         app.set_thread_busy(main_id, true);
 
         let mut session_main = create_real_session();
@@ -1083,7 +1083,7 @@ mod tests {
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
         println!("  OK main 排队消息处理完成（{} 字符）", main_response.len());
-        app.thread_messages.push(main_id, Message::assistant(main_response));
+        app.thread.messages.push(main_id, Message::assistant(main_response));
 
         // ---- 步骤 8: 最终验证 ----
         println!("\n步骤 8: 最终验证");
@@ -1122,7 +1122,7 @@ mod tests {
         session.set_auto_approve_all(true);
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         app.switch_thread(main_id);
 
         // 设计有上下文依赖的对话序列（混合普通对话 + 复杂工具调用）
@@ -1162,7 +1162,7 @@ mod tests {
             println!("  轮次 {}/{}: {}", round, total, prompt);
             println!("============================================================");
 
-            app.thread_messages.push(main_id, Message::user(prompt.to_string()));
+            app.thread.messages.push(main_id, Message::user(prompt.to_string()));
             app.push_line(format!("⟩ {}", prompt));
 
             let start = Instant::now();
@@ -1195,7 +1195,7 @@ mod tests {
                 context_breaks.push(round);
             }
 
-            app.thread_messages.push(main_id, Message::assistant(response.clone()));
+            app.thread.messages.push(main_id, Message::assistant(response.clone()));
             app.push_line(response);
 
             // === TUI 快照：渲染当前 App 画面并保存到文件 ===
@@ -1267,7 +1267,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread_a_id = main_id; // main 作为线程 A
         let thread_b_id = app.create_side_thread(Some("Thread-B".to_string()));
 
@@ -1277,7 +1277,7 @@ mod tests {
         // ==================== 步骤 1: 线程 A 开始 streaming ====================
         println!("\n步骤 1: 线程 A 发送 '帮我生成2048小游戏' 并开始 streaming");
         app.switch_thread(thread_a_id);
-        app.thread_messages.push(thread_a_id, Message::user("帮我生成2048小游戏".to_string()));
+        app.thread.messages.push(thread_a_id, Message::user("帮我生成2048小游戏".to_string()));
         app.set_thread_busy(thread_a_id, true);
         app.begin_streaming(thread_a_id);
 
@@ -1425,7 +1425,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread_b_id = app.create_side_thread(Some("Thread-B".to_string()));
 
         // ==================== 步骤 1: 线程 A 开始 streaming ====================
@@ -1492,13 +1492,13 @@ mod tests {
         println!("\n步骤 6: 切回线程 A，验证审批界面可操作");
         app.switch_thread(main_id);
 
-        // 审批状态应该恢复（因为 approval_states 中有线程 A 的审批）
+        // 审批状态应该恢复（因为 approval.states 中有线程 A 的审批）
         assert!(app.is_approving(), "切回线程 A 后应该恢复审批状态");
         println!("  ✓ 线程 A is_approving(): true（审批状态恢复）");
 
         // 验证 Up/Down 可以切换选项
-        let old_selected = app.approval_selected;
-        app.approval_selected = 0;
+        let old_selected = app.approval.selected;
+        app.approval.selected = 0;
         let up_action = app.input.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
         // Up 在审批模式下由 run_loop 拦截，这里只验证 state 变化
         println!("  ✓ 审批界面选项可切换");
@@ -1506,7 +1506,7 @@ mod tests {
         // ==================== 步骤 7: 清理 ====================
         println!("\n步骤 7: 清理状态");
         // 模拟审批决策
-        if let Some(request) = app.approval_states.remove(&main_id) {
+        if let Some(request) = app.approval.states.remove(&main_id) {
             let _ = request.response_tx.send(crate::approval_overlay::ApprovalDecision::ApproveOnce);
         }
         app.cleanup_after_stream(main_id);
@@ -1533,13 +1533,13 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // ==================== 步骤 1: main 开始 streaming ====================
         println!("\n步骤 1: main 发送请求并开始 streaming");
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, Message::user("执行ls -l".to_string()));
+        app.thread.messages.push(main_id, Message::user("执行ls -l".to_string()));
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
         app.append_streaming_output(main_id, "正在执行...\n".to_string());
@@ -1657,7 +1657,7 @@ mod tests {
 
         // ==================== 步骤 8: 验证 thread1 可以正常发起 AI 请求 ====================
         println!("\n步骤 8: thread1 发起真实 AI 请求");
-        app.thread_messages.push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
+        app.thread.messages.push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         let mut session_t1 = create_real_session();
@@ -1705,7 +1705,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("\n  main ID: {:?}", main_id);
@@ -1714,7 +1714,7 @@ mod tests {
         // ==================== 步骤 1: main 开始 streaming ====================
         println!("\n步骤 1: main 发送 '帮我写个2048小游戏'，开始 streaming");
         app.switch_thread(main_id);
-        app.thread_messages.push(main_id, Message::user("帮我写个2048小游戏".to_string()));
+        app.thread.messages.push(main_id, Message::user("帮我写个2048小游戏".to_string()));
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
 
@@ -1970,7 +1970,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("  main ID: {:?}", main_id);
@@ -2044,7 +2044,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("  main ID: {:?}", main_id);
@@ -2126,7 +2126,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("  main ID: {:?}", main_id);
@@ -2277,7 +2277,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("  main ID: {:?}", main_id);
@@ -2489,7 +2489,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("  main ID: {:?}", main_id);
@@ -2587,9 +2587,9 @@ mod tests {
                 break;
             }
 
-            let active_id = app.thread_store.active_thread()
+            let active_id = app.thread.store.active_thread()
                 .map(|t| t.id)
-                .unwrap_or_else(|| app.thread_store.primary_id());
+                .unwrap_or_else(|| app.thread.store.primary_id());
 
             // take receivers（与 run_streaming_loop 一致）
             let (mut output_rx_local, mut status_rx_local, mut thread_event_rx_local,
@@ -2638,7 +2638,7 @@ mod tests {
                             && key.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
                             alt_right_received = true;
                             // 执行线程切换
-                            if let Some(next_id) = app.thread_store.next_thread() {
+                            if let Some(next_id) = app.thread.store.next_thread() {
                                 app.switch_thread(next_id);
                                 println!("  [线程切换] → {:?}", next_id);
                             }
@@ -2728,7 +2728,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         app.create_side_thread(Some("Thread-1".to_string()));
 
         let config = EffectiveConfig::resolve(None, None, None, None).unwrap();
@@ -2810,7 +2810,7 @@ mod tests {
                 break;
             }
 
-            let active_id = app.thread_store.active_thread().map(|t| t.id).unwrap_or_else(|| app.thread_store.primary_id());
+            let active_id = app.thread.store.active_thread().map(|t| t.id).unwrap_or_else(|| app.thread.store.primary_id());
 
             let (mut orx, mut srx, mut terx, mut tetx, mut atx, mut hdl) =
                 if let Some(state) = stream_states.get_mut(&active_id) {
@@ -2886,7 +2886,7 @@ mod tests {
         println!("============================================================");
 
         let mut app = App::new_for_test();
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         println!("  main ID: {:?}", main_id);
@@ -3056,9 +3056,9 @@ mod tests {
                 break;
             }
 
-            let active_id = app.thread_store.active_thread()
+            let active_id = app.thread.store.active_thread()
                 .map(|t| t.id)
-                .unwrap_or_else(|| app.thread_store.primary_id());
+                .unwrap_or_else(|| app.thread.store.primary_id());
 
             // take receivers
             let (mut output_rx_local, mut status_rx_local, mut thread_event_rx_local,
@@ -3188,13 +3188,13 @@ mod tests {
                             // 普通键盘事件处理
                             if key.code == crossterm::event::KeyCode::Right
                                 && key.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
-                                if let Some(next_id) = app.thread_store.next_thread() {
+                                if let Some(next_id) = app.thread.store.next_thread() {
                                     app.switch_thread(next_id);
                                     println!("  [线程切换] → {:?}", next_id);
                                 }
                             } else if key.code == crossterm::event::KeyCode::Left
                                 && key.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
-                                if let Some(prev_id) = app.thread_store.previous_thread() {
+                                if let Some(prev_id) = app.thread.store.previous_thread() {
                                     app.switch_thread(prev_id);
                                     println!("  [线程切换] → {:?}", prev_id);
                                 }
@@ -3260,7 +3260,7 @@ mod tests {
         }
 
         // 清理
-        app.approval_states.clear();
+        app.approval.states.clear();
         forward_main.abort();
         forward_t1.abort();
 

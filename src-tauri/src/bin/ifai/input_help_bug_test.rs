@@ -29,11 +29,11 @@ mod tests {
         // 验证当前模式
         insta::assert_snapshot!(format!(
             "Initial state:\nActive thread: {:?}\nIs overlay: {}\nIs diff: {}\nIs searching: {}\nactive_thread_mode: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_overlay_mode(),
             app.is_diff_mode(),
             app.is_searching(),
-            app.active_thread_mode
+            app.thread.active_mode
         ), @r#"
         Initial state:
         Active thread: Some("Side: Thread-1")
@@ -53,7 +53,7 @@ mod tests {
         // 快照：验证输入模式
         insta::assert_snapshot!(format!(
             "Input mode check:\nactive_thread_mode: {}\ninput_composer exists: true",
-            app.active_thread_mode
+            app.thread.active_mode
         ), @"
         Input mode check:
         active_thread_mode: false
@@ -175,7 +175,7 @@ mod tests {
         // 检查 input_composer 是否正确初始化
         insta::assert_snapshot!(format!(
             "Input composer state:\nactive_thread_mode: {}\nInput composer exists: true",
-            app.active_thread_mode
+            app.thread.active_mode
         ), @"
         Input composer state:
         active_thread_mode: false
@@ -247,7 +247,7 @@ mod tests {
 
         insta::assert_snapshot!(format!(
             "Input routing flow:\n1. Key event\n2. Event router\n3. Mode guard check\n4. Route to handler\n5. Handle input\n\nCurrent mode: Normal\nactive_thread_mode: {}",
-            app.active_thread_mode
+            app.thread.active_mode
         ), @"
         Input routing flow:
         1. Key event

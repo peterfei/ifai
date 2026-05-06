@@ -347,7 +347,7 @@ impl EventHandler<Event> for SearchInputHandler {
                 }
                 // 其他按键 - 交给 search_input 处理
                 _ => {
-                    let action = app.search_input.handle_key(*key);
+                    let action = app.search.input.handle_key(*key);
                     match action {
                         InputAction::Submit(text) => {
                             // 搜索模式下 Enter 不提交，而是导航
@@ -366,7 +366,7 @@ impl EventHandler<Event> for SearchInputHandler {
                         }
                         InputAction::None => {
                             // 更新搜索词并执行搜索
-                            app.search_query = app.search_input.value().to_string();
+                            app.search.query = app.search.input.value().to_string();
                             app.perform_search();
                             ControlFlow::Continue
                         }
@@ -431,7 +431,7 @@ impl EventHandler<Event> for DiffEnterHandler {
             if key.code == KeyCode::Char('d')
                 && key.modifiers.contains(KeyModifiers::CONTROL)
                 && !app.is_diff_mode()
-                && !app.diffs.is_empty()
+                && !app.diff.files.is_empty()
             {
                 app.enter_diff_mode();
                 return ControlFlow::Break(AppResult::Handled);
@@ -457,42 +457,42 @@ impl EventHandler<Event> for DiffModeHandler {
                 match action {
                     DiffAction::Scroll(scroll) => match scroll {
                         ScrollAction::Up(n) => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.scroll_by(-(n as i16));
                             }
                         }
                         ScrollAction::Down(n) => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.scroll_by(n as i16);
                             }
                         }
                         ScrollAction::HalfUp => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.page_by(-5);
                             }
                         }
                         ScrollAction::HalfDown => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.page_by(5);
                             }
                         }
                         ScrollAction::PageUp => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.page_by(-10);
                             }
                         }
                         ScrollAction::PageDown => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.page_by(10);
                             }
                         }
                         ScrollAction::Top => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.scroll_to_top();
                             }
                         }
                         ScrollAction::Bottom => {
-                            if let Some(diff_view) = &mut app.diff_view {
+                            if let Some(diff_view) = &mut app.diff.view {
                                 diff_view.scroll_to_bottom();
                             }
                         }
@@ -510,7 +510,7 @@ impl EventHandler<Event> for DiffModeHandler {
             }
         } else if let Event::Mouse(mouse_event) = event {
             // 支持鼠标滚轮
-            if let Some(diff_view) = &mut app.diff_view {
+            if let Some(diff_view) = &mut app.diff.view {
                 match mouse_event.kind {
                     crossterm::event::MouseEventKind::ScrollUp => {
                         diff_view.scroll_by(-3);

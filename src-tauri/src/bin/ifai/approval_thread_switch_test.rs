@@ -22,7 +22,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // === 步骤 1：Thread-1 有审批请求 ===
@@ -34,7 +34,7 @@ mod tests {
         // 快照 1：Thread-1 有审批
         insta::assert_snapshot!(format!(
             "Thread-1 has approval:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Thread-1 has approval:
@@ -50,7 +50,7 @@ mod tests {
         // 快照 2：切换到 main 后，main 不应该有审批
         insta::assert_snapshot!(format!(
             "After switching to Main:\nActive: {:?}\nMain is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         After switching to Main:
@@ -68,7 +68,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
 
         // === 步骤 1：Thread-1 有审批 ===
@@ -86,7 +86,7 @@ mod tests {
         // 快照：Thread-1 的审批应该仍然存在
         insta::assert_snapshot!(format!(
             "Back to Thread-1:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         Back to Thread-1:
@@ -103,7 +103,7 @@ mod tests {
 
         let mut app = App::new_for_test();
 
-        let main_id = app.thread_store.primary_id();
+        let main_id = app.thread.store.primary_id();
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
@@ -126,7 +126,7 @@ mod tests {
         // 快照：只显示 main 的审批
         insta::assert_snapshot!(format!(
             "On Main:\nActive: {:?}\nMain is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         On Main:
@@ -140,7 +140,7 @@ mod tests {
         // 快照：只显示 Thread-1 的审批
         insta::assert_snapshot!(format!(
             "On Thread-1:\nActive: {:?}\nThread-1 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         On Thread-1:
@@ -154,7 +154,7 @@ mod tests {
         // 快照：只显示 Thread-2 的审批
         insta::assert_snapshot!(format!(
             "On Thread-2:\nActive: {:?}\nThread-2 is_approving: {}",
-            app.thread_store.active_thread().map(|t| t.display_name()),
+            app.thread.store.active_thread().map(|t| t.display_name()),
             app.is_approving()
         ), @r###"
         On Thread-2:
