@@ -1369,12 +1369,11 @@ async fn run_streaming_loop(
                 continue;
             }
             StreamingControl::StreamFinished => {
-                // 清理已完成的线程
-                if stream_states.contains_key(&active_id) {
+                // 统一清理：先移除 stream_state，再清理 app 状态
+                if stream_states.remove(&active_id).is_some() {
                     app.cleanup_after_stream(active_id);
                     app.push_line_if_active_thread(active_id, String::new());
                     app.render();
-                    stream_states.remove(&active_id);
                 }
                 // 检查队列
                 if let Some(next) = app.dequeue() {
@@ -1739,18 +1738,18 @@ fn handle_single_key_event(
         use crossterm::event::KeyCode;
         use crossterm::event::KeyModifiers;
 
-        // === Ctrl+C：所有模式下都生效 ===
+        // === Ctrl+C：所有模式下都生效（统一清理路径） ===
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             app.clear_queue();
+            // 中断活跃线程
             if let Some(mut state) = stream_states.remove(active_id) {
                 if let Some(h) = state.handle.take() {
                     h.abort();
                 }
-                app.end_streaming(*active_id);
+                app.cleanup_after_stream(*active_id);
                 app.push_line_if_active_thread(*active_id, String::new());
                 app.push_line_if_active_thread(*active_id, "^C 已中断 AI 响应".to_string());
             }
-            app.set_thread_busy(*active_id, false);
             // 清理所有后台线程
             let all_ids: Vec<_> = stream_states.keys().copied().collect();
             for id in all_ids {

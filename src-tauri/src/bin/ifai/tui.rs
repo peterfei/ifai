@@ -3943,6 +3943,88 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         assert!(!app.stream.streaming_response_buffers.contains_key(&tid));
     }
 
+    // ========================================================================
+    // Phase 4: StreamState 生命周期统一 — 状态契约测试
+    // ========================================================================
+
+    #[test]
+    fn test_cleanup_after_stream_is_idempotent() {
+        let mut app = App::new_for_test();
+        let tid = test_thread_id();
+        setup_streaming(&mut app, tid);
+
+        // 第一次清理
+        app.cleanup_after_stream(tid);
+        assert!(!app.is_thread_busy(tid));
+        assert!(!app.stream.streaming_response_buffers.contains_key(&tid));
+
+        // 第二次清理（幂等，不应 panic 或产生副作用）
+        app.cleanup_after_stream(tid);
+        assert!(!app.is_thread_busy(tid));
+        assert!(!app.stream.streaming_response_buffers.contains_key(&tid));
+        // last_ai_responses 仍保留（用户可回看）
+        assert!(app.stream.last_ai_responses.contains_key(&tid));
+    }
+
+    #[test]
+    fn test_no_orphan_state_after_multi_thread_cleanup() {
+        let mut app = App::new_for_test();
+        let tid1 = test_thread_id();
+        let tid2 = test_thread_id();
+        let tid3 = test_thread_id();
+
+        // 3 个线程同时 begin streaming
+        setup_streaming(&mut app, tid1);
+        setup_streaming(&mut app, tid2);
+        setup_streaming(&mut app, tid3);
+
+        assert!(app.is_thread_busy(tid1));
+        assert!(app.is_thread_busy(tid2));
+        assert!(app.is_thread_busy(tid3));
+        assert_eq!(app.stream.thread_busy.len(), 3);
+        assert_eq!(app.stream.streaming_response_buffers.len(), 3);
+
+        // 逐个 cleanup
+        app.cleanup_after_stream(tid1);
+        assert!(!app.is_thread_busy(tid1));
+        assert!(app.is_thread_busy(tid2));
+        assert!(app.is_thread_busy(tid3));
+
+        app.cleanup_after_stream(tid2);
+        assert!(!app.is_thread_busy(tid2));
+        assert!(app.is_thread_busy(tid3));
+
+        app.cleanup_after_stream(tid3);
+        assert!(!app.is_thread_busy(tid3));
+
+        // 所有 busy 标记为 false（注意：set_thread_busy 用 insert 而非 remove）
+        assert!(!app.is_thread_busy(tid1));
+        assert!(!app.is_thread_busy(tid2));
+        assert!(!app.is_thread_busy(tid3));
+        // buffer 清除，但 last_ai_responses 保留
+        assert!(app.stream.streaming_response_buffers.is_empty());
+        assert_eq!(app.stream.last_ai_responses.len(), 3);
+    }
+
+    #[test]
+    fn test_end_streaming_preserves_buffers_for_user_review() {
+        let mut app = App::new_for_test();
+        let tid = test_thread_id();
+        app.begin_streaming(tid);
+        app.append_streaming_output(tid, "Important AI response".to_string());
+        app.set_thread_busy(tid, true);
+
+        // end_streaming 将 buffer 移到 last_ai_responses
+        app.end_streaming(tid);
+
+        // buffer 已移除
+        assert!(!app.stream.streaming_response_buffers.contains_key(&tid));
+        // 但 last_ai_responses 保留（用户 Ctrl+O 可回看）
+        assert_eq!(app.stream.last_ai_responses.get(&tid).unwrap(), "Important AI response");
+        // busy 不会被 end_streaming 清除（只有 cleanup_after_stream 才清除）
+        assert!(app.is_thread_busy(tid));
+    }
+
     #[test]
     fn test_stream_guard_idempotent() {
         let mut app = App::new_for_test();
