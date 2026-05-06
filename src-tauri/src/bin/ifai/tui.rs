@@ -4597,4 +4597,111 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
             "PageUp 后渲染应包含 Line 04"
         );
     }
+
+    // ========================================================================
+    // Phase 2: Mode enum 契约测试
+    // ========================================================================
+
+    #[test]
+    fn test_mode_enter_exit_diff() {
+        let mut app = App::new_for_test();
+        assert!(matches!(app.mode, Mode::Normal));
+
+        // 需要至少一个 diff file 才能 enter
+        app.diff.files.push(crate::diff_render::DiffFileChange {
+            path: std::path::PathBuf::from("test.rs"),
+            kind: crate::diff_render::DiffChangeKind::Modified,
+            old_content: Some("old".into()),
+            new_content: Some("new".into()),
+            added: 1,
+            removed: 1,
+        });
+
+        app.enter_diff_mode();
+        assert!(matches!(app.mode, Mode::Diff));
+        assert!(app.is_diff_mode());
+
+        app.exit_diff_mode();
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(!app.is_diff_mode());
+    }
+
+    #[test]
+    fn test_mode_enter_exit_search() {
+        let mut app = App::new_for_test();
+        assert!(matches!(app.mode, Mode::Normal));
+
+        app.enter_search_mode();
+        assert!(matches!(app.mode, Mode::Search));
+        assert!(app.is_searching());
+
+        app.exit_search_mode();
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(!app.is_searching());
+    }
+
+    #[test]
+    fn test_mode_enter_exit_overlay() {
+        let mut app = App::new_for_test();
+        assert!(matches!(app.mode, Mode::Normal));
+
+        let overlay = crate::detail_overlay::DetailOverlay::new_transcript("test content".into());
+        app.enter_overlay_mode(overlay);
+        assert!(matches!(app.mode, Mode::Overlay));
+        assert!(app.is_overlay_mode());
+
+        app.exit_overlay_mode();
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(!app.is_overlay_mode());
+    }
+
+    #[test]
+    fn test_mode_mutex_diff_blocks_search() {
+        // 类型系统保证：enter Diff 后不可能同时是 Search
+        let mut app = App::new_for_test();
+        app.diff.files.push(crate::diff_render::DiffFileChange {
+            path: std::path::PathBuf::from("test.rs"),
+            kind: crate::diff_render::DiffChangeKind::Modified,
+            old_content: Some("old".into()),
+            new_content: Some("new".into()),
+            added: 1,
+            removed: 1,
+        });
+        app.enter_diff_mode();
+        assert!(matches!(app.mode, Mode::Diff));
+        // 编译时保证：app.mode 不可能同时是 Mode::Search
+        assert!(!app.is_searching());
+        assert!(!app.is_overlay_mode());
+        assert!(!app.is_approving());
+    }
+
+    #[test]
+    fn test_mode_mutex_search_blocks_diff() {
+        let mut app = App::new_for_test();
+        app.enter_search_mode();
+        assert!(matches!(app.mode, Mode::Search));
+        assert!(!app.is_diff_mode());
+        assert!(!app.is_overlay_mode());
+        assert!(!app.is_approving());
+    }
+
+    #[test]
+    fn test_mode_default_is_normal() {
+        let app = App::new_for_test();
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(!app.is_diff_mode());
+        assert!(!app.is_searching());
+        assert!(!app.is_overlay_mode());
+        assert!(!app.is_approving());
+    }
+
+    #[test]
+    fn test_mode_enter_diff_ignored_when_no_files() {
+        let mut app = App::new_for_test();
+        assert!(matches!(app.mode, Mode::Normal));
+
+        app.enter_diff_mode(); // diff.files 为空，应忽略
+        assert!(matches!(app.mode, Mode::Normal));
+        assert!(!app.is_diff_mode());
+    }
 }

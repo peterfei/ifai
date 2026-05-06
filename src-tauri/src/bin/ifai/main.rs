@@ -1538,9 +1538,8 @@ fn handle_single_key_event(
     if let crossterm::event::Event::Key(key) = event {
         use crossterm::event::KeyCode;
         use crossterm::event::KeyModifiers;
-        let mut consumed = false;
 
-        // === Ctrl+C ===
+        // === Ctrl+C：所有模式下都生效 ===
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             app.clear_queue();
             if let Some(mut state) = stream_states.remove(active_id) {
@@ -1565,107 +1564,100 @@ fn handle_single_key_event(
             return StreamingControl::Interrupted;
         }
 
-        // === Ctrl+D：diff 模式 ===
-        if key.code == KeyCode::Char('d') && key.modifiers.contains(KeyModifiers::CONTROL)
-            && !app.is_diff_mode() && !app.diff.files.is_empty()
-        {
-            app.enter_diff_mode();
-            consumed = true;
-        } else if app.is_diff_mode() {
+        // === Diff 模式：仅由 DiffModeHandler 处理 ===
+        if app.is_diff_mode() {
             use crate::event::{EventHandler, ControlFlow};
             use crate::event::handlers::DiffModeHandler;
             let mut handler = DiffModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
-            consumed = true;
+            return StreamingControl::Continue;
         }
 
-        // === Ctrl+O ===
-        if key.code == KeyCode::Char('o') && key.modifiers.contains(KeyModifiers::CONTROL)
-            && !app.is_overlay_mode()
-        {
-            use crate::detail_overlay::DetailOverlay;
-            if let Some(response) = app.get_last_ai_response() {
-                let overlay = DetailOverlay::new_transcript(response.to_string());
-                app.enter_overlay_mode(overlay);
-                consumed = true;
-            } else if let Some(buffer) = app.get_streaming_buffer() {
-                let overlay = DetailOverlay::new_transcript(buffer.to_string());
-                app.enter_overlay_mode(overlay);
-                consumed = true;
-            }
-        } else if app.is_overlay_mode() {
+        // === Overlay 模式：仅由 DetailModeHandler 处理 ===
+        if app.is_overlay_mode() {
             use crate::event::{EventHandler, ControlFlow};
             use crate::event::handlers::DetailModeHandler;
             let mut handler = DetailModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
-            consumed = true;
+            return StreamingControl::Continue;
         }
 
-        // === Ctrl+T ===
-        if !consumed && key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL)
-            && app.mode == crate::tui::Mode::Normal
+        // === 以下仅在 Mode::Normal 下生效 ===
+
+        // Ctrl+D：进入 diff 模式
+        if key.code == KeyCode::Char('d') && key.modifiers.contains(KeyModifiers::CONTROL)
+            && !app.diff.files.is_empty()
         {
+            app.enter_diff_mode();
+            app.render();
+            return StreamingControl::Continue;
+        }
+
+        // Ctrl+O：进入 overlay 模式
+        if key.code == KeyCode::Char('o') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            use crate::detail_overlay::DetailOverlay;
+            if let Some(response) = app.get_last_ai_response() {
+                let overlay = DetailOverlay::new_transcript(response.to_string());
+                app.enter_overlay_mode(overlay);
+                app.render();
+                return StreamingControl::Continue;
+            } else if let Some(buffer) = app.get_streaming_buffer() {
+                let overlay = DetailOverlay::new_transcript(buffer.to_string());
+                app.enter_overlay_mode(overlay);
+                app.render();
+                return StreamingControl::Continue;
+            }
+        }
+
+        // Ctrl+T：创建侧线程
+        if key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL) {
             if app.thread.store.len() < 5 {
                 let name = format!("Thread-{}", app.thread.store.len());
                 app.create_side_thread(Some(name));
                 app.thread.active_mode = true;
-                // 不设置 ThreadPicker 模式：streaming loop 中没有退出 ThreadPicker 的处理逻辑，
-                // 会导致所有 mode == Normal 守卫被阻止，快捷键失效
-                consumed = true;
+                app.render();
             }
+            return StreamingControl::Continue;
         }
-        // === Alt+Left ===
-        else if !consumed && key.code == KeyCode::Left && key.modifiers.contains(KeyModifiers::ALT)
-            && app.mode == crate::tui::Mode::Normal
-        {
+
+        // Alt+Left/Right：线程切换
+        if key.code == KeyCode::Left && key.modifiers.contains(KeyModifiers::ALT) {
             if let Some(prev_id) = app.thread.store.previous_thread() {
                 app.switch_thread(prev_id);
                 app.render();
                 return StreamingControl::ThreadSwitch;
             }
-            consumed = true;
+            return StreamingControl::Continue;
         }
-        // === Alt+Right ===
-        else if !consumed && key.code == KeyCode::Right && key.modifiers.contains(KeyModifiers::ALT)
-            && app.mode == crate::tui::Mode::Normal
-        {
+        if key.code == KeyCode::Right && key.modifiers.contains(KeyModifiers::ALT) {
             if let Some(next_id) = app.thread.store.next_thread() {
                 app.switch_thread(next_id);
                 app.render();
                 return StreamingControl::ThreadSwitch;
             }
-            consumed = true;
+            return StreamingControl::Continue;
         }
-        // === Esc ===
-        else if !consumed && key.code == KeyCode::Esc && app.thread.active_mode
-            && app.mode == crate::tui::Mode::Normal
-        {
+
+        // Esc：返回父线程
+        if key.code == KeyCode::Esc && app.thread.active_mode {
             if app.return_to_parent() {
                 app.render();
                 if let Some(thread) = app.thread.store.active_thread() {
                     if thread.kind == crate::thread::ThreadKind::Main {
                         app.thread.active_mode = false;
-                        app.mode = crate::tui::Mode::Normal;
                     }
                 }
             }
-            consumed = true;
+            return StreamingControl::Continue;
         }
 
         // 滚动
-        if !consumed && app.mode == crate::tui::Mode::Normal {
-            match key.code {
-                KeyCode::PageUp => { app.scroll_up(5); consumed = true; }
-                KeyCode::PageDown => { app.scroll_down(5); consumed = true; }
-                KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => { app.scroll_up(3); consumed = true; }
-                KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => { app.scroll_down(3); consumed = true; }
-                _ => {}
-            }
-        }
-
-        if consumed {
-            app.render();
-            return StreamingControl::Continue;
+        match key.code {
+            KeyCode::PageUp => { app.scroll_up(5); app.render(); return StreamingControl::Continue; }
+            KeyCode::PageDown => { app.scroll_down(5); app.render(); return StreamingControl::Continue; }
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => { app.scroll_up(3); app.render(); return StreamingControl::Continue; }
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => { app.scroll_down(3); app.render(); return StreamingControl::Continue; }
+            _ => {}
         }
 
         // === 输入框 ===
@@ -2042,5 +2034,249 @@ mod tests {
     /// Helper: 从 Vec 模拟解析
     fn parse_args_from_vec(args: &[String]) -> Result<CliAction, String> {
         parse_args_from_list(args)
+    }
+
+    // ========================================================================
+    // Phase 2: handle_single_key_event guard 行为测试
+    // ========================================================================
+
+    /// Helper: 创建一个用于测试的 app + stream_states + active_id
+    fn setup_streaming_test() -> (tui::App, std::collections::HashMap<thread::ThreadId, StreamState>, thread::ThreadId) {
+        let mut app = tui::App::new_for_test();
+        let thread_id = app.thread.store.primary_id();
+        let mut stream_states = std::collections::HashMap::new();
+        stream_states.insert(thread_id, StreamState {
+            handle: None,
+            output_rx: None,
+            status_rx: None,
+            thread_event_rx: None,
+            thread_event_tx: None,
+            approval_tx_for_resend: None,
+        });
+        (app, stream_states, thread_id)
+    }
+
+    /// Helper: 构造 Key event
+    fn key_event(code: crossterm::event::KeyCode, modifiers: crossterm::event::KeyModifiers) -> crossterm::event::Event {
+        crossterm::event::Event::Key(crossterm::event::KeyEvent::new(code, modifiers))
+    }
+
+    #[test]
+    fn test_guard_ctrl_d_enters_diff_in_normal() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 添加 diff files 使 Ctrl+D 生效
+        app.diff.files.push(crate::diff_render::DiffFileChange {
+            path: std::path::PathBuf::from("test.rs"),
+            kind: crate::diff_render::DiffChangeKind::Modified,
+            old_content: Some("old".into()),
+            new_content: Some("new".into()),
+            added: 1,
+            removed: 1,
+        });
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('d'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert!(matches!(app.mode, tui::Mode::Diff));
+        assert!(matches!(result, StreamingControl::Continue));
+    }
+
+    #[test]
+    fn test_guard_ctrl_d_blocked_in_overlay() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.diff.files.push(crate::diff_render::DiffFileChange {
+            path: std::path::PathBuf::from("test.rs"),
+            kind: crate::diff_render::DiffChangeKind::Modified,
+            old_content: Some("old".into()),
+            new_content: Some("new".into()),
+            added: 1,
+            removed: 1,
+        });
+        // 先进入 overlay
+        let overlay = crate::detail_overlay::DetailOverlay::new_transcript("test".into());
+        app.enter_overlay_mode(overlay);
+        assert!(matches!(app.mode, tui::Mode::Overlay));
+
+        // Ctrl+D 在 overlay 模式下不应进入 diff
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('d'), crossterm::event::KeyModifiers::CONTROL));
+
+        // overlay 的 handler 处理了这个 event（可能退出 overlay），但不会进入 diff
+        assert!(!app.is_diff_mode());
+    }
+
+    #[test]
+    fn test_guard_ctrl_o_enters_overlay_in_normal() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 添加 AI 响应使 Ctrl+O 生效
+        app.stream.streaming_response_buffers.insert(id, "AI response".to_string());
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('o'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert!(matches!(app.mode, tui::Mode::Overlay));
+        assert!(matches!(result, StreamingControl::Continue));
+    }
+
+    #[test]
+    fn test_guard_ctrl_o_blocked_in_diff() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.stream.streaming_response_buffers.insert(id, "AI response".to_string());
+        app.diff.files.push(crate::diff_render::DiffFileChange {
+            path: std::path::PathBuf::from("test.rs"),
+            kind: crate::diff_render::DiffChangeKind::Modified,
+            old_content: Some("old".into()),
+            new_content: Some("new".into()),
+            added: 1,
+            removed: 1,
+        });
+        app.enter_diff_mode();
+        assert!(matches!(app.mode, tui::Mode::Diff));
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('o'), crossterm::event::KeyModifiers::CONTROL));
+
+        // Diff handler 处理了 event，不应进入 overlay
+        assert!(!app.is_overlay_mode());
+    }
+
+    #[test]
+    fn test_guard_ctrl_t_blocked_in_diff() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.diff.files.push(crate::diff_render::DiffFileChange {
+            path: std::path::PathBuf::from("test.rs"),
+            kind: crate::diff_render::DiffChangeKind::Modified,
+            old_content: Some("old".into()),
+            new_content: Some("new".into()),
+            added: 1,
+            removed: 1,
+        });
+        app.enter_diff_mode();
+        let count_before = app.thread.store.len();
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+
+        // Ctrl+T 在 Diff 模式下应被阻止，不创建新线程
+        assert_eq!(app.thread.store.len(), count_before);
+        assert!(matches!(app.mode, tui::Mode::Diff));
+    }
+
+    #[test]
+    fn test_guard_ctrl_t_blocked_in_overlay() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        let overlay = crate::detail_overlay::DetailOverlay::new_transcript("test".into());
+        app.enter_overlay_mode(overlay);
+        let count_before = app.thread.store.len();
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert_eq!(app.thread.store.len(), count_before);
+    }
+
+    #[test]
+    fn test_guard_scroll_blocked_in_diff() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 填充内容使滚动有意义
+        for i in 0..30u16 {
+            app.content_lines.push(ratatui::text::Line::from(format!("Line {:02}", i)));
+        }
+        app.scroll_offset = 10;
+        app.diff.files.push(crate::diff_render::DiffFileChange {
+            path: std::path::PathBuf::from("test.rs"),
+            kind: crate::diff_render::DiffChangeKind::Modified,
+            old_content: Some("old".into()),
+            new_content: Some("new".into()),
+            added: 1,
+            removed: 1,
+        });
+        app.enter_diff_mode();
+
+        let offset_before = app.scroll_offset;
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::PageUp, crossterm::event::KeyModifiers::NONE));
+
+        // PageUp 在 Diff 模式下不应滚动 content_lines
+        assert_eq!(app.scroll_offset, offset_before);
+    }
+
+    #[test]
+    fn test_guard_ctrl_c_interrupts_stream() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.stream.thread_busy.insert(id, true);
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('c'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert!(matches!(result, StreamingControl::Interrupted));
+        assert!(!app.is_current_thread_busy());
+        assert!(states.is_empty()); // stream_state 被 remove
+    }
+
+    #[test]
+    fn test_guard_ctrl_d_no_op_when_no_diff_files() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // diff.files 为空，Ctrl+D 应该无效果
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('d'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert!(matches!(app.mode, tui::Mode::Normal));
+        assert!(matches!(result, StreamingControl::Continue));
+    }
+
+    #[test]
+    fn test_guard_ctrl_o_no_op_when_no_content() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 没有 AI 响应也没有 streaming buffer，Ctrl+O 应该无效果
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('o'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert!(matches!(app.mode, tui::Mode::Normal));
+        assert!(!app.is_overlay_mode());
+    }
+
+    #[test]
+    fn test_guard_esc_no_op_when_not_in_thread_mode() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.thread.active_mode = false;
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::NONE));
+
+        assert!(matches!(app.mode, tui::Mode::Normal));
+    }
+
+    #[test]
+    fn test_guard_ctrl_t_no_op_at_max_threads() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        // 创建到 5 个线程上限
+        while app.thread.store.len() < 5 {
+            app.create_side_thread(Some(format!("T-{}", app.thread.store.len())));
+        }
+        let count_before = app.thread.store.len();
+        assert_eq!(count_before, 5);
+
+        let result = handle_single_key_event(&mut app, &mut states, &id,
+            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+
+        assert_eq!(app.thread.store.len(), 5);
+    }
+
+    #[test]
+    fn test_guard_key_release_ignored() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        let release_event = crossterm::event::Event::Key(
+            crossterm::event::KeyEvent::new_with_kind(
+                crossterm::event::KeyCode::Char('a'),
+                crossterm::event::KeyModifiers::NONE,
+                crossterm::event::KeyEventKind::Release,
+            )
+        );
+
+        let result = handle_single_key_event(&mut app, &mut states, &id, release_event);
+        assert!(matches!(result, StreamingControl::Continue));
+        // 输入框不应收到 release 事件
+        assert!(app.input.value().is_empty());
     }
 }
