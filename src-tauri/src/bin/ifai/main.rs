@@ -62,6 +62,7 @@ mod approval_thread_switch_test; // 🧪 审批期间线程切换 E2E 测试
 mod concurrent_processing_test; // 🧪 并发处理 E2E 测试
 #[cfg(test)]
 mod realistic_concurrent_test; // 🔥 高保真 LLM E2E 并发测试
+mod thread_switch_mode_test; // 🔥 线程切换时 Mode 同步测试
 #[cfg(test)]
 mod concurrent_message_cross_talk_test; // 🔥 并发消息串台 E2E 测试
 #[cfg(test)]
@@ -938,6 +939,7 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
             let name = format!("Thread-{}", app.thread.store.len());
             let id = app.create_side_thread(Some(name));
             app.thread.active_mode = true;
+            app.mode = crate::tui::Mode::ThreadPicker;
             app.push_line(format!(
                 "{}✓ 已创建侧线程 {}{}",
                 theme.success,
@@ -1040,6 +1042,7 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                                     app.switch_thread(pid);
                                 }
                                 app.thread.active_mode = false;
+                                app.mode = crate::tui::Mode::Normal;
                                 app.push_line(format!(
                                     "{}✓ 已关闭线程 '{}'{}",
                                     theme.success,
@@ -1577,18 +1580,20 @@ fn handle_single_key_event(
 
         // === Ctrl+T ===
         if !consumed && key.code == KeyCode::Char('t') && key.modifiers.contains(KeyModifiers::CONTROL)
-            && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
+            && app.mode == crate::tui::Mode::Normal
         {
             if app.thread.store.len() < 5 {
                 let name = format!("Thread-{}", app.thread.store.len());
                 app.create_side_thread(Some(name));
                 app.thread.active_mode = true;
+                // 不设置 ThreadPicker 模式：streaming loop 中没有退出 ThreadPicker 的处理逻辑，
+                // 会导致所有 mode == Normal 守卫被阻止，快捷键失效
                 consumed = true;
             }
         }
         // === Alt+Left ===
         else if !consumed && key.code == KeyCode::Left && key.modifiers.contains(KeyModifiers::ALT)
-            && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
+            && app.mode == crate::tui::Mode::Normal
         {
             if let Some(prev_id) = app.thread.store.previous_thread() {
                 app.switch_thread(prev_id);
@@ -1599,7 +1604,7 @@ fn handle_single_key_event(
         }
         // === Alt+Right ===
         else if !consumed && key.code == KeyCode::Right && key.modifiers.contains(KeyModifiers::ALT)
-            && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
+            && app.mode == crate::tui::Mode::Normal
         {
             if let Some(next_id) = app.thread.store.next_thread() {
                 app.switch_thread(next_id);
@@ -1610,13 +1615,14 @@ fn handle_single_key_event(
         }
         // === Esc ===
         else if !consumed && key.code == KeyCode::Esc && app.thread.active_mode
-            && !app.is_overlay_mode() && !app.is_diff_mode() && !app.is_searching() && !app.is_approving()
+            && app.mode == crate::tui::Mode::Normal
         {
             if app.return_to_parent() {
                 app.render();
                 if let Some(thread) = app.thread.store.active_thread() {
                     if thread.kind == crate::thread::ThreadKind::Main {
                         app.thread.active_mode = false;
+                        app.mode = crate::tui::Mode::Normal;
                     }
                 }
             }
@@ -1624,7 +1630,7 @@ fn handle_single_key_event(
         }
 
         // 滚动
-        if !consumed && !app.is_diff_mode() && !app.is_overlay_mode() {
+        if !consumed && app.mode == crate::tui::Mode::Normal {
             match key.code {
                 KeyCode::PageUp => { app.scroll_up(5); consumed = true; }
                 KeyCode::PageDown => { app.scroll_down(5); consumed = true; }

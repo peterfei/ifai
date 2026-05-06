@@ -183,6 +183,39 @@ impl Default for ThreadSubsystem {
     fn default() -> Self { Self::new() }
 }
 
+// ============================================================================
+// Mode enum — 替代分散的布尔模式标志
+// ============================================================================
+
+/// TUI 交互模式。同一时间只有一个模式处于激活状态。
+///
+/// 互斥性由 `enter_*` / `exit_*` 方法和 `consumed` 标志保证。
+/// 替代原先分散在 SearchSubsystem.mode、DiffSubsystem.mode、App.help_mode、
+/// App.overlay、ApprovalSubsystem.states 中的布尔判断。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// 正常输入/浏览模式
+    Normal,
+    /// Diff 查看模式（Ctrl+D 进入）
+    Diff,
+    /// 详情 overlay 模式（Ctrl+O 进入）
+    Overlay,
+    /// 搜索模式（Ctrl+F 进入）
+    Search,
+    /// 工具审批模式（streaming 期间收到 ApprovalRequest）
+    Approving,
+    /// 帮助模式（显示快捷键帮助）
+    Help,
+    /// 线程选择器模式（Ctrl+T）
+    ThreadPicker,
+    /// 命令弹出框模式
+    CommandPopup,
+}
+
+impl Default for Mode {
+    fn default() -> Self { Self::Normal }
+}
+
 
 /// 剥离 ANSI 转义序列（按 char 边界，保留 UTF-8 多字节字符）
 fn strip_ansi(s: &str) -> String {
@@ -345,6 +378,8 @@ impl Drop for StreamGuard<'_> {
 
 /// TUI 应用
 pub struct App {
+    /// 当前交互模式
+    pub mode: Mode,
     /// Terminal（None 表示测试模式）
     terminal: Option<Terminal<CrosstermBackend<Stdout>>>,
     /// 内容区行缓冲
@@ -399,6 +434,7 @@ impl App {
         terminal.hide_cursor()?;
 
         let mut app = Self {
+            mode: Mode::default(),
             terminal: Some(terminal),
             content_lines: Vec::new(),
             scroll_offset: 0,
@@ -428,6 +464,7 @@ impl App {
     #[cfg(test)]
     pub fn new_for_test() -> Self {
         Self {
+            mode: Mode::default(),
             terminal: None,
             content_lines: Vec::new(),
             scroll_offset: 0,
@@ -660,6 +697,7 @@ impl App {
         if self.diff.files.is_empty() {
             return;
         }
+        self.mode = Mode::Diff;
 
         // 默认显示最新的 diff（最后一个）
         self.diff.index = self.diff.files.len().saturating_sub(1);
@@ -716,6 +754,7 @@ impl App {
 
     /// 退出 diff 模式
     pub fn exit_diff_mode(&mut self) {
+        self.mode = Mode::Normal;
         self.diff.mode = false;
         self.diff.view = None;
 
@@ -727,7 +766,7 @@ impl App {
 
     /// 是否处于 diff 模式
     pub fn is_diff_mode(&self) -> bool {
-        self.diff.mode
+        self.mode == Mode::Diff
     }
 
     // ========================================================================
@@ -736,11 +775,12 @@ impl App {
 
     /// 是否处于 overlay 模式
     pub fn is_overlay_mode(&self) -> bool {
-        self.overlay.is_some()
+        self.mode == Mode::Overlay
     }
 
     /// 进入 overlay 模式
     pub fn enter_overlay_mode(&mut self, overlay: crate::detail_overlay::DetailOverlay) {
+        self.mode = Mode::Overlay;
         self.overlay = Some(overlay);
         // 清除终端 buffer，确保 overlay 清晰显示
         if let Some(terminal) = &mut self.terminal {
@@ -750,6 +790,7 @@ impl App {
 
     /// 退出 overlay 模式
     pub fn exit_overlay_mode(&mut self) {
+        self.mode = Mode::Normal;
         self.overlay = None;
         // 清除终端 buffer，确保 overlay 残留被清除
         if let Some(terminal) = &mut self.terminal {
@@ -857,6 +898,13 @@ impl App {
         let thread_id = request.thread_id;
         self.approval.states.insert(thread_id, request);
         self.approval.selected = 0; // 重置选中项为第一个
+        // 如果是当前活动线程的审批请求，切换到 Approving 模式
+        let current_thread_id = self.thread.store.active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread.store.primary_id());
+        if thread_id == current_thread_id {
+            self.mode = Mode::Approving;
+        }
     }
 
     /// 获取当前活动线程的审批状态（用于外部访问）
@@ -887,6 +935,11 @@ impl App {
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
+        // 恢复 Normal 模式
+        if self.mode == Mode::Approving {
+            self.mode = Mode::Normal;
+        }
+
         let tool_name = self
             .approval.states
             .get(&current_thread_id)
@@ -913,13 +966,8 @@ impl App {
     }
 
     /// 是否处于审批状态
-    /// 🔥 关键修复：只检查当前活动线程的审批状态
     pub fn is_approving(&self) -> bool {
-        let current_thread_id = self.thread.store.active_thread()
-            .map(|t| t.id)
-            .unwrap_or_else(|| self.thread.store.primary_id());
-
-        self.approval.states.contains_key(&current_thread_id)
+        self.mode == Mode::Approving
     }
 
     /// 🔥 获取并移除当前线程的待处理审批请求（用于重新发送到审批 loop）
@@ -937,11 +985,12 @@ impl App {
 
     /// 是否处于搜索模式
     pub fn is_searching(&self) -> bool {
-        self.search.mode
+        self.mode == Mode::Search
     }
 
     /// 进入搜索模式
     pub fn enter_search_mode(&mut self) {
+        self.mode = Mode::Search;
         self.search.mode = true;
         self.search.query.clear();
         self.search.matches.clear();
@@ -951,6 +1000,7 @@ impl App {
 
     /// 退出搜索模式
     pub fn exit_search_mode(&mut self) {
+        self.mode = Mode::Normal;
         self.search.mode = false;
         self.search.query.clear();
         self.search.matches.clear();
@@ -2018,6 +2068,21 @@ impl App {
 
             for msg in messages_to_load {
                 self.push_line(msg);
+            }
+
+            // 同步 mode：如果目标线程有审批请求，切到 Approving；否则恢复 Normal
+            // 退出 overlay/diff/search 等非 per-thread 模式
+            match self.mode {
+                Mode::Overlay => { self.exit_overlay_mode(); }
+                Mode::Diff => { self.exit_diff_mode(); }
+                Mode::Search => { self.exit_search_mode(); }
+                Mode::Help => { self.help_mode = false; self.mode = Mode::Normal; }
+                Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::Normal => {}
+            }
+            if self.approval.states.contains_key(&thread_id) {
+                self.mode = Mode::Approving;
+            } else if self.mode == Mode::Approving {
+                self.mode = Mode::Normal;
             }
 
             true

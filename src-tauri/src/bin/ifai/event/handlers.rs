@@ -394,6 +394,7 @@ impl EventHandler<Event> for HelpEnterHandler {
             // 导致无法继续输入的问题
             if key.code == KeyCode::Char('?') && !app.help_mode && !app.is_searching() && app.input.value().is_empty() {
                 app.help_mode = true;
+                app.mode = crate::tui::Mode::Help;
                 // 清除输入框（防止 ? 被添加）
                 app.input.clear();
                 // 设置 help_mode 后，CombinedKeyHandler 会跳过输入处理
@@ -411,6 +412,7 @@ impl EventHandler<Event> for HelpExitHandler {
         if let Event::Key(key) = event {
             if key.code == KeyCode::Esc && app.help_mode {
                 app.help_mode = false;
+                app.mode = crate::tui::Mode::Normal;
                 return ControlFlow::Continue;
             }
         }

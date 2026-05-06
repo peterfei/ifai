@@ -128,12 +128,8 @@ pub struct ThreadEnterHandler;
 
 impl EventHandler<Event> for ThreadEnterHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        // 模式守卫：overlay/diff/search 时不响应
-        if app.is_overlay_mode()
-            || app.is_diff_mode()
-            || app.is_searching()
-            || app.is_approving()
-        {
+        // 模式守卫：非 Normal 模式时不响应
+        if app.mode != crate::tui::Mode::Normal {
             return ControlFlow::Continue;
         }
 
@@ -152,6 +148,7 @@ impl EventHandler<Event> for ThreadEnterHandler {
                             let name = format!("Thread-{}", app.thread.store.len());
                             app.create_side_thread(Some(name));
                             app.thread.active_mode = true;
+                            app.mode = crate::tui::Mode::ThreadPicker;
 
                             return ControlFlow::Break(AppResult::Handled);
                         }
@@ -211,6 +208,7 @@ impl EventHandler<Event> for ThreadModeHandler {
                             if let Some(thread) = active {
                                 if thread.kind == crate::thread::ThreadKind::Main {
                                     app.thread.active_mode = false;
+                                    app.mode = crate::tui::Mode::Normal;
                                 }
                             }
                         }
