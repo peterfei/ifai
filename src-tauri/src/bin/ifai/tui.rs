@@ -1195,11 +1195,7 @@ impl App {
         let separator_area = chunks[2];
         let input_area = chunks[3];
 
-        // 清空内容区（确保 overlay 关闭后残留内容被清除）
-        f.render_widget(Clear, content_area);
-
-        // 计算内容区域信息（用于滚动指示器）
-        // 当 tasks 面板或命令弹出框可见时，减去它们的高度避免内容被遮挡
+        // 计算 overlay 高度（task 面板或命令弹出框）
         let overlay_height = if show_tasks && task_height > 0 {
             task_height
         } else if popup_visible && popup_height > 0 {
@@ -1207,6 +1203,23 @@ impl App {
         } else {
             0
         };
+
+        // 当 overlay 可见时，缩小内容区底部避免遮挡
+        let content_render_area = if overlay_height > 0 && content_area.height > overlay_height {
+            Rect::new(
+                content_area.x,
+                content_area.y,
+                content_area.width,
+                content_area.height.saturating_sub(overlay_height),
+            )
+        } else {
+            content_area
+        };
+
+        // 清空内容区（确保 overlay 关闭后残留内容被清除）
+        f.render_widget(Clear, content_area);
+
+        // 计算内容区域信息（用于滚动指示器）
         let visible_count = (content_area.height as usize).saturating_sub(overlay_height as usize);
         let total_lines = content_lines.len();
 
@@ -1240,7 +1253,7 @@ impl App {
                         .collect();
 
                     let diff_content = Paragraph::new(visible_lines);
-                    f.render_widget(diff_content, content_area);
+                    f.render_widget(diff_content, content_render_area);
 
                     // 显示滚动百分比
                     if let Some(pct) = diff_view.percent_scrolled() {
@@ -1267,7 +1280,7 @@ impl App {
                 // 居中显示欢迎页
                 let welcome_content =
                     Paragraph::new(welcome_lines).alignment(ratatui::layout::Alignment::Center);
-                f.render_widget(welcome_content, content_area);
+                f.render_widget(welcome_content, content_render_area);
             } else if help_mode {
                 // === 帮助覆盖层显示 ===
                 let help_overlay = super::keybindings::HelpOverlay::new();
@@ -1276,7 +1289,7 @@ impl App {
                 // 帮助内容居左显示
                 let help_content =
                     Paragraph::new(help_lines).alignment(ratatui::layout::Alignment::Left);
-                f.render_widget(help_content, content_area);
+                f.render_widget(help_content, content_render_area);
             } else if search_mode && !search_query.is_empty() {
                 // === 搜索模式：渲染带高亮的行 ===
                 let start = scroll_offset as usize;
@@ -1313,14 +1326,14 @@ impl App {
                     .collect();
 
                 let content = Paragraph::new(visible_lines).scroll((0, 0));
-                f.render_widget(content, content_area);
+                f.render_widget(content, content_render_area);
             } else {
                 // === 正常模式：直接渲染 ===
                 let start = scroll_offset as usize;
                 let end = (start + visible_count).min(total_lines);
                 let visible_lines: Vec<Line> = content_lines[start..end].to_vec();
                 let content = Paragraph::new(visible_lines).scroll((0, 0));
-                f.render_widget(content, content_area);
+                f.render_widget(content, content_render_area);
             }
         } else {
             // 审批模式：用黑色背景清除内容区域
