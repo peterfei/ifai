@@ -285,6 +285,42 @@ impl Default for EventCollector {
     }
 }
 
+/// 友好错误消息：根据 ApiError 类型返回用户可读的提示
+fn format_stream_error(error: &ifainew_lib::harness::api::types::ApiError) -> String {
+    use ifainew_lib::harness::api::types::ApiError;
+    match error {
+        ApiError::HttpError { status, message: _ } => match status.as_u16() {
+            401 | 403 => "Authentication failed. Check your API key.".into(),
+            429 => "Rate limited. Please wait a moment and retry.".into(),
+            500..=599 => format!(
+                "Server error ({}). Service may be temporarily unavailable.",
+                status
+            ),
+            _ => format!("HTTP error {}", status),
+        },
+        ApiError::Network(msg)
+            if msg.contains("timed out") || msg.contains("timeout") =>
+        {
+            "Connection timed out. Check network/proxy settings and retry.".into()
+        }
+        ApiError::Network(msg)
+            if msg.contains("dns")
+                || msg.contains("resolve")
+                || msg.contains("getaddrinfo") =>
+        {
+            "Cannot resolve API host. Check your base_url configuration.".into()
+        }
+        ApiError::Network(msg)
+            if msg.contains("tls")
+                || msg.contains("certificate")
+                || msg.contains("connection refused") =>
+        {
+            "Connection failed. Check if the API server is reachable.".into()
+        }
+        _ => format!("Connection error: {}", error),
+    }
+}
+
 // ============================================================================
 // Continuation Guard
 // ============================================================================
@@ -709,6 +745,7 @@ impl Session {
             };
 
             // 发送流式请求（带瞬时错误重试）
+            let theme = render::default_theme();
             let retry_policy = RetryPolicy {
                 max: 2,
                 delays: vec![Duration::from_secs(1), Duration::from_secs(2)],
@@ -726,6 +763,7 @@ impl Session {
                     if continuation_count == 0 {
                         self.default_ctx.messages.pop();
                     }
+                    eprintln!("{}{}{}", theme.error, format_stream_error(&e), RESET);
                     return Err(format!("Failed to start stream: {:?}", e));
                 }
             };
@@ -763,7 +801,6 @@ impl Session {
             });
             self.animation_task = Some(animation_task);
 
-            let theme = render::default_theme();
             let mut first_delta = true;
             let mut current_response = String::new();
             let mut stream_retry_count: u32 = 0; // R3: chunk 级重试计数器
@@ -928,7 +965,7 @@ impl Session {
                                             spinner.finish(false);
                                             print!("\r{}  \r", " ".repeat(30));
                                         }
-                                        eprintln!("\n{}Stream error: {:?}{}", theme.error, retry_err, RESET);
+                                        eprintln!("\n{}{}{}", theme.error, format_stream_error(&retry_err), RESET);
                                         return Err(format!("Stream error: {:?}", retry_err));
                                     }
                                 }
@@ -938,10 +975,13 @@ impl Session {
                                     spinner.finish(false);
                                     print!("\r{}  \r", " ".repeat(30));
                                 }
-                                eprintln!("\n{}Stream error: {:?}{}", theme.error, e, RESET);
+                                eprintln!("\n{}{}{}", theme.error, format_stream_error(&e), RESET);
                                 return Err(format!("Stream error: {:?}", e));
                             }
                             None => {
+                                if !collector.is_done() {
+                                    eprintln!("\n{}Stream ended unexpectedly. The response may be incomplete.{}", theme.error, RESET);
+                                }
                                 break;
                             }
                         }
@@ -1349,6 +1389,8 @@ impl Session {
                 },
             };
 
+            let _ = status_tx.send(format!("Connecting ({})...", model));
+
             let mut stream = match with_retry(
                 &retry_policy,
                 |e: &ifainew_lib::harness::api::types::ApiError| e.is_retryable(),
@@ -1363,7 +1405,7 @@ impl Session {
                         let mut ctx = thread_ctx.lock().await;
                         ctx.messages.pop();
                     }
-                    let _ = output_tx.send(format!("Stream error: {:?}", e).into());
+                    let _ = output_tx.send(format_stream_error(&e).into());
                     return Err(format!("Failed to start stream: {:?}", e));
                 }
             };
@@ -1513,16 +1555,25 @@ impl Session {
                         match client.stream(request.clone()).await {
                             Ok(new_stream) => stream = new_stream,
                             Err(retry_err) => {
-                                let _ = output_tx.send(format!("Stream error: {:?}", retry_err).into());
+                                let _ = output_tx.send(format_stream_error(&retry_err).into());
                                 return Err(format!("Stream error: {:?}", retry_err));
                             }
                         }
                     }
                     Some(Err(e)) => {
-                        let _ = output_tx.send(format!("Stream error: {:?}", e).into());
+                        let _ = output_tx.send(format_stream_error(&e).into());
                         return Err(format!("Stream error: {:?}", e));
                     }
                     None => {
+                        if !collector.is_done() {
+                            // 异常断开 — 未收到 MessageDone
+                            if !line_buffer.is_empty() {
+                                let _ = output_tx.send(std::mem::take(&mut line_buffer).into());
+                            }
+                            let _ = output_tx.send(
+                                "Stream ended unexpectedly. The response may be incomplete.".to_string().into(),
+                            );
+                        }
                         break;
                     }
                 }

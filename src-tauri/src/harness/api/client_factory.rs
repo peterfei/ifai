@@ -15,7 +15,7 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            connect_timeout_secs: 30,
+            connect_timeout_secs: 10,
             read_timeout_secs: 600,
         }
     }
