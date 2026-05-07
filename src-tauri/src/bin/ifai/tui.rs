@@ -1204,13 +1204,13 @@ impl App {
             0
         };
 
-        // 当 overlay 可见时，缩小内容区底部避免遮挡
-        let content_render_area = if overlay_height > 0 && content_area.height > overlay_height {
+        // 当 overlay 可见时，缩小内容区底部避免遮挡（+1 留出间隔行）
+        let content_render_area = if overlay_height > 0 && content_area.height > overlay_height + 1 {
             Rect::new(
                 content_area.x,
                 content_area.y,
                 content_area.width,
-                content_area.height.saturating_sub(overlay_height),
+                content_area.height.saturating_sub(overlay_height + 1),
             )
         } else {
             content_area
@@ -1220,7 +1220,7 @@ impl App {
         f.render_widget(Clear, content_area);
 
         // 计算内容区域信息（用于滚动指示器）
-        let visible_count = (content_area.height as usize).saturating_sub(overlay_height as usize);
+        let visible_count = (content_area.height as usize).saturating_sub(overlay_height as usize).saturating_sub(if overlay_height > 0 { 1 } else { 0 });
         let total_lines = content_lines.len();
 
         // === 内容区 ===
