@@ -745,11 +745,6 @@ impl App {
 
         self.diff.view = Some(scrollable_diff);
         self.diff.mode = true;
-
-        // 清除终端 buffer，确保 overlay 残留被清除
-        if let Some(terminal) = &mut self.terminal {
-            let _ = terminal.clear();
-        }
     }
 
     /// 退出 diff 模式
@@ -757,11 +752,6 @@ impl App {
         self.mode = Mode::Normal;
         self.diff.mode = false;
         self.diff.view = None;
-
-        // 清除终端 buffer，确保 overlay 残残留被清除
-        if let Some(terminal) = &mut self.terminal {
-            let _ = terminal.clear();
-        }
     }
 
     /// 是否处于 diff 模式
@@ -782,20 +772,12 @@ impl App {
     pub fn enter_overlay_mode(&mut self, overlay: crate::detail_overlay::DetailOverlay) {
         self.mode = Mode::Overlay;
         self.overlay = Some(overlay);
-        // 清除终端 buffer，确保 overlay 清晰显示
-        if let Some(terminal) = &mut self.terminal {
-            let _ = terminal.clear();
-        }
     }
 
     /// 退出 overlay 模式
     pub fn exit_overlay_mode(&mut self) {
         self.mode = Mode::Normal;
         self.overlay = None;
-        // 清除终端 buffer，确保 overlay 残留被清除
-        if let Some(terminal) = &mut self.terminal {
-            let _ = terminal.clear();
-        }
     }
 
     // ========================================================================

@@ -507,6 +507,7 @@ impl EventHandler<Event> for DiffModeHandler {
                         }
                         ScrollAction::Exit => {
                             app.exit_diff_mode();
+                            return ControlFlow::Break(crate::AppResult::Handled);
                         }
                     },
                     DiffAction::NextFile => {
@@ -588,7 +589,7 @@ impl EventHandler<Event> for DetailModeHandler {
                 || key.code == KeyCode::Char('q')
             {
                 app.exit_overlay_mode();
-                return ControlFlow::Continue;
+                return ControlFlow::Break(crate::AppResult::Handled);
             }
 
             // 其他按键通过 resolve_overlay_key 解析
@@ -622,6 +623,7 @@ impl EventHandler<Event> for DetailModeHandler {
                             }
                             ScrollAction::Exit => {
                                 app.exit_overlay_mode();
+                                return ControlFlow::Break(crate::AppResult::Handled);
                             }
                         },
                         OverlayAction::Search => {
