@@ -1779,6 +1779,7 @@ fn handle_single_key_event(
             use crate::event::handlers::DiffModeHandler;
             let mut handler = DiffModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
+            app.render();
             return StreamingControl::Continue;
         }
 
@@ -1788,6 +1789,7 @@ fn handle_single_key_event(
             use crate::event::handlers::DetailModeHandler;
             let mut handler = DetailModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
+            app.render();
             return StreamingControl::Continue;
         }
 
