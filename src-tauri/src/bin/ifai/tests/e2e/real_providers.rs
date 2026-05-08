@@ -61,6 +61,19 @@ async fn make_zhipu_hf_env() -> Option<TestEnv> {
     Some(tenv)
 }
 
+/// 创建 OpenAI 测试环境
+async fn make_openai_env() -> Option<TestEnv> {
+    const OPENAI_SPEC: ProviderSpec = ProviderSpec {
+        name: "OpenAI",
+        flag: "openai",
+        model: "gpt-4o-mini",
+        env_key: "OPENAI_API_KEY",
+    };
+
+    let ksrc = check_provider(&OPENAI_SPEC)?;
+    Some(make_test_env(&OPENAI_SPEC, ksrc).await)
+}
+
 /// 检查 provider 是否可用：env var > config.toml
 fn check_provider(spec: &ProviderSpec) -> Option<&'static str> {
     if let Ok(key) = std::env::var(spec.env_key) {
@@ -924,4 +937,194 @@ async fn test_zhipu_hf_todowrite_empty_args_diagnosis() {
         todowrite_count, tool_count, cont_count,
         empty_block_count, empty_trip_count,
         provider_empty_diag, json_parse_fail);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 跨 Provider 对比测试：TodoWrite 空参数问题
+// ═══════════════════════════════════════════════════════════
+//
+// 目标：对比不同 Provider 在 TodoWrite 调用上的行为差异
+// 验证：智谱 GLM 是否更容易出现空参数问题
+
+/// 对比测试：OpenAI vs 智谱 - TodoWrite 基础调用
+///
+/// 验证：两个 Provider 都能正常执行 TodoWrite
+#[tokio::test]
+#[serial_test::serial]
+async fn test_cross_provider_todowrite_basic_call() {
+    let Some(mut tenv) = make_openai_env().await else {
+        eprintln!("[SKIP] test_cross_provider_todowrite_basic_call: no OpenAI API key");
+        return;
+    };
+
+    let output = match tenv.run_cli(&["使用 TodoWrite 创建一个任务列表"]).await {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("[SKIP] OpenAI CLI launch failed: {}", e);
+            return;
+        }
+    };
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+    let todowrite_count = combined.matches("TodoWrite").count();
+    let empty_block_count = combined.matches("空参数阻止").count();
+
+    eprintln!("[OpenAI] TodoWrite×{}, 空参数×{}", todowrite_count, empty_block_count);
+
+    // OpenAI 应该能正常执行 TodoWrite，很少或没有空参数
+    if todowrite_count >= 1 {
+        eprintln!("  ✓ OpenAI: TodoWrite executed normally");
+        assert!(
+            empty_block_count < todowrite_count,
+            "OpenAI: Too many empty args ({}/{}), may indicate provider issue",
+            empty_block_count, todowrite_count
+        );
+    }
+}
+
+/// 对比测试：智谱 - TodoWrite 基础调用
+///
+/// 验证：智谱是否能正常执行 TodoWrite
+#[tokio::test]
+#[serial_test::serial]
+async fn test_cross_provider_zhipu_todowrite_basic_call() {
+    let Some(mut tenv) = make_zhipu_hf_env().await else {
+        eprintln!("[SKIP] test_cross_provider_zhipu_todowrite_basic_call: no Zhipu API key");
+        return;
+    };
+
+    let output = match tenv.run_cli(&["使用 TodoWrite 创建一个任务列表"]).await {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("[SKIP] Zhipu CLI launch failed: {}", e);
+            return;
+        }
+    };
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+    let todowrite_count = combined.matches("TodoWrite").count();
+    let empty_block_count = combined.matches("空参数阻止").count();
+
+    eprintln!("[Zhipu] TodoWrite×{}, 空参数×{}", todowrite_count, empty_block_count);
+
+    // 智谱可能出现空参数（这是我们要验证的问题）
+    if todowrite_count >= 1 {
+        if empty_block_count >= 1 {
+            eprintln!("  ⚠️ Zhipu: 空参数问题确认！{} 个 TodoWrite 调用中有 {} 个空参数",
+                todowrite_count, empty_block_count);
+        } else {
+            eprintln!("  ✓ Zhipu: TodoWrite executed normally (no empty args)");
+        }
+    }
+}
+
+/// 对比测试：长对话场景 - TodoWrite 空参数触发条件
+///
+/// 场景：创建复杂任务列表 → 执行任务 → 更新状态
+/// 验证：长对话中智谱是否更容易出现空参数
+#[tokio::test]
+#[serial_test::serial]
+async fn test_cross_provider_long_conversation_todowrite() {
+    // 预填 stdin：自动批准
+    let auto_approve: String = "y\n".repeat(30);
+    let Some(mut tenv) = make_zhipu_hf_env().await else {
+        eprintln!("[SKIP] test_cross_provider_long_conversation_todowrite: no Zhipu API key");
+        return;
+    };
+    tenv.set_stdin(&auto_approve);
+
+    let output = match tenv.run_cli(&[
+        "创建一个包含 5 个步骤的任务列表：",
+        "1. 创建项目目录结构",
+        "2. 初始化 Git 仓库",
+        "3. 创建 README.md",
+        "4. 编写 main 函数",
+        "5. 运行测试"
+    ]).await {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("[SKIP] Zhipu CLI launch failed: {}", e);
+            return;
+        }
+    };
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+    let todowrite_count = combined.matches("TodoWrite").count();
+    let empty_block_count = combined.matches("空参数阻止").count();
+    let cont_count = combined.matches("Continuing").count();
+
+    eprintln!("[Zhipu-长对话] TodoWrite×{}, 空参数×{}, 续播×{}",
+        todowrite_count, empty_block_count, cont_count);
+
+    // 验证：长对话中智谱可能出现空参数
+    if todowrite_count >= 2 && empty_block_count >= 1 {
+        eprintln!("  ⚠️ 确认：长对话触发空参数问题！");
+        eprintln!("     可能原因：上下文压缩后工具定义退化");
+    }
+}
+
+/// 统计测试：收集多个 Provider 的 TodoWrite 空参数数据
+///
+/// 目标：建立基线数据，对比不同 Provider 的空参数频率
+#[tokio::test]
+#[serial_test::serial]
+async fn test_cross_provider_todowrite_empty_args_baseline() {
+    let mut results: Vec<(String, usize, usize)> = Vec::new();
+
+    // 测试智谱
+    if let Some(mut tenv) = make_zhipu_hf_env().await {
+        tenv.set_stdin(&"y\n".repeat(20));
+
+        if let Ok(output) = tenv.run_cli(&["创建任务列表"]).await {
+            let combined = format!("{}\n{}", output.stdout, output.stderr);
+            let todowrite = combined.matches("TodoWrite").count();
+            let empty = combined.matches("空参数阻止").count();
+            results.push(("Zhipu".to_string(), todowrite, empty));
+            eprintln!("[基线] Zhipu: TodoWrite={}, 空参数={}", todowrite, empty);
+        }
+    }
+
+    // 测试 OpenAI（如果可用）
+    if let Some(mut tenv) = make_openai_env().await {
+        tenv.set_stdin(&"y\n".repeat(20));
+
+        if let Ok(output) = tenv.run_cli(&["创建任务列表"]).await {
+            let combined = format!("{}\n{}", output.stdout, output.stderr);
+            let todowrite = combined.matches("TodoWrite").count();
+            let empty = combined.matches("空参数阻止").count();
+            results.push(("OpenAI".to_string(), todowrite, empty));
+            eprintln!("[基线] OpenAI: TodoWrite={}, 空参数={}", todowrite, empty);
+        }
+    }
+
+    // 输出对比结果
+    eprintln!("\n  ══════════════════════════════════════════════════════");
+    eprintln!("  [跨 Provider 对比] TodoWrite 空参数频率");
+    eprintln!("  ══════════════════════════════════════════════════════");
+    for (provider, todowrite, empty) in &results {
+        let ratio = if *todowrite > 0 {
+            (*empty as f64 / *todowrite as f64 * 100.0) as usize
+        } else {
+            0
+        };
+        eprintln!("  {:10}: TodoWrite={:2}, 空参数={:2} ({}%)",
+            provider, todowrite, empty, ratio);
+    }
+    eprintln!("  ══════════════════════════════════════════════════════");
+
+    // 断言：如果智谱有更多空参数，验证问题存在
+    if results.len() >= 2 {
+        let zhipu_empty = results.iter()
+            .find(|(p, _, _)| p == "Zhipu")
+            .map(|(_, _, e)| *e)
+            .unwrap_or(0);
+        let openai_empty = results.iter()
+            .find(|(p, _, _)| p == "OpenAI")
+            .map(|(_, _, e)| *e)
+            .unwrap_or(0);
+
+        if zhipu_empty > openai_empty {
+            eprintln!("  ✓ 确认：智谱比 OpenAI 更容易出现 TodoWrite 空参数");
+        }
+    }
 }

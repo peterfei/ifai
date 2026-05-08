@@ -137,6 +137,7 @@ tracing-subscriber = "0.3"
 tempfile = "3.10"
 insta = "1"
 pretty_assertions = "1"
+ctor = "0.2"  # 🔥 测试模块全局初始化（用于设置环境变量）
 
 # CLI 测试框架
 assert_cmd = "2.0"

@@ -195,11 +195,15 @@ impl ApiClient for DeepSeekClient {
                                         //     tool_args_buffer.keys().collect::<Vec<_>>()
                                         // );
 
-                                        // 发送所有累积的工具参数（即使为空也发送，让下游 breaker 处理）
+                                        // 发送所有累积的工具参数
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
-                                            yield Ok(StreamEvent::ToolDone {
-                                                tool_id: tool_id.clone(),
-                                                result: args.clone(),
+                                            // 🔥 元编程：编译期生成 Provider 感知的过滤逻辑
+                                            use crate::harness::api::providers::filter_empty_tool_calls;
+                                            filter_empty_tool_calls!(deepseek, tool_id, args, {
+                                                yield Ok(StreamEvent::ToolDone {
+                                                    tool_id: tool_id.clone(),
+                                                    result: args.clone(),
+                                                });
                                             });
                                         }
                                         // 清空缓冲区
@@ -241,9 +245,13 @@ impl ApiClient for DeepSeekClient {
                     );
                 }
                 for (_index, (tool_id, args)) in tool_args_buffer.iter() {
-                    yield Ok(StreamEvent::ToolDone {
-                        tool_id: tool_id.clone(),
-                        result: args.clone(),
+                    // 🔥 元编程：复用相同的过滤逻辑
+                    use crate::harness::api::providers::filter_empty_tool_calls;
+                    filter_empty_tool_calls!(deepseek, tool_id, args, {
+                        yield Ok(StreamEvent::ToolDone {
+                            tool_id: tool_id.clone(),
+                            result: args.clone(),
+                        });
                     });
                 }
                 tool_args_buffer.clear();

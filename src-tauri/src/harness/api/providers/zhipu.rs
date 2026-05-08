@@ -194,16 +194,20 @@ impl ApiClient for ZhipuClient {
                                     if let Some(reason) = &choice.finish_reason {
                                         last_finish_reason = Some(reason.clone());
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
-                                            // 🔍 诊断：记录工具参数完整性
-                                            if args.is_empty() || args.trim() == "{}" {
-                                                if std::env::var("IFAI_QUIET").is_err() {
-                                                    eprintln!("[Zhipu] ⚠️ ToolDone with empty args: tool_id={}, args_len={}, args_preview='{}', finish_reason={}",
-                                                        tool_id, args.len(), &args[..args.len().min(100)], reason);
+                                            // 🔥 元编程：编译期生成 Provider 感知的过滤逻辑
+                                            use crate::harness::api::providers::filter_empty_tool_calls;
+                                            filter_empty_tool_calls!(zhipu, tool_id, args, {
+                                                // 🔍 诊断：记录工具参数完整性（非空但长度为0的情况）
+                                                if args.is_empty() {
+                                                    if std::env::var("IFAI_QUIET").is_err() {
+                                                        eprintln!("[Zhipu] ⚠️ ToolDone with empty args: tool_id={}, args_len={}, finish_reason={}",
+                                                            tool_id, args.len(), reason);
+                                                    }
                                                 }
-                                            }
-                                            yield Ok(StreamEvent::ToolDone {
-                                                tool_id: tool_id.clone(),
-                                                result: args.clone(),
+                                                yield Ok(StreamEvent::ToolDone {
+                                                    tool_id: tool_id.clone(),
+                                                    result: args.clone(),
+                                                });
                                             });
                                         }
                                         tool_args_buffer.clear();
@@ -227,9 +231,13 @@ impl ApiClient for ZhipuClient {
             // 流结束兜底：finish_reason 缺失时 flush 残留的工具调用
             if !tool_args_buffer.is_empty() {
                 for (_index, (tool_id, args)) in tool_args_buffer.iter() {
-                    yield Ok(StreamEvent::ToolDone {
-                        tool_id: tool_id.clone(),
-                        result: args.clone(),
+                    // 🔥 元编程：复用相同的过滤逻辑
+                    use crate::harness::api::providers::filter_empty_tool_calls;
+                    filter_empty_tool_calls!(zhipu, tool_id, args, {
+                        yield Ok(StreamEvent::ToolDone {
+                            tool_id: tool_id.clone(),
+                            result: args.clone(),
+                        });
                     });
                 }
                 tool_args_buffer.clear();

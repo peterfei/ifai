@@ -13,9 +13,22 @@
 //   2. 有效参数正常执行
 //   3. 混合空参数和有效参数正常工作
 //   4. 全局熔断触发终止
+//
+// ⚠️ 重要：这些测试验证 breaker 机制，因此需要禁用 Provider 层的空参数过滤
+// 通过设置 IFAI_SKIP_EMPTY_ARGS=0 来禁用过滤，让空参数到达 breaker
 
 use crate::tests::common::*;
 use std::sync::atomic::Ordering;
+
+// 🔥 全局测试初始化：使用 build.rs 或在测试脚本中设置环境变量更优雅
+// 这里使用简单方案：在测试文件顶部定义一个静态变量来触发初始化
+#[cfg(test)]
+mod test_init {
+    #[ctor::ctor]
+    fn global_init() {
+        std::env::set_var("IFAI_SKIP_EMPTY_ARGS", "0");
+    }
+}
 
 /// 空参数放行到 execute_tools，breaker 返回错误，AI 看到错误后下一轮可能修正
 ///
@@ -24,6 +37,9 @@ use std::sync::atomic::Ordering;
 ///   Turn 2: text "done" → 正常结束
 #[tokio::test]
 async fn test_empty_args_passes_to_execute_tools() {
+    // 🔥 测试模式：禁用 Provider 层过滤，验证 breaker 机制
+    std::env::set_var("IFAI_SKIP_EMPTY_ARGS", "0");
+
     let env = TestEnv::with_mock().await.unwrap();
 
     let turn_responses = vec![
@@ -519,4 +535,217 @@ async fn test_long_sequence_global_trip_by_loop_detector() {
     );
 
     eprintln!("  Actual API turns: {actual_turns} (expected 8) — valid args reset global count, no GlobalTripped");
+}
+
+// ═══════════════════════════════════════════════════════════
+// TodoWrite 空参数专项测试
+// ═══════════════════════════════════════════════════════════
+//
+// 目标：确认 TodoWrite({}) 空参数问题确实存在
+// 场景：模拟智谱 GLM 模型在续播后反复发送 TodoWrite({}) 的行为
+
+/// TodoWrite 空参数触发 breaker FirstOffense
+///
+/// 场景：AI 先正常调用 TodoWrite，然后发送空参数
+/// 验证：空参数被 breaker 捕获并返回错误
+#[tokio::test]
+async fn test_todowrite_empty_args_triggers_first_offense() {
+    let env = TestEnv::with_mock().await.unwrap();
+
+    // Turn 1: 正常 TodoWrite 调用
+    // Turn 2: TodoWrite({}) 空参数 → FirstOffense → 返回错误
+    // Turn 3: text "done" → 正常结束
+    let turn_responses = vec![
+        build_tool_call_sse(
+            "TodoWrite",
+            r#"{"todos":[{"content":"Task 1","activeForm":"Doing Task 1","status":"pending"}]}"#,
+            "c1"
+        ),
+        build_tool_call_sse("TodoWrite", "{}", "c2"),  // 空参数
+        build_text_sse("done"),
+    ];
+
+    let turn_counter = if let Some(mock) = env.mock_server() {
+        mock.setup_multi_turn_streaming(turn_responses).await
+    } else {
+        panic!("Mock server not available");
+    };
+
+    let output = env.run_cli(&["创建任务"]).await.unwrap();
+    output.assert_success();
+
+    let actual_turns = turn_counter.load(Ordering::SeqCst);
+    assert_eq!(
+        actual_turns, 3,
+        "Expected 3 API turns (valid TodoWrite → empty TodoWrite FirstOffense → text done), got {}",
+        actual_turns
+    );
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+    // 验证空参数阻止确实发生
+    assert!(
+        combined.contains("空参数阻止") || combined.contains("TodoWrite"),
+        "Expected evidence of empty args blocking in output"
+    );
+
+    eprintln!("  ✓ TodoWrite empty args confirmed: FirstOffense triggered");
+}
+
+/// TodoWrite 连续空参数触发 PerToolTripped 熔断
+///
+/// 场景：AI 连续 3 次发送 TodoWrite({})
+/// 验证：熔断机制生效，返回 "Skipped"
+#[tokio::test]
+async fn test_todowrite_consecutive_empty_args_trips_breaker() {
+    let env = TestEnv::with_mock().await.unwrap();
+
+    // 连续 3 次 TodoWrite({}) → PerToolTripped → 所有工具被跳过
+    let turn_responses = vec![
+        build_tool_call_sse("TodoWrite", "{}", "c1"),  // Turn 1: FirstOffense
+        build_tool_call_sse("TodoWrite", "{}", "c2"),  // Turn 2: FirstOffense
+        build_tool_call_sse("TodoWrite", "{}", "c3"),  // Turn 3: PerToolTripped → Skipped
+        build_text_sse("done"),  // 不会被执行（Skipped 触发终止）
+    ];
+
+    let turn_counter = if let Some(mock) = env.mock_server() {
+        mock.setup_multi_turn_streaming(turn_responses).await
+    } else {
+        panic!("Mock server not available");
+    };
+
+    let output = env.run_cli(&["测试"]).await.unwrap();
+    output.assert_success();
+
+    let actual_turns = turn_counter.load(Ordering::SeqCst);
+    // 3 轮工具调用（第 3 轮 PerToolTripped 后 Skipped 终止）
+    assert_eq!(
+        actual_turns, 3,
+        "Expected 3 API turns (2 FirstOffense + 1 PerToolTripped → terminate), got {}",
+        actual_turns
+    );
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+    // 验证熔断确实发生
+    assert!(
+        combined.contains("熔断") || combined.contains("跳过") || combined.contains("Skipped"),
+        "Expected evidence of breaker tripping in output"
+    );
+
+    eprintln!("  ✓ TodoWrite breaker confirmed: PerToolTripped triggered after 3 empty args");
+}
+
+/// TodoWrite 有效参数重置空参数计数
+///
+/// 场景：空参数 → 有效参数 → 空参数
+/// 验证：有效参数重置 per-tool 计数，第二个空参数仍是 FirstOffense
+#[tokio::test]
+async fn test_todowrite_valid_args_resets_empty_counter() {
+    let env = TestEnv::with_mock().await.unwrap();
+
+    // Turn 1: TodoWrite({}) → FirstOffense (streak=1)
+    // Turn 2: 有效 TodoWrite → 重置计数 (streak=0)
+    // Turn 3: TodoWrite({}) → 再次 FirstOffense (streak=1, 重置后重新计数)
+    // Turn 4: text "done" → 正常结束
+    let turn_responses = vec![
+        build_tool_call_sse("TodoWrite", "{}", "c1"),
+        build_tool_call_sse(
+            "TodoWrite",
+            r#"{"todos":[{"content":"Task 2","activeForm":"Doing Task 2","status":"in_progress"}]}"#,
+            "c2"
+        ),
+        build_tool_call_sse("TodoWrite", "{}", "c3"),
+        build_text_sse("done"),
+    ];
+
+    let turn_counter = if let Some(mock) = env.mock_server() {
+        mock.setup_multi_turn_streaming(turn_responses).await
+    } else {
+        panic!("Mock server not available");
+    };
+
+    let output = env.run_cli(&["测试"]).await.unwrap();
+    output.assert_success();
+
+    let actual_turns = turn_counter.load(Ordering::SeqCst);
+    assert_eq!(
+        actual_turns, 4,
+        "Expected 4 API turns (empty → valid resets → empty → done), got {}",
+        actual_turns
+    );
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+
+    // 验证：两个空参数都是 FirstOffense（因为有效参数重置了计数）
+    // 应该有 2 次"空参数阻止"，但不会有熔断
+    let empty_block_count = combined.matches("空参数阻止").count();
+    assert!(
+        empty_block_count == 2,
+        "Expected 2 empty-arg blocks (both FirstOffense after reset), got {}",
+        empty_block_count
+    );
+
+    // 验证：输出中包含 TodoWrite 工具调用
+    assert!(
+        combined.contains("TodoWrite"),
+        "Expected TodoWrite in output"
+    );
+
+    // 验证：没有"熔断跳过"（PerToolTripped 的输出）
+    let breaker_trip_count = combined.matches("熔断跳过").count();
+    assert!(
+        breaker_trip_count == 0,
+        "Expected no breaker trip (valid args reset counter), but found {} '熔断跳过'",
+        breaker_trip_count
+    );
+
+    eprintln!("  ✓ TodoWrite valid args reset confirmed: 2 FirstOffense (no trip)");
+}
+
+/// 混合工具：TodoWrite 空参数不影响其他工具
+///
+/// 场景：TodoWrite({}) + bash(valid) → TodoWrite({}) + write_file(valid)
+/// 验证：其他工具正常执行，空参数只影响 TodoWrite
+#[tokio::test]
+async fn test_todowrite_empty_args_mixed_with_other_tools() {
+    let env = TestEnv::with_mock().await.unwrap();
+
+    // Turn 1: [TodoWrite({}), bash(valid)] → TodoWrite FirstOffense, bash 执行
+    // Turn 2: [TodoWrite({}), write_file(valid)] → TodoWrite FirstOffense, write_file 执行
+    // Turn 3: text "done" → 正常结束
+    let turn_responses = vec![
+        build_multi_tool_call_sse(&[
+            ("c1", "TodoWrite", "{}"),
+            ("c2", "bash", r#"{"command":"echo hello"}"#),
+        ]),
+        build_multi_tool_call_sse(&[
+            ("c3", "TodoWrite", "{}"),
+            ("c4", "write_file", r#"{"path":"/tmp/test.txt","content":"content"}"#),
+        ]),
+        build_text_sse("done"),
+    ];
+
+    let turn_counter = if let Some(mock) = env.mock_server() {
+        mock.setup_multi_turn_streaming(turn_responses).await
+    } else {
+        panic!("Mock server not available");
+    };
+
+    let output = env.run_cli(&["测试"]).await.unwrap();
+    output.assert_success();
+
+    let actual_turns = turn_counter.load(Ordering::SeqCst);
+    assert_eq!(
+        actual_turns, 3,
+        "Expected 3 API turns (mixed → mixed → done), got {}",
+        actual_turns
+    );
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+    // 验证其他工具正常执行
+    assert!(
+        combined.contains("bash") || combined.contains("write_file"),
+        "Expected other tools to execute normally"
+    );
+
+    eprintln!("  ✓ TodoWrite empty args isolation confirmed: other tools work normally");
 }

@@ -1752,7 +1752,9 @@ impl Session {
                         }
                     }
                     Some(Err(e)) => {
-                        let _ = output_tx.send(format_stream_error(&e).into());
+                        // 🔥 确保错误在主视区明显显示
+                        let error_msg = format!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n❌ ERROR: {}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", format_stream_error(&e));
+                        let _ = output_tx.send(error_msg.into());
                         return Err(format!("Stream error: {:?}", e));
                     }
                     None => {
@@ -1761,9 +1763,9 @@ impl Session {
                             if !line_buffer.is_empty() {
                                 let _ = output_tx.send(std::mem::take(&mut line_buffer).into());
                             }
-                            let _ = output_tx.send(
-                                "Stream ended unexpectedly. The response may be incomplete.".to_string().into(),
-                            );
+                            // 🔥 确保异常结束的警告在主视区明显显示
+                            let warning_msg = "\n⚠️  WARNING: Stream ended unexpectedly. The response may be incomplete.";
+                            let _ = output_tx.send(warning_msg.to_string().into());
                         }
                         break;
                     }
