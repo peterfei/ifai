@@ -41,7 +41,7 @@ pub mod thread_event;
 // 重新导出核心类型
 pub use handler::{ControlFlow, EventHandler, EventRoute};
 pub use handlers::{
-    CombinedKeyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
+    CombinedKeyHandler, CopyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
     HelpEnterHandler, HelpExitHandler, IgnoreHandler, InputSubmitHandler, KeyScrollHandler,
     MouseScrollHandler, ResizeHandler, SearchEnterHandler, SearchInputHandler,
 };

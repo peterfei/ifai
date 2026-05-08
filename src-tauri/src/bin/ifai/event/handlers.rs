@@ -45,6 +45,42 @@ impl EventHandler<Event> for KeyScrollHandler {
 }
 
 // ============================================================================
+// 复制处理器
+// ============================================================================
+
+/// 复制处理器（Ctrl+C 复制选中文本）
+pub struct CopyHandler;
+
+impl EventHandler<Event> for CopyHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if let Event::Key(key) = event {
+            // 检测 Ctrl+C（仅在非 streaming 模式下）
+            if key.code == KeyCode::Char('c')
+                && key.modifiers.contains(KeyModifiers::CONTROL)
+                && !app.is_busy()
+            {
+                // 只在有选择内容时复制，否则让 Ctrl+C 继续传递（用于清空输入或退出）
+                if app.has_selection() {
+                    match app.copy_selection_to_clipboard() {
+                        Ok(_) => {
+                            app.render();
+                            return ControlFlow::Break(AppResult::Handled);
+                        }
+                        Err(e) => {
+                            app.push_line(format!("复制失败: {}", e));
+                            app.render();
+                            return ControlFlow::Break(AppResult::Handled);
+                        }
+                    }
+                }
+                // 没有选择内容时，让 Ctrl+C 继续传递给其他处理器
+            }
+        }
+        ControlFlow::Continue
+    }
+}
+
+// ============================================================================
 // 鼠标滚动处理器
 // ============================================================================
 
@@ -80,29 +116,59 @@ impl EventHandler<Event> for MouseScrollHandler {
                 );
                 ControlFlow::Continue
             }
-            Event::Mouse(mouse) => match mouse.kind {
-                MouseEventKind::ScrollUp => {
-                    app.scroll_up(3);
-                    app.render();
-                    ControlFlow::Break(AppResult::Handled)
+            Event::Mouse(mouse) => {
+                // 🔥 调试：记录到文件
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open("/tmp/ifai_mouse_debug.log")
+                {
+                    use std::io::Write;
+                    let _ = writeln!(file, "鼠标事件: kind={:?}, column={}, row={}, selecting={}",
+                        mouse.kind, mouse.column, mouse.row, self.selecting);
                 }
-                MouseEventKind::ScrollDown => {
-                    app.scroll_down(3);
-                    app.render();
-                    ControlFlow::Break(AppResult::Handled)
+
+                match mouse.kind {
+                    MouseEventKind::ScrollUp => {
+                        app.scroll_up(3);
+                        app.render();
+                        ControlFlow::Break(AppResult::Handled)
+                    }
+                    MouseEventKind::ScrollDown => {
+                        app.scroll_down(3);
+                        app.render();
+                        ControlFlow::Break(AppResult::Handled)
+                    }
+                    // 鼠标左键按下 - 开始选择
+                    MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
+                        self.selecting = true;
+                        app.start_selection(mouse.column, mouse.row);
+                        ControlFlow::Continue
+                    }
+                    // 🔥 使用 Move 而不是 Drag - 更好的兼容性
+                    MouseEventKind::Moved => {
+                        if self.selecting {
+                            app.update_selection(mouse.column, mouse.row);
+                            app.render();
+                        }
+                        ControlFlow::Break(AppResult::Handled)
+                    }
+                    // 鼠标拖动 - 备用方案
+                    MouseEventKind::Drag(crossterm::event::MouseButton::Left) => {
+                        if self.selecting {
+                            app.update_selection(mouse.column, mouse.row);
+                            app.render();
+                        }
+                        ControlFlow::Break(AppResult::Handled)
+                    }
+                    // 鼠标左键释放 - 结束选择
+                    MouseEventKind::Up(crossterm::event::MouseButton::Left) => {
+                        self.selecting = false;
+                        app.end_selection();
+                        ControlFlow::Continue
+                    }
+                    _ => ControlFlow::Continue,
                 }
-                // 检测鼠标左键按下 - 可能是开始选择
-                // 只设置 selecting 标志，不禁用鼠标捕获（禁用会导致 MouseUp 丢失）
-                MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
-                    self.selecting = true;
-                    ControlFlow::Continue
-                }
-                // 检测鼠标左键释放 - 结束选择
-                MouseEventKind::Up(crossterm::event::MouseButton::Left) => {
-                    self.selecting = false;
-                    ControlFlow::Continue
-                }
-                _ => ControlFlow::Continue,
             }
             _ => ControlFlow::Continue,
         }

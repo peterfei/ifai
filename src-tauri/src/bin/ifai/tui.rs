@@ -21,7 +21,7 @@ use ratatui::{
 };
 
 use crate::event::{
-    CombinedKeyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
+    CombinedKeyHandler, CopyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
     HelpEnterHandler, HelpExitHandler, IgnoreHandler, MouseScrollHandler, ResizeHandler,
     SearchEnterHandler, SearchInputHandler, ThreadModeHandler, ThreadEnterHandler,
 };
@@ -355,6 +355,123 @@ fn render_task_lines(tasks: &[task::TaskItem]) -> (Vec<Line<'static>>, bool) {
     (lines, false)
 }
 
+/// 文本选择状态
+pub struct Selection {
+    /// 选择起始位置 (column, row)
+    start: Option<(u16, u16)>,
+    /// 选择结束位置 (column, row)
+    end: Option<(u16, u16)>,
+    /// 是否正在选择
+    active: bool,
+}
+
+impl Selection {
+    pub fn new() -> Self {
+        Self {
+            start: None,
+            end: None,
+            active: false,
+        }
+    }
+
+    /// 开始选择
+    pub fn start(&mut self, column: u16, row: u16) {
+        self.start = Some((column, row));
+        self.end = Some((column, row));
+        self.active = true;
+    }
+
+    /// 更新选择终点
+    pub fn update(&mut self, column: u16, row: u16) {
+        if self.active {
+            self.end = Some((column, row));
+        }
+    }
+
+    /// 结束选择
+    pub fn end(&mut self) {
+        self.active = false;
+    }
+
+    /// 清除选择
+    pub fn clear(&mut self) {
+        self.start = None;
+        self.end = None;
+        self.active = false;
+    }
+
+    /// 检查位置是否在选择区域内
+    pub fn contains(&self, column: u16, row: u16) -> bool {
+        if let (Some(start), Some(end)) = (self.start, self.end) {
+            let (min_col, max_col) = if start.0 <= end.0 { (start.0, end.0) } else { (end.0, start.0) };
+            let (min_row, max_row) = if start.1 <= end.1 { (start.1, end.1) } else { (end.1, start.1) };
+
+            if row < min_row || row > max_row {
+                return false;
+            }
+
+            if row == min_row && row == max_row {
+                return column >= min_col && column <= max_col;
+            }
+
+            if row == min_row {
+                return column >= min_col;
+            }
+
+            if row == max_row {
+                return column <= max_col;
+            }
+
+            return true;
+        }
+        false
+    }
+
+    /// 获取选择区域的文本
+    pub fn get_selected_text(&self, lines: &[Line<'_>]) -> String {
+        if let (Some(start), Some(end)) = (self.start, self.end) {
+            let (min_row, max_row) = if start.1 <= end.1 { (start.1, end.1) } else { (end.1, start.1) };
+
+            if max_row >= lines.len() as u16 {
+                return String::new();
+            }
+
+            let mut result = Vec::new();
+
+            for row in min_row..=max_row {
+                let line = &lines[row as usize];
+                let text = line.to_string();
+
+                if row == min_row && row == max_row {
+                    // 单行选择
+                    let (min_col, max_col) = if start.0 <= end.0 { (start.0, end.0) } else { (end.0, start.0) };
+                    if max_col <= text.len() as u16 {
+                        result.push(text.chars().skip(min_col as usize).take((max_col - min_col + 1) as usize).collect::<String>());
+                    }
+                } else if row == min_row {
+                    // 首行
+                    if start.0 < text.len() as u16 {
+                        result.push(text.chars().skip(start.0 as usize).collect::<String>());
+                    }
+                } else if row == max_row {
+                    // 末行
+                    let max_col = if start.1 <= end.1 { end.0 } else { start.0 };
+                    if max_col <= text.len() as u16 {
+                        result.push(text.chars().take((max_col + 1) as usize).collect::<String>());
+                    }
+                } else {
+                    // 中间行，全选
+                    result.push(text);
+                }
+            }
+
+            result.join("\n")
+        } else {
+            String::new()
+        }
+    }
+}
+
 /// RAII Guard：streaming 作用域结束时自动清理所有状态
 ///
 /// 在 streaming 循环入口创建，任何退出路径（break/return/panic）都会触发清理。
@@ -412,6 +529,8 @@ pub struct App {
     pub overlay: Option<crate::detail_overlay::DetailOverlay>,
     /// ThreadSubsystem
     pub thread: ThreadSubsystem,
+    /// 文本选择状态
+    selection: Selection,
     /// 测试模式下的终端尺寸（None 表示使用实际 terminal 尺寸）
     #[cfg(test)]
     test_size: Option<(u16, u16)>,
@@ -451,6 +570,7 @@ impl App {
             diff: DiffSubsystem::new(),
             overlay: None,
             thread: ThreadSubsystem::new(),
+            selection: Selection::new(),
             #[cfg(test)]
             test_size: None,
         };
@@ -481,6 +601,7 @@ impl App {
             diff: DiffSubsystem::new(),
             overlay: None,
             thread: ThreadSubsystem::new(),
+            selection: Selection::new(),
             #[cfg(test)]
             test_size: None,
         }
@@ -571,6 +692,58 @@ impl App {
     /// 检测内容区是否为空（用于显示欢迎页）
     pub fn is_empty(&self) -> bool {
         self.content_lines.is_empty()
+    }
+
+    // ============================================================================
+    // 文本选择和复制功能
+    // ============================================================================
+
+    /// 复制选中的文本到剪贴板
+    pub fn copy_selection_to_clipboard(&mut self) -> Result<String, String> {
+        let selected_text = self.selection.get_selected_text(&self.content_lines);
+
+        if selected_text.is_empty() {
+            return Err("No text selected".to_string());
+        }
+
+        // 使用 arboard 复制到剪贴板
+        match arboard::Clipboard::new() {
+            Ok(mut clipboard) => {
+                match clipboard.set_text(&selected_text) {
+                    Ok(_) => {
+                        self.push_line(format!("✓ 已复制 {} 字符到剪贴板", selected_text.chars().count()));
+                        Ok(selected_text)
+                    }
+                    Err(e) => Err(format!("剪贴板写入失败: {}", e))
+                }
+            }
+            Err(e) => Err(format!("剪贴板初始化失败: {}", e))
+        }
+    }
+
+    /// 清除选择状态
+    pub fn clear_selection(&mut self) {
+        self.selection.clear();
+    }
+
+    /// 开始文本选择
+    pub fn start_selection(&mut self, column: u16, row: u16) {
+        self.selection.start(column, row);
+    }
+
+    /// 更新文本选择
+    pub fn update_selection(&mut self, column: u16, row: u16) {
+        self.selection.update(column, row);
+    }
+
+    /// 结束文本选择
+    pub fn end_selection(&mut self) {
+        self.selection.end();
+    }
+
+    /// 检查是否有选择内容
+    pub fn has_selection(&self) -> bool {
+        self.selection.start.is_some() && self.selection.end.is_some()
     }
 
     // ============================================================================
@@ -1885,6 +2058,11 @@ impl App {
             .on(
                 |e| matches!(e, crossterm::event::Event::Key(_)),
                 ThreadEnterHandler,
+            )
+            // 复制处理器（Ctrl+C 复制选中文本）
+            .on(
+                |e| matches!(e, crossterm::event::Event::Key(_)),
+                super::event::handlers::CopyHandler,
             )
             // 组合键盘处理器（输入 + 滚动）
             .on(

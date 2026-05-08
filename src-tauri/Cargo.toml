@@ -107,6 +107,7 @@ rustyline = "14"
 base64 = "0.22"
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
+arboard = { version = "3.2", default-features = false, features = ["wayland-data-control"] }
 # TUI diff rendering
 similar = "2"
 unicode-width = "0.2"

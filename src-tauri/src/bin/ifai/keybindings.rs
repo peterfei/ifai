@@ -273,6 +273,14 @@ pub fn get_all_categories() -> Vec<KeybindingCategory> {
                     keys: "鼠标滚轮",
                     description: "任意方向滚动",
                 },
+                KeyBinding {
+                    keys: "鼠标拖动",
+                    description: "选择文本",
+                },
+                KeyBinding {
+                    keys: "Ctrl+C",
+                    description: "复制选中文本",
+                },
             ],
         ),
         KeybindingCategory::new(
