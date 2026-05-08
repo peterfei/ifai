@@ -1277,8 +1277,17 @@ async fn run_streaming_loop(
                     match event {
                         thread::ThreadEvent::NewMessage { thread_id, message } => {
                             app.thread.messages.push(thread_id, thread::Message::assistant(message.clone()));
+
+                            // 🔥 FIX: 检测关键消息并强制渲染，不依赖线程匹配
+                            // 关键消息类型：
+                            // 1. 错误/警告：包含 "❌ ERROR:" 或 "⚠️  WARNING:"
+                            // 2. 总结消息：包含 "✓ Completed" 或 "📋 任务执行总结"
+                            let is_error_or_warning = message.contains("❌ ERROR:") || message.contains("⚠️  WARNING:");
+                            let is_summary = message.contains("✓ Completed") || message.contains("📋 任务执行总结");
+
                             if let Some(active) = app.thread.store.active_thread() {
-                                if active.id == thread_id {
+                                // 关键消息始终渲染，或当前活跃线程匹配时渲染
+                                if active.id == thread_id || is_error_or_warning || is_summary {
                                     app.push_line(message);
                                     app.render();
                                 }
@@ -1986,6 +1995,12 @@ mod tests {
     mod e2e {
         use crate::tests::common::*;
         include!("tests/e2e/real_providers.rs");
+        include!("tests/e2e/game_2048_breaker.rs");
+        include!("tests/e2e/game_breaker_suite.rs");
+        include!("tests/e2e/tui_error_display.rs");
+        include!("tests/e2e/deepseek_connection.rs");
+        include!("tests/e2e/connection_timeout.rs");
+        include!("tests/e2e/429_error_display.rs");
     }
 
     // E2E Mock SSE Proxy 测试（模拟 LLM 多轮对话）

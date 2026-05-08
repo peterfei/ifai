@@ -1196,16 +1196,27 @@ impl Session {
                     tool_call_id: None,
                 });
 
-                // 🎨 符合提案规范：渲染完成统计
-                let elapsed_secs = start_time.elapsed().as_secs_f64();
-                let summary = self.render_pipeline.render_summary(
-                    elapsed_secs,
-                    self.default_ctx.cumulative_input_tokens,
-                    self.default_ctx.cumulative_output_tokens,
-                );
-                println!("{}", summary);
-
-                break;
+                // 🎯 检查是否所有任务都完成，决定是否继续
+                let global_store = get_global_task_store();
+                let all_completed = global_store.get_tasks()
+                    .iter()
+                    .all(|t| t.status == TaskStatus::Completed);
+                if all_completed {
+                    // 所有任务完成 → 显示总结并清空列表
+                    let elapsed_secs = start_time.elapsed().as_secs_f64();
+                    let summary = self.render_pipeline.render_summary(
+                        elapsed_secs,
+                        self.default_ctx.cumulative_input_tokens,
+                        self.default_ctx.cumulative_output_tokens,
+                    );
+                    println!("{}", summary);
+                    global_store.clear();
+                    break;
+                } else {
+                    // 还有 pending 任务 → 继续下一轮（不显示总结）
+                    continuation_count += 1;
+                    continue;
+                }
             }
 
             // Execute 阶段：执行工具
@@ -1549,6 +1560,7 @@ impl Session {
         let current_category = approval::ToolCategory::Safe;
         let max_continuations = approval::max_iterations(current_category);
         let mut continuation_count = 0;
+        let mut ended_with_no_tools = false; // 🔥 标记是否因为没有工具调用而结束（避免重复生成总结）
 
         // 重试策略（共享 RetryPolicy — R2）
         let retry_policy = RetryPolicy {
@@ -1596,7 +1608,14 @@ impl Session {
                         let mut ctx = thread_ctx.lock().await;
                         ctx.messages.pop();
                     }
-                    let _ = output_tx.send(format_stream_error(&e).into());
+
+                    // 🔥 发送错误消息到输出
+                    let error_msg = format_stream_error(&e);
+                    let _ = output_tx.send(error_msg.into());
+
+                    // 🔥 更新状态栏为 "Failed"，避免卡在 "Connecting..."
+                    let _ = status_tx.send("Failed".to_string());
+
                     return Err(format!("Failed to start stream: {:?}", e));
                 }
             };
@@ -1606,7 +1625,8 @@ impl Session {
             let mut current_response = String::new();
             let mut collector = EventCollector::new();
             let mut line_buffer = String::new(); // 🖥️ TUI：缓冲未完成的行
-            let mut stream_retry_count: u32 = 0; // R3: chunk 级重试计数器
+            let mut stream_retry_count: u32 = 0; // 🔥 chunk 级重试计数器（增强版：支持多次重试）
+            let max_stream_retries: u32 = 3; // 🔥 最大重试次数
 
             // 工具调用直接收集：ToolDone 时构建 PendingToolCall
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
@@ -1732,28 +1752,74 @@ impl Session {
                                 let _ = status_tx.send("Done".to_string());
 
                                 collector.dispatch(&event);
+
+                                
+                                // 有工具调用：继续执行工具（不 break）
+                                // 注意：即使这轮没有新工具调用，只要 continuation_count > 0，也会继续
                             }
                             _ => {
                                 collector.dispatch(&event);
                             }
                         }
                     }
-                    Some(Err(e)) if e.is_retryable() && line_buffer.is_empty() && stream_retry_count < 1 => {
-                        // R3: chunk 级安全重试 — 仅在消息边界（line_buffer 为空）时重试
+                    Some(Err(e)) if e.is_retryable() && stream_retry_count < max_stream_retries => {
+                        // 🔥 增强的 chunk 级重试机制 — 支持多次重试和倒计时显示
+                        // 检测是否为超时错误（通过错误消息判断）
+                        let error_msg = format!("{}", e);
+                        let is_timeout = error_msg.to_lowercase().contains("timeout")
+                            || error_msg.contains("timed out")
+                            || error_msg.contains("deadline");
+
                         stream_retry_count += 1;
-                        let _ = output_tx.send("Stream interrupted, retrying...".to_string().into());
-                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        let retry_delay = if is_timeout { 3 } else { 2 }; // 超时错误等待更久
+
+                        // 显示重试信息和倒计时
+                        let retry_msg = if is_timeout {
+                            format!("\n⚠️  Connection timeout detected. Retrying ({}/{})...", stream_retry_count, max_stream_retries)
+                        } else {
+                            format!("\n⚠️  Stream interrupted. Retrying ({}/{})...", stream_retry_count, max_stream_retries)
+                        };
+                        let _ = output_tx.send(retry_msg.into());
+
+                        // 倒计时显示
+                        for countdown in (1..=retry_delay).rev() {
+                            let countdown_msg = format!("⏳ Retrying in {}{}...", countdown, if countdown == 1 { "" } else { "s" });
+                            let _ = output_tx.send(countdown_msg.into());
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                        }
+
+                        // 尝试重新建立流
                         match client.stream(request.clone()).await {
-                            Ok(new_stream) => stream = new_stream,
+                            Ok(new_stream) => {
+                                let _ = output_tx.send("✓ Reconnected!\n".to_string().into());
+                                stream = new_stream;
+                            }
                             Err(retry_err) => {
-                                let _ = output_tx.send(format_stream_error(&retry_err).into());
-                                return Err(format!("Stream error: {:?}", retry_err));
+                                // 重试失败，显示错误并继续（下一次循环会再次尝试重试）
+                                let retry_error_msg = format!("{}", retry_err);
+                                let is_retry_timeout = retry_error_msg.to_lowercase().contains("timeout");
+
+                                if stream_retry_count >= max_stream_retries {
+                                    // 已达最大重试次数，返回错误
+                                    let final_msg = format!("❌ ERROR: Failed after {} retries. Last error: {}", max_stream_retries, format_stream_error(&retry_err));
+                                    let _ = output_tx.send(final_msg.into());
+                                    return Err(format!("Stream error after {} retries: {:?}", stream_retry_count, retry_err));
+                                } else {
+                                    // 还有重试机会，显示警告并继续
+                                    let warning_msg = if is_retry_timeout {
+                                        format!("⚠️  Retry failed ({}/{}), will try again...\n", stream_retry_count, max_stream_retries)
+                                    } else {
+                                        format!("⚠️  Retry failed ({}/{}): {}. Trying again...\n", stream_retry_count, max_stream_retries, format_stream_error(&retry_err))
+                                    };
+                                    let _ = output_tx.send(warning_msg.into());
+                                    // 继续下一次循环，会再次触发重试逻辑
+                                }
                             }
                         }
                     }
                     Some(Err(e)) => {
                         // 🔥 确保错误在主视区明显显示
-                        let error_msg = format!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n❌ ERROR: {}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", format_stream_error(&e));
+                        let error_msg = format!("❌ ERROR: {}", format_stream_error(&e));
                         let _ = output_tx.send(error_msg.into());
                         return Err(format!("Stream error: {:?}", e));
                     }
@@ -1766,6 +1832,9 @@ impl Session {
                             // 🔥 确保异常结束的警告在主视区明显显示
                             let warning_msg = "\n⚠️  WARNING: Stream ended unexpectedly. The response may be incomplete.";
                             let _ = output_tx.send(warning_msg.to_string().into());
+
+                            // 🔥 FIX: 异常结束应该返回错误，与 Some(Err(e)) 保持一致
+                            return Err("Stream ended unexpectedly without MessageDone".to_string());
                         }
                         break;
                     }
@@ -1792,6 +1861,16 @@ impl Session {
                         tool_calls: None,
                         tool_call_id: None,
                     });
+                }
+
+                // 🎯 检查是否所有任务都完成，决定是否继续
+                let all_completed = task_store.get_tasks()
+                    .iter()
+                    .all(|t| t.status == TaskStatus::Completed);
+                if all_completed {
+                    // 所有任务完成 → 显示总结并清空列表
+                    let mut s = session.lock().await;
+                    let mut ctx = thread_ctx.lock().await;
 
                     let elapsed_secs = start_time.elapsed().as_secs_f64();
                     let summary = s.render_pipeline.render_summary(
@@ -1800,9 +1879,13 @@ impl Session {
                         ctx.cumulative_output_tokens,
                     );
                     let _ = output_tx.send(summary.into());
+                    task_store.clear();
+                    break;
+                } else {
+                    // 还有 pending 任务 → 继续下一轮（不显示总结）
+                    continuation_count += 1;
+                    continue;
                 }
-
-                break;
             }
 
             // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
@@ -1996,6 +2079,12 @@ impl Session {
             let _ = output_tx
                 .send(format!("Continuing... ({}/{})", continuation_count, dynamic_max).into());
         }
+
+        // 🎯 循环结束时清空任务列表，避免遮挡视窗
+        // LLM 会自然地总结任务完成情况，无需额外生成总结
+        // if continuation_count > 0 {
+        //     task_store.clear();
+        // }
 
         let _ = output_tx.send(String::new().into());
         Ok(full_response)
@@ -3584,5 +3673,22 @@ mod tests {
             CompactionMode::MidTurn => 20,
         };
         assert_eq!(mid_turn_keep, 20);
+    }
+
+    #[test]
+    fn test_format_stream_error_429() {
+        // 🔥 单元测试：验证 format_stream_error 函数对 429 错误的处理
+        use ifainew_lib::harness::api::types::ApiError;
+
+        let error_429 = ApiError::HttpError {
+            status: reqwest::StatusCode::from_u16(429).unwrap(),
+            message: "Rate limited".to_string(),
+        };
+
+        let formatted = format_stream_error(&error_429);
+
+        // 验证错误消息包含关键信息
+        assert!(formatted.contains("Rate limited"), "429 错误消息应包含 'Rate limited'");
+        assert!(formatted.contains("wait"), "429 错误消息应提示等待");
     }
 }

@@ -3,8 +3,10 @@
 //! 提供任务存储、TodoWrite 工具执行等功能。
 
 pub mod store;
+pub mod validation;
 
 pub use store::{TaskItem, TaskStatus, TaskStore};
+pub use validation::ValidatedTodoWrite;
 
 use std::sync::OnceLock;
 

@@ -54,3 +54,23 @@ Current Context:
 - Project: {{PROJECT_NAME}}
 - User: {{USER_NAME}}
 - Working Directory: {{CWD}}
+
+# Task Completion Summary (任务完成总结)
+When you complete all tasks and the system shows "✓ Completed", **provide a brief summary** of:
+1. ✅ **Completed tasks**: What you successfully accomplished
+2. ⏭️ **Skipped tasks**: What you skipped (and why - e.g., empty parameters, not needed, conditions not met, etc.)
+3. 📊 **Final outcome**: What was delivered
+
+This helps users understand the actual execution status, even though all tasks show as "✓ Completed" in the task panel.
+
+**Example**:
+```
+📋 任务执行总结：
+✅ 创建完整的 2048 游戏 HTML 文件
+✅ 实现游戏核心逻辑（移动、合并、计分）
+⏭️ 跳过触摸支持（桌面端不需要）
+✅ 添加动画效果和视觉优化
+
+结果：生成 813 行 HTML 文件，包含完整的游戏逻辑
+```
+

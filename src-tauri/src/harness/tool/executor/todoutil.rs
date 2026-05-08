@@ -1,12 +1,12 @@
 //! TodoWrite 工具执行器
 //!
-//! 实现 TodoWrite 工具的实际执行逻辑。
+//! 🪄 元编程驱动：声明式验证，一行代码替代 70+ 行手动检查
 
 use serde_json::Value;
 use std::collections::HashSet;
 
 use super::super::{ToolError, ToolExecutor};
-use crate::harness::task::{TaskItem, TaskStatus, TaskStore};
+use crate::harness::task::{TaskItem, TaskStatus, TaskStore, ValidatedTodoWrite};
 
 /// TodoWrite 工具执行器
 pub struct TodoWriteExecutor {
@@ -30,21 +30,25 @@ impl TodoWriteExecutor {
     }
 
     /// 处理 TodoWrite 工具调用
+    ///
+    /// 🪄 元编程魔法：
+    /// - 旧实现：70+ 行手动解析和验证代码
+    /// - 新实现：1 行 serde 反序列化（自动验证）
     fn handle_todo_write(&self, input: &Value) -> Result<String, ToolError> {
-        // 解析 todos 参数
-        let todos_array = input
-            .get("todos")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing or invalid 'todos' parameter".to_string())
-            })?;
+        // ✅ 声明式验证：反序列化时自动执行所有验证规则
+        // - 空/空白 content → 自动拒绝
+        // - content < 3 字符 → 自动拒绝
+        // - 空/空白 activeForm → 自动拒绝
+        // - activeForm < 3 字符 → 自动拒绝
+        // - todos 数组为空 → 自动拒绝
+        let validated: ValidatedTodoWrite = serde_json::from_value(input.clone())
+            .map_err(|e| ToolError::InvalidInput(e.to_string()))?;
 
-        // 解析每个任务
-        let mut tasks = Vec::new();
-        for (index, todo_value) in todos_array.iter().enumerate() {
-            let task = self.parse_todo_item(todo_value, index)?;
-            tasks.push(task);
-        }
+        // 转换为 TaskItem 并存储
+        let tasks: Vec<TaskItem> = validated.todos
+            .into_iter()
+            .map(|item| item.into())
+            .collect();
 
         // 写入 TaskStore
         self.store
@@ -52,58 +56,12 @@ impl TodoWriteExecutor {
             .map_err(|e| ToolError::Execution(format!("Failed to write tasks to store: {}", e)))?;
 
         // 返回成功消息
-        let task_count = todos_array.len();
+        let task_count = self.store.task_count();
         Ok(format!(
             "Updated task list with {} task(s):\n{}",
             task_count,
             self.format_task_list(&self.store.get_tasks())
         ))
-    }
-
-    /// 解析单个任务项
-    fn parse_todo_item(&self, value: &Value, index: usize) -> Result<TaskItem, ToolError> {
-        let content = value
-            .get("content")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput(format!("Task at index {} missing 'content' field", index))
-            })?
-            .to_string();
-
-        let active_form = value
-            .get("activeForm")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput(format!(
-                    "Task at index {} missing 'activeForm' field",
-                    index
-                ))
-            })?
-            .to_string();
-
-        // 解析状态，默认为 pending
-        let status_str = value
-            .get("status")
-            .and_then(|v| v.as_str())
-            .unwrap_or("pending");
-
-        let status = match status_str {
-            "pending" => TaskStatus::Pending,
-            "in_progress" => TaskStatus::InProgress,
-            "completed" => TaskStatus::Completed,
-            _ => {
-                return Err(ToolError::InvalidInput(format!(
-                    "Task at index {} has invalid status: '{}'",
-                    index, status_str
-                )))
-            }
-        };
-
-        Ok(TaskItem {
-            content,
-            active_form,
-            status,
-        })
     }
 
     /// 格式化任务列表用于显示
@@ -143,7 +101,7 @@ impl ToolExecutor for TodoWriteExecutor {
     }
 }
 
-// ============ 测试 ============
+// ============ 元编程：单元测试 ============
 
 #[cfg(test)]
 mod tests {
@@ -155,76 +113,6 @@ mod tests {
 
     fn create_test_executor() -> TodoWriteExecutor {
         TodoWriteExecutor::new(create_test_store())
-    }
-
-    #[test]
-    fn test_parse_valid_todo_item() {
-        let executor = create_test_executor();
-        let value = serde_json::json!({
-            "content": "Test task",
-            "activeForm": "Testing task",
-            "status": "pending"
-        });
-
-        let result = executor.parse_todo_item(&value, 0);
-        assert!(result.is_ok());
-
-        let task = result.unwrap();
-        assert_eq!(task.content, "Test task");
-        assert_eq!(task.active_form, "Testing task");
-        assert_eq!(task.status, TaskStatus::Pending);
-    }
-
-    #[test]
-    fn test_parse_todo_item_default_status() {
-        let executor = create_test_executor();
-        let value = serde_json::json!({
-            "content": "Test task",
-            "activeForm": "Testing task"
-        });
-
-        let result = executor.parse_todo_item(&value, 0);
-        assert!(result.is_ok());
-
-        let task = result.unwrap();
-        assert_eq!(task.status, TaskStatus::Pending);
-    }
-
-    #[test]
-    fn test_parse_todo_item_missing_content() {
-        let executor = create_test_executor();
-        let value = serde_json::json!({
-            "activeForm": "Testing task",
-            "status": "pending"
-        });
-
-        let result = executor.parse_todo_item(&value, 0);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_todo_item_missing_active_form() {
-        let executor = create_test_executor();
-        let value = serde_json::json!({
-            "content": "Test task",
-            "status": "pending"
-        });
-
-        let result = executor.parse_todo_item(&value, 0);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_todo_item_invalid_status() {
-        let executor = create_test_executor();
-        let value = serde_json::json!({
-            "content": "Test task",
-            "activeForm": "Testing task",
-            "status": "invalid_status"
-        });
-
-        let result = executor.parse_todo_item(&value, 0);
-        assert!(result.is_err());
     }
 
     #[test]
@@ -257,14 +145,70 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_todo_write_missing_todos() {
+    fn test_handle_todo_write_empty_content() {
+        // 🪄 元编程：验证逻辑在 serde 反序列化时自动执行
         let store = create_test_store();
         let mut executor = TodoWriteExecutor::new(store);
 
-        let input = serde_json::json!({});
+        let input = serde_json::json!({
+            "todos": [{
+                "content": "",
+                "activeForm": "Testing"
+            }]
+        });
 
         let result = executor.execute("TodoWrite", &input);
         assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("content 字段为空") || err.contains("content"));
+    }
+
+    #[test]
+    fn test_handle_todo_write_whitespace_only_content() {
+        let store = create_test_store();
+        let mut executor = TodoWriteExecutor::new(store);
+
+        let input = serde_json::json!({
+            "todos": [{
+                "content": "   ",
+                "activeForm": "Testing"
+            }]
+        });
+
+        let result = executor.execute("TodoWrite", &input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_todo_write_content_too_short() {
+        let store = create_test_store();
+        let mut executor = TodoWriteExecutor::new(store);
+
+        let input = serde_json::json!({
+            "todos": [{
+                "content": "AB",
+                "activeForm": "Testing"
+            }]
+        });
+
+        let result = executor.execute("TodoWrite", &input);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("长度") || err.contains("2"));
+    }
+
+    #[test]
+    fn test_handle_todo_write_empty_todos() {
+        let store = create_test_store();
+        let mut executor = TodoWriteExecutor::new(store);
+
+        let input = serde_json::json!({
+            "todos": []
+        });
+
+        let result = executor.execute("TodoWrite", &input);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("todos 数组不能为空"));
     }
 
     #[test]
