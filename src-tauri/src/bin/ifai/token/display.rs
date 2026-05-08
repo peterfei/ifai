@@ -8,6 +8,7 @@
 //! - 预警逻辑：复用 UI 端 `TokenUsageIndicator.tsx` 颜色分级
 
 use crate::render::{bg_256, Theme, RESET};
+use crate::token::format_number;
 use ifainew_lib::harness::api::provider_metadata::get_all_provider_specs;
 use ifainew_lib::harness::api::types::{ContentPart, Message, MessageContent};
 
@@ -172,18 +173,63 @@ pub fn get_model_max_tokens(model: &str) -> usize {
 }
 
 // ============================================================================
+// Tool Output Truncation
+// ============================================================================
+
+/// 单个工具结果最大字符数（≈ 2000 tokens × 4 bytes/token）
+const TOOL_RESULT_MAX_CHARS: usize = 8000;
+
+/// 截断工具输出，保留首尾，中间用截断标记替代
+pub fn truncate_tool_result(result: &str) -> String {
+    if result.len() <= TOOL_RESULT_MAX_CHARS {
+        return result.to_string();
+    }
+
+    let head_end = find_char_boundary(result, TOOL_RESULT_MAX_CHARS / 2);
+    let tail_start = find_char_boundary(result, result.len() - TOOL_RESULT_MAX_CHARS / 2);
+
+    format!(
+        "{}\n... (truncated {} chars)\n{}",
+        &result[..head_end],
+        result.len() - head_end - (result.len() - tail_start),
+        &result[tail_start..]
+    )
+}
+
+/// UTF-8 安全的字符边界查找
+pub fn find_char_boundary(s: &str, mut pos: usize) -> usize {
+    if pos >= s.len() {
+        return s.len();
+    }
+    while pos > 0 && !s.is_char_boundary(pos) {
+        pos -= 1;
+    }
+    pos
+}
+
+// ============================================================================
+// Model-Aware Compaction Threshold
+// ============================================================================
+
+/// 根据模型上下文窗口计算压缩触发阈值（80%）
+pub fn compute_compress_threshold(model: &str) -> usize {
+    let max = get_model_max_tokens(model);
+    ((max as f64) * 0.8) as usize
+}
+
+// ============================================================================
 // Compaction Status (复用 GUI 端逻辑)
 // ============================================================================
 
-/// 🔥 元编程：检查是否需要压缩（简化版本）
-pub fn format_compaction_warning(messages: &[Message], theme: &Theme) -> Option<String> {
-    // 简化实现：使用相同的阈值
+/// 🔥 元编程：检查是否需要压缩（模型感知阈值）
+pub fn format_compaction_warning(messages: &[Message], model: &str, theme: &Theme) -> Option<String> {
     if messages.len() >= 10 {
         let count = estimate_tokens(messages);
-        if count > 100_000 || messages.len() > 100 {
+        let threshold = compute_compress_threshold(model);
+        if count > threshold || messages.len() > 100 {
             return Some(format!(
-                "{}Warning: Context size ({} tokens, {} messages) exceeds compaction threshold. Use /compact to reduce context size.{}",
-                theme.warning, count, messages.len(), RESET
+                "{}Warning: Context size ({} tokens, {} messages) exceeds compaction threshold ({} tokens). Use /compact to reduce context size.{}",
+                theme.warning, count, messages.len(), format_number(threshold), RESET
             ));
         }
     }
@@ -319,5 +365,110 @@ mod tests {
         let expected_output_cost = 500.0 / 1000.0 * 0.42;
         let expected_cost = expected_input_cost + expected_output_cost;
         assert!((cost.unwrap() - expected_cost).abs() < 0.0001);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Tool Output Truncation Tests
+    // ═══════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_truncate_short_output() {
+        // 短输出不截断
+        let result = truncate_tool_result("hello world");
+        assert_eq!(result, "hello world");
+    }
+
+    #[test]
+    fn test_truncate_long_output() {
+        // 长输出截断，保留首尾
+        let long = "a".repeat(20000);
+        let truncated = truncate_tool_result(&long);
+        assert!(truncated.len() < 20000, "截断后应该更短");
+        assert!(truncated.contains("truncated"), "应该包含截断标记");
+        assert!(truncated.starts_with("aaa"), "应该保留开头");
+        // 尾部是 4000 个 'a'（TOOL_RESULT_MAX_CHARS / 2）
+        assert!(truncated.ends_with(&"a".repeat(4000)), "应该保留结尾");
+    }
+
+    #[test]
+    fn test_truncate_exact_boundary() {
+        // 恰好在边界上不截断
+        let exact = "a".repeat(8000);
+        let result = truncate_tool_result(&exact);
+        assert_eq!(result.len(), 8000, "恰好 8000 字符不应截断");
+    }
+
+    #[test]
+    fn test_truncate_one_over_boundary() {
+        // 超过 1 字符也截断
+        let over = "a".repeat(8001);
+        let result = truncate_tool_result(&over);
+        assert!(result.contains("truncated"));
+    }
+
+    #[test]
+    fn test_truncate_utf8_boundary() {
+        // UTF-8 多字节字符边界安全
+        let chinese = "你好世界".repeat(5000); // 每个中文字 3 字节
+        let result = truncate_tool_result(&chinese);
+        // 不 panic 就是成功（验证 UTF-8 边界安全）
+        assert!(result.is_char_boundary(result.len()));
+    }
+
+    #[test]
+    fn test_truncate_empty() {
+        let result = truncate_tool_result("");
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_find_char_boundary_basic() {
+        assert_eq!(find_char_boundary("hello", 3), 3);
+        assert_eq!(find_char_boundary("hello", 10), 5);
+        assert_eq!(find_char_boundary("", 0), 0);
+    }
+
+    #[test]
+    fn test_find_char_boundary_utf8() {
+        let s = "你好世界"; // 12 bytes, 4 chars, 每个中文字 3 字节
+        // 位置 0 = 合法边界（第 1 个字符起始）
+        assert_eq!(find_char_boundary(s, 0), 0);
+        // 位置 3 = 第 1 个字符结束/第 2 个字符起始（合法边界）
+        assert_eq!(find_char_boundary(s, 3), 3);
+        // 位置 1 = 第 1 个字符中间（应回退到 0）
+        assert_eq!(find_char_boundary(s, 1), 0);
+        // 位置 2 = 第 1 个字符中间（应回退到 0）
+        assert_eq!(find_char_boundary(s, 2), 0);
+        // 位置 5 = 第 2 个字符中间（应回退到 3）
+        assert_eq!(find_char_boundary(s, 5), 3);
+        // 超过长度 = 返回字符串长度
+        assert_eq!(find_char_boundary(s, 100), 12);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Model-Aware Threshold Tests
+    // ═══════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_compress_threshold_gpt4() {
+        // gpt-4o: 128k → 80% = 102400
+        let threshold = compute_compress_threshold("gpt-4o");
+        assert_eq!(threshold, 102_400);
+    }
+
+    #[test]
+    fn test_compress_threshold_unknown_model() {
+        // 未知模型默认 128k → 80% = 102400
+        let threshold = compute_compress_threshold("nonexistent-model");
+        assert_eq!(threshold, 102_400);
+    }
+
+    #[test]
+    fn test_compress_threshold_deepseek() {
+        // deepseek-chat 上下文窗口查询
+        let threshold = compute_compress_threshold("deepseek-chat");
+        // 只验证它是合理的范围（> 0 且 < 500k）
+        assert!(threshold > 0);
+        assert!(threshold < 500_000);
     }
 }

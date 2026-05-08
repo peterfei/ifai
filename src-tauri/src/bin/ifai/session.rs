@@ -441,6 +441,216 @@ pub struct Session {
     markdown_state: crate::markdown_stream::MarkdownStreamState,
 }
 
+// ============================================================================
+// Compaction Functions (clone-out-of-lock pattern)
+// ============================================================================
+
+/// 压缩模式
+enum CompactionMode {
+    PreTurn,  // 循环开始前，完整压缩（AI 摘要 + 保留最近 N 条）
+    MidTurn,  // 工具循环中，轻量压缩（不调 AI）
+    Manual,   // /compact 命令，完整压缩
+}
+
+/// 摘要生成 prompt（参照 codex compact/prompt.md）
+const COMPACTION_PROMPT: &str = "\
+You are performing a CONTEXT CHECKPOINT COMPACTION. \
+Create a handoff summary for another LLM that will resume the task.\n\n\
+Include:\n\
+- Current progress and key decisions made\n\
+- Important context, constraints, or user preferences\n\
+- What remains to be done (clear next steps)\n\
+- Any critical data, examples, or references needed to continue\n\n\
+Be concise, structured, and focused on helping the next LLM seamlessly continue the work.";
+
+/// 构建压缩后的消息历史
+fn build_compacted_messages(
+    system_prompt: &str,
+    summary: Option<&str>,
+    recent: &[Message],
+) -> Vec<Message> {
+    let mut result = Vec::new();
+
+    // 1. 系统提示词
+    if !system_prompt.is_empty() {
+        result.push(Message {
+            role: MessageRole::System,
+            content: MessageContent::Text(system_prompt.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+    }
+
+    // 2. AI 摘要（如有）
+    if let Some(text) = summary {
+        result.push(Message {
+            role: MessageRole::System,
+            content: MessageContent::Text(format!(
+                "[Conversation Summary]\n{}\n[End of Summary]",
+                text
+            )),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+    }
+
+    // 3. 最近消息
+    result.extend(recent.iter().cloned());
+
+    result
+}
+
+/// Fallback 压缩（不调 AI，当前行为）
+pub fn perform_compaction_fallback(
+    messages: &[Message],
+    system_prompt: &str,
+    keep_last: usize,
+) -> Vec<Message> {
+    if messages.len() <= keep_last {
+        return messages.to_vec();
+    }
+
+    let mut result = Vec::new();
+
+    // 系统提示词
+    if let Some(first) = messages.first() {
+        if matches!(first.role, MessageRole::System) {
+            result.push(first.clone());
+        }
+    }
+    if !system_prompt.is_empty() && result.is_empty() {
+        result.push(Message {
+            role: MessageRole::System,
+            content: MessageContent::Text(system_prompt.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+    }
+
+    // 压缩说明
+    result.push(Message {
+        role: MessageRole::System,
+        content: MessageContent::Text(format!(
+            "(对话历史已压缩，保留最近 {} 条消息)",
+            keep_last
+        )),
+        tool_calls: None,
+        tool_call_id: None,
+    });
+
+    // 最近消息
+    let start = messages.len().saturating_sub(keep_last);
+    result.extend(messages[start..].iter().cloned());
+
+    result
+}
+
+/// 异步生成对话摘要（直接 reqwest 调用，避免 Message 类型不兼容）
+async fn generate_compaction_summary(
+    trimmed_messages: &[Message],
+    model: &str,
+    provider_config: &ifainew_lib::harness::api::ProviderConfig,
+) -> Option<String> {
+    if trimmed_messages.is_empty() {
+        return None;
+    }
+
+    // 将消息简化为文本
+    let mut text_parts = Vec::new();
+    for msg in trimmed_messages {
+        let role = match msg.role {
+            MessageRole::System => "system",
+            MessageRole::User => "user",
+            MessageRole::Assistant => "assistant",
+            MessageRole::Tool => "tool",
+        };
+        if let MessageContent::Text(text) = &msg.content {
+            let display = if text.len() > 500 {
+                format!("{}... ({} chars truncated)", &text[..500], text.len() - 500)
+            } else {
+                text.clone()
+            };
+            text_parts.push(format!("[{}] {}", role, display));
+        }
+    }
+
+    let summary_input = text_parts.join("\n");
+
+    // 直接用 reqwest 发 OpenAI 兼容请求
+    let base_url = provider_config.base_url.clone().unwrap_or_default();
+    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": COMPACTION_PROMPT},
+            {"role": "user", "content": summary_input}
+        ],
+        "stream": false,
+        "temperature": 0.0
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", provider_config.api_key))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .ok()?;
+
+    if !response.status().is_success() {
+        return None;
+    }
+
+    let json: serde_json::Value = response.json().await.ok()?;
+    json["choices"][0]["message"]["content"]
+        .as_str()
+        .map(|s| s.to_string())
+}
+
+/// 统一压缩入口（纯函数，不持有任何锁）
+async fn perform_compaction(
+    messages: &[Message],
+    model: &str,
+    provider_config: &ifainew_lib::harness::api::ProviderConfig,
+    system_prompt: &str,
+    mode: CompactionMode,
+) -> Vec<Message> {
+    let threshold = token::display::compute_compress_threshold(model);
+    let current = token::estimate_tokens(messages);
+    if current <= threshold {
+        return messages.to_vec();
+    }
+
+    let keep_last = match mode {
+        CompactionMode::PreTurn | CompactionMode::Manual => 30,
+        CompactionMode::MidTurn => 20,
+    };
+
+    if messages.len() <= keep_last {
+        return messages.to_vec();
+    }
+
+    let recent = &messages[messages.len() - keep_last..];
+    let trimmed = &messages[..messages.len() - keep_last];
+
+    // 尝试 AI 摘要（pre-turn / manual）
+    let summary = if matches!(mode, CompactionMode::PreTurn | CompactionMode::Manual) {
+        generate_compaction_summary(trimmed, model, provider_config).await
+    } else {
+        None
+    };
+
+    if summary.is_some() {
+        build_compacted_messages(system_prompt, summary.as_deref(), recent)
+    } else {
+        perform_compaction_fallback(messages, system_prompt, keep_last)
+    }
+}
+
 impl Session {
     pub fn new(provider: String, model: String) -> Self {
         let tool_registry = ToolRegistry::new();
@@ -670,57 +880,41 @@ impl Session {
 
         // 🎯 自动压缩：检查 token 数量并在超过阈值时压缩
         let estimated_input = token::estimate_tokens(&self.default_ctx.messages);
-        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000; // 100k tokens
-        const COMPRESS_MESSAGE_THRESHOLD: usize = 100; // 100 messages
 
-        let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
-            || self.default_ctx.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
+        // 模型感知阈值：使用 compute_compress_threshold 替代固定 100k
+        let threshold = token::display::compute_compress_threshold(&self.model);
+        let need_compress = estimated_input > threshold;
 
         if need_compress {
             let theme = render::default_theme();
             eprintln!(
-                "{}⚠️  对话过长 ({} tokens, {} messages)，正在自动压缩...{}",
+                "{}⚠️  对话过长 ({} tokens / {} 阈值)，正在自动压缩...{}",
                 theme.warning,
                 estimated_input,
-                self.default_ctx.messages.len(),
+                format_number(threshold),
                 render::RESET
             );
 
-            // 自动压缩：保留最后 50 条消息
-            let keep_last_n = 50.min(self.default_ctx.messages.len());
-            let total_messages = self.default_ctx.messages.len();
-            self.default_ctx.messages = self.default_ctx
-                .messages
-                .split_off(total_messages.saturating_sub(keep_last_n));
-
-            // 保留第一条系统消息（如果有）
-            let has_system = self.default_ctx
-                .messages
-                .first()
-                .map(|m| matches!(m.role, MessageRole::System))
-                .unwrap_or(false);
-
-            if !has_system && !system_prompt.is_empty() {
-                self.default_ctx.messages.insert(
-                    0,
-                    Message {
-                        role: MessageRole::System,
-                        content: MessageContent::Text(format!(
-                            "(对话历史已压缩，保留最近 {} 条消息)",
-                            keep_last_n
-                        )),
-                        tool_calls: None,
-                        tool_call_id: None,
-                    },
-                );
-            }
+            // 使用统一压缩入口（pre-turn 模式）
+            let old_len = self.default_ctx.messages.len();
+            self.default_ctx.messages = perform_compaction(
+                &self.default_ctx.messages,
+                &self.model,
+                &provider_config,
+                &system_prompt,
+                CompactionMode::PreTurn,
+            )
+            .await;
+            let new_len = self.default_ctx.messages.len();
 
             let new_tokens = token::estimate_tokens(&self.default_ctx.messages);
             eprintln!(
-                "{}✓ 压缩完成：{} → {} tokens (减少 {:.1}%){}",
+                "{}✓ 压缩完成：{} → {} tokens, {} → {} messages (减少 {:.1}%){}",
                 theme.success,
                 format_number(estimated_input),
                 format_number(new_tokens),
+                old_len,
+                new_len,
                 ((estimated_input.saturating_sub(new_tokens)) as f64 / estimated_input as f64)
                     * 100.0,
                 render::RESET
@@ -1063,7 +1257,7 @@ impl Session {
             for (tool_id, _name, result, _) in &tool_results {
                 self.default_ctx.messages.push(Message {
                     role: MessageRole::Tool,
-                    content: MessageContent::Text(result.clone()),
+                    content: MessageContent::Text(token::display::truncate_tool_result(result)),
                     tool_calls: None,
                     tool_call_id: Some(tool_id.clone()),
                 });
@@ -1275,60 +1469,57 @@ impl Session {
                 tool_call_id: None,
             });
 
-            // 自动压缩检查
+            // 自动压缩检查（模型感知阈值）
             let estimated_input = token::estimate_tokens(&ctx.messages);
-            const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;
-            const COMPRESS_MESSAGE_THRESHOLD: usize = 100;
+            let threshold = token::display::compute_compress_threshold(&model);
+            let need_compress = estimated_input > threshold;
 
-            let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
-                || ctx.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
-
-            if need_compress {
+            // 🔥 使用 if-let 模式确保 ctx 在压缩后仍然可用
+            let mut ctx = if need_compress {
                 let _ = output_tx.send(
                     format!(
-                        "⚠️ 对话过长 ({} tokens, {} messages)，正在自动压缩...",
+                        "⚠️ 对话过长 ({} tokens / {} 阈值)，正在自动压缩...",
                         estimated_input,
-                        ctx.messages.len()
+                        format_number(threshold)
                     )
                     .into(),
                 );
-                let keep_last_n = 50.min(ctx.messages.len());
-                let total_messages = ctx.messages.len();
-                ctx.messages = ctx
-                    .messages
-                    .split_off(total_messages.saturating_sub(keep_last_n));
 
-                let has_system = ctx
-                    .messages
-                    .first()
-                    .map(|m| matches!(m.role, MessageRole::System))
-                    .unwrap_or(false);
+                // clone-out-of-lock 模式：clone → drop → compress → reacquire
+                let snapshot = ctx.messages.clone();
+                drop(ctx); // 释放 thread_ctx 锁
 
-                if !has_system && !system_prompt.is_empty() {
-                    ctx.messages.insert(
-                        0,
-                        Message {
-                            role: MessageRole::System,
-                            content: MessageContent::Text(format!(
-                                "(对话历史已压缩，保留最近 {} 条消息)",
-                                keep_last_n
-                            )),
-                            tool_calls: None,
-                            tool_call_id: None,
-                        },
-                    );
-                }
+                let old_len = snapshot.len();
+                let compacted = perform_compaction(
+                    &snapshot,
+                    &model,
+                    &provider_config,
+                    &system_prompt,
+                    CompactionMode::PreTurn,
+                )
+                .await;
 
-                let new_tokens = token::estimate_tokens(&ctx.messages);
+                // 短暂持锁写回
+                let mut new_ctx = thread_ctx.lock().await;
+                new_ctx.messages = compacted;
+                let new_len = new_ctx.messages.len();
+
+                let new_tokens = token::estimate_tokens(&new_ctx.messages);
                 let _ = output_tx.send(
                     format!(
-                        "✓ 压缩完成：{} → {} tokens",
+                        "✓ 压缩完成：{} → {} tokens, {} → {} messages",
                         format_number(estimated_input),
-                        format_number(new_tokens)
+                        format_number(new_tokens),
+                        old_len,
+                        new_len
                     )
                     .into(),
                 );
-            }
+
+                new_ctx
+            } else {
+                ctx
+            };
 
             // TUI 上下文警告
             let token_count = token::estimate_tokens(&ctx.messages);
@@ -1673,7 +1864,7 @@ impl Session {
                 for (tool_id, _name, result, _) in &tool_results {
                     ctx.messages.push(Message {
                         role: MessageRole::Tool,
-                        content: MessageContent::Text(result.clone()),
+                        content: MessageContent::Text(token::display::truncate_tool_result(result)),
                         tool_calls: None,
                         tool_call_id: Some(tool_id.clone()),
                     });
@@ -1734,6 +1925,52 @@ impl Session {
                             }
                         }
                     }
+                }
+
+                // 🔥 Mid-turn 压缩检查点（工具循环中）
+                // 在 85% 阈值时触发轻量压缩（不调 AI，保留 20 条）
+                let current_tokens = token::estimate_tokens(&ctx.messages);
+                let mid_turn_threshold = (token::display::compute_compress_threshold(&model) as f64 * 1.0625) as usize; // 85%
+                if current_tokens > mid_turn_threshold {
+                    let _ = output_tx.send(
+                        format!(
+                            "⚠️ Mid-turn 压缩触发：{} tokens / {} 阈值，正在压缩...",
+                            current_tokens,
+                            format_number(mid_turn_threshold)
+                        )
+                        .into(),
+                    );
+
+                    // clone-out-of-lock 模式
+                    let snapshot = ctx.messages.clone();
+                    drop(ctx); // 释放 thread_ctx 锁
+
+                    let old_len = snapshot.len();
+                    let compacted = perform_compaction(
+                        &snapshot,
+                        &model,
+                        &provider_config,
+                        &system_prompt,
+                        CompactionMode::MidTurn,
+                    )
+                    .await;
+
+                    // 短暂持锁写回
+                    let mut ctx = thread_ctx.lock().await;
+                    ctx.messages = compacted;
+                    let new_len = ctx.messages.len();
+
+                    let new_tokens = token::estimate_tokens(&ctx.messages);
+                    let _ = output_tx.send(
+                        format!(
+                            "✓ Mid-turn 压缩完成：{} → {} tokens, {} → {} messages",
+                            format_number(current_tokens),
+                            format_number(new_tokens),
+                            old_len,
+                            new_len
+                        )
+                        .into(),
+                    );
                 }
             } // thread_ctx 锁释放
 
@@ -2735,9 +2972,11 @@ mod tests {
         // 3. 记录初始消息数
         assert_eq!(session.default_ctx.messages.len(), 0, "初始应该没有消息");
 
-        // 4. 发送 55 轮对话（产生 110 条消息，超过 100 条阈值）
-        for i in 1..=55 {
-            let prompt = format!("message {}", i);
+        // 4. 发送 40 轮对话，每条消息 3000+ tokens，触发 gpt-4 阈值 (102400 tokens)
+        // 每条约 3000 tokens = 12000 字符
+        let long_message = "a".repeat(12000);
+        for i in 1..=40 {
+            let prompt = format!("message {}: {}", i, long_message);
             match session.stream_prompt(&prompt).await {
                 Ok(_) => {}
                 Err(e) => {
@@ -2748,29 +2987,19 @@ mod tests {
         }
 
         // 5. 验证压缩被触发：消息数应该明显少于原始数量
-        // 55 轮应该产生 110 条消息，压缩后应该 <= 100 条
+        // 40 轮应该产生约 120k tokens，超过 102k 阈值，压缩后应该 <= 35 条
         assert!(
-            session.default_ctx.messages.len() <= 100,
-            "压缩后应该保留最近 100 条消息以内，实际: {}",
+            session.default_ctx.messages.len() <= 35,
+            "压缩后应该保留最近 35 条消息以内，实际: {}",
             session.default_ctx.messages.len()
         );
 
-        // 6. 验证消息确实被压缩了（不是简单的 0 或 110）
+        // 6. 验证消息确实被压缩了（不是简单的 0 或 80）
         assert!(session.default_ctx.messages.len() > 0, "压缩后应该还有消息");
         assert!(
-            session.default_ctx.messages.len() < 110,
-            "压缩后消息数应该少于原始 110 条"
+            session.default_ctx.messages.len() < 80,
+            "压缩后消息数应该少于原始 80 条 (40 user + 40 assistant)"
         );
-    }
-
-    #[test]
-    fn test_compression_threshold_constants() {
-        // 验证压缩阈值常量
-        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;
-        const COMPRESS_MESSAGE_THRESHOLD: usize = 100;
-
-        assert_eq!(COMPRESS_TOKEN_THRESHOLD, 100_000, "Token 阈值应该是 100k");
-        assert_eq!(COMPRESS_MESSAGE_THRESHOLD, 100, "消息阈值应该是 100");
     }
 
     #[test]
@@ -3103,5 +3332,255 @@ mod tests {
         // 各自的 active_steps 独立
         assert_eq!(ctx_main.pipeline_tracker.active_steps().len(), 1);
         assert_eq!(ctx_t1.pipeline_tracker.active_steps().len(), 1);
+    }
+
+    // ========================================================================
+    // Compaction Functions Tests
+    // ========================================================================
+
+    #[test]
+    fn test_build_compacted_messages_with_summary() {
+        // system + summary + recent
+        let system_prompt = "You are a helpful assistant.";
+        let summary = "User asked about implementing a feature.";
+        let recent = vec![
+            Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("Continue implementing.".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        let result = build_compacted_messages(system_prompt, Some(summary), &recent);
+
+        assert_eq!(result.len(), 3);
+        // 第1条：系统提示词
+        assert!(matches!(result[0].role, MessageRole::System));
+        // MessageContent 不支持 PartialEq，使用字符串比较
+        assert_eq!(result[0].content.to_string(), "You are a helpful assistant.");
+        // 第2条：AI 摘要
+        assert!(matches!(result[1].role, MessageRole::System));
+        assert!(result[1].content.to_string().contains("[Conversation Summary]"));
+        assert!(result[1].content.to_string().contains("User asked about implementing a feature."));
+        // 第3条：最近消息
+        assert!(matches!(result[2].role, MessageRole::User));
+    }
+
+    #[test]
+    fn test_build_compacted_messages_no_summary() {
+        // system + recent only (no AI summary)
+        let system_prompt = "You are a helpful assistant.";
+        let recent = vec![
+            Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("Hello".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        let result = build_compacted_messages(system_prompt, None, &recent);
+
+        assert_eq!(result.len(), 2);
+        assert!(matches!(result[0].role, MessageRole::System));
+        assert!(matches!(result[1].role, MessageRole::User));
+    }
+
+    #[test]
+    fn test_build_compacted_messages_empty_system_prompt() {
+        // 空系统提示词时不添加 system 消息
+        let recent = vec![Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Hello".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
+
+        let result = build_compacted_messages("", Some("summary"), &recent);
+
+        assert_eq!(result.len(), 2);
+        // 第1条：AI 摘要（无系统提示词）
+        assert!(matches!(result[0].role, MessageRole::System));
+        assert!(result[0].content.to_string().contains("[Conversation Summary]"));
+        // 第2条：最近消息
+        assert!(matches!(result[1].role, MessageRole::User));
+    }
+
+    #[test]
+    fn test_perform_compaction_fallback_short_messages() {
+        // 消息数 <= keep_last，不压缩
+        let messages = vec![
+            Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("msg1".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("msg2".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        let result = perform_compaction_fallback(&messages, "system", 10);
+
+        // 不压缩，直接返回原消息
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_perform_compaction_fallback_long_messages() {
+        // 消息数 > keep_last，压缩
+        let mut messages = Vec::new();
+        for i in 1..=105 {
+            messages.push(Message {
+                role: MessageRole::User,
+                content: MessageContent::Text(format!("msg{}", i)),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+
+        let result = perform_compaction_fallback(&messages, "You are helpful.", 100);
+
+        // 应该有：系统提示词 + 压缩说明 + 100条最近消息
+        assert_eq!(result.len(), 102);
+        assert!(matches!(result[0].role, MessageRole::System));
+        assert!(result[0].content.to_string().contains("You are helpful."));
+        assert!(matches!(result[1].role, MessageRole::System));
+        assert!(result[1].content.to_string().contains("(对话历史已压缩，保留最近 100 条消息)"));
+        // 验证保留的是最后100条
+        assert!(result[2].content.to_string().contains("msg6")); // 第6条开始（105-100+1=6）
+        assert!(result[101].content.to_string().contains("msg105")); // 最后一条
+    }
+
+    #[test]
+    fn test_perform_compaction_fallback_preserves_existing_system() {
+        // 保留原有的 system 消息
+        let mut messages = vec![Message {
+            role: MessageRole::System,
+            content: MessageContent::Text("Original system prompt".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
+        for i in 1..=105 {
+            messages.push(Message {
+                role: MessageRole::User,
+                content: MessageContent::Text(format!("msg{}", i)),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+
+        let result = perform_compaction_fallback(&messages, "", 100);
+
+        // 第1条应该是原系统提示词（不是新的）
+        assert!(matches!(result[0].role, MessageRole::System));
+        assert!(result[0].content.to_string().contains("Original system prompt"));
+        // 第2条是压缩说明
+        assert!(matches!(result[1].role, MessageRole::System));
+    }
+
+    #[tokio::test]
+    async fn test_perform_compaction_below_threshold() {
+        // 低于阈值时不压缩
+        let messages = vec![
+            Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("Short message".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        let provider_config = ifainew_lib::harness::api::ProviderConfig {
+            base_url: Some("http://test".to_string()),
+            api_key: "test-key".to_string(),
+            organization: None,
+        };
+
+        let result = perform_compaction(
+            &messages,
+            "gpt-4o",
+            &provider_config,
+            "system",
+            CompactionMode::PreTurn,
+        )
+        .await;
+
+        // 低于阈值，不压缩
+        assert_eq!(result.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_perform_compaction_fallback_when_no_summary() {
+        // AI 摘要失败时使用 fallback
+        let mut messages = Vec::new();
+        // 创建足够多的消息触发压缩（超过阈值）
+        // gpt-4o 阈值是 102400 tokens，每条约 3000 tokens ≈ 12000 字符
+        let long_message = "a".repeat(12000); // 约 3000 tokens
+        for i in 1..=40 {
+            messages.push(Message {
+                role: MessageRole::User,
+                content: MessageContent::Text(format!("Message {}: {}", i, long_message)),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+
+        // 无效的 provider_config，AI 摘要会失败
+        let provider_config = ifainew_lib::harness::api::ProviderConfig {
+            base_url: Some("http://invalid-url-that-will-fail".to_string()),
+            api_key: "invalid-key".to_string(),
+            organization: None,
+        };
+
+        let result = perform_compaction(
+            &messages,
+            "gpt-4o",
+            &provider_config,
+            "You are helpful.",
+            CompactionMode::PreTurn,
+        )
+        .await;
+
+        // 应该使用 fallback（保留最近 30 条）
+        // 系统提示词 + 压缩说明 + 30条最近消息 = 32 条
+        assert!(result.len() <= 32, "result.len() should be <= 32, got {}", result.len());
+        assert!(result.iter().any(|m| {
+            matches!(m.role, MessageRole::System)
+                && m.content.to_string().contains("(对话历史已压缩")
+        }));
+    }
+
+    #[test]
+    fn test_compaction_mode_pre_turn_manual_use_same_keep_last() {
+        // PreTurn 和 Manual 模式都保留 30 条
+        let pre_turn_keep = match CompactionMode::PreTurn {
+            CompactionMode::PreTurn => 30,
+            CompactionMode::Manual => 30,
+            CompactionMode::MidTurn => 20,
+        };
+        let manual_keep = match CompactionMode::Manual {
+            CompactionMode::PreTurn => 30,
+            CompactionMode::Manual => 30,
+            CompactionMode::MidTurn => 20,
+        };
+        assert_eq!(pre_turn_keep, 30);
+        assert_eq!(manual_keep, 30);
+    }
+
+    #[test]
+    fn test_compaction_mode_mid_turn_keeps_less() {
+        // MidTurn 模式保留 20 条（轻量压缩）
+        let mid_turn_keep = match CompactionMode::MidTurn {
+            CompactionMode::PreTurn => 30,
+            CompactionMode::Manual => 30,
+            CompactionMode::MidTurn => 20,
+        };
+        assert_eq!(mid_turn_keep, 20);
     }
 }

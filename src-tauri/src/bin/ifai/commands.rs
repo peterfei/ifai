@@ -246,25 +246,30 @@ fn cmd_clear(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
 fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     use super::render::{default_theme, RESET};
+    use super::session::perform_compaction_fallback;
 
     let theme = default_theme();
 
-    // 🔥 简化压缩：保留系统提示词 + 最后 20 条消息
-    let keep_last_n = 20;
+    // 模型感知阈值检查
+    let threshold = super::token::display::compute_compress_threshold(&session.model);
+    let current_tokens = super::token::estimate_tokens(&session.default_ctx.messages);
 
-    // 🔥 检查是否需要压缩（消息数必须明显超过保留数）
-    if session.default_ctx.messages.len() <= keep_last_n + 2 {
+    // 🔥 检查是否需要压缩（使用 token 阈值或消息数检查）
+    let keep_last_n = 30; // Manual 模式保留 30 条
+    if session.default_ctx.messages.len() <= keep_last_n + 2 && current_tokens < threshold {
         return Ok(Some(format!(
-            "{}对话无需压缩（{} 条消息 < {} 条阈值）。使用 /clear 清空所有对话。{}",
+            "{}对话无需压缩（{} 条消息 < {} 条阈值，{} tokens < {} tokens 阈值）。使用 /clear 清空所有对话。{}",
             theme.muted,
             session.default_ctx.messages.len(),
             keep_last_n + 2,
+            current_tokens,
+            threshold,
             RESET
         )));
     }
 
     let before_count = session.default_ctx.messages.len();
-    let before_tokens = super::token::estimate_tokens(&session.default_ctx.messages);
+    let before_tokens = current_tokens;
 
     println!("{}🔄 压缩对话...{}", theme.heading, RESET);
     println!(
@@ -272,24 +277,14 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
         theme.muted, before_count, before_tokens, RESET
     );
 
-    let mut new_messages = Vec::new();
-
-    // 1. 保留系统提示词
-    use ifainew_lib::harness::api::types::MessageRole;
-    if let Some(first) = session.default_ctx.messages.first() {
-        if matches!(first.role, MessageRole::System) {
-            new_messages.push(first.clone());
-        }
-    }
-
-    // 2. 保留最后 N 条消息
-    let tail_size = std::cmp::min(session.default_ctx.messages.len(), keep_last_n);
-    let start_idx = session.default_ctx.messages.len() - tail_size;
-    for i in start_idx..session.default_ctx.messages.len() {
-        new_messages.push(session.default_ctx.messages[i].clone());
-    }
-
-    session.default_ctx.messages = new_messages;
+    // 🔥 使用统一压缩入口的 fallback 版本（同步）
+    // Manual 模式保留 30 条消息
+    let system_prompt = ""; // /compact 不使用 system_prompt
+    session.default_ctx.messages = perform_compaction_fallback(
+        &session.default_ctx.messages,
+        system_prompt,
+        keep_last_n,
+    );
 
     let after_count = session.default_ctx.messages.len();
     let after_tokens = super::token::estimate_tokens(&session.default_ctx.messages);
@@ -302,7 +297,7 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
         "{}减少了：{} 条消息，约 {} tokens{}",
         theme.brand,
         before_count - after_count,
-        before_tokens - after_tokens,
+        before_tokens.saturating_sub(after_tokens),
         RESET
     );
 
