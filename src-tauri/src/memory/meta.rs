@@ -271,7 +271,9 @@ mod tests {
         let high_value = store.high_value_memories();
         assert_eq!(high_value.len(), 2);
         assert!(high_value.iter().any(|m| m.fingerprint == "high_value"));
-        assert!(high_value.iter().any(|m| m.fingerprint == "very_high_value"));
+        assert!(high_value
+            .iter()
+            .any(|m| m.fingerprint == "very_high_value"));
         assert!(!high_value.iter().any(|m| m.fingerprint == "low_value"));
     }
 

@@ -35,8 +35,7 @@ impl MemorySaveExecutor {
             .ok_or_else(|| ToolError::InvalidInput("Missing 'content' parameter".to_string()))?;
 
         // 调用处理函数
-        crate::memory::handle_memory_save(path, content)
-            .map_err(|e| ToolError::Execution(e))
+        crate::memory::handle_memory_save(path, content).map_err(|e| ToolError::Execution(e))
     }
 }
 

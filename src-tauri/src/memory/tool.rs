@@ -23,12 +23,15 @@ pub fn memory_save_schema() -> serde_json::Value {
 /// 处理 MemorySave 工具调用
 pub fn handle_memory_save(path: &str, content: &str) -> Result<String, String> {
     use crate::memory::categories::MemoryPath;
-    use crate::memory::io::{load_memories, save_memories, append_to_section, format_initial_memories};
+    use crate::memory::io::{
+        append_to_section, format_initial_memories, load_memories, save_memories,
+    };
     use crate::memory::meta::content_fingerprint;
     use chrono::Local;
 
     // 1. 解析路径
-    let memory_path = path.parse::<MemoryPath>()
+    let memory_path = path
+        .parse::<MemoryPath>()
         .map_err(|e| format!("Invalid path: {}", e))?;
 
     // 2. 验证内容
@@ -47,17 +50,19 @@ pub fn handle_memory_save(path: &str, content: &str) -> Result<String, String> {
             // 文件已存在，追加到 section
             let section_title = memory_path.section_title();
             let updated = append_to_section(&existing, &section_title, &entry);
-            save_memories(&updated)
-                .map_err(|e| format!("Failed to save memories: {}", e))?;
+            save_memories(&updated).map_err(|e| format!("Failed to save memories: {}", e))?;
             Ok(format!("✓ Saved to {}: {}", memory_path.display(), content))
         }
         None => {
             // 文件不存在，创建新文件
             let section_title = memory_path.section_title();
             let full = format_initial_memories(&section_title, &entry);
-            save_memories(&full)
-                .map_err(|e| format!("Failed to save memories: {}", e))?;
-            Ok(format!("✓ Created in {}: {}", memory_path.display(), content))
+            save_memories(&full).map_err(|e| format!("Failed to save memories: {}", e))?;
+            Ok(format!(
+                "✓ Created in {}: {}",
+                memory_path.display(),
+                content
+            ))
         }
     }
 }
@@ -121,7 +126,10 @@ mod tests {
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
-        let result = handle_memory_save("project/Preferences/programming-languages", "使用 TypeScript");
+        let result = handle_memory_save(
+            "project/Preferences/programming-languages",
+            "使用 TypeScript",
+        );
         assert!(result.is_ok());
         assert!(result.unwrap().contains("使用 TypeScript"));
 
@@ -138,7 +146,10 @@ mod tests {
         // 第一次保存
         let result1 = handle_memory_save("Preferences/test", "第一个条目");
         assert!(result1.is_ok());
-        println!("第一次保存后:\n{}", crate::memory::io::load_memories().unwrap_or_default());
+        println!(
+            "第一次保存后:\n{}",
+            crate::memory::io::load_memories().unwrap_or_default()
+        );
 
         // 第二次保存到同一个 section
         let result2 = handle_memory_save("Preferences/test", "第二个条目");
@@ -148,8 +159,16 @@ mod tests {
         // 验证文件包含两个条目
         let content = crate::memory::io::load_memories().unwrap_or_default();
         println!("第二次保存后:\n{}", content);
-        assert!(content.contains("第一个条目"), "文件应包含第一个条目:\n{}", content);
-        assert!(content.contains("第二个条目"), "文件应包含第二个条目:\n{}", content);
+        assert!(
+            content.contains("第一个条目"),
+            "文件应包含第一个条目:\n{}",
+            content
+        );
+        assert!(
+            content.contains("第二个条目"),
+            "文件应包含第二个条目:\n{}",
+            content
+        );
 
         restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();

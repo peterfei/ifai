@@ -2,15 +2,13 @@
 //!
 //! 负责读取和写入 `~/.ifai/memories.md` 文件。
 
+use dirs::home_dir;
 use std::fs;
 use std::path::PathBuf;
-use dirs::home_dir;
 
 /// IfAI 数据目录
 pub fn ifai_dir() -> PathBuf {
-    home_dir()
-        .expect("无法获取 home 目录")
-        .join(".ifai")
+    home_dir().expect("无法获取 home 目录").join(".ifai")
 }
 
 /// 记忆文件路径
@@ -288,7 +286,10 @@ mod tests {
         let result = append_to_section(memories, section_title, entry);
         // 应该追加到最后一个 "## Preferences\n### new-room" 后
         let lines: Vec<&str> = result.lines().collect();
-        let new_room_pos = lines.iter().rposition(|l| l.contains("### new-room")).unwrap();
+        let new_room_pos = lines
+            .iter()
+            .rposition(|l| l.contains("### new-room"))
+            .unwrap();
         assert!(lines[new_room_pos + 1].contains("- [2025-05-09] 新条目"));
         assert!(lines[new_room_pos + 2].contains("- [2025-05-10] 更新的条目"));
     }
@@ -303,9 +304,19 @@ mod tests {
         let result = append_to_section(memories, section_title, entry);
 
         // 应该只有一条记录，且日期已更新
-        assert_eq!(result.matches("使用 TypeScript").count(), 1, "应该只有一条 TypeScript 记录");
-        assert!(result.contains("- [2025-05-10] 使用 TypeScript"), "日期应该更新");
-        assert!(!result.contains("- [2025-05-08] 使用 TypeScript"), "旧日期应该被替换");
+        assert_eq!(
+            result.matches("使用 TypeScript").count(),
+            1,
+            "应该只有一条 TypeScript 记录"
+        );
+        assert!(
+            result.contains("- [2025-05-10] 使用 TypeScript"),
+            "日期应该更新"
+        );
+        assert!(
+            !result.contains("- [2025-05-08] 使用 TypeScript"),
+            "旧日期应该被替换"
+        );
     }
 
     #[test]
@@ -340,8 +351,14 @@ mod tests {
     #[test]
     fn test_extract_entry_content() {
         // 测试内容提取函数
-        assert_eq!(extract_entry_content("- [2025-05-09] 使用 TypeScript"), "使用 TypeScript");
-        assert_eq!(extract_entry_content("  - [2025-05-09] 测试内容  "), "测试内容");
+        assert_eq!(
+            extract_entry_content("- [2025-05-09] 使用 TypeScript"),
+            "使用 TypeScript"
+        );
+        assert_eq!(
+            extract_entry_content("  - [2025-05-09] 测试内容  "),
+            "测试内容"
+        );
         assert_eq!(extract_entry_content("- [2025-05-09] Content"), "Content");
     }
 

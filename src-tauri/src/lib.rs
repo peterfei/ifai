@@ -18,17 +18,17 @@ mod git;
 pub mod harness; // v0.4.0 新增：Claude Code Harness 架构 (pub for CLI)
 mod harness_ai_service; // 🆕 P0+P1+P2: 使用 Harness API 的 AI Service
 mod http_api; // v0.4.1 新增：HTTP API 服务器（为 E2E 测试提供真实后端访问）
-pub mod memory; // 🆕 持久化记忆系统：Wing/Hall/Room/Drawer 4 层空间隐喻
 mod intelligence_router;
 mod local_model;
 mod lsp;
+pub mod memory; // 🆕 持久化记忆系统：Wing/Hall/Room/Drawer 4 层空间隐喻
+mod meta; // 🔥 Scanner 配置和缓存系统
 mod multimodal; // v0.3.0 新增：多模态功能
 mod openspec; // v0.2.6 新增：OpenSpec 集成
 mod performance;
 mod project_config;
 pub mod prompt_manager; // 🔥 公开 prompt_manager 供 CLI 使用
 mod scanners;
-mod meta; // 🔥 Scanner 配置和缓存系统
 mod search;
 mod stream_schema_generated; // 🆕 Schema-Driven 代码生成：StreamPhase、PermissionMode、ToolPermissions
 mod symbol_engine;
@@ -1177,8 +1177,8 @@ async fn ai_chat(
                                 chunk.contains("agent_delete_file") || 
                                 chunk.contains("execute_bash_command") ||
                                 chunk.contains("\"name\":\"bash\""); // 🏆 增加对 bash 的检测
-                 
-                 if is_unsafe {
+
+                if is_unsafe {
                      println!("[AI Chat] Vibe Mode: Blocking unsafe destructive tool");
                      return;
                  }
@@ -1233,7 +1233,7 @@ async fn ai_chat(
                              if !args.is_empty() {
                                  // 标记已拦截，防止同一次流中重复触发
                                  has_intercepted_tool.store(true, std::sync::atomic::Ordering::SeqCst);
-                                 
+
                                  let cmd_str = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
                                  println!("[AI Chat] INTERCEPTED XML: {} - {}", tool_name, cmd_str);
 

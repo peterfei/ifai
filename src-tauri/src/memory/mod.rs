@@ -14,9 +14,16 @@ pub mod session;
 pub mod tool;
 
 // 导出核心类型
-pub use categories::{MemoryHall, MemoryPath, Wing, path_schema};
-pub use extractor::{ExtractedMemory, build_extraction_prompt, parse_extraction_result, save_extracted_memories, extract_and_save_memories, on_session_end, extract_memories_with_llm, extract_memories_simple};
-pub use io::{ifai_dir, memories_file, load_memories, save_memories, append_to_section, format_initial_memories};
-pub use meta::{MemoryMetadata, MetadataStore, metadata_file, content_fingerprint};
-pub use session::{load_memories_for_injection, inject_memories_into_system_prompt};
-pub use tool::{memory_save_schema, handle_memory_save};
+pub use categories::{path_schema, MemoryHall, MemoryPath, Wing};
+pub use extractor::{
+    build_extraction_prompt, extract_and_save_memories, extract_memories_simple,
+    extract_memories_with_llm, on_session_end, parse_extraction_result, save_extracted_memories,
+    ExtractedMemory,
+};
+pub use io::{
+    append_to_section, format_initial_memories, ifai_dir, load_memories, memories_file,
+    save_memories,
+};
+pub use meta::{content_fingerprint, metadata_file, MemoryMetadata, MetadataStore};
+pub use session::{inject_memories_into_system_prompt, load_memories_for_injection};
+pub use tool::{handle_memory_save, memory_save_schema};

@@ -108,9 +108,9 @@ declare_halls! {
 /// 空间路径：Wing/Hall/Room 或 Hall/Room
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MemoryPath {
-    pub wing: Option<Wing>,      // 可选：project/ifai, user/alice
-    pub hall: MemoryHall,        // 必须：Preferences, ProjectKnowledge, etc.
-    pub room: String,            // 必须：programming-languages, frontend-stack, etc.
+    pub wing: Option<Wing>, // 可选：project/ifai, user/alice
+    pub hall: MemoryHall,   // 必须：Preferences, ProjectKnowledge, etc.
+    pub room: String,       // 必须：programming-languages, frontend-stack, etc.
 }
 
 impl std::str::FromStr for MemoryPath {
@@ -122,7 +122,8 @@ impl std::str::FromStr for MemoryPath {
         match parts.len() {
             2 => {
                 // Hall/Room（省略 Wing）
-                let hall = parts[0].parse::<MemoryHall>()
+                let hall = parts[0]
+                    .parse::<MemoryHall>()
                     .map_err(|_| format!("Invalid Hall: {}", parts[0]))?;
                 let room = parts[1].to_string();
                 Ok(MemoryPath {
@@ -133,19 +134,20 @@ impl std::str::FromStr for MemoryPath {
             }
             3 => {
                 // Wing/Hall/Room（完整 3 层）
-                let wing = Some(parts[0].parse::<Wing>()
-                    .map_err(|_| format!("Invalid Wing: {}", parts[0]))?);
-                let hall = parts[1].parse::<MemoryHall>()
+                let wing = Some(
+                    parts[0]
+                        .parse::<Wing>()
+                        .map_err(|_| format!("Invalid Wing: {}", parts[0]))?,
+                );
+                let hall = parts[1]
+                    .parse::<MemoryHall>()
                     .map_err(|_| format!("Invalid Hall: {}", parts[1]))?;
                 let room = parts[2].to_string();
-                Ok(MemoryPath {
-                    wing,
-                    hall,
-                    room,
-                })
+                Ok(MemoryPath { wing, hall, room })
             }
             _ => Err(format!(
-                "Invalid path format: {}, expected 'Hall/Room' or 'Wing/Hall/Room'", s
+                "Invalid path format: {}, expected 'Hall/Room' or 'Wing/Hall/Room'",
+                s
             )),
         }
     }
@@ -165,12 +167,7 @@ impl MemoryPath {
                     Wing::Project => "Project",
                     Wing::User => "User",
                 };
-                format!(
-                    "## {}\n### {}\n#### {}",
-                    wing_name,
-                    self.hall,
-                    self.room
-                )
+                format!("## {}\n### {}\n#### {}", wing_name, self.hall, self.room)
             }
         }
     }
@@ -237,10 +234,19 @@ mod tests {
 
     #[test]
     fn test_hall_from_str_valid() {
-        assert_eq!("Preferences".parse::<MemoryHall>(), Ok(MemoryHall::Preferences));
-        assert_eq!("Project Knowledge".parse::<MemoryHall>(), Ok(MemoryHall::ProjectKnowledge));
+        assert_eq!(
+            "Preferences".parse::<MemoryHall>(),
+            Ok(MemoryHall::Preferences)
+        );
+        assert_eq!(
+            "Project Knowledge".parse::<MemoryHall>(),
+            Ok(MemoryHall::ProjectKnowledge)
+        );
         assert_eq!("Decisions".parse::<MemoryHall>(), Ok(MemoryHall::Decisions));
-        assert_eq!("Workflow Patterns".parse::<MemoryHall>(), Ok(MemoryHall::WorkflowPatterns));
+        assert_eq!(
+            "Workflow Patterns".parse::<MemoryHall>(),
+            Ok(MemoryHall::WorkflowPatterns)
+        );
     }
 
     #[test]
@@ -251,9 +257,15 @@ mod tests {
     #[test]
     fn test_hall_display_name() {
         assert_eq!(MemoryHall::Preferences.display_name(), "Preferences");
-        assert_eq!(MemoryHall::ProjectKnowledge.display_name(), "Project Knowledge");
+        assert_eq!(
+            MemoryHall::ProjectKnowledge.display_name(),
+            "Project Knowledge"
+        );
         assert_eq!(MemoryHall::Decisions.display_name(), "Decisions");
-        assert_eq!(MemoryHall::WorkflowPatterns.display_name(), "Workflow Patterns");
+        assert_eq!(
+            MemoryHall::WorkflowPatterns.display_name(),
+            "Workflow Patterns"
+        );
     }
 
     #[test]
@@ -275,7 +287,9 @@ mod tests {
 
     #[test]
     fn test_memory_path_parse_2_layer() {
-        let path = "Preferences/programming-languages".parse::<MemoryPath>().unwrap();
+        let path = "Preferences/programming-languages"
+            .parse::<MemoryPath>()
+            .unwrap();
         assert_eq!(path.wing, None);
         assert_eq!(path.hall, MemoryHall::Preferences);
         assert_eq!(path.room, "programming-languages");
@@ -283,7 +297,9 @@ mod tests {
 
     #[test]
     fn test_memory_path_parse_3_layer() {
-        let path = "project/Preferences/programming-languages".parse::<MemoryPath>().unwrap();
+        let path = "project/Preferences/programming-languages"
+            .parse::<MemoryPath>()
+            .unwrap();
         assert_eq!(path.wing, Some(Wing::Project));
         assert_eq!(path.hall, MemoryHall::Preferences);
         assert_eq!(path.room, "programming-languages");
@@ -365,7 +381,9 @@ mod tests {
         let examples = schema["examples"].as_array().unwrap();
         assert_eq!(examples.len(), 4);
         assert!(examples.contains(&serde_json::json!("Preferences/programming-languages")));
-        assert!(examples.contains(&serde_json::json!("project/Preferences/programming-languages")));
+        assert!(examples.contains(&serde_json::json!(
+            "project/Preferences/programming-languages"
+        )));
     }
 
     #[test]
@@ -383,14 +401,20 @@ mod tests {
             assert!(path.is_ok(), "Failed to parse: {}", path_str);
             let path = path.unwrap();
             assert_eq!(path.wing, None, "Path should have no wing: {}", path_str);
-            assert!(!path.room.is_empty(), "Room should not be empty: {}", path_str);
+            assert!(
+                !path.room.is_empty(),
+                "Room should not be empty: {}",
+                path_str
+            );
         }
     }
 
     #[test]
     fn test_user_wing_paths() {
         // 验证 User Wing 路径
-        let path = "user/Preferences/communication-style".parse::<MemoryPath>().unwrap();
+        let path = "user/Preferences/communication-style"
+            .parse::<MemoryPath>()
+            .unwrap();
         assert_eq!(path.wing, Some(Wing::User));
         assert_eq!(path.hall, MemoryHall::Preferences);
         assert_eq!(path.room, "communication-style");

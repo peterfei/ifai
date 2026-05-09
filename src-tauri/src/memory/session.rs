@@ -3,7 +3,7 @@
 //! 加载并格式化记忆用于注入到 system prompt。
 
 use crate::memory::io::load_memories;
-use crate::memory::meta::{MetadataStore, content_fingerprint};
+use crate::memory::meta::{content_fingerprint, MetadataStore};
 
 /// 记忆注入配置
 const MAX_TOKENS: usize = 2000; // 最大注入 tokens
@@ -29,11 +29,12 @@ pub fn load_memories_for_injection() -> String {
     let mut sorted_entries: Vec<_> = entries.into_iter().collect();
     sorted_entries.sort_by(|a, b| {
         // 先按高价值排序
-        b.is_high_value.cmp(&a.is_high_value)
-        // 再按访问次数排序
-        .then_with(|| b.access_count.cmp(&a.access_count))
-        // 最后按日期排序（新的优先）
-        .then_with(|| b.date.cmp(&a.date))
+        b.is_high_value
+            .cmp(&a.is_high_value)
+            // 再按访问次数排序
+            .then_with(|| b.access_count.cmp(&a.access_count))
+            // 最后按日期排序（新的优先）
+            .then_with(|| b.date.cmp(&a.date))
     });
 
     // 5. 选择记忆条目（Token 控制）
@@ -301,7 +302,11 @@ mod tests {
         std::fs::write(&memory_path, memories).expect("Failed to write memory file");
 
         let result = load_memories_for_injection();
-        assert!(result.contains("[USER_MEMORY]"), "Result should contain [USER_MEMORY]: {}", result);
+        assert!(
+            result.contains("[USER_MEMORY]"),
+            "Result should contain [USER_MEMORY]: {}",
+            result
+        );
         assert!(result.contains("使用 TypeScript"));
         assert!(result.contains("用中文回答"));
         assert!(result.contains("[/USER_MEMORY]"));
@@ -323,7 +328,10 @@ mod tests {
 
         // 无记忆文件时
         let result = inject_memories_into_system_prompt(system_prompt);
-        assert_eq!(result, system_prompt, "Without memory file, should return original prompt");
+        assert_eq!(
+            result, system_prompt,
+            "Without memory file, should return original prompt"
+        );
 
         // 有记忆文件时
         std::fs::create_dir_all(&ifai_dir).ok();
@@ -332,9 +340,20 @@ mod tests {
         std::fs::write(&memory_path, memories).expect("Failed to write memory file");
 
         let result = inject_memories_into_system_prompt(system_prompt);
-        assert!(result.contains(system_prompt), "Result should contain system prompt");
-        assert!(result.contains("[USER_MEMORY]"), "Result should contain [USER_MEMORY]: {}", result);
-        assert!(result.contains("使用 TypeScript"), "Result should contain memory content: {}", result);
+        assert!(
+            result.contains(system_prompt),
+            "Result should contain system prompt"
+        );
+        assert!(
+            result.contains("[USER_MEMORY]"),
+            "Result should contain [USER_MEMORY]: {}",
+            result
+        );
+        assert!(
+            result.contains("使用 TypeScript"),
+            "Result should contain memory content: {}",
+            result
+        );
 
         restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();

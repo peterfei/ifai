@@ -21,7 +21,7 @@ use futures_util::stream::StreamExt;
 use ifainew_lib::harness::api::types::{
     Message, MessageContent, MessageRole, StreamEvent, ToolCall, ToolCallFunction,
 };
-use ifainew_lib::harness::task::{get_global_task_store, TaskStore, TaskStatus};
+use ifainew_lib::harness::task::{get_global_task_store, TaskStatus, TaskStore};
 use ifainew_lib::harness::tool::{ToolRegistry, ToolRouter};
 use ifainew_lib::memory;
 use ifainew_lib::prompt_manager;
@@ -299,15 +299,11 @@ fn format_stream_error(error: &ifainew_lib::harness::api::types::ApiError) -> St
             ),
             _ => format!("HTTP error {}", status),
         },
-        ApiError::Network(msg)
-            if msg.contains("timed out") || msg.contains("timeout") =>
-        {
+        ApiError::Network(msg) if msg.contains("timed out") || msg.contains("timeout") => {
             "Connection timed out. Check network/proxy settings and retry.".into()
         }
         ApiError::Network(msg)
-            if msg.contains("dns")
-                || msg.contains("resolve")
-                || msg.contains("getaddrinfo") =>
+            if msg.contains("dns") || msg.contains("resolve") || msg.contains("getaddrinfo") =>
         {
             "Cannot resolve API host. Check your base_url configuration.".into()
         }
@@ -448,9 +444,9 @@ pub struct Session {
 
 /// 压缩模式
 enum CompactionMode {
-    PreTurn,  // 循环开始前，完整压缩（AI 摘要 + 保留最近 N 条）
-    MidTurn,  // 工具循环中，轻量压缩（不调 AI）
-    Manual,   // /compact 命令，完整压缩
+    PreTurn, // 循环开始前，完整压缩（AI 摘要 + 保留最近 N 条）
+    MidTurn, // 工具循环中，轻量压缩（不调 AI）
+    Manual,  // /compact 命令，完整压缩
 }
 
 /// 摘要生成 prompt（参照 codex compact/prompt.md）
@@ -531,10 +527,7 @@ pub fn perform_compaction_fallback(
     // 压缩说明
     result.push(Message {
         role: MessageRole::System,
-        content: MessageContent::Text(format!(
-            "(对话历史已压缩，保留最近 {} 条消息)",
-            keep_last
-        )),
+        content: MessageContent::Text(format!("(对话历史已压缩，保留最近 {} 条消息)", keep_last)),
         tool_calls: None,
         tool_call_id: None,
     });
@@ -594,7 +587,10 @@ async fn generate_compaction_summary(
     let client = reqwest::Client::new();
     let response = client
         .post(&url)
-        .header("Authorization", format!("Bearer {}", provider_config.api_key))
+        .header(
+            "Authorization",
+            format!("Bearer {}", provider_config.api_key),
+        )
         .header("Content-Type", "application/json")
         .json(&body)
         .timeout(std::time::Duration::from_secs(30))
@@ -1449,7 +1445,14 @@ impl Session {
 
             // drop(s) 在此处自动发生 — Session 锁释放
 
-            (spec, system_prompt, model, tools_disabled, provider_config, tools)
+            (
+                spec,
+                system_prompt,
+                model,
+                tools_disabled,
+                provider_config,
+                tools,
+            )
         }; // Session 锁释放
 
         // 1b. 创建 API client（纯局部变量，不需要任何锁）
@@ -1643,12 +1646,11 @@ impl Session {
                             StreamEvent::TextDelta { text } => {
                                 if first_delta {
                                     first_delta = false;
-                                    bottom_status_bar
-                                        .transition(StatusBarState::Streaming {
-                                            estimated_input,
-                                            current_output: 0,
-                                            current_tool: None,
-                                        });
+                                    bottom_status_bar.transition(StatusBarState::Streaming {
+                                        estimated_input,
+                                        current_output: 0,
+                                        current_tool: None,
+                                    });
                                 }
 
                                 let _current_output =
@@ -1677,12 +1679,11 @@ impl Session {
                             } => {
                                 if first_delta {
                                     first_delta = false;
-                                    bottom_status_bar
-                                        .transition(StatusBarState::Streaming {
-                                            estimated_input,
-                                            current_output: 0,
-                                            current_tool: Some(name.clone()),
-                                        });
+                                    bottom_status_bar.transition(StatusBarState::Streaming {
+                                        estimated_input,
+                                        current_output: 0,
+                                        current_tool: Some(name.clone()),
+                                    });
                                 }
                                 let _ = status_tx.send(format!("Tool: {} [running]", name));
 
@@ -1754,7 +1755,6 @@ impl Session {
 
                                 collector.dispatch(&event);
 
-                                
                                 // 有工具调用：继续执行工具（不 break）
                                 // 注意：即使这轮没有新工具调用，只要 continuation_count > 0，也会继续
                             }
@@ -1776,15 +1776,25 @@ impl Session {
 
                         // 显示重试信息和倒计时
                         let retry_msg = if is_timeout {
-                            format!("\n⚠️  Connection timeout detected. Retrying ({}/{})...", stream_retry_count, max_stream_retries)
+                            format!(
+                                "\n⚠️  Connection timeout detected. Retrying ({}/{})...",
+                                stream_retry_count, max_stream_retries
+                            )
                         } else {
-                            format!("\n⚠️  Stream interrupted. Retrying ({}/{})...", stream_retry_count, max_stream_retries)
+                            format!(
+                                "\n⚠️  Stream interrupted. Retrying ({}/{})...",
+                                stream_retry_count, max_stream_retries
+                            )
                         };
                         let _ = output_tx.send(retry_msg.into());
 
                         // 倒计时显示
                         for countdown in (1..=retry_delay).rev() {
-                            let countdown_msg = format!("⏳ Retrying in {}{}...", countdown, if countdown == 1 { "" } else { "s" });
+                            let countdown_msg = format!(
+                                "⏳ Retrying in {}{}...",
+                                countdown,
+                                if countdown == 1 { "" } else { "s" }
+                            );
                             let _ = output_tx.send(countdown_msg.into());
                             tokio::time::sleep(Duration::from_secs(1)).await;
                         }
@@ -1798,19 +1808,35 @@ impl Session {
                             Err(retry_err) => {
                                 // 重试失败，显示错误并继续（下一次循环会再次尝试重试）
                                 let retry_error_msg = format!("{}", retry_err);
-                                let is_retry_timeout = retry_error_msg.to_lowercase().contains("timeout");
+                                let is_retry_timeout =
+                                    retry_error_msg.to_lowercase().contains("timeout");
 
                                 if stream_retry_count >= max_stream_retries {
                                     // 已达最大重试次数，返回错误
-                                    let final_msg = format!("❌ ERROR: Failed after {} retries. Last error: {}", max_stream_retries, format_stream_error(&retry_err));
+                                    let final_msg = format!(
+                                        "❌ ERROR: Failed after {} retries. Last error: {}",
+                                        max_stream_retries,
+                                        format_stream_error(&retry_err)
+                                    );
                                     let _ = output_tx.send(final_msg.into());
-                                    return Err(format!("Stream error after {} retries: {:?}", stream_retry_count, retry_err));
+                                    return Err(format!(
+                                        "Stream error after {} retries: {:?}",
+                                        stream_retry_count, retry_err
+                                    ));
                                 } else {
                                     // 还有重试机会，显示警告并继续
                                     let warning_msg = if is_retry_timeout {
-                                        format!("⚠️  Retry failed ({}/{}), will try again...\n", stream_retry_count, max_stream_retries)
+                                        format!(
+                                            "⚠️  Retry failed ({}/{}), will try again...\n",
+                                            stream_retry_count, max_stream_retries
+                                        )
                                     } else {
-                                        format!("⚠️  Retry failed ({}/{}): {}. Trying again...\n", stream_retry_count, max_stream_retries, format_stream_error(&retry_err))
+                                        format!(
+                                            "⚠️  Retry failed ({}/{}): {}. Trying again...\n",
+                                            stream_retry_count,
+                                            max_stream_retries,
+                                            format_stream_error(&retry_err)
+                                        )
                                     };
                                     let _ = output_tx.send(warning_msg.into());
                                     // 继续下一次循环，会再次触发重试逻辑
@@ -1890,8 +1916,16 @@ impl Session {
                 let mut s = session.lock().await;
                 let mut ctx = thread_ctx.lock().await;
                 // 🔥 Phase 4: 传递 thread_id 用于工具审批
-                s.execute_tools_tui(&mut ctx, &mut bottom_status_bar, &collected_tool_calls, &output_tx, &approval_tx, thread_id, &task_store)
-                    .await
+                s.execute_tools_tui(
+                    &mut ctx,
+                    &mut bottom_status_bar,
+                    &collected_tool_calls,
+                    &output_tx,
+                    &approval_tx,
+                    thread_id,
+                    &task_store,
+                )
+                .await
             };
 
             let tool_results = match tool_results {
@@ -1955,7 +1989,8 @@ impl Session {
                 for (tool_id, name, _result, _duration) in &tool_results {
                     let completed_steps = ctx.pipeline_tracker.completed_steps();
                     // 从最新到最旧查找，避免匹配到之前同名的旧步骤
-                    if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name) {
+                    if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name)
+                    {
                         let status_render = step.status.render_with_theme("zh", &theme, RESET);
                         let args_preview = if step.tool_args.chars().count() > 50 {
                             format!("{}...", step.tool_args.chars().take(47).collect::<String>())
@@ -1975,8 +2010,9 @@ impl Session {
                                 .into(),
                             );
                         } else {
-                            let _ = output_tx
-                                .send(format!("\n{} {}({})", status_render, name, args_preview).into());
+                            let _ = output_tx.send(
+                                format!("\n{} {}({})", status_render, name, args_preview).into(),
+                            );
                         }
 
                         match &step.output {
@@ -2001,7 +2037,8 @@ impl Session {
                                     )
                                     .into(),
                                 );
-                                let _ = output_tx.send(format!("   ╾ (共 {} 行)", total_lines).into());
+                                let _ =
+                                    output_tx.send(format!("   ╾ (共 {} 行)", total_lines).into());
                             }
                         }
                     }
@@ -2010,7 +2047,8 @@ impl Session {
                 // 🔥 Mid-turn 压缩检查点（工具循环中）
                 // 在 85% 阈值时触发轻量压缩（不调 AI，保留 20 条）
                 let current_tokens = token::estimate_tokens(&ctx.messages);
-                let mid_turn_threshold = (token::display::compute_compress_threshold(&model) as f64 * 1.0625) as usize; // 85%
+                let mid_turn_threshold =
+                    (token::display::compute_compress_threshold(&model) as f64 * 1.0625) as usize; // 85%
                 if current_tokens > mid_turn_threshold {
                     let _ = output_tx.send(
                         format!(
@@ -2115,7 +2153,8 @@ impl Session {
                                 .to_string()
                                 .into(),
                         );
-                        thread_ctx.pipeline_tracker
+                        thread_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
                         return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
                     }
@@ -2123,7 +2162,8 @@ impl Session {
                         // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
                         let _ = output_tx
                             .send(format!("⚡ 熔断跳过: {}({})", tool.name, tool.args).into());
-                        thread_ctx.pipeline_tracker
+                        thread_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
                         // push "Skipped" 结果（匹配终止条件，防止 AI 无限重试空参数）
                         results.push((
@@ -2152,7 +2192,8 @@ impl Session {
 
                         let _ = output_tx
                             .send(format!("⚠️ 空参数阻止: {}({})", tool.name, tool.args).into());
-                        thread_ctx.pipeline_tracker
+                        thread_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
                         results.push((
                             tool.tool_id.clone(),
@@ -2235,11 +2276,15 @@ impl Session {
                 // 通过 channel 发送审批请求，等待用户决策
                 let (response_tx, response_rx) = tokio::sync::oneshot::channel();
                 // 🔥 Phase 4: 传递 thread_id 用于工具审批
-                let request =
-                    crate::approval_overlay::ApprovalRequest::from_tool(tool, thread_id, response_tx);
+                let request = crate::approval_overlay::ApprovalRequest::from_tool(
+                    tool,
+                    thread_id,
+                    response_tx,
+                );
                 if approval_tx.send(request).is_err() {
                     let error_msg = format!("Tool '{}': approval channel closed", tool.name);
-                    thread_ctx.pipeline_tracker
+                    thread_ctx
+                        .pipeline_tracker
                         .skip_step(&tool.tool_id, error_msg.clone());
                     results.push((
                         tool.tool_id.clone(),
@@ -2280,7 +2325,8 @@ impl Session {
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::Deny) => {
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);
-                        thread_ctx.pipeline_tracker
+                        thread_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, error_msg.clone());
                         results.push((
                             tool.tool_id.clone(),
@@ -2296,7 +2342,8 @@ impl Session {
                     }
                     Err(_) => {
                         let error_msg = format!("Tool '{}': approval channel closed", tool.name);
-                        thread_ctx.pipeline_tracker
+                        thread_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, error_msg.clone());
                         results.push((
                             tool.tool_id.clone(),
@@ -2314,7 +2361,8 @@ impl Session {
             if loop_status.should_stop() {
                 if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
                     let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason).into());
-                    thread_ctx.pipeline_tracker
+                    thread_ctx
+                        .pipeline_tracker
                         .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
                     let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
                     results.push((
@@ -2459,7 +2507,8 @@ impl Session {
                             theme.warning,
                             render::RESET
                         );
-                        self.default_ctx.pipeline_tracker
+                        self.default_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
                         return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
                     }
@@ -2472,7 +2521,8 @@ impl Session {
                             tool.args,
                             render::RESET
                         );
-                        self.default_ctx.pipeline_tracker
+                        self.default_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
                         results.push((
                             tool.tool_id.clone(),
@@ -2505,7 +2555,8 @@ impl Session {
                             tool.args,
                             render::RESET
                         );
-                        self.default_ctx.pipeline_tracker
+                        self.default_ctx
+                            .pipeline_tracker
                             .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
                         results.push((
                             tool.tool_id.clone(),
@@ -2531,7 +2582,8 @@ impl Session {
                 &serde_json::from_str::<serde_json::Value>(&tool.args)
                     .unwrap_or(serde_json::json!({})),
             );
-            let auto_approve = self.auto_approve_all || approval::should_auto_approve(&tool.name, false); // CLI 中无沙箱
+            let auto_approve =
+                self.auto_approve_all || approval::should_auto_approve(&tool.name, false); // CLI 中无沙箱
 
             if !auto_approve {
                 // 🔥 在 CLI 中，所有需要审批的工具都需要用户确认（Safe 除外）
@@ -2601,7 +2653,8 @@ impl Session {
                     );
 
                     // 🎨 元编程：标记步骤为跳过（循环阻止）
-                    self.default_ctx.pipeline_tracker
+                    self.default_ctx
+                        .pipeline_tracker
                         .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
 
                     // 返回错误给 AI，让 AI 知道这个工具调用被阻止了
@@ -2965,8 +3018,14 @@ mod tests {
         session.add_message("World".to_string());
 
         assert_eq!(session.default_ctx.messages.len(), 2);
-        assert!(matches!(session.default_ctx.messages[0].role, MessageRole::User));
-        assert!(matches!(session.default_ctx.messages[1].role, MessageRole::User));
+        assert!(matches!(
+            session.default_ctx.messages[0].role,
+            MessageRole::User
+        ));
+        assert!(matches!(
+            session.default_ctx.messages[1].role,
+            MessageRole::User
+        ));
 
         // 检查文本内容
         match &session.default_ctx.messages[0].content {
@@ -3100,7 +3159,11 @@ mod tests {
         }
 
         // 验证压缩前有 105 条消息
-        assert_eq!(session.default_ctx.messages.len(), 105, "压缩前应该有 105 条消息");
+        assert_eq!(
+            session.default_ctx.messages.len(),
+            105,
+            "压缩前应该有 105 条消息"
+        );
 
         // 手动触发压缩逻辑（模拟 stream_prompt 中的压缩）
         let total_messages = session.default_ctx.messages.len();
@@ -3111,7 +3174,11 @@ mod tests {
             .split_off(total_messages.saturating_sub(keep_last_n));
 
         // 验证压缩后保留 50 条
-        assert_eq!(session.default_ctx.messages.len(), 50, "压缩后应该保留 50 条消息");
+        assert_eq!(
+            session.default_ctx.messages.len(),
+            50,
+            "压缩后应该保留 50 条消息"
+        );
 
         // 验证保留的是最近的消息（最后 50 条）
         match &session.default_ctx.messages[0].content {
@@ -3290,10 +3357,14 @@ mod tests {
         };
         let call_count = AtomicU32::new(0);
 
-        let result: Result<String, String> = with_retry(&policy, |_| true, || {
-            call_count.fetch_add(1, Ordering::SeqCst);
-            async { Ok("ok".to_string()) }
-        })
+        let result: Result<String, String> = with_retry(
+            &policy,
+            |_| true,
+            || {
+                call_count.fetch_add(1, Ordering::SeqCst);
+                async { Ok("ok".to_string()) }
+            },
+        )
         .await;
 
         assert_eq!(result.unwrap(), "ok");
@@ -3308,16 +3379,20 @@ mod tests {
         };
         let call_count = AtomicU32::new(0);
 
-        let result: Result<String, String> = with_retry(&policy, |_| true, || {
-            let count = call_count.fetch_add(1, Ordering::SeqCst);
-            async move {
-                if count < 1 {
-                    Err("transient".to_string())
-                } else {
-                    Ok("recovered".to_string())
+        let result: Result<String, String> = with_retry(
+            &policy,
+            |_| true,
+            || {
+                let count = call_count.fetch_add(1, Ordering::SeqCst);
+                async move {
+                    if count < 1 {
+                        Err("transient".to_string())
+                    } else {
+                        Ok("recovered".to_string())
+                    }
                 }
-            }
-        })
+            },
+        )
         .await;
 
         assert_eq!(result.unwrap(), "recovered");
@@ -3332,10 +3407,14 @@ mod tests {
         };
         let call_count = AtomicU32::new(0);
 
-        let result: Result<String, String> = with_retry(&policy, |_| true, || {
-            call_count.fetch_add(1, Ordering::SeqCst);
-            async { Err("always_fail".to_string()) }
-        })
+        let result: Result<String, String> = with_retry(
+            &policy,
+            |_| true,
+            || {
+                call_count.fetch_add(1, Ordering::SeqCst);
+                async { Err("always_fail".to_string()) }
+            },
+        )
         .await;
 
         assert_eq!(result.unwrap_err(), "always_fail");
@@ -3351,10 +3430,14 @@ mod tests {
         };
         let call_count = AtomicU32::new(0);
 
-        let result: Result<String, String> = with_retry(&policy, |e: &String| !e.contains("fatal"), || {
-            call_count.fetch_add(1, Ordering::SeqCst);
-            async { Err("fatal error".to_string()) }
-        })
+        let result: Result<String, String> = with_retry(
+            &policy,
+            |e: &String| !e.contains("fatal"),
+            || {
+                call_count.fetch_add(1, Ordering::SeqCst);
+                async { Err("fatal error".to_string()) }
+            },
+        )
         .await;
 
         assert_eq!(result.unwrap_err(), "fatal error");
@@ -3413,8 +3496,12 @@ mod tests {
         let mut ctx_main = ThreadSessionContext::new();
         let mut ctx_t1 = ThreadSessionContext::new();
 
-        ctx_main.pipeline_tracker.start_step("tool-1".into(), "bash".into(), "ls".into());
-        ctx_t1.pipeline_tracker.start_step("tool-2".into(), "read_file".into(), "foo.rs".into());
+        ctx_main
+            .pipeline_tracker
+            .start_step("tool-1".into(), "bash".into(), "ls".into());
+        ctx_t1
+            .pipeline_tracker
+            .start_step("tool-2".into(), "read_file".into(), "foo.rs".into());
 
         // 各自的 active_steps 独立
         assert_eq!(ctx_main.pipeline_tracker.active_steps().len(), 1);
@@ -3430,14 +3517,12 @@ mod tests {
         // system + summary + recent
         let system_prompt = "You are a helpful assistant.";
         let summary = "User asked about implementing a feature.";
-        let recent = vec![
-            Message {
-                role: MessageRole::User,
-                content: MessageContent::Text("Continue implementing.".to_string()),
-                tool_calls: None,
-                tool_call_id: None,
-            },
-        ];
+        let recent = vec![Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Continue implementing.".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
 
         let result = build_compacted_messages(system_prompt, Some(summary), &recent);
 
@@ -3445,11 +3530,20 @@ mod tests {
         // 第1条：系统提示词
         assert!(matches!(result[0].role, MessageRole::System));
         // MessageContent 不支持 PartialEq，使用字符串比较
-        assert_eq!(result[0].content.to_string(), "You are a helpful assistant.");
+        assert_eq!(
+            result[0].content.to_string(),
+            "You are a helpful assistant."
+        );
         // 第2条：AI 摘要
         assert!(matches!(result[1].role, MessageRole::System));
-        assert!(result[1].content.to_string().contains("[Conversation Summary]"));
-        assert!(result[1].content.to_string().contains("User asked about implementing a feature."));
+        assert!(result[1]
+            .content
+            .to_string()
+            .contains("[Conversation Summary]"));
+        assert!(result[1]
+            .content
+            .to_string()
+            .contains("User asked about implementing a feature."));
         // 第3条：最近消息
         assert!(matches!(result[2].role, MessageRole::User));
     }
@@ -3458,14 +3552,12 @@ mod tests {
     fn test_build_compacted_messages_no_summary() {
         // system + recent only (no AI summary)
         let system_prompt = "You are a helpful assistant.";
-        let recent = vec![
-            Message {
-                role: MessageRole::User,
-                content: MessageContent::Text("Hello".to_string()),
-                tool_calls: None,
-                tool_call_id: None,
-            },
-        ];
+        let recent = vec![Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Hello".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
 
         let result = build_compacted_messages(system_prompt, None, &recent);
 
@@ -3489,7 +3581,10 @@ mod tests {
         assert_eq!(result.len(), 2);
         // 第1条：AI 摘要（无系统提示词）
         assert!(matches!(result[0].role, MessageRole::System));
-        assert!(result[0].content.to_string().contains("[Conversation Summary]"));
+        assert!(result[0]
+            .content
+            .to_string()
+            .contains("[Conversation Summary]"));
         // 第2条：最近消息
         assert!(matches!(result[1].role, MessageRole::User));
     }
@@ -3538,7 +3633,10 @@ mod tests {
         assert!(matches!(result[0].role, MessageRole::System));
         assert!(result[0].content.to_string().contains("You are helpful."));
         assert!(matches!(result[1].role, MessageRole::System));
-        assert!(result[1].content.to_string().contains("(对话历史已压缩，保留最近 100 条消息)"));
+        assert!(result[1]
+            .content
+            .to_string()
+            .contains("(对话历史已压缩，保留最近 100 条消息)"));
         // 验证保留的是最后100条
         assert!(result[2].content.to_string().contains("msg6")); // 第6条开始（105-100+1=6）
         assert!(result[101].content.to_string().contains("msg105")); // 最后一条
@@ -3566,7 +3664,10 @@ mod tests {
 
         // 第1条应该是原系统提示词（不是新的）
         assert!(matches!(result[0].role, MessageRole::System));
-        assert!(result[0].content.to_string().contains("Original system prompt"));
+        assert!(result[0]
+            .content
+            .to_string()
+            .contains("Original system prompt"));
         // 第2条是压缩说明
         assert!(matches!(result[1].role, MessageRole::System));
     }
@@ -3574,14 +3675,12 @@ mod tests {
     #[tokio::test]
     async fn test_perform_compaction_below_threshold() {
         // 低于阈值时不压缩
-        let messages = vec![
-            Message {
-                role: MessageRole::User,
-                content: MessageContent::Text("Short message".to_string()),
-                tool_calls: None,
-                tool_call_id: None,
-            },
-        ];
+        let messages = vec![Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Short message".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
 
         let provider_config = ifainew_lib::harness::api::ProviderConfig {
             base_url: Some("http://test".to_string()),
@@ -3636,7 +3735,11 @@ mod tests {
 
         // 应该使用 fallback（保留最近 30 条）
         // 系统提示词 + 压缩说明 + 30条最近消息 = 32 条
-        assert!(result.len() <= 32, "result.len() should be <= 32, got {}", result.len());
+        assert!(
+            result.len() <= 32,
+            "result.len() should be <= 32, got {}",
+            result.len()
+        );
         assert!(result.iter().any(|m| {
             matches!(m.role, MessageRole::System)
                 && m.content.to_string().contains("(对话历史已压缩")
@@ -3684,7 +3787,10 @@ mod tests {
         let formatted = format_stream_error(&error_429);
 
         // 验证错误消息包含关键信息
-        assert!(formatted.contains("Rate limited"), "429 错误消息应包含 'Rate limited'");
+        assert!(
+            formatted.contains("Rate limited"),
+            "429 错误消息应包含 'Rate limited'"
+        );
         assert!(formatted.contains("wait"), "429 错误消息应提示等待");
     }
 }

@@ -5,7 +5,7 @@
 //! **提示词外部化**：优先从 `~/.ifai/prompts/memory/extract.md` 读取，
 //! 如果文件不存在，使用内置默认提示词。
 
-use crate::memory::io::{load_memories, save_memories, append_to_section};
+use crate::memory::io::{append_to_section, load_memories, save_memories};
 use chrono::Local;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -79,11 +79,10 @@ fn get_extraction_prompt_template() -> String {
         let prompt_path = PathBuf::from(home).join(".ifai/prompts/memory/extract.md");
         if prompt_path.exists() {
             // 从外部文件读取
-            std::fs::read_to_string(&prompt_path)
-                .unwrap_or_else(|e| {
-                    eprintln!("[Memory] ⚠ 读取外部提示词失败: {}, 使用内置默认提示词", e);
-                    DEFAULT_EXTRACTION_PROMPT.to_string()
-                })
+            std::fs::read_to_string(&prompt_path).unwrap_or_else(|e| {
+                eprintln!("[Memory] ⚠ 读取外部提示词失败: {}, 使用内置默认提示词", e);
+                DEFAULT_EXTRACTION_PROMPT.to_string()
+            })
         } else {
             // 文件不存在，使用默认提示词
             DEFAULT_EXTRACTION_PROMPT.to_string()
@@ -160,11 +159,10 @@ pub fn save_extracted_memories(memories: &[ExtractedMemory]) -> Result<usize, St
     }
 
     // 1. 加载现有记忆文件
-    let existing = load_memories()
-        .unwrap_or_else(|| {
-            // 文件不存在时创建初始结构
-            String::from("# User Memories\n\n")
-        });
+    let existing = load_memories().unwrap_or_else(|| {
+        // 文件不存在时创建初始结构
+        String::from("# User Memories\n\n")
+    });
 
     // 2. 为每条记忆生成条目
     let today = Local::now().format("%Y-%m-%d").to_string();
@@ -190,8 +188,7 @@ pub fn save_extracted_memories(memories: &[ExtractedMemory]) -> Result<usize, St
     }
 
     // 3. 保存文件
-    save_memories(&updated)
-        .map_err(|e| format!("Failed to save extracted memories: {}", e))?;
+    save_memories(&updated).map_err(|e| format!("Failed to save extracted memories: {}", e))?;
 
     Ok(memories.len())
 }
@@ -219,7 +216,10 @@ pub fn extract_and_save_memories(llm_extraction_result: &str) -> Result<usize, S
 #[deprecated(note = "Use extract_memories_with_llm instead for actual LLM integration")]
 pub fn on_session_end(conversation_summary: &str) -> Result<usize, String> {
     // 当前是占位实现，打印提示信息
-    eprintln!("[Memory Extraction] Session ended. Summary: {} chars", conversation_summary.len());
+    eprintln!(
+        "[Memory Extraction] Session ended. Summary: {} chars",
+        conversation_summary.len()
+    );
     eprintln!("[Memory Extraction] To enable automatic memory extraction, implement LLM call.");
     eprintln!("[Memory Extraction] Use build_extraction_prompt() to generate the prompt.");
     Ok(0)
@@ -256,15 +256,15 @@ pub async fn extract_memories_with_llm(
     let (api_url, model_name) = match provider {
         "anthropic" => (
             "https://api.anthropic.com/v1/messages",
-            "claude-3-haiku-20240307"
+            "claude-3-haiku-20240307",
         ),
         "openai" => (
             "https://api.openai.com/v1/chat/completions",
-            "gpt-3.5-turbo"
+            "gpt-3.5-turbo",
         ),
         "deepseek" => (
             "https://api.deepseek.com/v1/chat/completions",
-            "deepseek-chat"
+            "deepseek-chat",
         ),
         _ => return Err(format!("Unsupported provider: {}", provider)),
     };
@@ -335,7 +335,10 @@ pub async fn extract_memories_with_llm(
     // 6. 解析并保存记忆
     let count = extract_and_save_memories(extraction_result)?;
 
-    eprintln!("[Memory Extraction] Successfully extracted and saved {} memories", count);
+    eprintln!(
+        "[Memory Extraction] Successfully extracted and saved {} memories",
+        count
+    );
     Ok(count)
 }
 
@@ -345,13 +348,17 @@ pub async fn extract_memories_with_llm(
 /// 适用于在 CLI 退出时快速提取记忆
 ///
 /// 当前实现：演示版本，打印提示信息
-pub fn extract_memories_simple(
-    conversation_summary: &str,
-) -> Result<usize, String> {
+pub fn extract_memories_simple(conversation_summary: &str) -> Result<usize, String> {
     // 简化版：打印对话摘要，供手动测试
     eprintln!("[Memory Extraction] Simple extraction (demo mode)");
-    eprintln!("[Memory Extraction] Conversation summary ({} chars):", conversation_summary.len());
-    eprintln!("{}", conversation_summary.chars().take(200).collect::<String>());
+    eprintln!(
+        "[Memory Extraction] Conversation summary ({} chars):",
+        conversation_summary.len()
+    );
+    eprintln!(
+        "{}",
+        conversation_summary.chars().take(200).collect::<String>()
+    );
     eprintln!("[Memory Extraction] To enable real LLM extraction, use extract_memories_with_llm() in async context");
     Ok(0)
 }
@@ -500,12 +507,24 @@ mod tests {
 "#;
 
         // 验证 append_to_section 的逻辑
-        let result = crate::memory::io::append_to_section(initial, "## Preferences", "- [2025-05-09] 使用 TypeScript");
+        let result = crate::memory::io::append_to_section(
+            initial,
+            "## Preferences",
+            "- [2025-05-09] 使用 TypeScript",
+        );
 
         // 验证原始条目存在
-        assert!(result.contains("用中文回答"), "Content should contain original entry:\n{}", result);
+        assert!(
+            result.contains("用中文回答"),
+            "Content should contain original entry:\n{}",
+            result
+        );
         // 验证新条目被追加
-        assert!(result.contains("使用 TypeScript"), "Content should contain new entry:\n{}", result);
+        assert!(
+            result.contains("使用 TypeScript"),
+            "Content should contain new entry:\n{}",
+            result
+        );
     }
 
     #[test]
