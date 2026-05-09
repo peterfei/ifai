@@ -4,6 +4,7 @@
 
 pub mod aliastools;
 pub mod filetools;
+pub mod memorytools;
 pub mod searchtools;
 pub mod shelltools;
 pub mod todoutil;
@@ -16,6 +17,7 @@ use super::spec::ToolPermissionMode;
 // 重新导出执行器
 pub use aliastools::AliasExecutor;
 pub use filetools::FileToolsExecutor;
+pub use memorytools::MemorySaveExecutor;
 pub use searchtools::SearchToolsExecutor;
 pub use shelltools::ShellToolsExecutor;
 pub use todoutil::TodoWriteExecutor;

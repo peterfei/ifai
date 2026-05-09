@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use super::{
     executor::{
-        AliasExecutor, FileToolsExecutor, SearchToolsExecutor, ShellToolsExecutor,
-        TodoWriteExecutor, ToolExecutor,
+        AliasExecutor, FileToolsExecutor, MemorySaveExecutor, SearchToolsExecutor,
+        ShellToolsExecutor, TodoWriteExecutor, ToolExecutor,
     },
     ToolError,
 };
@@ -43,6 +43,12 @@ impl ToolRouter {
         executors.insert(
             "TodoWrite".to_string(),
             Box::new(TodoWriteExecutor::new(task_store.clone())),
+        );
+
+        // 🆕 注册 MemorySave 执行器
+        executors.insert(
+            "MemorySave".to_string(),
+            Box::new(MemorySaveExecutor::new()),
         );
 
         // 注册文件工具执行器（每个工具一个实例）
@@ -143,6 +149,7 @@ mod tests {
 
         // 应该包含所有内置工具
         assert!(tools.contains(&"TodoWrite".to_string()));
+        assert!(tools.contains(&"MemorySave".to_string()));
         assert!(tools.contains(&"read_file".to_string()));
         assert!(tools.contains(&"write_file".to_string()));
         assert!(tools.contains(&"edit_file".to_string()));

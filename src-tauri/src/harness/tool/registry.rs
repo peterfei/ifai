@@ -231,6 +231,14 @@ impl ToolRegistry {
             }),
             required_permission: ToolPermissionMode::WorkspaceWrite,
         });
+
+        // 🆕 记忆管理工具
+        self.register(ToolSpec {
+            name: "MemorySave",
+            description: "Save an important user preference, project knowledge, or decision to persistent memory. Use proactively when user states a clear preference or makes an important decision. Supports spatial metaphor paths like 'Preferences/programming-languages' or 'project/Preferences/programming-languages'.",
+            input_schema: crate::memory::memory_save_schema(),
+            required_permission: ToolPermissionMode::WorkspaceWrite,
+        });
     }
 
     /// 获取工具白名单（用于子 Agent）

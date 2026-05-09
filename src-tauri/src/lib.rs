@@ -18,6 +18,7 @@ mod git;
 pub mod harness; // v0.4.0 新增：Claude Code Harness 架构 (pub for CLI)
 mod harness_ai_service; // 🆕 P0+P1+P2: 使用 Harness API 的 AI Service
 mod http_api; // v0.4.1 新增：HTTP API 服务器（为 E2E 测试提供真实后端访问）
+pub mod memory; // 🆕 持久化记忆系统：Wing/Hall/Room/Drawer 4 层空间隐喻
 mod intelligence_router;
 mod local_model;
 mod lsp;
