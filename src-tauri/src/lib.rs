@@ -600,6 +600,9 @@ async fn ai_chat(
             }
         }
 
+        // 4. 🆕 Phase 3: 注入持久化记忆（热记忆）
+        let system_content = crate::memory::inject_memories_into_system_prompt(&system_content);
+
         // === AI Transparency: 缓存各 section 内容并发射元数据事件 ===
         {
             // 构建各 section 的内容缓存

@@ -23,6 +23,7 @@ use ifainew_lib::harness::api::types::{
 };
 use ifainew_lib::harness::task::{get_global_task_store, TaskStore, TaskStatus};
 use ifainew_lib::harness::tool::{ToolRegistry, ToolRouter};
+use ifainew_lib::memory;
 use ifainew_lib::prompt_manager;
 use serde_json::json;
 use std::cell::RefCell;
@@ -2760,7 +2761,8 @@ fn build_cli_system_prompt(
     rendered.push_str("\n\n");
     rendered.push_str(&behavior_prompt);
 
-    rendered
+    // 5. 🆕 Phase 3: 注入持久化记忆（热记忆）
+    memory::inject_memories_into_system_prompt(&rendered)
 }
 // ============================================================================
 
