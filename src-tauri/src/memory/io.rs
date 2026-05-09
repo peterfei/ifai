@@ -141,6 +141,20 @@ pub fn append_to_section(memories: &str, section_title: &str, entry: &str) -> St
 mod tests {
     use super::*;
 
+    /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
+    fn setup_test_home(test_name: &str) -> std::path::PathBuf {
+        let thread_id = format!("{:?}", std::thread::current().id());
+        let temp_dir = std::env::temp_dir().join(format!("ifai_test_{}_{}", test_name, thread_id));
+        std::fs::create_dir_all(&temp_dir).ok();
+        temp_dir
+    }
+
+    fn restore_home(original_home: Option<String>) {
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        }
+    }
+
     #[test]
     fn test_ifai_dir() {
         let dir = ifai_dir();
@@ -245,31 +259,21 @@ mod tests {
     #[test]
     fn test_load_memories_file_not_exist() {
         // 测试文件不存在的降级处理
-        let temp_dir = std::env::temp_dir().join("ifai_test_load");
-        std::fs::create_dir_all(&temp_dir).ok();
-
-        // 临时修改 home 目录（通过环境变量）
+        let temp_dir = setup_test_home("load");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
         let result = load_memories();
         assert!(result.is_none(), "文件不存在时应返回 None");
 
-        // 恢复环境变量
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
-
-        // 清理
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_save_and_load_memories() {
         // 测试保存和加载
-        let temp_dir = std::env::temp_dir().join("ifai_test_save_load");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("save_load");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -280,10 +284,7 @@ mod tests {
         assert!(loaded.is_some());
         assert_eq!(loaded.unwrap(), content);
 
-        // 清理
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 }

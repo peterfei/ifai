@@ -53,6 +53,10 @@ mod streaming_thread_leak_test; // 🧪 流式输出线程泄漏 E2E 测试
 #[cfg(test)]
 mod real_streaming_test; // 🧪 真实流式输出场景测试
 #[cfg(test)]
+mod session_archive_e2e_test; // 🧪 会话归档 E2E 测试
+#[cfg(test)]
+mod session_archive_snapshot_test; // 🧪 会话归档快照测试
+#[cfg(test)]
 mod queued_message_thread_test; // 🧪 排队消息线程错误 E2E 测试
 #[cfg(test)]
 mod approval_thread_leak_test; // 🧪 工具审批界面线程泄漏 E2E 测试
@@ -797,6 +801,21 @@ fn extract_and_save_memories_cli(session: &session::Session) {
     }
 }
 
+/// 🔥 Phase 4: CLI 保存会话摘要到 sessions/ 目录
+fn save_session_summary_cli(session: &session::Session) -> Result<std::path::PathBuf, String> {
+    let persistence = crate::persistence::SessionPersistence::new()?;
+
+    let filepath = persistence.save_session_summary(
+        &session.default_ctx.messages,
+        &session.provider,
+        &session.model,
+        session.default_ctx.cumulative_input_tokens,
+        session.default_ctx.cumulative_output_tokens,
+    )?;
+
+    Ok(filepath)
+}
+
 /// 🔄 运行 REPL 循环
 async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 🔇 全局禁用调试日志（必须在最前面）
@@ -877,6 +896,17 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     // 🆕 Phase 4: 会话结束时提取记忆
                     extract_and_save_memories_cli(&session);
 
+                    // 🔥 Phase 4: 保存会话摘要到 sessions/ 目录
+                    eprintln!("[Session Archive] 💾 Saving session summary...");
+                    match save_session_summary_cli(&session) {
+                        Ok(filepath) => {
+                            eprintln!("[Session Archive] ✓ Session summary saved to {}", filepath.display());
+                        }
+                        Err(e) => {
+                            eprintln!("[Session Archive] ⚠ Failed to save session summary: {}", e);
+                        }
+                    }
+
                     break;
                 }
                 return Err(format!("IO error: {}", e));
@@ -887,6 +917,17 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                 // 🆕 Phase 4: 会话结束时提取记忆
                 extract_and_save_memories_cli(&session);
+
+                // 🔥 Phase 4: 保存会话摘要到 sessions/ 目录
+                eprintln!("[Session Archive] 💾 Saving session summary...");
+                match save_session_summary_cli(&session) {
+                    Ok(filepath) => {
+                        eprintln!("[Session Archive] ✓ Session summary saved to {}", filepath.display());
+                    }
+                    Err(e) => {
+                        eprintln!("[Session Archive] ⚠ Failed to save session summary: {}", e);
+                    }
+                }
 
                 break;
             }
@@ -908,6 +949,17 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
             // 🆕 Phase 4: 会话结束时提取记忆
             extract_and_save_memories_cli(&session);
+
+            // 🔥 Phase 4: 保存会话摘要到 sessions/ 目录
+            eprintln!("[Session Archive] 💾 Saving session summary...");
+            match save_session_summary_cli(&session) {
+                Ok(filepath) => {
+                    eprintln!("[Session Archive] ✓ Session summary saved to {}", filepath.display());
+                }
+                Err(e) => {
+                    eprintln!("[Session Archive] ⚠ Failed to save session summary: {}", e);
+                }
+            }
 
             // 🔥 保存历史记录
             let _ = rl.save_history(&history_path);
@@ -1957,6 +2009,65 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                 // 退出命令
                 if text == "/exit" || text == "/quit" {
+                    // 🔥 Phase 4: 保存会话摘要到 sessions/ 目录
+                    // 从 ThreadMessages 中收集所有线程的消息
+                    let all_thread_messages: Vec<ifainew_lib::harness::api::types::Message> = {
+                        let mut result = Vec::new();
+                        // 收集所有线程的消息
+                        for (thread_id, messages) in app.thread.messages.get_all() {
+                            for msg in messages {
+                                let role = match msg.role.as_str() {
+                                    "user" => ifainew_lib::harness::api::types::MessageRole::User,
+                                    "assistant" => ifainew_lib::harness::api::types::MessageRole::Assistant,
+                                    _ => continue,
+                                };
+                                result.push(ifainew_lib::harness::api::types::Message {
+                                    role,
+                                    content: ifainew_lib::harness::api::types::MessageContent::Text(msg.content.clone()),
+                                    tool_calls: None,
+                                    tool_call_id: None,
+                                });
+                            }
+                        }
+                        result
+                    };
+
+                    let theme = render::default_theme();
+                    app.push_line(format!("{}💾 Saving session summary...{}", theme.brand, render::RESET));
+                    app.scroll_to_bottom();
+                    app.render();
+
+                    // 创建持久化管理器并保存
+                    match crate::persistence::SessionPersistence::new() {
+                        Ok(persistence) => {
+                            // 获取 provider 和 model
+                            let (provider, model) = {
+                                let s = session.lock().await;
+                                (s.provider.clone(), s.model.clone())
+                            };
+
+                            match persistence.save_session_summary(
+                                &all_thread_messages,
+                                &provider,
+                                &model,
+                                0, // TODO: 从 session 收集实际 token 统计
+                                0,
+                            ) {
+                                Ok(filepath) => {
+                                    app.push_line(format!("{}✓ Session summary saved to {}{}", theme.success, filepath.display(), render::RESET));
+                                }
+                                Err(e) => {
+                                    app.push_line(format!("{}⚠ Failed to save session summary: {}{}", theme.warning, e, render::RESET));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            app.push_line(format!("{}⚠ Failed to create persistence: {}{}", theme.warning, e, render::RESET));
+                        }
+                    }
+                    app.scroll_to_bottom();
+                    app.render();
+
                     break;
                 }
 
@@ -2001,6 +2112,65 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 }
             }
             AppResult::Exit => {
+                // 🔥 Phase 4: 保存会话摘要到 sessions/ 目录
+                // 从 ThreadMessages 中收集所有线程的消息
+                let all_thread_messages: Vec<ifainew_lib::harness::api::types::Message> = {
+                    let mut result = Vec::new();
+                    // 收集所有线程的消息
+                    for (thread_id, messages) in app.thread.messages.get_all() {
+                        for msg in messages {
+                            let role = match msg.role.as_str() {
+                                "user" => ifainew_lib::harness::api::types::MessageRole::User,
+                                "assistant" => ifainew_lib::harness::api::types::MessageRole::Assistant,
+                                _ => continue,
+                            };
+                            result.push(ifainew_lib::harness::api::types::Message {
+                                role,
+                                content: ifainew_lib::harness::api::types::MessageContent::Text(msg.content.clone()),
+                                tool_calls: None,
+                                tool_call_id: None,
+                            });
+                        }
+                    }
+                    result
+                };
+
+                let theme = render::default_theme();
+                app.push_line(format!("{}💾 Saving session summary...{}", theme.brand, render::RESET));
+                app.scroll_to_bottom();
+                app.render();
+
+                // 创建持久化管理器并保存
+                match crate::persistence::SessionPersistence::new() {
+                    Ok(persistence) => {
+                        // 获取 provider 和 model
+                        let (provider, model) = {
+                            let s = session.lock().await;
+                            (s.provider.clone(), s.model.clone())
+                        };
+
+                        match persistence.save_session_summary(
+                            &all_thread_messages,
+                            &provider,
+                            &model,
+                            0, // TODO: 从 session 收集实际 token 统计
+                            0,
+                        ) {
+                            Ok(filepath) => {
+                                app.push_line(format!("{}✓ Session summary saved to {}{}", theme.success, filepath.display(), render::RESET));
+                            }
+                            Err(e) => {
+                                app.push_line(format!("{}⚠ Failed to save session summary: {}{}", theme.warning, e, render::RESET));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        app.push_line(format!("{}⚠ Failed to create persistence: {}{}", theme.warning, e, render::RESET));
+                    }
+                }
+                app.scroll_to_bottom();
+                app.render();
+
                 break;
             }
             AppResult::Handled => {}

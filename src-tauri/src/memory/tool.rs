@@ -66,6 +66,20 @@ pub fn handle_memory_save(path: &str, content: &str) -> Result<String, String> {
 mod tests {
     use super::*;
 
+    /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
+    fn setup_test_home(test_name: &str) -> std::path::PathBuf {
+        let thread_id = format!("{:?}", std::thread::current().id());
+        let temp_dir = std::env::temp_dir().join(format!("ifai_test_{}_{}", test_name, thread_id));
+        std::fs::create_dir_all(&temp_dir).ok();
+        temp_dir
+    }
+
+    fn restore_home(original_home: Option<String>) {
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        }
+    }
+
     #[test]
     fn test_memory_save_schema() {
         let schema = memory_save_schema();
@@ -89,9 +103,7 @@ mod tests {
 
     #[test]
     fn test_handle_memory_save_2_layer_path() {
-        let temp_dir = std::env::temp_dir().join("ifai_test_save_2layer");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("save_2layer");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -99,17 +111,13 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap().contains("使用 Rust"));
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_handle_memory_save_3_layer_path() {
-        let temp_dir = std::env::temp_dir().join("ifai_test_save_3layer");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("save_3layer");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -117,17 +125,13 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap().contains("使用 TypeScript"));
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_handle_memory_save_append_to_existing() {
-        let temp_dir = std::env::temp_dir().join("ifai_test_save_append");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("save_append");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -147,9 +151,7 @@ mod tests {
         assert!(content.contains("第一个条目"), "文件应包含第一个条目:\n{}", content);
         assert!(content.contains("第二个条目"), "文件应包含第二个条目:\n{}", content);
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 }

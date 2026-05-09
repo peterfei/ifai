@@ -9,7 +9,7 @@
 //! - Token 统计（Session 累积字段）
 //! - 配置路径（XDG 标准或 ~/.ifai/）
 
-use ifainew_lib::harness::api::types::Message;
+use ifainew_lib::harness::api::types::{Message, MessageRole};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -115,31 +115,13 @@ impl SessionPersistence {
     /// 1. XDG_DATA_HOME/ifai/sessions（Linux）
     /// 2. ~/Library/Application Support/ifai/sessions（macOS）
     /// 3. %APPDATA%/ifai/sessions（Windows）
-    /// 4. ~/.ifai/sessions（fallback）
+    /// 4. ~/.ifai/sessions（统一位置，与其他配置文件一致）
     fn get_sessions_dir() -> Result<PathBuf, String> {
-        let base_dir = if let Ok(data_home) = std::env::var("XDG_DATA_HOME") {
-            // Linux: XDG_DATA_HOME
-            PathBuf::from(data_home)
-        } else if let Ok(appdata) = std::env::var("APPDATA") {
-            // Windows: APPDATA
-            PathBuf::from(appdata)
-        } else {
-            // macOS 和 fallback
-            let home = std::env::var("HOME")
-                .map_err(|_| "Could not determine HOME directory".to_string())?;
+        let home = std::env::var("HOME")
+            .map_err(|_| "Could not determine HOME directory".to_string())?;
 
-            if cfg!(target_os = "macos") {
-                // macOS: ~/Library/Application Support
-                PathBuf::from(home)
-                    .join("Library")
-                    .join("Application Support")
-            } else {
-                // Fallback: ~/.ifai
-                PathBuf::from(home).join(".ifai")
-            }
-        };
-
-        Ok(base_dir.join("ifai").join("sessions"))
+        // 统一使用 ~/.ifai/sessions，而不是 macOS Application Support
+        Ok(PathBuf::from(home).join(".ifai").join("sessions"))
     }
 
     /// 🔥 保存会话
@@ -243,6 +225,102 @@ impl SessionPersistence {
         let filepath = self.sessions_dir.join(&filename);
 
         fs::remove_file(&filepath).map_err(|e| format!("Failed to delete session file: {}", e))
+    }
+
+    /// 🔥 保存会话摘要为 Markdown（冷记忆）
+    ///
+    /// **格式**：`sessions/YYYY-MM-DD-{random-id}.md`
+    ///
+    /// **内容**：
+    /// - 会话元数据（时间、模型、token 统计）
+    /// - 对话摘要（用户消息 + AI 回复的简短版本）
+    pub fn save_session_summary(
+        &self,
+        messages: &[Message],
+        provider: &str,
+        model: &str,
+        input_tokens: u32,
+        output_tokens: u32,
+    ) -> Result<PathBuf, String> {
+        // 1. 生成文件名：YYYY-MM-DD-{unique-id}.md
+        let now = chrono::Utc::now();
+        let date_str = now.format("%Y-%m-%d").to_string();
+
+        // 使用纳秒时间戳生成唯一 ID（避免同一毫秒内重复）
+        let timestamp_ns = now.timestamp_nanos_opt().unwrap_or(0);
+        let process_id = std::process::id();
+        // 取纳秒时间戳的后 12 位 + 进程 ID，确保唯一性
+        let unique_id = format!("{:x}{:x}", timestamp_ns.abs(), process_id);
+        let short_id = &unique_id[..unique_id.len().min(10)]; // 取前 10 个字符
+
+        let filename = format!("{}-{}.md", date_str, short_id);
+        let filepath = self.sessions_dir.join(&filename);
+
+        // 2. 生成 Markdown 内容
+        let summary = self.format_session_summary(messages, provider, model, input_tokens, output_tokens, &now);
+
+        // 3. 写入文件
+        fs::write(&filepath, summary)
+            .map_err(|e| format!("Failed to write session summary: {}", e))?;
+
+        Ok(filepath)
+    }
+
+    /// 格式化会话摘要为 Markdown
+    fn format_session_summary(
+        &self,
+        messages: &[Message],
+        provider: &str,
+        model: &str,
+        input_tokens: u32,
+        output_tokens: u32,
+        timestamp: &chrono::DateTime<chrono::Utc>,
+    ) -> String {
+        let mut result = String::new();
+
+        // 1. 标题和元数据
+        result.push_str("# Session Summary\n\n");
+        result.push_str(&format!("**Date**: {}\n", timestamp.format("%Y-%m-%d %H:%M:%S UTC")));
+        result.push_str(&format!("**Model**: {}/{}\n", provider, model));
+        result.push_str(&format!("**Tokens**: {} input + {} output = {} total\n\n",
+            input_tokens, output_tokens, input_tokens + output_tokens));
+
+        // 2. 对话内容
+        result.push_str("## Conversation\n\n");
+
+        for msg in messages.iter().filter(|m| !matches!(m.role, MessageRole::System)) {
+            match msg.role {
+                MessageRole::User => {
+                    result.push_str("### 👤 User\n\n");
+                }
+                MessageRole::Assistant => {
+                    result.push_str("### 🤖 Assistant\n\n");
+                }
+                _ => continue,
+            }
+
+            // 提取文本内容
+            let text = match &msg.content {
+                ifainew_lib::harness::api::types::MessageContent::Text(t) => t,
+                _ => continue, // 跳过非文本内容
+            };
+
+            // 限制长度（每条消息最多 500 字符）
+            let truncated = if text.len() > 500 {
+                format!("{}...\n\n*[Message truncated]*", &text[..500])
+            } else {
+                text.clone()
+            };
+
+            result.push_str(&truncated);
+            result.push_str("\n\n");
+        }
+
+        // 3. 元数据标记
+        result.push_str("---\n\n");
+        result.push_str("*This session summary was automatically generated.*\n");
+
+        result
     }
 
     /// 读取会话元数据（不加载完整消息）

@@ -702,6 +702,12 @@ impl Session {
         self.api_key = Some(api_key);
     }
 
+    /// 🔥 获取已存储的 API key（用于记忆提取等场景）
+    /// 注意：这个只返回已存储的 key，不会从环境变量读取
+    pub fn get_stored_api_key(&self) -> Option<&str> {
+        self.api_key.as_deref()
+    }
+
     /// 🔥 设置自定义系统提示词（--system 参数）
     pub fn set_system_prompt(&mut self, system_prompt: String) {
         self.custom_system_prompt = Some(system_prompt);

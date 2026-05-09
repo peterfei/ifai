@@ -531,6 +531,11 @@ impl ThreadMessages {
         self.messages.get(&thread_id).map(|v| v.as_slice())
     }
 
+    /// 获取所有线程消息（用于会话归档）
+    pub fn get_all(&self) -> &HashMap<ThreadId, Vec<Message>> {
+        &self.messages
+    }
+
     /// 获取主线程消息（作为上下文继承）
     pub fn primary_context(&self, primary_id: ThreadId) -> &[Message] {
         self.get(primary_id).unwrap_or(&[])

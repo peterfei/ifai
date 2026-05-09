@@ -166,6 +166,20 @@ pub fn inject_memories_into_system_prompt(system_prompt: &str) -> String {
 mod tests {
     use super::*;
 
+    /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
+    fn setup_test_home(test_name: &str) -> std::path::PathBuf {
+        let thread_id = format!("{:?}", std::thread::current().id());
+        let temp_dir = std::env::temp_dir().join(format!("ifai_test_{}_{}", test_name, thread_id));
+        std::fs::create_dir_all(&temp_dir).ok();
+        temp_dir
+    }
+
+    fn restore_home(original_home: Option<String>) {
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        }
+    }
+
     #[test]
     fn test_parse_memory_line_valid() {
         let metadata_store = MetadataStore::new();
@@ -258,26 +272,20 @@ mod tests {
 
     #[test]
     fn test_load_memories_for_injection_no_file() {
-        let temp_dir = std::env::temp_dir().join("ifai_test_injection");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("injection_no_file");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
         let result = load_memories_for_injection();
         assert!(result.is_empty(), "无记忆文件时应返回空字符串");
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_load_memories_for_injection_with_file() {
-        let temp_dir = std::env::temp_dir().join("ifai_test_injection_with_file");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("injection_with_file");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -298,18 +306,14 @@ mod tests {
         assert!(result.contains("用中文回答"));
         assert!(result.contains("[/USER_MEMORY]"));
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_inject_memories_into_system_prompt() {
         let system_prompt = "You are a helpful assistant.";
-        let temp_dir = std::env::temp_dir().join("ifai_test_inject");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("inject");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -332,9 +336,7 @@ mod tests {
         assert!(result.contains("[USER_MEMORY]"), "Result should contain [USER_MEMORY]: {}", result);
         assert!(result.contains("使用 TypeScript"), "Result should contain memory content: {}", result);
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 }

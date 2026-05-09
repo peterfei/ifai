@@ -212,9 +212,13 @@ impl EventHandler<Event> for InputSubmitHandler {
                     }
                 }
                 InputAction::Exit => {
+                    // 🔍 调试：Ctrl+D 或其他 Exit 信号
+                    
                     return ControlFlow::Break(AppResult::Exit);
                 }
                 InputAction::Interrupt => {
+                    // 🔍 调试：Ctrl+C 检测
+                    
                     // 不调用 push_line，避免访问 terminal
                 }
                 InputAction::None => {}
@@ -312,6 +316,8 @@ impl EventHandler<Event> for CombinedKeyHandler {
                     }
                 }
                 InputAction::Exit => {
+                    // 🔍 调试：Ctrl+D 或其他 Exit 信号
+                    
                     return ControlFlow::Break(AppResult::Exit);
                 }
                 InputAction::Interrupt => {

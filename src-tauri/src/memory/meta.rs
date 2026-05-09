@@ -174,6 +174,20 @@ pub fn content_fingerprint(content: &str) -> String {
 mod tests {
     use super::*;
 
+    /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
+    fn setup_test_home(test_name: &str) -> std::path::PathBuf {
+        let thread_id = format!("{:?}", std::thread::current().id());
+        let temp_dir = std::env::temp_dir().join(format!("ifai_test_{}_{}", test_name, thread_id));
+        std::fs::create_dir_all(&temp_dir).ok();
+        temp_dir
+    }
+
+    fn restore_home(original_home: Option<String>) {
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        }
+    }
+
     #[test]
     fn test_metadata_file() {
         let file = metadata_file();
@@ -263,26 +277,20 @@ mod tests {
 
     #[test]
     fn test_metadata_store_load_file_not_exist() {
-        let temp_dir = std::env::temp_dir().join("ifai_meta_test_load");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("meta_load");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
         let store = MetadataStore::load();
         assert_eq!(store.all().len(), 0, "文件不存在时应返回空存储");
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_metadata_store_save_and_load() {
-        let temp_dir = std::env::temp_dir().join("ifai_meta_test_save_load");
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("meta_save_load");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -299,9 +307,7 @@ mod tests {
         assert_eq!(loaded.get("test1").unwrap().access_count, 2);
         assert_eq!(loaded.get("test2").unwrap().access_count, 1);
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 

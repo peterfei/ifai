@@ -303,6 +303,39 @@ pub fn extract_memories_simple(
 mod tests {
     use super::*;
 
+    /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
+    fn setup_test_dir(test_name: &str) -> tempfile::TempDir {
+        let thread_id = format!("{:?}", std::thread::current().id());
+        let temp_dir = std::env::temp_dir().join(format!("ifai_test_{}_{}", test_name, thread_id));
+        std::fs::create_dir_all(&temp_dir).ok();
+        std::env::set_var("HOME", temp_dir.to_str().unwrap());
+
+        // 使用 tempfile::TempDir 以便自动清理
+        // 注意：这里我们手动创建并返回 TempDir 的包装
+        // 实际上我们使用的是固定路径，所以需要手动管理
+        tempfile::TempDir::new().unwrap_or_else(|_| {
+            // 如果 tempfile 创建失败，返回我们创建的目录的包装
+            // 这里我们需要一个技巧来创建 TempDir
+            std::fs::create_dir_all(&temp_dir).ok();
+            // 由于 tempfile::TempDir::new() 会创建随机目录，我们这里直接返回
+            panic!("Failed to create temp dir")
+        })
+    }
+
+    /// 简化版：直接创建并设置 HOME，不使用 tempfile
+    fn setup_test_home(test_name: &str) -> std::path::PathBuf {
+        let thread_id = format!("{:?}", std::thread::current().id());
+        let temp_dir = std::env::temp_dir().join(format!("ifai_test_{}_{}", test_name, thread_id));
+        std::fs::create_dir_all(&temp_dir).ok();
+        temp_dir
+    }
+
+    fn restore_home(original_home: Option<String>) {
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        }
+    }
+
     #[test]
     fn test_build_extraction_prompt() {
         let summary = "用户说喜欢用 TypeScript";
@@ -361,9 +394,7 @@ mod tests {
 
     #[test]
     fn test_save_extracted_memories_new_file() {
-        let temp_dir = std::env::temp_dir().join(format!("ifai_test_extract_new_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("extract_new");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -391,17 +422,13 @@ mod tests {
         assert!(content.contains("使用 TypeScript"));
         assert!(content.contains("采用 PostgreSQL"));
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_save_extracted_memories_append() {
-        let temp_dir = std::env::temp_dir().join(format!("ifai_test_extract_append_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("extract_append");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -434,17 +461,13 @@ mod tests {
         assert!(content.contains("用中文回答"), "Content should contain original entry:\n{}", content);
         assert!(content.contains("使用 TypeScript"), "Content should contain new entry:\n{}", content);
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 
     #[test]
     fn test_extract_and_save_memories() {
-        let temp_dir = std::env::temp_dir().join(format!("ifai_test_extract_full_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).ok();
-
+        let temp_dir = setup_test_home("extract_full");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
 
@@ -455,9 +478,7 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 2);
 
-        if let Some(home) = original_home {
-            std::env::set_var("HOME", home);
-        }
+        restore_home(original_home);
         std::fs::remove_dir_all(temp_dir).ok();
     }
 }
