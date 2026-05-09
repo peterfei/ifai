@@ -360,10 +360,15 @@ pub fn render_overlay_panel_lines(overlay: &DetailOverlay) -> Vec<Line<'static>>
 impl DetailOverlay {
     /// 渲染 Overlay（Clear + Header + Content + Footer）
     pub fn render(&mut self, f: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
-        // 1. 清屏（确保无残留）
+        // 1. 先填充黑色背景（避免"花"屏）
+        let bg = ratatui::widgets::Paragraph::new("")
+            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+        f.render_widget(bg, area);
+
+        // 2. 清屏（确保无残留）
         f.render_widget(ratatui::widgets::Clear, area);
 
-        // 2. 计算布局：Header + Content + Footer
+        // 3. 计算布局：Header + Content + Footer
         let chunks = ratatui::layout::Layout::default()
             .direction(ratatui::layout::Direction::Vertical)
             .margin(0)
@@ -374,13 +379,13 @@ impl DetailOverlay {
             ])
             .split(area);
 
-        // 3. 渲染 Header
+        // 4. 渲染 Header
         self.render_header(f, chunks[0]);
 
-        // 4. 渲染 Content（带滚动）
+        // 5. 渲染 Content（带滚动）
         self.render_content(f, chunks[1]);
 
-        // 5. 渲染 Footer
+        // 6. 渲染 Footer
         self.render_footer(f, chunks[2]);
     }
 
