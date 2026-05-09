@@ -3760,7 +3760,7 @@ mod tests {
 
         // 渲染快照
         let buf = render_to_buffer(&mut app, 80, 24);
-        assert_buffer_contains!(&buf, "T R A N S C R I P T");
+        assert_buffer_contains!(&buf, "对 话 记 录");
         assert_tui_snapshot!("overlay_transcript", &buf);
     }
 
@@ -3816,7 +3816,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
         // 渲染快照
         let buf = render_to_buffer(&mut app, 80, 24);
-        assert_buffer_contains!(&buf, "F I L E");
+        assert_buffer_contains!(&buf, "文 件");
         assert_buffer_contains!(&buf, "src/main.rs");
         assert_tui_snapshot!("overlay_file_viewer", &buf);
     }
@@ -3843,8 +3843,8 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
         // 渲染快照
         let buf = render_to_buffer(&mut app, 80, 24);
-        assert_buffer_contains!(&buf, "D I F F");
-        assert_buffer_contains!(&buf, "NEW");
+        assert_buffer_contains!(&buf, "文 件 差 异");
+        assert_buffer_contains!(&buf, "新 版 本");
         assert_tui_snapshot!("overlay_diff_context_new", &buf);
     }
 

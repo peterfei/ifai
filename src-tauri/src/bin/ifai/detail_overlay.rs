@@ -208,16 +208,16 @@ impl DetailOverlay {
         self.view.percent_scrolled()
     }
 
-    /// 获取标题文本
+    /// 获取标题文本（不包含斜杠前缀）
     pub fn title(&self) -> String {
         match &self.content {
             OverlayContent::File { path, .. } => {
-                format!("/ F I L E : {}", path.display())
+                format!("文件: {}", path.display())
             }
-            OverlayContent::Transcript { .. } => "/ T R A N S C R I P T".to_string(),
+            OverlayContent::Transcript { .. } => "对话记录".to_string(),
             OverlayContent::DiffContext { path, showing_new, .. } => {
-                let suffix = if *showing_new { " (NEW)" } else { " (OLD)" };
-                format!("/ D I F F : {}{}", path.display(), suffix)
+                let suffix = if *showing_new { " 新版本" } else { " 旧版本" };
+                format!("文件差异: {}{}", path.display(), suffix)
             }
         }
     }
@@ -336,8 +336,9 @@ pub fn render_overlay_panel_lines(overlay: &DetailOverlay) -> Vec<Line<'static>>
         OverlayContent::DiffContext { .. } => diff_context_overlay_sections(),
     };
 
+    let title_with_slash = format!("/ {}", overlay.title());
     let mut lines = vec![
-        Line::from(Span::styled(overlay.title(), Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(title_with_slash, Style::default().fg(Color::DarkGray))),
         Line::from(""),
     ];
 
@@ -391,6 +392,17 @@ impl DetailOverlay {
 
     /// 渲染顶部标题栏（包含面板信息）
     fn render_header(&self, f: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
+        // 1. 先用 "/ / / / ..." 填充背景（装饰性，类似 codex）
+        let bg_line = "/ ".repeat(area.width as usize / 2);
+        let bg = ratatui::widgets::Paragraph::new(bg_line)
+            .style(
+                ratatui::style::Style::default()
+                    .bg(ratatui::style::Color::Black)
+                    .fg(ratatui::style::Color::DarkGray)
+            );
+        f.render_widget(bg, area);
+
+        // 2. 渲染标题信息（在背景之上）
         let panel_lines = render_overlay_panel_lines(self);
         let visible_count = area.height as usize;
         let visible_lines = panel_lines.into_iter().take(visible_count).collect::<Vec<_>>();

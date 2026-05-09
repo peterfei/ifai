@@ -2,7 +2,7 @@
 source: src/bin/ifai/tui.rs
 expression: text
 ---
-/ D I F F : src/lib.rs (NEW)                                                    
+/ 文 件 差 异 : src/lib.rs 新 版 本  / / / / / / / / / / / / / / / / / / / / / / / / / 
                                                                                 
 fn hello() {                                                                    
     println!("Hello, World!");                                                  
