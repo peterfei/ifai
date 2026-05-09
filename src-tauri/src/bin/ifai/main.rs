@@ -745,6 +745,58 @@ fn run_prompt(
     rt.block_on(async { run_prompt_async(text, json_output, no_tool, system).await })
 }
 
+/// 🆕 Phase 4: CLI 会话结束时提取记忆
+///
+/// 收集会话历史并调用 LLM 提取重要记忆
+fn extract_and_save_memories_cli(session: &session::Session) {
+    use ifainew_lib::harness::api::types::Message;
+
+    // 1. 收集最近的用户消息（作为对话摘要）
+    let messages = &session.default_ctx.messages;
+    let recent_messages: Vec<_> = messages
+        .iter()
+        .filter(|m| matches!(m.role, ifainew_lib::harness::api::MessageRole::User))
+        .rev()
+        .take(5) // 最近 5 条用户消息
+        .collect();
+
+    if recent_messages.is_empty() {
+        return;
+    }
+
+    // 2. 生成对话摘要
+    let summary: String = recent_messages
+        .iter()
+        .rev() // 恢复原始顺序
+        .filter_map(|m| match &m.content {
+            ifainew_lib::harness::api::types::MessageContent::Text(text) => {
+                Some(text.trim())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if summary.is_empty() {
+        return;
+    }
+
+    // 3. 调用简化版提取（不阻塞退出）
+    eprintln!("[Memory Extraction] Extracting memories from recent conversation...");
+
+    let result = ifainew_lib::memory::extract_memories_simple(&summary);
+    match result {
+        Ok(count) => {
+            if count > 0 {
+                eprintln!("[Memory Extraction] ✓ Saved {} new memories", count);
+            }
+        }
+        Err(e) => {
+            eprintln!("[Memory Extraction] ⚠ Extraction failed: {}", e);
+        }
+    }
+}
+
 /// 🔄 运行 REPL 循环
 async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 🔇 全局禁用调试日志（必须在最前面）
@@ -821,6 +873,10 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     // Ctrl+D (EOF) 或 Ctrl+C (Interrupt)
                     println!(); // 换行
                     println!("{}Goodbye!{}", theme.success, render::RESET);
+
+                    // 🆕 Phase 4: 会话结束时提取记忆
+                    extract_and_save_memories_cli(&session);
+
                     break;
                 }
                 return Err(format!("IO error: {}", e));
@@ -828,6 +884,10 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
             Err(_) => {
                 // 其他错误
                 println!("{}Goodbye!{}", theme.success, render::RESET);
+
+                // 🆕 Phase 4: 会话结束时提取记忆
+                extract_and_save_memories_cli(&session);
+
                 break;
             }
         };
@@ -845,6 +905,9 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
         // 退出命令
         if input == "/exit" || input == "/quit" || input == "exit" || input == "quit" {
             println!("{}Goodbye!{}", theme.success, render::RESET);
+
+            // 🆕 Phase 4: 会话结束时提取记忆
+            extract_and_save_memories_cli(&session);
 
             // 🔥 保存历史记录
             let _ = rl.save_history(&history_path);

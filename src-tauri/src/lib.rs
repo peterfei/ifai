@@ -1379,6 +1379,10 @@ async fn ai_chat(
                  // 触发完成事件
                  if should_finish {
                      let _ = app_for_finish.emit(&format!("{}_finish", event_id_for_finish), "DONE");
+
+                     // 🆕 Phase 4: 会话结束时提取记忆（占位实现）
+                     let summary = format!("GUI chat session ended: event_id={}", event_id_for_finish);
+                     let _ = crate::memory::on_session_end(&summary);
                  }
              }
         })
