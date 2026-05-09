@@ -103,6 +103,20 @@
       "pathRiskRules": []
     },
     {
+      "name": "MemorySave",
+      "aliases": [
+        "memory_save",
+        "save_memory"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 100,
+      "pathRiskRules": []
+    },
+    {
       "name": "agent_write_file",
       "aliases": [
         "write_file",
