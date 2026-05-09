@@ -58,7 +58,23 @@ pub fn format_initial_memories(section_title: &str, entry: &str) -> String {
     )
 }
 
-/// 追加条目到指定 section
+/// 提取条目内容（去除日期部分）
+///
+/// 例如："- [2025-05-09] 使用 TypeScript" -> "使用 TypeScript"
+fn extract_entry_content(entry: &str) -> String {
+    entry
+        .trim()
+        .trim_start_matches('-')
+        .trim()
+        .trim_start_matches('[')
+        .split(']')
+        .nth(1)
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+/// 追加条目到指定 section（带去重）
 ///
 /// # Arguments
 /// * `memories` - 现有的记忆文件内容
@@ -67,6 +83,10 @@ pub fn format_initial_memories(section_title: &str, entry: &str) -> String {
 ///
 /// # Returns
 /// 更新后的完整记忆文件内容
+///
+/// # 去重逻辑
+/// - 如果 section 中已存在相同内容的条目（忽略日期），则更新日期
+/// - 如果不存在，则追加新条目
 pub fn append_to_section(memories: &str, section_title: &str, entry: &str) -> String {
     let lines: Vec<&str> = memories.lines().collect();
 
@@ -113,17 +133,34 @@ pub fn append_to_section(memories: &str, section_title: &str, entry: &str) -> St
                 content_start += 1;
             }
 
-            // 如果 section 后没有内容，或者下一个是 section，直接追加
-            if content_start >= result.len() || result[content_start].starts_with("#") {
-                result.insert(pos, entry.to_string());
-            } else {
-                // section 后已有内容，在内容后追加
-                // 找到 section 内容的结束位置（下一个 section 或文件末尾）
-                let mut content_end = content_start;
-                while content_end < result.len() && !result[content_end].starts_with("#") {
-                    content_end += 1;
+            // 🔥 去重检查：提取新条目的内容（不含日期）
+            let new_entry_content = extract_entry_content(entry);
+
+            // 找到 section 内容的结束位置（下一个 section 或文件末尾）
+            let mut content_end = content_start;
+            while content_end < result.len() && !result[content_end].starts_with("#") {
+                content_end += 1;
+            }
+
+            // 在 section 内容中查找是否已存在相同内容
+            let mut duplicate_found = false;
+            for i in content_start..content_end {
+                let existing_content = extract_entry_content(&result[i]);
+                if existing_content == new_entry_content {
+                    // 找到重复，更新日期（替换整行）
+                    result[i] = entry.to_string();
+                    duplicate_found = true;
+                    break;
                 }
-                result.insert(content_end, entry.to_string());
+            }
+
+            // 如果没有重复，追加新条目
+            if !duplicate_found {
+                if content_start >= result.len() || result[content_start].starts_with("#") {
+                    result.insert(pos, entry.to_string());
+                } else {
+                    result.insert(content_end, entry.to_string());
+                }
             }
 
             result.join("\n")
@@ -254,6 +291,58 @@ mod tests {
         let new_room_pos = lines.iter().rposition(|l| l.contains("### new-room")).unwrap();
         assert!(lines[new_room_pos + 1].contains("- [2025-05-09] 新条目"));
         assert!(lines[new_room_pos + 2].contains("- [2025-05-10] 更新的条目"));
+    }
+
+    #[test]
+    fn test_append_to_section_deduplication() {
+        // 测试去重：相同内容应该更新日期，而不是添加新条目
+        let memories = "# User Memories\n\n## Preferences\n- [2025-05-08] 使用 TypeScript\n";
+        let section_title = "## Preferences";
+        let entry = "- [2025-05-10] 使用 TypeScript";
+
+        let result = append_to_section(memories, section_title, entry);
+
+        // 应该只有一条记录，且日期已更新
+        assert_eq!(result.matches("使用 TypeScript").count(), 1, "应该只有一条 TypeScript 记录");
+        assert!(result.contains("- [2025-05-10] 使用 TypeScript"), "日期应该更新");
+        assert!(!result.contains("- [2025-05-08] 使用 TypeScript"), "旧日期应该被替换");
+    }
+
+    #[test]
+    fn test_append_to_section_no_duplication_for_different_content() {
+        // 测试不同内容应该正常添加
+        let memories = "# User Memories\n\n## Preferences\n- [2025-05-08] 使用 JavaScript\n";
+        let section_title = "## Preferences";
+        let entry = "- [2025-05-10] 使用 TypeScript";
+
+        let result = append_to_section(memories, section_title, entry);
+
+        // 应该有两条记录
+        assert!(result.contains("- [2025-05-08] 使用 JavaScript"));
+        assert!(result.contains("- [2025-05-10] 使用 TypeScript"));
+    }
+
+    #[test]
+    fn test_append_to_section_deduplication_nested() {
+        // 测试嵌套 section 的去重
+        let memories = "# User Memories\n\n## Preferences\n### programming-languages\n- [2025-05-08] 使用 Rust\n";
+        let section_title = "## Preferences\n### programming-languages";
+        let entry = "- [2025-05-10] 使用 Rust";
+
+        let result = append_to_section(memories, section_title, entry);
+
+        // 应该只有一条记录
+        assert_eq!(result.matches("使用 Rust").count(), 1);
+        assert!(result.contains("- [2025-05-10] 使用 Rust"));
+        assert!(!result.contains("- [2025-05-08] 使用 Rust"));
+    }
+
+    #[test]
+    fn test_extract_entry_content() {
+        // 测试内容提取函数
+        assert_eq!(extract_entry_content("- [2025-05-09] 使用 TypeScript"), "使用 TypeScript");
+        assert_eq!(extract_entry_content("  - [2025-05-09] 测试内容  "), "测试内容");
+        assert_eq!(extract_entry_content("- [2025-05-09] Content"), "Content");
     }
 
     #[test]
