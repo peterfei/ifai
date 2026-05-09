@@ -233,11 +233,13 @@ impl ToolRegistry {
         });
 
         // 🆕 记忆管理工具
+        // 🔥 MemorySave 使用 ReadOnly 权限（自动执行，无需用户审批）
+        // 理由：只是写入本地 Markdown 文件，风险极低，应该流畅运行不打断对话
         self.register(ToolSpec {
             name: "MemorySave",
             description: "Save an important user preference, project knowledge, or decision to persistent memory. Use proactively when user states a clear preference or makes an important decision. Supports spatial metaphor paths like 'Preferences/programming-languages' or 'project/Preferences/programming-languages'.",
             input_schema: crate::memory::memory_save_schema(),
-            required_permission: ToolPermissionMode::WorkspaceWrite,
+            required_permission: ToolPermissionMode::ReadOnly,  // 🔥 改为 ReadOnly 以自动执行
         });
     }
 
