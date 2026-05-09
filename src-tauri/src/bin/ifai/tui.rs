@@ -1351,6 +1351,18 @@ impl App {
             return;
         }
 
+        // === Detail Overlay 显示（优先级最高，提前返回）===
+        // 必须在 layout 计算之前处理，避免主屏幕内容泄漏到 overlay 区域
+        if !has_approval_state {
+            if let Some(ref mut overlay) = self.overlay {
+                // 先清空整个帧（包括上一帧残留的状态栏、输入框等区域）
+                f.render_widget(Clear, size);
+                // Overlay 占据整个终端屏幕
+                overlay.render(f, size);
+                return; // 提前返回，跳过所有主屏幕渲染
+            }
+        }
+
         // 布局：内容区 + 状态栏(1行) + 分隔线(1行) + 输入框(动态行数)
         let input_height = input_line_count.min(10); // 最多 10 行
         let chunks = Layout::default()
@@ -1398,14 +1410,10 @@ impl App {
 
         // === 内容区 ===
         // 只有在非审批模式下才渲染内容区域
+        // （Detail Overlay 已在函数开头提前处理并 return）
         if !has_approval_state {
-            // === Detail Overlay 显示（优先级最高，占据整个屏幕）===
-            if let Some(ref mut overlay) = self.overlay {
-                // Overlay 占据整个终端屏幕（包括状态栏和输入框区域）
-                overlay.render(f, f.area());
-            }
             // === Diff 模式显示 ===
-            else if self.diff.mode {
+            if self.diff.mode {
                 if let Some(diff_view) = &mut self.diff.view {
                     // 更新视口大小
                     diff_view.set_viewport(content_area.height);

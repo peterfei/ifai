@@ -1196,13 +1196,11 @@ impl Session {
                     tool_call_id: None,
                 });
 
-                // 🎯 检查是否所有任务都完成，决定是否继续
+                // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
+                // 无论任务列表是否全部完成，都不强制继续循环
                 let global_store = get_global_task_store();
-                let all_completed = global_store.get_tasks()
-                    .iter()
-                    .all(|t| t.status == TaskStatus::Completed);
-                if all_completed {
-                    // 所有任务完成 → 显示总结并清空列表
+                let tasks = global_store.get_tasks();
+                if !tasks.is_empty() {
                     let elapsed_secs = start_time.elapsed().as_secs_f64();
                     let summary = self.render_pipeline.render_summary(
                         elapsed_secs,
@@ -1211,12 +1209,8 @@ impl Session {
                     );
                     println!("{}", summary);
                     global_store.clear();
-                    break;
-                } else {
-                    // 还有 pending 任务 → 继续下一轮（不显示总结）
-                    continuation_count += 1;
-                    continue;
                 }
+                break;
             }
 
             // Execute 阶段：执行工具
@@ -1863,12 +1857,10 @@ impl Session {
                     });
                 }
 
-                // 🎯 检查是否所有任务都完成，决定是否继续
-                let all_completed = task_store.get_tasks()
-                    .iter()
-                    .all(|t| t.status == TaskStatus::Completed);
-                if all_completed {
-                    // 所有任务完成 → 显示总结并清空列表
+                // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
+                // 无论任务列表是否全部完成，都不强制继续循环
+                let tasks = task_store.get_tasks();
+                if !tasks.is_empty() {
                     let mut s = session.lock().await;
                     let mut ctx = thread_ctx.lock().await;
 
@@ -1880,12 +1872,8 @@ impl Session {
                     );
                     let _ = output_tx.send(summary.into());
                     task_store.clear();
-                    break;
-                } else {
-                    // 还有 pending 任务 → 继续下一轮（不显示总结）
-                    continuation_count += 1;
-                    continue;
                 }
+                break;
             }
 
             // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
