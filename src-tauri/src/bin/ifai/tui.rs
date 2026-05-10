@@ -8,9 +8,7 @@ use std::time::Instant;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
     execute,
-    terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-    },
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -23,7 +21,7 @@ use ratatui::{
 use crate::event::{
     CombinedKeyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
     HelpEnterHandler, HelpExitHandler, IgnoreHandler, MouseScrollHandler, ResizeHandler,
-    SearchEnterHandler, SearchInputHandler, ThreadModeHandler, ThreadEnterHandler,
+    SearchEnterHandler, SearchInputHandler, ThreadEnterHandler, ThreadModeHandler,
 };
 use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::render;
@@ -70,7 +68,10 @@ impl ActiveRequests {
         self.requests.contains_key(thread_id)
     }
 
-    pub fn get_thread_request(&self, thread_id: &crate::thread::ThreadId) -> Option<&ActiveRequest> {
+    pub fn get_thread_request(
+        &self,
+        thread_id: &crate::thread::ThreadId,
+    ) -> Option<&ActiveRequest> {
         self.requests.get(thread_id)
     }
 
@@ -110,7 +111,9 @@ impl StreamSubsystem {
 }
 
 impl Default for StreamSubsystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// ApprovalSubsystem: 审批相关状态
@@ -121,12 +124,17 @@ pub struct ApprovalSubsystem {
 
 impl ApprovalSubsystem {
     pub fn new() -> Self {
-        Self { states: std::collections::HashMap::new(), selected: 0 }
+        Self {
+            states: std::collections::HashMap::new(),
+            selected: 0,
+        }
     }
 }
 
 impl Default for ApprovalSubsystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// SearchSubsystem: 搜索相关状态
@@ -140,12 +148,20 @@ pub struct SearchSubsystem {
 
 impl SearchSubsystem {
     pub fn new() -> Self {
-        Self { mode: false, query: String::new(), matches: Vec::new(), current_index: 0, input: InputComposer::new("") }
+        Self {
+            mode: false,
+            query: String::new(),
+            matches: Vec::new(),
+            current_index: 0,
+            input: InputComposer::new(""),
+        }
     }
 }
 
 impl Default for SearchSubsystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// DiffSubsystem: Diff 相关状态
@@ -158,12 +174,19 @@ pub struct DiffSubsystem {
 
 impl DiffSubsystem {
     pub fn new() -> Self {
-        Self { mode: false, view: None, files: Vec::new(), index: 0 }
+        Self {
+            mode: false,
+            view: None,
+            files: Vec::new(),
+            index: 0,
+        }
     }
 }
 
 impl Default for DiffSubsystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// ThreadSubsystem: 线程相关状态
@@ -175,12 +198,18 @@ pub struct ThreadSubsystem {
 
 impl ThreadSubsystem {
     pub fn new() -> Self {
-        Self { store: ThreadStore::new(), messages: ThreadMessages::new(), active_mode: false }
+        Self {
+            store: ThreadStore::new(),
+            messages: ThreadMessages::new(),
+            active_mode: false,
+        }
     }
 }
 
 impl Default for ThreadSubsystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ============================================================================
@@ -213,9 +242,10 @@ pub enum Mode {
 }
 
 impl Default for Mode {
-    fn default() -> Self { Self::Normal }
+    fn default() -> Self {
+        Self::Normal
+    }
 }
-
 
 /// 剥离 ANSI 转义序列（按 char 边界，保留 UTF-8 多字节字符）
 fn strip_ansi(s: &str) -> String {
@@ -403,8 +433,16 @@ impl Selection {
     /// 检查位置是否在选择区域内
     pub fn contains(&self, column: u16, row: u16) -> bool {
         if let (Some(start), Some(end)) = (self.start, self.end) {
-            let (min_col, max_col) = if start.0 <= end.0 { (start.0, end.0) } else { (end.0, start.0) };
-            let (min_row, max_row) = if start.1 <= end.1 { (start.1, end.1) } else { (end.1, start.1) };
+            let (min_col, max_col) = if start.0 <= end.0 {
+                (start.0, end.0)
+            } else {
+                (end.0, start.0)
+            };
+            let (min_row, max_row) = if start.1 <= end.1 {
+                (start.1, end.1)
+            } else {
+                (end.1, start.1)
+            };
 
             if row < min_row || row > max_row {
                 return false;
@@ -430,7 +468,11 @@ impl Selection {
     /// 获取选择区域的文本
     pub fn get_selected_text(&self, lines: &[Line<'_>]) -> String {
         if let (Some(start), Some(end)) = (self.start, self.end) {
-            let (min_row, max_row) = if start.1 <= end.1 { (start.1, end.1) } else { (end.1, start.1) };
+            let (min_row, max_row) = if start.1 <= end.1 {
+                (start.1, end.1)
+            } else {
+                (end.1, start.1)
+            };
 
             if max_row >= lines.len() as u16 {
                 return String::new();
@@ -444,9 +486,18 @@ impl Selection {
 
                 if row == min_row && row == max_row {
                     // 单行选择
-                    let (min_col, max_col) = if start.0 <= end.0 { (start.0, end.0) } else { (end.0, start.0) };
+                    let (min_col, max_col) = if start.0 <= end.0 {
+                        (start.0, end.0)
+                    } else {
+                        (end.0, start.0)
+                    };
                     if max_col <= text.len() as u16 {
-                        result.push(text.chars().skip(min_col as usize).take((max_col - min_col + 1) as usize).collect::<String>());
+                        result.push(
+                            text.chars()
+                                .skip(min_col as usize)
+                                .take((max_col - min_col + 1) as usize)
+                                .collect::<String>(),
+                        );
                     }
                 } else if row == min_row {
                     // 首行
@@ -457,7 +508,11 @@ impl Selection {
                     // 末行
                     let max_col = if start.1 <= end.1 { end.0 } else { start.0 };
                     if max_col <= text.len() as u16 {
-                        result.push(text.chars().take((max_col + 1) as usize).collect::<String>());
+                        result.push(
+                            text.chars()
+                                .take((max_col + 1) as usize)
+                                .collect::<String>(),
+                        );
                     }
                 } else {
                     // 中间行，全选
@@ -522,7 +577,10 @@ pub struct App {
     /// 🔥 Per-thread TaskStore（隔离 TodoWrite 任务，避免跨线程泄漏）
     task_stores: std::collections::HashMap<crate::thread::ThreadId, task::TaskStore>,
     /// 🔥 Per-thread Session 上下文（隔离 messages、tokens、pipeline）
-    thread_session_contexts: std::collections::HashMap<crate::thread::ThreadId, std::sync::Arc<tokio::sync::Mutex<super::session::ThreadSessionContext>>>,
+    thread_session_contexts: std::collections::HashMap<
+        crate::thread::ThreadId,
+        std::sync::Arc<tokio::sync::Mutex<super::session::ThreadSessionContext>>,
+    >,
     /// DiffSubsystem
     pub diff: DiffSubsystem,
     /// 详情 overlay
@@ -619,7 +677,9 @@ impl App {
 
     /// 获取当前活动线程 ID（声明式：一处定义，处处复用）
     pub fn current_thread_id(&self) -> crate::thread::ThreadId {
-        self.thread.store.active_thread()
+        self.thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id())
     }
@@ -657,10 +717,17 @@ impl App {
 
     /// 确保指定线程有 ThreadSessionContext（懒创建 + 缓存）
     /// 返回 Arc<Mutex<>>，可在 tokio::spawn 中使用
-    pub fn ensure_session_context(&mut self, thread_id: crate::thread::ThreadId) -> std::sync::Arc<tokio::sync::Mutex<super::session::ThreadSessionContext>> {
+    pub fn ensure_session_context(
+        &mut self,
+        thread_id: crate::thread::ThreadId,
+    ) -> std::sync::Arc<tokio::sync::Mutex<super::session::ThreadSessionContext>> {
         self.thread_session_contexts
             .entry(thread_id)
-            .or_insert_with(|| std::sync::Arc::new(tokio::sync::Mutex::new(super::session::ThreadSessionContext::new())))
+            .or_insert_with(|| {
+                std::sync::Arc::new(tokio::sync::Mutex::new(
+                    super::session::ThreadSessionContext::new(),
+                ))
+            })
             .clone()
     }
 
@@ -679,8 +746,15 @@ impl App {
 
     /// 🔥 线程安全的 push_line：仅在当前活动线程匹配目标线程时才写入 content_lines
     /// 用于 streaming loop 中，防止消息写入到错误的线程显示区
-    pub fn push_line_if_active_thread(&mut self, target_thread_id: crate::thread::ThreadId, text: String) {
-        let current_thread_id = self.thread.store.active_thread()
+    pub fn push_line_if_active_thread(
+        &mut self,
+        target_thread_id: crate::thread::ThreadId,
+        text: String,
+    ) {
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
@@ -708,16 +782,17 @@ impl App {
 
         // 使用 arboard 复制到剪贴板
         match arboard::Clipboard::new() {
-            Ok(mut clipboard) => {
-                match clipboard.set_text(&selected_text) {
-                    Ok(_) => {
-                        self.push_line(format!("✓ 已复制 {} 字符到剪贴板", selected_text.chars().count()));
-                        Ok(selected_text)
-                    }
-                    Err(e) => Err(format!("剪贴板写入失败: {}", e))
+            Ok(mut clipboard) => match clipboard.set_text(&selected_text) {
+                Ok(_) => {
+                    self.push_line(format!(
+                        "✓ 已复制 {} 字符到剪贴板",
+                        selected_text.chars().count()
+                    ));
+                    Ok(selected_text)
                 }
-            }
-            Err(e) => Err(format!("剪贴板初始化失败: {}", e))
+                Err(e) => Err(format!("剪贴板写入失败: {}", e)),
+            },
+            Err(e) => Err(format!("剪贴板初始化失败: {}", e)),
         }
     }
 
@@ -752,13 +827,16 @@ impl App {
 
     /// 开始 streaming 时清空目标线程的 buffer
     pub fn begin_streaming(&mut self, thread_id: crate::thread::ThreadId) {
-        self.stream.streaming_response_buffers.insert(thread_id, String::new());
+        self.stream
+            .streaming_response_buffers
+            .insert(thread_id, String::new());
     }
 
     /// 接收 streaming 输出时累积到目标线程的 buffer（替代直接 push_line）
     pub fn append_streaming_output(&mut self, thread_id: crate::thread::ThreadId, text: String) {
         // 累积原始文本到目标线程的 buffer
-        self.stream.streaming_response_buffers
+        self.stream
+            .streaming_response_buffers
             .entry(thread_id)
             .or_insert_with(String::new)
             .push_str(&text);
@@ -781,7 +859,10 @@ impl App {
             }
         }
         // AI 回复结束后自动回到底部，确保用户看到完整回复
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
         if thread_id == current_thread_id {
@@ -800,11 +881,15 @@ impl App {
 
     /// 获取当前活动线程的 streaming buffer（用于 overlay 在 streaming 期间显示）
     pub fn get_streaming_buffer(&self) -> Option<&str> {
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
-        self.stream.streaming_response_buffers
+        self.stream
+            .streaming_response_buffers
             .get(&current_thread_id)
             .filter(|s| !s.is_empty())
             .map(|s| s.as_str())
@@ -812,11 +897,15 @@ impl App {
 
     /// 获取当前活动线程的最近一次 AI 响应
     pub fn get_last_ai_response(&self) -> Option<&str> {
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
-        self.stream.last_ai_responses
+        self.stream
+            .last_ai_responses
             .get(&current_thread_id)
             .map(|s| s.as_str())
     }
@@ -845,7 +934,8 @@ impl App {
 
         // 添加提示信息
         self.content_lines.push(Line::from(""));
-        self.content_lines.push(Line::from("按 Ctrl+D 查看 diff 详情"));
+        self.content_lines
+            .push(Line::from("按 Ctrl+D 查看 diff 详情"));
         self.content_lines.push(Line::from(""));
 
         // 自动滚到底部
@@ -855,8 +945,15 @@ impl App {
     }
 
     /// 🔥 线程安全的 push_diff：仅在当前活动线程匹配目标线程时才写入 content_lines
-    pub fn push_diff_if_active_thread(&mut self, target_thread_id: crate::thread::ThreadId, diff: crate::diff_render::DiffFileChange) {
-        let current_thread_id = self.thread.store.active_thread()
+    pub fn push_diff_if_active_thread(
+        &mut self,
+        target_thread_id: crate::thread::ThreadId,
+        diff: crate::diff_render::DiffFileChange,
+    ) {
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
@@ -984,7 +1081,11 @@ impl App {
 
     /// 🔥 Phase 6: 检查指定线程是否 busy
     pub fn is_thread_busy(&self, thread_id: crate::thread::ThreadId) -> bool {
-        self.stream.thread_busy.get(&thread_id).copied().unwrap_or(false)
+        self.stream
+            .thread_busy
+            .get(&thread_id)
+            .copied()
+            .unwrap_or(false)
     }
 
     /// 🔥 Phase 6: 设置指定线程的 busy 状态
@@ -994,7 +1095,10 @@ impl App {
 
     /// 🔥 Phase 6: 检查当前活动线程是否 busy
     pub fn is_current_thread_busy(&self) -> bool {
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
         self.is_thread_busy(current_thread_id)
@@ -1002,7 +1106,10 @@ impl App {
 
     /// 设置忙碌状态（向后兼容：操作当前线程）
     pub fn set_busy(&mut self, busy: bool) {
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
         self.set_thread_busy(current_thread_id, busy);
@@ -1020,7 +1127,10 @@ impl App {
             // ⚠️ 关键修复：排队时必须捕获目标线程 ID
             // 这样处理队列时，消息会被发送到正确的线程
             // 而不是处理队列时的当前活动线程
-            let target_thread_id = self.thread.store.active_thread()
+            let target_thread_id = self
+                .thread
+                .store
+                .active_thread()
                 .map(|t| t.id)
                 .unwrap_or_else(|| self.thread.store.primary_id());
             self.stream.queue.push((text, target_thread_id));
@@ -1053,8 +1163,11 @@ impl App {
         let thread_id = request.thread_id;
         self.approval.states.insert(thread_id, request);
         self.approval.selected = 0; // 重置选中项为第一个
-        // 如果是当前活动线程的审批请求，切换到 Approving 模式
-        let current_thread_id = self.thread.store.active_thread()
+                                    // 如果是当前活动线程的审批请求，切换到 Approving 模式
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
         if thread_id == current_thread_id {
@@ -1066,7 +1179,10 @@ impl App {
     /// 🔥 关键修复：返回当前活动线程的审批状态引用
     /// 注意：由于生命周期限制，调用方需要在作用域内使用返回值
     pub fn approval_state_ref(&self) -> Option<&ApprovalRequest> {
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
@@ -1075,7 +1191,10 @@ impl App {
 
     /// 🔥 新方法：获取当前活动线程的审批状态
     pub fn get_current_approval_state(&self) -> Option<&ApprovalRequest> {
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
@@ -1086,7 +1205,10 @@ impl App {
     /// ⚠️ 重要：只移除当前活动线程的审批状态
     pub fn resolve_approval(&mut self, decision: ApprovalDecision) -> String {
         // 🔥 关键修复：只处理当前活动线程的审批状态
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
@@ -1096,7 +1218,8 @@ impl App {
         }
 
         let tool_name = self
-            .approval.states
+            .approval
+            .states
             .get(&current_thread_id)
             .map(|r| r.tool_name.clone())
             .unwrap_or_default();
@@ -1127,7 +1250,10 @@ impl App {
 
     /// 🔥 获取并移除当前线程的待处理审批请求（用于重新发送到审批 loop）
     pub fn take_pending_approval(&mut self) -> Option<ApprovalRequest> {
-        let current_thread_id = self.thread.store.active_thread()
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
 
@@ -1368,9 +1494,9 @@ impl App {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),             // 内容区
-                Constraint::Length(1),          // 状态栏
-                Constraint::Length(1),          // 分隔线
+                Constraint::Min(1),               // 内容区
+                Constraint::Length(1),            // 状态栏
+                Constraint::Length(1),            // 分隔线
                 Constraint::Length(input_height), // 输入框
             ])
             .split(size);
@@ -1390,7 +1516,8 @@ impl App {
         };
 
         // 当 overlay 可见时，缩小内容区底部避免遮挡（+1 留出间隔行）
-        let content_render_area = if overlay_height > 0 && content_area.height > overlay_height + 2 {
+        let content_render_area = if overlay_height > 0 && content_area.height > overlay_height + 2
+        {
             Rect::new(
                 content_area.x,
                 content_area.y,
@@ -1405,7 +1532,9 @@ impl App {
         f.render_widget(Clear, content_area);
 
         // 计算内容区域信息（用于滚动指示器）
-        let visible_count = (content_area.height as usize).saturating_sub(overlay_height as usize).saturating_sub(if overlay_height > 0 { 2 } else { 0 });
+        let visible_count = (content_area.height as usize)
+            .saturating_sub(overlay_height as usize)
+            .saturating_sub(if overlay_height > 0 { 2 } else { 0 });
         let total_lines = content_lines.len();
 
         // === 内容区 ===
@@ -1690,7 +1819,8 @@ impl App {
                             spans.push(Span::raw(" "));
                             spans.push(Span::styled(
                                 "(",
-                                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                                ratatui::style::Style::default()
+                                    .fg(ratatui::style::Color::DarkGray),
                             ));
                             spans.push(Span::styled(
                                 parent.display_name(),
@@ -1698,7 +1828,8 @@ impl App {
                             ));
                             spans.push(Span::styled(
                                 ")",
-                                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                                ratatui::style::Style::default()
+                                    .fg(ratatui::style::Color::DarkGray),
                             ));
                         }
                     }
@@ -1874,7 +2005,9 @@ impl App {
                     }
 
                     // Ctrl+O 提示（当有 AI 响应可查看时）
-                    if self.get_last_ai_response().is_some() || self.get_streaming_buffer().is_some() {
+                    if self.get_last_ai_response().is_some()
+                        || self.get_streaming_buffer().is_some()
+                    {
                         spans.push(Span::raw(" · "));
                         spans.push(Span::styled(
                             "Ctrl+O 查看详情",
@@ -1904,7 +2037,9 @@ impl App {
                         ));
                     }
                     // Ctrl+O 提示（当有 AI 响应可查看时）
-                    if self.get_last_ai_response().is_some() || self.get_streaming_buffer().is_some() {
+                    if self.get_last_ai_response().is_some()
+                        || self.get_streaming_buffer().is_some()
+                    {
                         spans.push(Span::raw(" · "));
                         spans.push(Span::styled(
                             "Ctrl+O 查看详情",
@@ -2074,7 +2209,12 @@ impl App {
             )
             // 鼠标滚轮 + 焦点恢复路由（带选择支持）
             .on(
-                |e| matches!(e, crossterm::event::Event::Mouse(_) | crossterm::event::Event::FocusGained),
+                |e| {
+                    matches!(
+                        e,
+                        crossterm::event::Event::Mouse(_) | crossterm::event::Event::FocusGained
+                    )
+                },
                 MouseScrollHandler::new(),
             )
             // Resize 路由
@@ -2136,9 +2276,13 @@ impl App {
                                 KeyCode::Enter => {
                                     if options_count > 0 {
                                         if let Some(ref req) = self.approval_state_ref() {
-                                            let options = crate::approval_overlay::build_approval_options(req);
+                                            let options =
+                                                crate::approval_overlay::build_approval_options(
+                                                    req,
+                                                );
                                             if self.approval.selected < options.len() {
-                                                let decision = options[self.approval.selected].decision;
+                                                let decision =
+                                                    options[self.approval.selected].decision;
                                                 let msg = self.resolve_approval(decision);
                                                 self.push_line(msg);
                                                 self.scroll_to_bottom();
@@ -2152,7 +2296,10 @@ impl App {
                                     let digit = c.to_digit(10).unwrap() as usize;
                                     if digit > 0 && digit <= options_count {
                                         if let Some(ref req) = self.approval_state_ref() {
-                                            let options = crate::approval_overlay::build_approval_options(req);
+                                            let options =
+                                                crate::approval_overlay::build_approval_options(
+                                                    req,
+                                                );
                                             let decision = options[digit - 1].decision;
                                             let msg = self.resolve_approval(decision);
                                             self.push_line(msg);
@@ -2163,7 +2310,9 @@ impl App {
                                     }
                                 }
                                 _ => {
-                                    if let Some(decision) = crate::approval_overlay::resolve_approval_key(*key) {
+                                    if let Some(decision) =
+                                        crate::approval_overlay::resolve_approval_key(*key)
+                                    {
                                         let msg = self.resolve_approval(decision);
                                         self.push_line(msg);
                                         self.scroll_to_bottom();
@@ -2189,11 +2338,14 @@ impl App {
             if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
                 if let Ok(event) = event::read() {
                     // 过滤键盘释放事件（键盘增强模式会发送 Press + Release）
-                    if matches!(event, Event::Key(ref k) if k.kind == event::KeyEventKind::Release) {
+                    if matches!(event, Event::Key(ref k) if k.kind == event::KeyEventKind::Release)
+                    {
                         continue;
                     }
                     match router.dispatch(&event, self) {
-                        ControlFlow::Break(AppResult::Submit(text)) => return AppResult::Submit(text),
+                        ControlFlow::Break(AppResult::Submit(text)) => {
+                            return AppResult::Submit(text)
+                        }
                         ControlFlow::Break(AppResult::Exit) => return AppResult::Exit,
                         ControlFlow::Break(AppResult::Handled) => {} // 事件已消费，继续循环
                         ControlFlow::Continue => {}
@@ -2210,7 +2362,8 @@ impl App {
     /// 创建侧线程
     pub fn create_side_thread(&mut self, name: Option<String>) -> ThreadId {
         let current_id = self
-            .thread.store
+            .thread
+            .store
             .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| self.thread.store.primary_id());
@@ -2237,7 +2390,9 @@ impl App {
             self.scroll_offset = 0;
 
             // 加载目标线程的历史消息（先收集到 Vec 以避免借用问题）
-            let messages_to_load: Vec<String> = self.thread.messages
+            let messages_to_load: Vec<String> = self
+                .thread
+                .messages
                 .get(thread_id)
                 .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
                 .unwrap_or_default();
@@ -2249,10 +2404,19 @@ impl App {
             // 同步 mode：如果目标线程有审批请求，切到 Approving；否则恢复 Normal
             // 退出 overlay/diff/search 等非 per-thread 模式
             match self.mode {
-                Mode::Overlay => { self.exit_overlay_mode(); }
-                Mode::Diff => { self.exit_diff_mode(); }
-                Mode::Search => { self.exit_search_mode(); }
-                Mode::Help => { self.help_mode = false; self.mode = Mode::Normal; }
+                Mode::Overlay => {
+                    self.exit_overlay_mode();
+                }
+                Mode::Diff => {
+                    self.exit_diff_mode();
+                }
+                Mode::Search => {
+                    self.exit_search_mode();
+                }
+                Mode::Help => {
+                    self.help_mode = false;
+                    self.mode = Mode::Normal;
+                }
                 Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::Normal => {}
             }
             if self.approval.states.contains_key(&thread_id) {
@@ -2282,7 +2446,8 @@ impl App {
 
     /// 获取当前线程的显示名称
     pub fn current_thread_name(&self) -> String {
-        self.thread.store
+        self.thread
+            .store
             .active_thread()
             .map(|t| t.display_name())
             .unwrap_or("Unknown".to_string())
@@ -2610,7 +2775,9 @@ mod tests {
 
         // 模拟 streaming（写入 buffer）
         let thread_id = app.thread.store.primary_id();
-        app.stream.streaming_response_buffers.insert(thread_id, "AI response".to_string());
+        app.stream
+            .streaming_response_buffers
+            .insert(thread_id, "AI response".to_string());
 
         // end_streaming 应自动回底
         app.end_streaming(thread_id);
@@ -3157,7 +3324,11 @@ mod tests {
         app.enqueue("  hello  ".to_string());
         assert_eq!(app.queue_len(), 1);
         // dequeue 返回 (String, ThreadId)，检查文本部分
-        assert_eq!(app.dequeue().map(|(text, _)| text), Some("hello".to_string()), "应自动 trim");
+        assert_eq!(
+            app.dequeue().map(|(text, _)| text),
+            Some("hello".to_string()),
+            "应自动 trim"
+        );
     }
 
     #[test]
@@ -3166,9 +3337,18 @@ mod tests {
         app.enqueue("first".to_string());
         app.enqueue("second".to_string());
         app.enqueue("third".to_string());
-        assert_eq!(app.dequeue().map(|(text, _)| text), Some("first".to_string()));
-        assert_eq!(app.dequeue().map(|(text, _)| text), Some("second".to_string()));
-        assert_eq!(app.dequeue().map(|(text, _)| text), Some("third".to_string()));
+        assert_eq!(
+            app.dequeue().map(|(text, _)| text),
+            Some("first".to_string())
+        );
+        assert_eq!(
+            app.dequeue().map(|(text, _)| text),
+            Some("second".to_string())
+        );
+        assert_eq!(
+            app.dequeue().map(|(text, _)| text),
+            Some("third".to_string())
+        );
         assert_eq!(app.dequeue(), None, "空队列应返回 None");
     }
 
@@ -3279,14 +3459,8 @@ mod tests {
         let diff = DiffFileChange {
             path: PathBuf::from("src/main.rs"),
             kind: DiffChangeKind::Modified,
-            old_content: Some(
-                "fn main() {\n    println!(\"Hello\");\n}\n"
-                    .to_string()
-            ),
-            new_content: Some(
-                "fn main() {\n    println!(\"Hello, World!\");\n}\n"
-                    .to_string()
-            ),
+            old_content: Some("fn main() {\n    println!(\"Hello\");\n}\n".to_string()),
+            new_content: Some("fn main() {\n    println!(\"Hello, World!\");\n}\n".to_string()),
             added: 1,
             removed: 1,
         };
@@ -3760,7 +3934,9 @@ mod tests {
         // 模拟 AI 响应
         let ai_response = "Here is the code you requested:\n\n\
 ```rust\nfn main() {\n    println!(\"Hello, World!\");\n}\n```\n\nThis program prints a greeting.";
-        app.stream.last_ai_responses.insert(app.thread.store.primary_id(), ai_response.to_string());
+        app.stream
+            .last_ai_responses
+            .insert(app.thread.store.primary_id(), ai_response.to_string());
 
         // 创建并进入 overlay
         let overlay = DetailOverlay::new_transcript(ai_response.to_string());
@@ -3782,7 +3958,9 @@ mod tests {
         let long_response: String = (1..=30)
             .map(|i| format!("Line {}: Some content here\n", i))
             .collect();
-        app.stream.last_ai_responses.insert(app.thread.store.primary_id(), long_response.clone());
+        app.stream
+            .last_ai_responses
+            .insert(app.thread.store.primary_id(), long_response.clone());
 
         // 创建并进入 overlay
         let overlay = DetailOverlay::new_transcript(long_response);
@@ -3819,7 +3997,8 @@ mod tests {
 fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\");\n    println!(\"{:?}\", map);\n}\n";
 
         // 创建 File overlay
-        let overlay = DetailOverlay::new_file(PathBuf::from("src/main.rs"), file_content.to_string());
+        let overlay =
+            DetailOverlay::new_file(PathBuf::from("src/main.rs"), file_content.to_string());
         app.enter_overlay_mode(overlay);
 
         // 渲染快照
@@ -3859,13 +4038,16 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     #[test]
     fn test_ctrl_o_enters_overlay_via_router() {
         use crate::detail_overlay::DetailOverlay;
-        use crate::event::{ControlFlow, EventHandler};
         use crate::event::handlers::DetailEnterHandler;
+        use crate::event::{ControlFlow, EventHandler};
 
         let mut app = App::new_for_test();
 
         // 设置 AI 响应
-        app.stream.last_ai_responses.insert(app.thread.store.primary_id(), "Test response\nLine 2\nLine 3".to_string());
+        app.stream.last_ai_responses.insert(
+            app.thread.store.primary_id(),
+            "Test response\nLine 2\nLine 3".to_string(),
+        );
 
         // 模拟 Ctrl+O 按键
         let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
@@ -3887,8 +4069,8 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     #[test]
     fn test_overlay_mode_exits_on_esc() {
         use crate::detail_overlay::DetailOverlay;
-        use crate::event::{ControlFlow, EventHandler};
         use crate::event::handlers::DetailModeHandler;
+        use crate::event::{ControlFlow, EventHandler};
 
         let mut app = App::new_for_test();
 
@@ -3914,13 +4096,15 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     #[test]
     fn test_ctrl_o_toggles_overlay() {
         use crate::detail_overlay::DetailOverlay;
-        use crate::event::{ControlFlow, EventHandler};
         use crate::event::handlers::DetailModeHandler;
+        use crate::event::{ControlFlow, EventHandler};
 
         let mut app = App::new_for_test();
 
         // 设置 AI 响应
-        app.stream.last_ai_responses.insert(app.thread.store.primary_id(), "Test response".to_string());
+        app.stream
+            .last_ai_responses
+            .insert(app.thread.store.primary_id(), "Test response".to_string());
 
         // 第一次 Ctrl+O - 进入 overlay
         let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
@@ -3994,7 +4178,8 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let mut app = App::new_for_test();
         app.thread.active_mode = true;
         let main_id = app.thread.store.active_id().unwrap();
-        app.stream.last_ai_responses
+        app.stream
+            .last_ai_responses
             .insert(main_id, "AI response".to_string());
 
         let buf = render_to_buffer(&mut app, 80, 24);
@@ -4013,8 +4198,11 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.thread.active_mode = true;
         app.status_text = "Streaming...".to_string();
         let main_id = app.thread.store.active_id().unwrap();
-        app.stream.queue.push(("next question".to_string(), main_id));
-        app.stream.last_ai_responses
+        app.stream
+            .queue
+            .push(("next question".to_string(), main_id));
+        app.stream
+            .last_ai_responses
             .insert(main_id, "previous AI response".to_string());
 
         let buf = render_to_buffer(&mut app, 80, 24);
@@ -4070,9 +4258,18 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
         assert!(!app.is_thread_busy(tid), "busy should be false");
         assert_eq!(app.status_text, "", "status should be empty");
-        assert!(!app.stream.streaming_response_buffers.contains_key(&tid), "buffer should be removed");
-        assert!(app.stream.last_ai_responses.contains_key(&tid), "response should be saved");
-        assert_eq!(app.stream.last_ai_responses.get(&tid).unwrap(), "partial response");
+        assert!(
+            !app.stream.streaming_response_buffers.contains_key(&tid),
+            "buffer should be removed"
+        );
+        assert!(
+            app.stream.last_ai_responses.contains_key(&tid),
+            "response should be saved"
+        );
+        assert_eq!(
+            app.stream.last_ai_responses.get(&tid).unwrap(),
+            "partial response"
+        );
     }
 
     #[test]
@@ -4086,7 +4283,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
         app.end_streaming(tid);
 
-        assert!(!app.stream.streaming_response_buffers.contains_key(&tid), "buffer should be removed after end_streaming");
+        assert!(
+            !app.stream.streaming_response_buffers.contains_key(&tid),
+            "buffer should be removed after end_streaming"
+        );
         assert_eq!(app.stream.last_ai_responses.get(&tid).unwrap(), "hello");
     }
 
@@ -4100,7 +4300,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.end_streaming(tid);
 
         assert!(!app.stream.streaming_response_buffers.contains_key(&tid));
-        assert!(!app.stream.last_ai_responses.contains_key(&tid), "empty buffer should not be saved");
+        assert!(
+            !app.stream.last_ai_responses.contains_key(&tid),
+            "empty buffer should not be saved"
+        );
     }
 
     #[test]
@@ -4196,7 +4399,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // buffer 已移除
         assert!(!app.stream.streaming_response_buffers.contains_key(&tid));
         // 但 last_ai_responses 保留（用户 Ctrl+O 可回看）
-        assert_eq!(app.stream.last_ai_responses.get(&tid).unwrap(), "Important AI response");
+        assert_eq!(
+            app.stream.last_ai_responses.get(&tid).unwrap(),
+            "Important AI response"
+        );
         // busy 不会被 end_streaming 清除（只有 cleanup_after_stream 才清除）
         assert!(app.is_thread_busy(tid));
     }
@@ -4374,10 +4580,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // 找到分隔线 "─" 在两个 buffer 中的行号
         let sep_line_1 = text1.lines().position(|l| l.starts_with('─')).unwrap();
         let sep_line_2 = text2.lines().position(|l| l.starts_with('─')).unwrap();
-        assert_eq!(
-            sep_line_2, sep_line_1 - 1,
-            "多行输入时分隔线应上移一行"
-        );
+        assert_eq!(sep_line_2, sep_line_1 - 1, "多行输入时分隔线应上移一行");
     }
 
     #[test]
@@ -4477,27 +4680,30 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     fn test_task_store_per_thread_isolation() {
         let mut app = App::new_for_test();
         let main_id = app.thread.store.primary_id();
-        let thread1_id = app.thread.store.create_side_thread(main_id, Some("thread1".to_string()));
+        let thread1_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("thread1".to_string()));
 
         // main 写入任务
         let main_store = app.ensure_task_store(main_id);
-        main_store.set_tasks(vec![
-            task::TaskItem {
+        main_store
+            .set_tasks(vec![task::TaskItem {
                 content: "main task 1".to_string(),
                 active_form: "doing main task".to_string(),
                 status: task::TaskStatus::Pending,
-            },
-        ]).unwrap();
+            }])
+            .unwrap();
 
         // thread1 写入不同任务
         let t1_store = app.ensure_task_store(thread1_id);
-        t1_store.set_tasks(vec![
-            task::TaskItem {
+        t1_store
+            .set_tasks(vec![task::TaskItem {
                 content: "thread1 task 1".to_string(),
                 active_form: "doing t1 task".to_string(),
                 status: task::TaskStatus::InProgress,
-            },
-        ]).unwrap();
+            }])
+            .unwrap();
 
         // 验证：main 的渲染只看到 main 的任务
         app.switch_thread(main_id);
@@ -4519,41 +4725,56 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     fn test_task_store_render_only_shows_current_thread() {
         let mut app = App::new_for_test();
         let main_id = app.thread.store.primary_id();
-        let thread1_id = app.thread.store.create_side_thread(main_id, Some("thread1".to_string()));
+        let thread1_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("thread1".to_string()));
 
         // main 有任务
         let main_store = app.ensure_task_store(main_id);
-        main_store.set_tasks(vec![
-            task::TaskItem {
+        main_store
+            .set_tasks(vec![task::TaskItem {
                 content: "main visible task".to_string(),
                 active_form: "working".to_string(),
                 status: task::TaskStatus::InProgress,
-            },
-        ]).unwrap();
+            }])
+            .unwrap();
 
         // thread1 有不同任务
         let t1_store = app.ensure_task_store(thread1_id);
-        t1_store.set_tasks(vec![
-            task::TaskItem {
+        t1_store
+            .set_tasks(vec![task::TaskItem {
                 content: "thread1 visible task".to_string(),
                 active_form: "working".to_string(),
                 status: task::TaskStatus::Pending,
-            },
-        ]).unwrap();
+            }])
+            .unwrap();
 
         // 切到 main，渲染，应包含 "main visible task"
         app.switch_thread(main_id);
         let buf = render_to_buffer(&mut app, 80, 24);
         let text = buffer_to_string(&buf);
-        assert!(text.contains("main visible task"), "main render should show main task");
-        assert!(!text.contains("thread1 visible task"), "main render should NOT show thread1 task");
+        assert!(
+            text.contains("main visible task"),
+            "main render should show main task"
+        );
+        assert!(
+            !text.contains("thread1 visible task"),
+            "main render should NOT show thread1 task"
+        );
 
         // 切到 thread1，渲染，应包含 "thread1 visible task"
         app.switch_thread(thread1_id);
         let buf = render_to_buffer(&mut app, 80, 24);
         let text = buffer_to_string(&buf);
-        assert!(text.contains("thread1 visible task"), "thread1 render should show thread1 task");
-        assert!(!text.contains("main visible task"), "thread1 render should NOT show main task");
+        assert!(
+            text.contains("thread1 visible task"),
+            "thread1 render should show thread1 task"
+        );
+        assert!(
+            !text.contains("main visible task"),
+            "thread1 render should NOT show main task"
+        );
     }
 
     // === 并发 streaming / todo 快照测试 ===
@@ -4562,7 +4783,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     fn test_concurrent_both_busy() {
         let mut app = App::new_for_test();
         let main_id = app.thread.store.primary_id();
-        let thread1_id = app.thread.store.create_side_thread(main_id, Some("Thread-1".to_string()));
+        let thread1_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("Thread-1".to_string()));
 
         // main 线程 streaming：push_line 模拟已渲染的 AI 回复 + streaming buffer
         app.switch_thread(main_id);
@@ -4581,9 +4805,15 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // 渲染当前视图（main）
         let buf = render_to_buffer(&mut app, 80, 24);
         let text = buffer_to_string(&buf);
-        assert!(text.contains("Main thread AI response"), "应显示 main 的 streaming 输出");
+        assert!(
+            text.contains("Main thread AI response"),
+            "应显示 main 的 streaming 输出"
+        );
         // streaming buffer 存在，应显示 Ctrl+O 提示
-        assert!(app.get_streaming_buffer().is_some(), "main 线程应有 streaming buffer");
+        assert!(
+            app.get_streaming_buffer().is_some(),
+            "main 线程应有 streaming buffer"
+        );
 
         assert_tui_snapshot!("concurrent_both_busy_main_view", &buf);
 
@@ -4591,9 +4821,15 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.switch_thread(thread1_id);
         let buf2 = render_to_buffer(&mut app, 80, 24);
         let text2 = buffer_to_string(&buf2);
-        assert!(!text2.contains("Main thread AI response"), "切换后不应显示 main 的输出");
+        assert!(
+            !text2.contains("Main thread AI response"),
+            "切换后不应显示 main 的输出"
+        );
         // thread1 的 streaming buffer 为空（没有 begin_streaming/append）
-        assert!(app.get_streaming_buffer().is_none(), "thread1 无 streaming buffer");
+        assert!(
+            app.get_streaming_buffer().is_none(),
+            "thread1 无 streaming buffer"
+        );
 
         assert_tui_snapshot!("concurrent_both_busy_thread1_view", &buf2);
     }
@@ -4602,7 +4838,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     fn test_switch_while_other_streaming() {
         let mut app = App::new_for_test();
         let main_id = app.thread.store.primary_id();
-        let thread1_id = app.thread.store.create_side_thread(main_id, Some("Thread-1".to_string()));
+        let thread1_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("Thread-1".to_string()));
 
         // main 线程正在 streaming
         app.switch_thread(main_id);
@@ -4622,10 +4861,19 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let text = buffer_to_string(&buf);
 
         // thread1 视图不应显示 main 的 streaming 内容
-        assert!(!text.contains("Secret data"), "不应泄漏其他线程的 streaming 内容");
-        assert!(!text.contains("More secret"), "不应泄漏其他线程的 streaming 内容");
+        assert!(
+            !text.contains("Secret data"),
+            "不应泄漏其他线程的 streaming 内容"
+        );
+        assert!(
+            !text.contains("More secret"),
+            "不应泄漏其他线程的 streaming 内容"
+        );
         // thread1 无 streaming buffer
-        assert!(app.get_streaming_buffer().is_none(), "thread1 不应有 streaming buffer");
+        assert!(
+            app.get_streaming_buffer().is_none(),
+            "thread1 不应有 streaming buffer"
+        );
 
         assert_tui_snapshot!("switch_while_other_busy", &buf);
     }
@@ -4634,33 +4882,38 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     fn test_concurrent_todo_isolation() {
         let mut app = App::new_for_test();
         let main_id = app.thread.store.primary_id();
-        let thread1_id = app.thread.store.create_side_thread(main_id, Some("Thread-1".to_string()));
+        let thread1_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("Thread-1".to_string()));
 
         // main 线程有 TodoWrite 任务
         app.switch_thread(main_id);
         let main_store = app.ensure_task_store(main_id);
-        main_store.set_tasks(vec![
-            task::TaskItem {
-                content: "Main task 1".to_string(),
-                active_form: "Doing main work".to_string(),
-                status: task::TaskStatus::Pending,
-            },
-            task::TaskItem {
-                content: "Main task 2".to_string(),
-                active_form: "Doing more work".to_string(),
-                status: task::TaskStatus::Pending,
-            },
-        ]).unwrap();
+        main_store
+            .set_tasks(vec![
+                task::TaskItem {
+                    content: "Main task 1".to_string(),
+                    active_form: "Doing main work".to_string(),
+                    status: task::TaskStatus::Pending,
+                },
+                task::TaskItem {
+                    content: "Main task 2".to_string(),
+                    active_form: "Doing more work".to_string(),
+                    status: task::TaskStatus::Pending,
+                },
+            ])
+            .unwrap();
 
         // thread1 也有自己的 TodoWrite 任务
         let t1_store = app.ensure_task_store(thread1_id);
-        t1_store.set_tasks(vec![
-            task::TaskItem {
+        t1_store
+            .set_tasks(vec![task::TaskItem {
                 content: "Thread1 task 1".to_string(),
                 active_form: "Doing thread1 work".to_string(),
                 status: task::TaskStatus::Pending,
-            },
-        ]).unwrap();
+            }])
+            .unwrap();
 
         // 在 main 视图渲染
         app.switch_thread(main_id);
@@ -4706,7 +4959,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
         // === 快照 1：底部状态（最后几行可见） ===
         let buf_before = crate::tui_test::render_to_buffer(&mut app, 80, 24);
-        insta::assert_snapshot!("normal_scroll_before_pageup", crate::tui_test::buffer_to_string(&buf_before));
+        insta::assert_snapshot!(
+            "normal_scroll_before_pageup",
+            crate::tui_test::buffer_to_string(&buf_before)
+        );
 
         // === 模拟 run_loop: PageUp 事件通过 router dispatch ===
         let mut router = App::build_event_router();
@@ -4715,7 +4971,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
         // === 快照 2：PageUp 后（应该看到更早的内容） ===
         let buf_after = crate::tui_test::render_to_buffer(&mut app, 80, 24);
-        insta::assert_snapshot!("normal_scroll_after_pageup", crate::tui_test::buffer_to_string(&buf_after));
+        insta::assert_snapshot!(
+            "normal_scroll_after_pageup",
+            crate::tui_test::buffer_to_string(&buf_after)
+        );
 
         // 验证：滚动后第一行应该包含更早的内容
         let text_after = crate::tui_test::buffer_to_string(&buf_after);
@@ -4731,7 +4990,9 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
     fn test_normal_scroll_mouse_wheel_snapshot() {
         // 模拟鼠标滚轮滚动
         use crate::event::EventRouter;
-        use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+        use crossterm::event::{
+            Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind,
+        };
 
         let mut app = App::new_for_test();
         app.set_test_size(80, 24);
@@ -4753,7 +5014,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let _ = router.dispatch(&event, &mut app);
 
         let buf_after = crate::tui_test::render_to_buffer(&mut app, 80, 24);
-        insta::assert_snapshot!("normal_scroll_after_mouse_up", crate::tui_test::buffer_to_string(&buf_after));
+        insta::assert_snapshot!(
+            "normal_scroll_after_mouse_up",
+            crate::tui_test::buffer_to_string(&buf_after)
+        );
 
         let text_after = crate::tui_test::buffer_to_string(&buf_after);
         assert!(
@@ -4782,7 +5046,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let _ = router.dispatch(&event, &mut app);
 
         let buf_after = crate::tui_test::render_to_buffer(&mut app, 80, 24);
-        insta::assert_snapshot!("normal_scroll_after_shift_up", crate::tui_test::buffer_to_string(&buf_after));
+        insta::assert_snapshot!(
+            "normal_scroll_after_shift_up",
+            crate::tui_test::buffer_to_string(&buf_after)
+        );
     }
 
     /// 模拟真实 run_loop 事件循环 — 验证 poll → read → dispatch → render 完整路径
@@ -4825,7 +5092,10 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // ===== 验证 =====
         // dispatch 应该返回 Break(Handled)（滚动后 render + Break）
         assert!(
-            matches!(flow, crate::event::ControlFlow::Break(crate::AppResult::Handled)),
+            matches!(
+                flow,
+                crate::event::ControlFlow::Break(crate::AppResult::Handled)
+            ),
             "PageUp 应该被 Break(Handled) 消费，实际: {:?}",
             flow
         );
@@ -4850,10 +5120,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         );
 
         // 应该看到更早的行
-        assert!(
-            text.contains("Line 04"),
-            "PageUp 后渲染应包含 Line 04"
-        );
+        assert!(text.contains("Line 04"), "PageUp 后渲染应包含 Line 04");
     }
 
     // ========================================================================

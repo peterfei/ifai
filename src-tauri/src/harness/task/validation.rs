@@ -3,9 +3,9 @@
 //! 使用 serde 的自定义反序列化实现声明式验证，
 //! 零运行时开销，类型安全。
 
+use crate::harness::task::{TaskItem, TaskStatus};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
-use crate::harness::task::{TaskItem, TaskStatus};
 
 /// ✅ 验证过的 TodoWrite 请求
 ///
@@ -116,7 +116,8 @@ impl<'de> Deserialize<'de> for ValidatedTodoWrite {
         }
 
         // 第三步：验证每个任务项（映射验证）
-        let todos = raw.todos
+        let todos = raw
+            .todos
             .into_iter()
             .enumerate()
             .map(|(index, item)| {
@@ -233,7 +234,10 @@ mod tests {
 
         let result: Result<ValidatedTodoWrite, _> = serde_json::from_value(input);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("activeForm 字段为空"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("activeForm 字段为空"));
     }
 
     #[test]
@@ -244,7 +248,10 @@ mod tests {
 
         let result: Result<ValidatedTodoWrite, _> = serde_json::from_value(input);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("todos 数组不能为空"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("todos 数组不能为空"));
     }
 
     #[test]

@@ -12,15 +12,19 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::tui::App;
     use crate::approval_overlay::ApprovalRequest;
     use crate::session::PendingToolCall;
+    use crate::tui::App;
 
     // ========================================================================
     // Bug 重现：工具审批界面线程泄漏
     // ========================================================================
 
-    fn make_approval_request(tool_name: &str, args: &str, thread_id: crate::thread::ThreadId) -> ApprovalRequest {
+    fn make_approval_request(
+        tool_name: &str,
+        args: &str,
+        thread_id: crate::thread::ThreadId,
+    ) -> ApprovalRequest {
         let tool = PendingToolCall {
             tool_id: "test-0".to_string(),
             name: tool_name.to_string(),
@@ -43,7 +47,10 @@ mod tests {
         app.switch_thread(thread2_id);
 
         // 模拟 Thread-2 的消息
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("Check weather".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("Check weather".to_string()),
+        );
 
         // 快照 1：Thread-2 用户输入后
         insta::assert_snapshot!(format!(
@@ -57,7 +64,11 @@ mod tests {
         "###);
 
         // === 步骤 2：工具调用需要审批 ===
-        let approval_request = make_approval_request("bash", r#"{"cmd": "curl -s 'https://wttr.in/Beijing?lang=zh&format=3'"}"#, thread2_id);
+        let approval_request = make_approval_request(
+            "bash",
+            r#"{"cmd": "curl -s 'https://wttr.in/Beijing?lang=zh&format=3'"}"#,
+            thread2_id,
+        );
 
         // 模拟设置审批状态
         app.set_approval_pending(approval_request);
@@ -153,7 +164,8 @@ mod tests {
 
         // === 步骤 1：在 Thread-2 设置审批 ===
         app.switch_thread(thread2_id);
-        let approval_request = make_approval_request("read_file", r#"{"path": "/tmp/test.txt"}"#, thread2_id);
+        let approval_request =
+            make_approval_request("read_file", r#"{"path": "/tmp/test.txt"}"#, thread2_id);
         app.set_approval_pending(approval_request);
 
         insta::assert_snapshot!(format!(
@@ -216,12 +228,14 @@ mod tests {
 
         // 2. Thread-2 有工具审批
         app.switch_thread(thread2_id);
-        let thread2_approval = make_approval_request("bash", r#"{"cmd": "echo thread2"}"#, thread2_id);
+        let thread2_approval =
+            make_approval_request("bash", r#"{"cmd": "echo thread2"}"#, thread2_id);
         app.set_approval_pending(thread2_approval);
 
         // 3. Thread-3 有工具审批
         app.switch_thread(thread3_id);
-        let thread3_approval = make_approval_request("bash", r#"{"cmd": "echo thread3"}"#, thread3_id);
+        let thread3_approval =
+            make_approval_request("bash", r#"{"cmd": "echo thread3"}"#, thread3_id);
         app.set_approval_pending(thread3_approval);
 
         // 4. 验证：每个线程应该只显示自己的审批

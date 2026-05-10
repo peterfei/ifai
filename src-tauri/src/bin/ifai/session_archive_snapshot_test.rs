@@ -12,19 +12,23 @@
 #[cfg(test)]
 mod tests {
     use crate::persistence::SessionPersistence;
-    use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
+    use ifainew_lib::harness::api::types::{
+        Message, MessageContent, MessageRole, ToolCall, ToolCallFunction,
+    };
     use std::fs;
 
     /// 设置测试环境
     fn setup() {
-        let test_dir = std::env::temp_dir().join(format!("ifai_snapshot_test_{}", std::process::id()));
+        let test_dir =
+            std::env::temp_dir().join(format!("ifai_snapshot_test_{}", std::process::id()));
         fs::create_dir_all(&test_dir).ok();
         std::env::set_var("HOME", test_dir.to_str().unwrap());
     }
 
     /// 清理测试环境
     fn teardown() {
-        let test_dir = std::env::temp_dir().join(format!("ifai_snapshot_test_{}", std::process::id()));
+        let test_dir =
+            std::env::temp_dir().join(format!("ifai_snapshot_test_{}", std::process::id()));
         fs::remove_dir_all(test_dir).ok();
     }
 

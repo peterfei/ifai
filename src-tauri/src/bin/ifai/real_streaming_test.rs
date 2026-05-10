@@ -54,7 +54,10 @@ mod tests {
         app.append_streaming_output(request_thread_id, "Rust is".to_string());
 
         // 通过 ThreadEvent 存储
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user("Rust is".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user("Rust is".to_string()),
+        );
 
         // 模拟用户切换到 Thread-2
         app.switch_thread(thread2_id);
@@ -63,7 +66,10 @@ mod tests {
         app.append_streaming_output(request_thread_id, " a systems".to_string());
 
         // 通过 ThreadEvent 存储（仍然到主线程）
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(" a systems".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(" a systems".to_string()),
+        );
 
         // 验证：主线程有完整的响应，Thread-2 为空
         insta::assert_snapshot!(format!(
@@ -98,7 +104,10 @@ mod tests {
 
         // 模拟流式输出
         app.append_streaming_output(request_thread_id, "Line 1".to_string());
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user("Line 1".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user("Line 1".to_string()),
+        );
 
         // 模拟 ThreadEvent 处理逻辑（main.rs:1342-1356）
         if let Some(active) = app.thread.store.active_thread() {

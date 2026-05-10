@@ -84,7 +84,7 @@ mod tests {
 
         // === 步骤 1：Main 线程进入 busy 状态 ===
         app.switch_thread(primary_id);
-        app.set_busy(true);  // 使用向后兼容的 API
+        app.set_busy(true); // 使用向后兼容的 API
 
         // === 步骤 2：验证 Main 线程 busy ===
         insta::assert_snapshot!(format!(
@@ -328,7 +328,10 @@ mod tests {
 
         // === T1: Thread-1 发送消息，开始 AI 处理 ===
         app.switch_thread(primary_id);
-        app.thread.messages.push(primary_id, crate::thread::Message::user("Question for Thread-1".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("Question for Thread-1".to_string()),
+        );
         app.set_thread_busy(primary_id, true);
 
         insta::assert_snapshot!(format!(
@@ -369,7 +372,10 @@ mod tests {
             app.enqueue("Question for Thread-2".to_string());
         } else {
             // 立即处理，不排队
-            app.thread.messages.push(thread2_id, crate::thread::Message::user("Question for Thread-2".to_string()));
+            app.thread.messages.push(
+                thread2_id,
+                crate::thread::Message::user("Question for Thread-2".to_string()),
+            );
         }
 
         insta::assert_snapshot!(format!(

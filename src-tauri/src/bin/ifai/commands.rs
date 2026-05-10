@@ -280,11 +280,8 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     // 🔥 使用统一压缩入口的 fallback 版本（同步）
     // Manual 模式保留 30 条消息
     let system_prompt = ""; // /compact 不使用 system_prompt
-    session.default_ctx.messages = perform_compaction_fallback(
-        &session.default_ctx.messages,
-        system_prompt,
-        keep_last_n,
-    );
+    session.default_ctx.messages =
+        perform_compaction_fallback(&session.default_ctx.messages, system_prompt, keep_last_n);
 
     let after_count = session.default_ctx.messages.len();
     let after_tokens = super::token::estimate_tokens(&session.default_ctx.messages);
@@ -329,7 +326,8 @@ fn cmd_cost(session: &mut Session, _arg: Option<&str>) -> CommandResult {
             &theme,
         );
 
-        let token_warning = token::format_token_warning(&session.default_ctx.messages, &session.model, &theme);
+        let token_warning =
+            token::format_token_warning(&session.default_ctx.messages, &session.model, &theme);
 
         format!("{}\n{}", cost_line, token_warning)
     };
@@ -579,7 +577,11 @@ fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
         "{}✓ Exported {} message{} to {}{}",
         theme.success,
         session.default_ctx.messages.len(),
-        if session.default_ctx.messages.len() == 1 { "" } else { "s" },
+        if session.default_ctx.messages.len() == 1 {
+            ""
+        } else {
+            "s"
+        },
         filename,
         RESET
     )))
@@ -593,7 +595,8 @@ fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
     // 🔥 查找最后一个用户消息的索引
     let last_user_index = session
-        .default_ctx.messages
+        .default_ctx
+        .messages
         .iter()
         .rposition(|m| matches!(m.role, MessageRole::User));
 
@@ -649,13 +652,15 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
     // 🔥 统计轮次（用户消息数）
     let user_message_count = session
-        .default_ctx.messages
+        .default_ctx
+        .messages
         .iter()
         .filter(|m| matches!(m.role, ifainew_lib::harness::api::types::MessageRole::User))
         .count();
 
     // 🔥 估算总 token 数
-    let total_tokens = session.default_ctx.cumulative_input_tokens + session.default_ctx.cumulative_output_tokens;
+    let total_tokens =
+        session.default_ctx.cumulative_input_tokens + session.default_ctx.cumulative_output_tokens;
 
     // 🔥 格式化输出
     let mut output = String::new();

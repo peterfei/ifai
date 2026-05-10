@@ -16,16 +16,23 @@ pub enum StreamPhase {
 impl StreamPhase {
     /// 是否处于加载状态（由 streamPhases[].loading 自动生成）
     pub fn is_loading(&self) -> bool {
-        matches!(self, Self::Streaming | Self::AwaitingApproval | Self::Continuing)
+        matches!(
+            self,
+            Self::Streaming | Self::AwaitingApproval | Self::Continuing
+        )
     }
 
     /// 获取当前 phase 允许的转换目标
     pub fn allowed_transitions(&self) -> Vec<StreamPhase> {
         match self {
-        StreamPhase::Streaming => vec![StreamPhase::AwaitingApproval, StreamPhase::Finished],
-        StreamPhase::AwaitingApproval => vec![StreamPhase::Continuing, StreamPhase::Finished, StreamPhase::Finished],
-        StreamPhase::Continuing => vec![StreamPhase::AwaitingApproval, StreamPhase::Finished],
-        StreamPhase::Finished => vec![],
+            StreamPhase::Streaming => vec![StreamPhase::AwaitingApproval, StreamPhase::Finished],
+            StreamPhase::AwaitingApproval => vec![
+                StreamPhase::Continuing,
+                StreamPhase::Finished,
+                StreamPhase::Finished,
+            ],
+            StreamPhase::Continuing => vec![StreamPhase::AwaitingApproval, StreamPhase::Finished],
+            StreamPhase::Finished => vec![],
         }
     }
 }
@@ -59,35 +66,28 @@ pub fn required_permission_for(tool_name: &str) -> PermissionMode {
     let normalized = tool_name.replace("agent_", "");
     match normalized.as_str() {
         "read_file"
-            | "read_file_range"
-            | "list_dir"
-            | "list_directory"
-            | "scan_project"
-            | "scan_directory"
-            | "get_file_tree"
-            | "get_file_symbols"
-            | "list_functions"
-            | "probe_symbols"
-            | "search"
-            | "grep_search"
-            | "glob_search"
-            | "search_file_content"
-            | "TodoWrite"
-            | "todowrite"
-            | "init_rag_index"
-            => PermissionMode::ReadOnly,
-        "write_file"
-            | "create_file"
-            | "replace_text"
-            | "edit_file"
-            => PermissionMode::WorkspaceWrite,
-        "delete_file"
-            | "rename_file"
-            | "move_file"
-            | "bash"
-            | "execute_command"
-            | "PowerShell"
-            => PermissionMode::DangerFullAccess,
+        | "read_file_range"
+        | "list_dir"
+        | "list_directory"
+        | "scan_project"
+        | "scan_directory"
+        | "get_file_tree"
+        | "get_file_symbols"
+        | "list_functions"
+        | "probe_symbols"
+        | "search"
+        | "grep_search"
+        | "glob_search"
+        | "search_file_content"
+        | "TodoWrite"
+        | "todowrite"
+        | "init_rag_index" => PermissionMode::ReadOnly,
+        "write_file" | "create_file" | "replace_text" | "edit_file" => {
+            PermissionMode::WorkspaceWrite
+        }
+        "delete_file" | "rename_file" | "move_file" | "bash" | "execute_command" | "PowerShell" => {
+            PermissionMode::DangerFullAccess
+        }
         _ => PermissionMode::DangerFullAccess, // 未知工具默认最高权限
     }
 }
@@ -106,8 +106,7 @@ pub fn requires_approval(active_mode: PermissionMode, tool_name: &str) -> bool {
 pub fn is_frontend_tool(tool_name: &str) -> bool {
     let normalized = tool_name.replace("agent_", "");
     match normalized.as_str() {
-        "TodoWrite"
-        | "todowrite" => true,
+        "TodoWrite" | "todowrite" => true,
         _ => false,
     }
 }
@@ -148,7 +147,10 @@ mod tests {
     #[test]
     fn test_requires_approval_logic() {
         // WorkspaceWrite >= ReadOnly → no approval
-        assert!(!requires_approval(PermissionMode::WorkspaceWrite, "read_file"));
+        assert!(!requires_approval(
+            PermissionMode::WorkspaceWrite,
+            "read_file"
+        ));
         // WorkspaceWrite < DangerFullAccess → needs approval
         assert!(requires_approval(PermissionMode::WorkspaceWrite, "bash"));
         // Allow >= anything → no approval
@@ -157,14 +159,26 @@ mod tests {
 
     #[test]
     fn test_required_permission_for_unknown() {
-        assert_eq!(required_permission_for("nonexistent_tool"), PermissionMode::DangerFullAccess);
+        assert_eq!(
+            required_permission_for("nonexistent_tool"),
+            PermissionMode::DangerFullAccess
+        );
     }
 
     #[test]
     fn test_agent_prefix_normalization() {
-        assert_eq!(required_permission_for("agent_write_file"), required_permission_for("write_file"));
-        assert_eq!(required_permission_for("agent_bash"), required_permission_for("bash"));
-        assert_eq!(required_permission_for("agent_read_file"), required_permission_for("read_file"));
+        assert_eq!(
+            required_permission_for("agent_write_file"),
+            required_permission_for("write_file")
+        );
+        assert_eq!(
+            required_permission_for("agent_bash"),
+            required_permission_for("bash")
+        );
+        assert_eq!(
+            required_permission_for("agent_read_file"),
+            required_permission_for("read_file")
+        );
     }
 
     #[test]

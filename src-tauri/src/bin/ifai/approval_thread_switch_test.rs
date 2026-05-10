@@ -109,7 +109,8 @@ mod tests {
 
         // === 步骤 1：三个线程都有审批 ===
         app.switch_thread(main_id);
-        let main_approval = make_approval_request("read_file", r#"{"path": "/tmp/main.txt"}"#, main_id);
+        let main_approval =
+            make_approval_request("read_file", r#"{"path": "/tmp/main.txt"}"#, main_id);
         app.set_approval_pending(main_approval);
 
         app.switch_thread(thread1_id);
@@ -117,7 +118,8 @@ mod tests {
         app.set_approval_pending(thread1_approval);
 
         app.switch_thread(thread2_id);
-        let thread2_approval = make_approval_request("write_file", r#"{"path": "/tmp/test.txt"}"#, thread2_id);
+        let thread2_approval =
+            make_approval_request("write_file", r#"{"path": "/tmp/test.txt"}"#, thread2_id);
         app.set_approval_pending(thread2_approval);
 
         // === 步骤 2：切换到 main ===
@@ -169,7 +171,11 @@ mod tests {
     // 辅助函数
     // ========================================================================
 
-    fn make_approval_request(tool_name: &str, args: &str, thread_id: crate::thread::ThreadId) -> crate::approval_overlay::ApprovalRequest {
+    fn make_approval_request(
+        tool_name: &str,
+        args: &str,
+        thread_id: crate::thread::ThreadId,
+    ) -> crate::approval_overlay::ApprovalRequest {
         let tool = crate::session::PendingToolCall {
             tool_id: "test-0".to_string(),
             name: tool_name.to_string(),

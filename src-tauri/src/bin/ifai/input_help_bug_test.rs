@@ -131,7 +131,9 @@ mod tests {
 
         // 进入各种模式并测试输入
         // 1. Overlay 模式
-        app.enter_overlay_mode(crate::detail_overlay::DetailOverlay::new_transcript("Test".to_string()));
+        app.enter_overlay_mode(crate::detail_overlay::DetailOverlay::new_transcript(
+            "Test".to_string(),
+        ));
 
         insta::assert_snapshot!(format!(
             "In overlay mode:\nIs overlay: {}\nInput should be: Handled by overlay",

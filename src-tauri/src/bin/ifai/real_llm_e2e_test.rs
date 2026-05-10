@@ -13,15 +13,15 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::tui::App;
-    use crate::session::Session;
     use crate::config::EffectiveConfig;
-    use crate::thread::Message;
-    use crate::tui_test::{render_to_buffer, buffer_to_string};
     use crate::input_composer::{self, InputAction};
+    use crate::session::Session;
+    use crate::thread::Message;
+    use crate::tui::App;
+    use crate::tui_test::{buffer_to_string, render_to_buffer};
     use ifainew_lib::harness::task::TaskStore;
-    use std::time::Instant;
     use std::sync::Arc;
+    use std::time::Instant;
 
     /// 从 ~/.ifai/config.toml 创建真实 Session（与 main.rs 启动逻辑一致）
     fn create_real_session() -> Session {
@@ -38,7 +38,11 @@ mod tests {
 
         if let Some(api_key) = config.api_key() {
             session.set_api_key(api_key.to_string());
-            println!("  API Key: {}...{}", &api_key[..4.min(api_key.len())], &api_key[api_key.len().saturating_sub(4)..]);
+            println!(
+                "  API Key: {}...{}",
+                &api_key[..4.min(api_key.len())],
+                &api_key[api_key.len().saturating_sub(4)..]
+            );
         }
 
         if let Some(base_url) = config.base_url() {
@@ -75,7 +79,9 @@ mod tests {
         // ==================== 步骤 2: main 发送 '执行ls -l' ====================
         println!("\n🔵 步骤 2: main 发送 '执行ls -l'");
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, Message::user("执行ls -l".to_string()));
+        app.thread
+            .messages
+            .push(main_id, Message::user("执行ls -l".to_string()));
         app.set_thread_busy(main_id, true);
 
         assert!(app.is_thread_busy(main_id), "main 应该 busy");
@@ -85,7 +91,9 @@ mod tests {
         // ==================== 步骤 3: thread1 发送 '你了解ruby语言吗' ====================
         println!("\n🟢 步骤 3: thread1 发送 '你了解ruby语言吗'");
         app.switch_thread(thread1_id);
-        app.thread.messages.push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
+        app.thread
+            .messages
+            .push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         assert!(app.is_thread_busy(main_id), "main 仍然 busy");
@@ -101,7 +109,11 @@ mod tests {
             let start = Instant::now();
             match session_main.stream_prompt("执行ls -l").await {
                 Ok(response) => {
-                    println!("  [main] 响应长度: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    println!(
+                        "  [main] 响应长度: {} 字符, 耗时: {:?}",
+                        response.len(),
+                        start.elapsed()
+                    );
                     let preview = response.chars().take(100).collect::<String>();
                     println!("  [main] 前 100 字符: {}", preview);
                     response
@@ -119,7 +131,11 @@ mod tests {
             let start = Instant::now();
             match session_thread1.stream_prompt("你了解ruby语言吗").await {
                 Ok(response) => {
-                    println!("  [thread1] 响应长度: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    println!(
+                        "  [thread1] 响应长度: {} 字符, 耗时: {:?}",
+                        response.len(),
+                        start.elapsed()
+                    );
                     let preview = response.chars().take(100).collect::<String>();
                     println!("  [thread1] 前 100 字符: {}", preview);
                     response
@@ -141,8 +157,16 @@ mod tests {
         println!("\n✅ 步骤 5: 验证结果");
 
         // 验证两个都有响应
-        assert!(!main_response.starts_with("ERROR"), "main 不应该出错: {}", main_response);
-        assert!(!thread1_response.starts_with("ERROR"), "thread1 不应该出错: {}", thread1_response);
+        assert!(
+            !main_response.starts_with("ERROR"),
+            "main 不应该出错: {}",
+            main_response
+        );
+        assert!(
+            !thread1_response.starts_with("ERROR"),
+            "thread1 不应该出错: {}",
+            thread1_response
+        );
 
         // 验证消息隔离：将响应写入对应线程
         app.switch_thread(main_id);
@@ -183,16 +207,36 @@ mod tests {
 
         // main 添加消息
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, Message::user("Main: 执行ls -l".to_string()));
-        let main_count = app.thread.messages.get(main_id).map(|m| m.len()).unwrap_or(0);
+        app.thread
+            .messages
+            .push(main_id, Message::user("Main: 执行ls -l".to_string()));
+        let main_count = app
+            .thread
+            .messages
+            .get(main_id)
+            .map(|m| m.len())
+            .unwrap_or(0);
 
         // thread1 添加消息
         app.switch_thread(thread1_id);
-        app.thread.messages.push(thread1_id, Message::user("Thread1: 你了解ruby语言吗".to_string()));
-        let thread1_count = app.thread.messages.get(thread1_id).map(|m| m.len()).unwrap_or(0);
+        app.thread.messages.push(
+            thread1_id,
+            Message::user("Thread1: 你了解ruby语言吗".to_string()),
+        );
+        let thread1_count = app
+            .thread
+            .messages
+            .get(thread1_id)
+            .map(|m| m.len())
+            .unwrap_or(0);
 
         // 验证隔离
-        let main_count_after = app.thread.messages.get(main_id).map(|m| m.len()).unwrap_or(0);
+        let main_count_after = app
+            .thread
+            .messages
+            .get(main_id)
+            .map(|m| m.len())
+            .unwrap_or(0);
         assert_eq!(main_count, main_count_after, "thread1 不应影响 main 消息数");
         assert_eq!(thread1_count, 1, "thread1 应该有 1 条消息");
 
@@ -251,26 +295,40 @@ mod tests {
         app.set_thread_busy(main_id, true);
 
         // 写入用户输入到 thread_messages（模拟 main.rs 中的行为）
-        app.thread.messages.push(main_id, crate::thread::Message::user("执行ls -l".to_string()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::user("执行ls -l".to_string()),
+        );
 
         let mut session_main = create_real_session();
         let main_handle = tokio::spawn(async move {
             let start = Instant::now();
             match session_main.stream_prompt("执行ls -l").await {
                 Ok(response) => {
-                    println!("  [main] LLM 响应: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    println!(
+                        "  [main] LLM 响应: {} 字符, 耗时: {:?}",
+                        response.len(),
+                        start.elapsed()
+                    );
                     response
                 }
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
         // ---- 步骤 2: 等待 main 响应，写入 thread_messages（持久化） ----
         let main_response = main_handle.await.unwrap();
-        assert!(!main_response.starts_with("ERROR"), "main LLM 调用失败: {}", main_response);
+        assert!(
+            !main_response.starts_with("ERROR"),
+            "main LLM 调用失败: {}",
+            main_response
+        );
 
         // 写入 thread_messages（switch_thread 时会自动加载到 content_lines）
-        app.thread.messages.push(main_id, crate::thread::Message::assistant(main_response.clone()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::assistant(main_response.clone()),
+        );
         app.set_thread_busy(main_id, false);
         println!("  OK main 收到 AI 响应（{} 字符）", main_response.len());
 
@@ -279,13 +337,18 @@ mod tests {
         app.switch_thread(thread1_id);
 
         // ---- 断言：thread1 不包含 main 的消息 ----
-        let thread1_text: String = app.content_lines.iter()
+        let thread1_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
 
-        assert!(!thread1_text.contains("ls -l"),
-            "thread1 不应包含 main 的 'ls -l' 消息！实际内容: {}", thread1_text);
+        assert!(
+            !thread1_text.contains("ls -l"),
+            "thread1 不应包含 main 的 'ls -l' 消息！实际内容: {}",
+            thread1_text
+        );
         println!("  OK thread1 不包含 main 的响应（无串台）");
 
         // ---- 步骤 4: thread1 调用真实 LLM（你了解ruby语言吗） ----
@@ -293,55 +356,85 @@ mod tests {
         app.set_thread_busy(thread1_id, true);
 
         // 写入用户输入到 thread_messages（模拟 main.rs 中的行为）
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("你了解ruby语言吗".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("你了解ruby语言吗".to_string()),
+        );
 
         let mut session_thread1 = create_real_session();
         let thread1_handle = tokio::spawn(async move {
             let start = Instant::now();
             match session_thread1.stream_prompt("你了解ruby语言吗").await {
                 Ok(response) => {
-                    println!("  [thread1] LLM 响应: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    println!(
+                        "  [thread1] LLM 响应: {} 字符, 耗时: {:?}",
+                        response.len(),
+                        start.elapsed()
+                    );
                     response
                 }
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
         let thread1_response = thread1_handle.await.unwrap();
-        assert!(!thread1_response.starts_with("ERROR"), "thread1 LLM 调用失败: {}", thread1_response);
+        assert!(
+            !thread1_response.starts_with("ERROR"),
+            "thread1 LLM 调用失败: {}",
+            thread1_response
+        );
 
-        app.thread.messages.push(thread1_id, crate::thread::Message::assistant(thread1_response.clone()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::assistant(thread1_response.clone()),
+        );
         app.set_thread_busy(thread1_id, false);
-        println!("  OK thread1 收到 AI 响应（{} 字符）", thread1_response.len());
+        println!(
+            "  OK thread1 收到 AI 响应（{} 字符）",
+            thread1_response.len()
+        );
 
         // ---- 步骤 5: Alt+Left 切回 main，验证不串台 ----
         println!("\n步骤 4: Alt+Left 切回 main");
         app.switch_thread(main_id);
 
-        let main_text: String = app.content_lines.iter()
+        let main_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
 
-        assert!(main_text.contains("ls -l"), "main 应该包含自己的 'ls -l' 消息");
-        assert!(!main_text.contains("Ruby") && !main_text.contains("ruby"),
+        assert!(
+            main_text.contains("ls -l"),
+            "main 应该包含自己的 'ls -l' 消息"
+        );
+        assert!(
+            !main_text.contains("Ruby") && !main_text.contains("ruby"),
             "main 不应包含 thread1 的 Ruby 消息！实际内容: {}",
-            main_text.chars().take(200).collect::<String>());
+            main_text.chars().take(200).collect::<String>()
+        );
         println!("  OK main 只包含自己的消息（无串台）");
 
         // ---- 步骤 6: 再切到 thread1 验证 ----
         println!("\n步骤 5: 再切到 thread1 验证");
         app.switch_thread(thread1_id);
 
-        let t1_text: String = app.content_lines.iter()
+        let t1_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
 
-        assert!(t1_text.contains("Ruby") || t1_text.contains("ruby"),
-            "thread1 应该包含自己的 Ruby 消息");
-        assert!(!t1_text.contains("ls -l"),
-            "thread1 不应包含 main 的 ls-l 消息！");
+        assert!(
+            t1_text.contains("Ruby") || t1_text.contains("ruby"),
+            "thread1 应该包含自己的 Ruby 消息"
+        );
+        assert!(
+            !t1_text.contains("ls -l"),
+            "thread1 不应包含 main 的 ls-l 消息！"
+        );
         println!("  OK thread1 只包含自己的消息（无串台）");
 
         println!("\n============================================================");
@@ -394,10 +487,14 @@ mod tests {
         app.switch_thread(thread1_id);
 
         // 断言：thread1 下没有审批
-        assert!(!app.is_approving(),
-            "thread1 不应该有审批！main 的审批不应泄漏到 thread1");
-        assert!(app.approval_state_ref().is_none(),
-            "thread1 的 approval_state_ref 应该返回 None");
+        assert!(
+            !app.is_approving(),
+            "thread1 不应该有审批！main 的审批不应泄漏到 thread1"
+        );
+        assert!(
+            app.approval_state_ref().is_none(),
+            "thread1 的 approval_state_ref 应该返回 None"
+        );
         println!("  OK thread1 没有审批（审批不泄漏）");
 
         // ---- 步骤 3: thread1 调用真实 LLM（你了解ruby语言吗） ----
@@ -409,15 +506,23 @@ mod tests {
             let start = Instant::now();
             match session_t1.stream_prompt("你了解ruby语言吗").await {
                 Ok(response) => {
-                    println!("  [thread1] LLM 响应: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    println!(
+                        "  [thread1] LLM 响应: {} 字符, 耗时: {:?}",
+                        response.len(),
+                        start.elapsed()
+                    );
                     response
                 }
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
         let t1_response = t1_handle.await.unwrap();
-        assert!(!t1_response.starts_with("ERROR"), "thread1 LLM 调用失败: {}", t1_response);
+        assert!(
+            !t1_response.starts_with("ERROR"),
+            "thread1 LLM 调用失败: {}",
+            t1_response
+        );
         app.push_line(format!("[AI] {}", t1_response));
         app.set_thread_busy(thread1_id, false);
         println!("  OK thread1 收到 AI 响应（{} 字符）", t1_response.len());
@@ -430,7 +535,10 @@ mod tests {
         assert!(app.is_approving(), "main 应该仍有自己的审批");
         if let Some(req) = app.approval_state_ref() {
             assert_eq!(req.thread_id, main_id, "审批应该属于 main");
-            assert_eq!(req.tool_name, "execute_shell", "应该是 main 的 execute_shell 审批");
+            assert_eq!(
+                req.tool_name, "execute_shell",
+                "应该是 main 的 execute_shell 审批"
+            );
             println!("  OK main 仍有自己的审批，tool={}", req.tool_name);
         }
 
@@ -443,7 +551,9 @@ mod tests {
         // ---- 步骤 6: 最终验证 ----
         println!("\n步骤 6: 最终验证");
         // main 的内容不应包含 thread1 的 Ruby 响应
-        let main_text: String = app.content_lines.iter()
+        let main_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
@@ -486,9 +596,8 @@ mod tests {
         app.set_status("Thinking...".to_string());
 
         let mut session_main = create_real_session();
-        let main_handle = tokio::spawn(async move {
-            session_main.stream_prompt("执行ls -l").await
-        });
+        let main_handle =
+            tokio::spawn(async move { session_main.stream_prompt("执行ls -l").await });
 
         // 等 500ms 模拟 LLM 处理中（审批请求即将到达）
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -510,8 +619,11 @@ mod tests {
         // ---- 快照 1: main 下渲染（应有审批弹窗） ----
         let main_buf = crate::tui_test::render_to_buffer(&mut app, 80, 24);
         let main_snapshot = crate::tui_test::buffer_to_string(&main_buf);
-        assert!(main_snapshot.contains("execute_shell") || main_snapshot.contains("shell"),
-            "main 应有审批弹窗！快照:\n{}", main_snapshot);
+        assert!(
+            main_snapshot.contains("execute_shell") || main_snapshot.contains("shell"),
+            "main 应有审批弹窗！快照:\n{}",
+            main_snapshot
+        );
         println!("  OK main 快照（包含审批弹窗）");
 
         // ---- 步骤 3: 模拟 Alt+Right 切到 thread1 ----
@@ -522,10 +634,16 @@ mod tests {
         let t1_buf = crate::tui_test::render_to_buffer(&mut app, 80, 24);
         let t1_snapshot = crate::tui_test::buffer_to_string(&t1_buf);
 
-        assert!(!t1_snapshot.contains("execute_shell"),
-            "thread1 不应有 main 的审批！快照:\n{}", t1_snapshot);
-        assert!(!t1_snapshot.contains("Approve") && !t1_snapshot.contains("Deny"),
-            "thread1 不应有审批选项！快照:\n{}", t1_snapshot);
+        assert!(
+            !t1_snapshot.contains("execute_shell"),
+            "thread1 不应有 main 的审批！快照:\n{}",
+            t1_snapshot
+        );
+        assert!(
+            !t1_snapshot.contains("Approve") && !t1_snapshot.contains("Deny"),
+            "thread1 不应有审批选项！快照:\n{}",
+            t1_snapshot
+        );
         println!("  OK thread1 快照（无审批弹窗泄漏）");
 
         // ---- 步骤 4: thread1 调用真实 LLM '你了解ruby语言吗' ----
@@ -534,9 +652,8 @@ mod tests {
         app.set_status("Thinking...".to_string());
 
         let mut session_t1 = create_real_session();
-        let t1_handle = tokio::spawn(async move {
-            session_t1.stream_prompt("你了解ruby语言吗").await
-        });
+        let t1_handle =
+            tokio::spawn(async move { session_t1.stream_prompt("你了解ruby语言吗").await });
 
         // 等待两个 LLM 都完成
         let _ = main_handle.await;
@@ -553,8 +670,11 @@ mod tests {
         // ---- 快照 3: thread1 有 AI 响应但无 main 审批 ----
         let t1_buf2 = crate::tui_test::render_to_buffer(&mut app, 80, 24);
         let t1_after = crate::tui_test::buffer_to_string(&t1_buf2);
-        assert!(!t1_after.contains("execute_shell"),
-            "thread1 完成后仍不应有 main 审批！快照:\n{}", t1_after);
+        assert!(
+            !t1_after.contains("execute_shell"),
+            "thread1 完成后仍不应有 main 审批！快照:\n{}",
+            t1_after
+        );
         println!("  OK thread1 完成后无 main 审批泄漏");
 
         // ---- 步骤 5: Alt+Left 切回 main ----
@@ -563,8 +683,11 @@ mod tests {
 
         let main_buf2 = crate::tui_test::render_to_buffer(&mut app, 80, 24);
         let main_after = crate::tui_test::buffer_to_string(&main_buf2);
-        assert!(main_after.contains("execute_shell") || main_after.contains("shell"),
-            "切回 main 后审批面板应恢复！快照:\n{}", main_after);
+        assert!(
+            main_after.contains("execute_shell") || main_after.contains("shell"),
+            "切回 main 后审批面板应恢复！快照:\n{}",
+            main_after
+        );
         println!("  OK main 审批面板恢复");
 
         // 清理审批
@@ -711,9 +834,7 @@ mod tests {
         app.set_status("Streaming (zhipu)".to_string());
 
         let mut session = create_real_session();
-        let handle = tokio::spawn(async move {
-            session.stream_prompt("执行ls -l").await
-        });
+        let handle = tokio::spawn(async move { session.stream_prompt("执行ls -l").await });
 
         // 等一小段时间模拟 streaming 中间状态
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -725,8 +846,11 @@ mod tests {
         // 快照验证 thread1
         let t1_buf = crate::tui_test::render_to_buffer(&mut app, 80, 24);
         let t1_text = crate::tui_test::buffer_to_string(&t1_buf);
-        assert!(!t1_text.contains("execute_shell"),
-            "thread1 不应有审批！快照:\n{}", t1_text);
+        assert!(
+            !t1_text.contains("execute_shell"),
+            "thread1 不应有审批！快照:\n{}",
+            t1_text
+        );
         println!("  OK thread1 无审批泄漏");
 
         // ---- 步骤 3: 模拟切回 main ----
@@ -737,8 +861,13 @@ mod tests {
         let main_text = crate::tui_test::buffer_to_string(&main_buf2);
 
         // 验证状态栏存在
-        assert!(main_text.contains("Streaming") || main_text.contains("zhipu") || main_text.contains("glm"),
-            "切回 main 后状态栏不应消失！快照:\n{}", main_text);
+        assert!(
+            main_text.contains("Streaming")
+                || main_text.contains("zhipu")
+                || main_text.contains("glm"),
+            "切回 main 后状态栏不应消失！快照:\n{}",
+            main_text
+        );
         println!("  OK 切回 main 后状态栏存在");
 
         // 等待 LLM 完成
@@ -778,7 +907,9 @@ mod tests {
         // ---- 步骤 1: main 发送第一条消息 ----
         println!("\n步骤 1: main 发送 '1+1等于几'");
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, Message::user("1+1等于几".to_string()));
+        app.thread
+            .messages
+            .push(main_id, Message::user("1+1等于几".to_string()));
         app.set_thread_busy(main_id, true);
 
         let mut session1 = create_real_session();
@@ -786,10 +917,14 @@ mod tests {
             let start = Instant::now();
             match session1.stream_prompt("1+1等于几").await {
                 Ok(response) => {
-                    println!("  [消息1] LLM 响应: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    println!(
+                        "  [消息1] LLM 响应: {} 字符, 耗时: {:?}",
+                        response.len(),
+                        start.elapsed()
+                    );
                     response
                 }
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
@@ -803,13 +938,19 @@ mod tests {
 
         // ---- 步骤 3: 等待第一条完成 ----
         let response1 = handle1.await.unwrap();
-        assert!(!response1.starts_with("ERROR"), "消息1 LLM 调用失败: {}", response1);
+        assert!(
+            !response1.starts_with("ERROR"),
+            "消息1 LLM 调用失败: {}",
+            response1
+        );
 
         // 模拟 main.rs streaming 完成后的处理
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
         println!("  OK 消息1 完成（{} 字符）", response1.len());
-        app.thread.messages.push(main_id, Message::assistant(response1));
+        app.thread
+            .messages
+            .push(main_id, Message::assistant(response1));
 
         // ---- 步骤 4: dequeue 并处理第二条 ----
         println!("\n步骤 3: dequeue 并发送第二条消息");
@@ -821,7 +962,9 @@ mod tests {
         assert_eq!(target_id, main_id, "目标线程应为 main");
 
         // 写入用户输入到 thread_messages
-        app.thread.messages.push(main_id, Message::user(input2.clone()));
+        app.thread
+            .messages
+            .push(main_id, Message::user(input2.clone()));
         app.set_thread_busy(main_id, true);
 
         let mut session2 = create_real_session();
@@ -829,26 +972,38 @@ mod tests {
             let start = Instant::now();
             match session2.stream_prompt(&input2).await {
                 Ok(response) => {
-                    println!("  [消息2] LLM 响应: {} 字符, 耗时: {:?}", response.len(), start.elapsed());
+                    println!(
+                        "  [消息2] LLM 响应: {} 字符, 耗时: {:?}",
+                        response.len(),
+                        start.elapsed()
+                    );
                     response
                 }
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
         let response2 = handle2.await.unwrap();
-        assert!(!response2.starts_with("ERROR"), "消息2 LLM 调用失败: {}", response2);
+        assert!(
+            !response2.starts_with("ERROR"),
+            "消息2 LLM 调用失败: {}",
+            response2
+        );
 
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
         println!("  OK 消息2 完成（{} 字符）", response2.len());
-        app.thread.messages.push(main_id, Message::assistant(response2));
+        app.thread
+            .messages
+            .push(main_id, Message::assistant(response2));
 
         // ---- 步骤 5: 验证 main 的 thread_messages 包含两条完整的对话 ----
         println!("\n步骤 4: 验证 thread_messages 完整性");
         app.switch_thread(main_id);
 
-        let main_text: String = app.content_lines.iter()
+        let main_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
@@ -888,14 +1043,16 @@ mod tests {
         // ---- 步骤 1: main 开始 streaming ----
         println!("\n步骤 1: main 发送 '你好'");
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, Message::user("你好".to_string()));
+        app.thread
+            .messages
+            .push(main_id, Message::user("你好".to_string()));
         app.set_thread_busy(main_id, true);
 
         let mut session_main = create_real_session();
         let main_handle = tokio::spawn(async move {
             match session_main.stream_prompt("你好").await {
                 Ok(r) => r,
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
@@ -917,11 +1074,17 @@ mod tests {
         // ---- 步骤 4: 等待 main streaming 完成 ----
         println!("\n步骤 4: 等待 main streaming 完成");
         let main_response = main_handle.await.unwrap();
-        assert!(!main_response.starts_with("ERROR"), "main LLM 调用失败: {}", main_response);
+        assert!(
+            !main_response.starts_with("ERROR"),
+            "main LLM 调用失败: {}",
+            main_response
+        );
 
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
-        app.thread.messages.push(main_id, Message::assistant(main_response));
+        app.thread
+            .messages
+            .push(main_id, Message::assistant(main_response));
         println!("  OK main streaming 完成");
 
         // ---- 步骤 5: 验证队列中消息的目标线程 ----
@@ -941,42 +1104,57 @@ mod tests {
         // ---- 步骤 6: 处理 thread1 的排队消息 ----
         println!("\n步骤 6: 处理 thread1 的排队消息");
         app.switch_thread(thread1_id);
-        app.thread.messages.push(thread1_id, Message::user(msg1.0.clone()));
+        app.thread
+            .messages
+            .push(thread1_id, Message::user(msg1.0.clone()));
         app.set_thread_busy(thread1_id, true);
 
         let mut session_t1 = create_real_session();
         let t1_handle = tokio::spawn(async move {
             match session_t1.stream_prompt(&msg1.0).await {
                 Ok(r) => r,
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
         let t1_response = t1_handle.await.unwrap();
-        assert!(!t1_response.starts_with("ERROR"), "thread1 LLM 调用失败: {}", t1_response);
+        assert!(
+            !t1_response.starts_with("ERROR"),
+            "thread1 LLM 调用失败: {}",
+            t1_response
+        );
 
         app.end_streaming(thread1_id);
         app.set_thread_busy(thread1_id, false);
         println!("  OK thread1 消息完成（{} 字符）", t1_response.len());
-        app.thread.messages.push(thread1_id, Message::assistant(t1_response));
+        app.thread
+            .messages
+            .push(thread1_id, Message::assistant(t1_response));
 
         // ---- 步骤 7: 验证消息不串台 ----
         println!("\n步骤 7: 验证消息不串台");
 
         // thread1 的内容
         app.switch_thread(thread1_id);
-        let t1_text: String = app.content_lines.iter()
+        let t1_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
 
         assert!(t1_text.contains("什么是闭包"), "thread1 应包含自己的消息");
-        assert!(!t1_text.contains("天气如何"), "thread1 不应包含 main 的排队消息");
+        assert!(
+            !t1_text.contains("天气如何"),
+            "thread1 不应包含 main 的排队消息"
+        );
         println!("  OK thread1 消息隔离正确");
 
         // main 的内容
         app.switch_thread(main_id);
-        let main_text: String = app.content_lines.iter()
+        let main_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
@@ -1021,18 +1199,23 @@ mod tests {
         // 模拟 main.rs else 分支的行为：清除被中断线程的 busy
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
-        println!("  OK main busy after interrupt: {}", app.is_thread_busy(main_id));
+        println!(
+            "  OK main busy after interrupt: {}",
+            app.is_thread_busy(main_id)
+        );
 
         // ---- 步骤 3: thread1 开始新的 AI 请求 ----
         println!("\n步骤 3: thread1 发送 '什么是Rust'");
-        app.thread.messages.push(thread1_id, Message::user("什么是Rust".to_string()));
+        app.thread
+            .messages
+            .push(thread1_id, Message::user("什么是Rust".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         let mut session_t1 = create_real_session();
         let t1_handle = tokio::spawn(async move {
             match session_t1.stream_prompt("什么是Rust").await {
                 Ok(r) => r,
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
@@ -1050,12 +1233,18 @@ mod tests {
         // ---- 步骤 5: 等待 thread1 完成 ----
         println!("\n步骤 5: 等待 thread1 完成");
         let t1_response = t1_handle.await.unwrap();
-        assert!(!t1_response.starts_with("ERROR"), "thread1 LLM 调用失败: {}", t1_response);
+        assert!(
+            !t1_response.starts_with("ERROR"),
+            "thread1 LLM 调用失败: {}",
+            t1_response
+        );
 
         app.end_streaming(thread1_id);
         app.set_thread_busy(thread1_id, false);
         println!("  OK thread1 完成（{} 字符）", t1_response.len());
-        app.thread.messages.push(thread1_id, Message::assistant(t1_response));
+        app.thread
+            .messages
+            .push(thread1_id, Message::assistant(t1_response));
 
         // ---- 步骤 6: 验证 main 的排队消息可正确出队 ----
         println!("\n步骤 6: 验证 main 排队消息");
@@ -1069,34 +1258,47 @@ mod tests {
 
         // ---- 步骤 7: 处理 main 的排队消息 ----
         println!("\n步骤 7: 处理 main 排队消息");
-        app.thread.messages.push(main_id, Message::user(input.clone()));
+        app.thread
+            .messages
+            .push(main_id, Message::user(input.clone()));
         app.set_thread_busy(main_id, true);
 
         let mut session_main = create_real_session();
         let main_handle = tokio::spawn(async move {
             match session_main.stream_prompt(&input).await {
                 Ok(r) => r,
-                Err(e) => format!("ERROR: {}", e)
+                Err(e) => format!("ERROR: {}", e),
             }
         });
 
         let main_response = main_handle.await.unwrap();
-        assert!(!main_response.starts_with("ERROR"), "main LLM 调用失败: {}", main_response);
+        assert!(
+            !main_response.starts_with("ERROR"),
+            "main LLM 调用失败: {}",
+            main_response
+        );
 
         app.end_streaming(main_id);
         app.set_thread_busy(main_id, false);
         println!("  OK main 排队消息处理完成（{} 字符）", main_response.len());
-        app.thread.messages.push(main_id, Message::assistant(main_response));
+        app.thread
+            .messages
+            .push(main_id, Message::assistant(main_response));
 
         // ---- 步骤 8: 最终验证 ----
         println!("\n步骤 8: 最终验证");
         app.switch_thread(main_id);
-        let main_text: String = app.content_lines.iter()
+        let main_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
 
-        assert!(main_text.contains("推荐一本Python书"), "main 应包含排队消息");
+        assert!(
+            main_text.contains("推荐一本Python书"),
+            "main 应包含排队消息"
+        );
         assert_eq!(app.queue_len(), 0, "队列应为空");
         println!("  OK 所有验证通过");
 
@@ -1121,7 +1323,12 @@ mod tests {
 
         let mut session = create_real_session();
         // 设置工作目录，让工具调用能找到项目文件
-        session.set_project_root(std::env::current_dir().unwrap_or_default().to_string_lossy().to_string());
+        session.set_project_root(
+            std::env::current_dir()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+        );
         // 自动批准所有工具调用（测试环境无法交互审批）
         session.set_auto_approve_all(true);
 
@@ -1137,24 +1344,39 @@ mod tests {
         let prompts: Vec<(&str, &str)> = vec![
             // ── 阶段1: 建立上下文（提示词要求 LLM 确认关键词） ──
             ("我叫小明，请回复我'好的小明，我记住了你的名字'", "小明"),
-            ("我最喜欢的颜色是蓝色，请回复我'好的，蓝色是你喜欢的颜色'", "蓝色"),
-            ("我有一个数字密码是 42，请回复我'好的，密码42我记住了'", "42"),
+            (
+                "我最喜欢的颜色是蓝色，请回复我'好的，蓝色是你喜欢的颜色'",
+                "蓝色",
+            ),
+            (
+                "我有一个数字密码是 42，请回复我'好的，密码42我记住了'",
+                "42",
+            ),
             // ── 阶段2: 简单工具调用 ──
-            ("请帮我查看当前目录下有哪些文件，然后列出文件名", "文件"),  // 工具调用：list_directory
-            ("刚才列出的文件中，有没有 .toml 文件？回答时请包含'toml'这个词", "toml"),  // 依赖上一轮工具结果
+            ("请帮我查看当前目录下有哪些文件，然后列出文件名", "文件"), // 工具调用：list_directory
+            (
+                "刚才列出的文件中，有没有 .toml 文件？回答时请包含'toml'这个词",
+                "toml",
+            ), // 依赖上一轮工具结果
             // ── 阶段3: 2048 小游戏生成（大量 write_file，压力测试） ──
             // 注意：此轮会触发大量工具调用，跳过关键词检测
-            ("帮我生成2048小游戏", ""),  // 工具调用：无关键词检测
+            ("帮我生成2048小游戏", ""), // 工具调用：无关键词检测
             // ── 阶段4: 2048 后的上下文验证（明确要求复述） ──
-            ("请复述：我叫什么名字、喜欢什么颜色、密码是什么？逐个回答", "小明"),
+            (
+                "请复述：我叫什么名字、喜欢什么颜色、密码是什么？逐个回答",
+                "小明",
+            ),
             ("我刚才告诉你我喜欢什么颜色？请直接回答颜色名称", "蓝色"),
             ("我的密码是多少？请直接回答数字", "42"),
             // ── 阶段5: 更多工具调用 + 上下文验证 ──
-            ("请读取项目中的 Cargo.toml 文件内容并展示前几行", "Cargo"),  // 工具调用：read_file
-            ("Cargo.toml 里的项目名称是什么？请直接回答名称", "ifa"),  // 依赖上一轮工具结果
-            ("再帮我查看一下当前目录，列出你看到的内容", ""),  // 工具调用：无关键词检测
-            ("刚才我让你生成2048游戏，你还记得吗？请回答'是的，2048游戏'", "2048"),  // 验证 LLM 记得 2048 任务
-            ("最后确认：请逐个回答——我的名字、喜欢的颜色、密码", "小明"),  // 最终验证
+            ("请读取项目中的 Cargo.toml 文件内容并展示前几行", "Cargo"), // 工具调用：read_file
+            ("Cargo.toml 里的项目名称是什么？请直接回答名称", "ifa"),    // 依赖上一轮工具结果
+            ("再帮我查看一下当前目录，列出你看到的内容", ""),            // 工具调用：无关键词检测
+            (
+                "刚才我让你生成2048游戏，你还记得吗？请回答'是的，2048游戏'",
+                "2048",
+            ), // 验证 LLM 记得 2048 任务
+            ("最后确认：请逐个回答——我的名字、喜欢的颜色、密码", "小明"), // 最终验证
         ];
 
         let total = prompts.len();
@@ -1167,7 +1389,9 @@ mod tests {
             println!("  轮次 {}/{}: {}", round, total, prompt);
             println!("============================================================");
 
-            app.thread.messages.push(main_id, Message::user(prompt.to_string()));
+            app.thread
+                .messages
+                .push(main_id, Message::user(prompt.to_string()));
             app.push_line(format!("⟩ {}", prompt));
 
             let start = Instant::now();
@@ -1189,7 +1413,12 @@ mod tests {
             } else {
                 response.clone()
             };
-            println!("  响应 ({}ms, {}字): {}", elapsed.as_millis(), response.len(), response_preview);
+            println!(
+                "  响应 ({}ms, {}字): {}",
+                elapsed.as_millis(),
+                response.len(),
+                response_preview
+            );
 
             // 检测断链：响应中是否包含关键词（空关键词跳过检测）
             let keyword_status = if keyword.is_empty() {
@@ -1204,7 +1433,9 @@ mod tests {
                 "BREAK"
             };
 
-            app.thread.messages.push(main_id, Message::assistant(response.clone()));
+            app.thread
+                .messages
+                .push(main_id, Message::assistant(response.clone()));
             app.push_line(response);
 
             // === TUI 快照：渲染当前 App 画面并保存到文件 ===
@@ -1213,25 +1444,36 @@ mod tests {
             let snapshot_dir = std::path::PathBuf::from("/tmp/ifai_thread_12_snapshots");
             let _ = std::fs::create_dir_all(&snapshot_dir);
             let snapshot_path = snapshot_dir.join(format!("round_{:02}.txt", round));
-            let _ = std::fs::write(&snapshot_path, format!(
-                "// Round {}/{}: {}\n// Response keyword: {}\n// Status: {}\n\n{}",
-                round, total, prompt, keyword,
-                keyword_status,
-                snapshot_text
-            ));
+            let _ = std::fs::write(
+                &snapshot_path,
+                format!(
+                    "// Round {}/{}: {}\n// Response keyword: {}\n// Status: {}\n\n{}",
+                    round, total, prompt, keyword, keyword_status, snapshot_text
+                ),
+            );
             println!("  📸 快照已保存: {}", snapshot_path.display());
         }
 
         // ==================== 总结报告 ====================
         println!("\n\n");
         println!("╔══════════════════════════════════════════════════════════════╗");
-        println!("║           上下文断链检测报告（共 {} 轮）                    ║", total);
+        println!(
+            "║           上下文断链检测报告（共 {} 轮）                    ║",
+            total
+        );
         println!("╠══════════════════════════════════════════════════════════════╣");
 
         if context_breaks.is_empty() {
-            println!("║  ✅ 全部 {} 轮对话上下文正常，未检测到断链                  ║", total);
+            println!(
+                "║  ✅ 全部 {} 轮对话上下文正常，未检测到断链                  ║",
+                total
+            );
         } else {
-            println!("║  ⚠️  检测到 {} 次可能的断链：{:?}                  ║", context_breaks.len(), context_breaks);
+            println!(
+                "║  ⚠️  检测到 {} 次可能的断链：{:?}                  ║",
+                context_breaks.len(),
+                context_breaks
+            );
             for &r in &context_breaks {
                 let (prompt, keyword) = prompts[r - 1];
                 println!("║     轮次 {}: '{}' (关键词: '{}')", r, prompt, keyword);
@@ -1287,7 +1529,9 @@ mod tests {
         // ==================== 步骤 1: 线程 A 开始 streaming ====================
         println!("\n步骤 1: 线程 A 发送 '帮我生成2048小游戏' 并开始 streaming");
         app.switch_thread(thread_a_id);
-        app.thread.messages.push(thread_a_id, Message::user("帮我生成2048小游戏".to_string()));
+        app.thread
+            .messages
+            .push(thread_a_id, Message::user("帮我生成2048小游戏".to_string()));
         app.set_thread_busy(thread_a_id, true);
         app.begin_streaming(thread_a_id);
 
@@ -1311,7 +1555,7 @@ mod tests {
 
         // ==================== 步骤 4: 验证输入框可以接收按键 ====================
         println!("\n步骤 4: 在线程 B 输入框中打字 '你了解ruby语言吗'");
-        use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         let test_input = "你了解ruby语言吗";
         for c in test_input.chars() {
@@ -1321,7 +1565,8 @@ mod tests {
             assert!(
                 matches!(action, input_composer::InputAction::None),
                 "字符 '{}' 应该返回 None，实际返回: {:?}",
-                c, action
+                c,
+                action
             );
         }
 
@@ -1342,7 +1587,9 @@ mod tests {
 
         // ==================== 步骤 6: 验证线程 B 不受线程 A streaming 影响 ====================
         println!("\n步骤 6: 验证线程 B 的 content_lines 不包含线程 A 的 streaming 内容");
-        let thread_b_text: String = app.content_lines.iter()
+        let thread_b_text: String = app
+            .content_lines
+            .iter()
             .flat_map(|l| l.spans.iter())
             .map(|s| s.content.clone())
             .collect::<String>();
@@ -1359,7 +1606,8 @@ mod tests {
         app.switch_thread(thread_a_id);
 
         // append_streaming_output 写入 buffer 而非 content_lines
-        let buffer = app.get_streaming_buffer()
+        let buffer = app
+            .get_streaming_buffer()
             .map(|s| s.to_string())
             .unwrap_or_default();
         assert!(
@@ -1383,10 +1631,22 @@ mod tests {
             let (approval_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (thread_event_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let session_a = Arc::new(tokio::sync::Mutex::new(session_a));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
             match Session::stream_prompt_tui(
-                session_a, thread_ctx, "帮我生成2048小游戏", output_tx, status_tx, approval_tx, thread_event_tx, session_a_id, TaskStore::new()
-            ).await {
+                session_a,
+                thread_ctx,
+                "帮我生成2048小游戏",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                session_a_id,
+                TaskStore::new(),
+            )
+            .await
+            {
                 Ok(_) => {
                     println!("  [线程 A] 完成, 耗时: {:?}", start.elapsed());
                 }
@@ -1479,7 +1739,7 @@ mod tests {
 
         // ==================== 步骤 4: 线程 B 输入 ====================
         println!("\n步骤 4: 线程 B 输入 '你了解ruby语言吗'");
-        use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         for c in "你了解ruby语言吗".chars() {
             let key = KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE);
@@ -1494,7 +1754,9 @@ mod tests {
 
         // ==================== 步骤 5: 线程 B 按 Enter 提交 ====================
         println!("\n步骤 5: 线程 B 按 Enter 提交");
-        let action = app.input.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        let action = app
+            .input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         assert!(matches!(action, input_composer::InputAction::Submit(_)));
         println!("  ✓ 线程 B Enter 提交成功");
 
@@ -1509,7 +1771,9 @@ mod tests {
         // 验证 Up/Down 可以切换选项
         let old_selected = app.approval.selected;
         app.approval.selected = 0;
-        let up_action = app.input.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        let up_action = app
+            .input
+            .handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
         // Up 在审批模式下由 run_loop 拦截，这里只验证 state 变化
         println!("  ✓ 审批界面选项可切换");
 
@@ -1517,7 +1781,9 @@ mod tests {
         println!("\n步骤 7: 清理状态");
         // 模拟审批决策
         if let Some(request) = app.approval.states.remove(&main_id) {
-            let _ = request.response_tx.send(crate::approval_overlay::ApprovalDecision::ApproveOnce);
+            let _ = request
+                .response_tx
+                .send(crate::approval_overlay::ApprovalDecision::ApproveOnce);
         }
         app.cleanup_after_stream(main_id);
 
@@ -1549,7 +1815,9 @@ mod tests {
         // ==================== 步骤 1: main 开始 streaming ====================
         println!("\n步骤 1: main 发送请求并开始 streaming");
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, Message::user("执行ls -l".to_string()));
+        app.thread
+            .messages
+            .push(main_id, Message::user("执行ls -l".to_string()));
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
         app.append_streaming_output(main_id, "正在执行...\n".to_string());
@@ -1560,10 +1828,13 @@ mod tests {
         // ==================== 步骤 2: 模拟断链 — main streaming 出错 ====================
         println!("\n步骤 2: 模拟断链（main streaming 出错）");
         // 模拟 stream_prompt_tui 返回错误
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+        let (output_tx, mut output_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
-        let (thread_event_tx, mut thread_event_tx_rx) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
+        let (approval_tx, mut approval_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (thread_event_tx, mut thread_event_tx_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
 
         // 启动一个会立即返回错误的 session
         let mut session = create_real_session();
@@ -1575,10 +1846,21 @@ mod tests {
             // 使用无效的 API key 模拟断链错误
             session.set_api_key("invalid_key_to_simulate_disconnect".to_string());
             let session = Arc::new(tokio::sync::Mutex::new(session));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
             Session::stream_prompt_tui(
-                session, thread_ctx, "执行ls -l", output_tx, status_tx, approval_tx, thread_event_tx, session_main_id, TaskStore::new()
-            ).await
+                session,
+                thread_ctx,
+                "执行ls -l",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                session_main_id,
+                TaskStore::new(),
+            )
+            .await
         });
 
         // 等待 stream_handle 完成
@@ -1588,7 +1870,10 @@ mod tests {
                 println!("  ⚠️ main 意外成功（可能 invalid key 仍被接受）");
             }
             Ok(Ok(Err(e))) => {
-                println!("  ✓ main 断链错误: {}", e.chars().take(50).collect::<String>());
+                println!(
+                    "  ✓ main 断链错误: {}",
+                    e.chars().take(50).collect::<String>()
+                );
             }
             Ok(Err(e)) => {
                 println!("  ✓ main task panic: {:?}", e);
@@ -1621,7 +1906,7 @@ mod tests {
 
         // ==================== 步骤 5: 关键测试 — thread1 输入框能否接收按键 ====================
         println!("\n步骤 5: thread1 输入框接收按键测试");
-        use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         // 测试普通字符输入
         for c in "hello".chars() {
@@ -1630,14 +1915,17 @@ mod tests {
             assert!(
                 matches!(action, InputAction::None),
                 "字符 '{}' 应返回 None，实际: {:?}",
-                c, action
+                c,
+                action
             );
         }
         assert_eq!(app.input.value(), "hello", "输入框应显示 'hello'");
         println!("  ✓ 字符输入正常: 'hello'");
 
         // 测试 Enter 提交
-        let action = app.input.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        let action = app
+            .input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         assert!(
             matches!(action, InputAction::Submit(_)),
             "Enter 应返回 Submit，实际: {:?}",
@@ -1649,7 +1937,10 @@ mod tests {
         println!("\n步骤 6: 验证 CombinedKeyHandler 不会阻止输入");
         // CombinedKeyHandler 在 run_loop 中检查 app.is_busy()
         // 如果 is_busy() 返回 true，所有按键会被跳过
-        assert!(!app.is_busy(), "is_busy() 必须返回 false，否则 CombinedKeyHandler 会阻止所有输入");
+        assert!(
+            !app.is_busy(),
+            "is_busy() 必须返回 false，否则 CombinedKeyHandler 会阻止所有输入"
+        );
         println!("  ✓ is_busy(): false（CombinedKeyHandler 不会阻止输入）");
 
         // ==================== 步骤 7: 验证渲染正常 ====================
@@ -1659,32 +1950,48 @@ mod tests {
         let buffer = render_to_buffer(&mut app, 80, 24);
         let rendered = buffer_to_string(&buffer);
         // 输入框应该可见（包含 prompt 符号）
-        assert!(
-            !rendered.is_empty(),
-            "渲染结果不应为空"
-        );
+        assert!(!rendered.is_empty(), "渲染结果不应为空");
         println!("  ✓ 渲染正常（{} 字节）", rendered.len());
 
         // ==================== 步骤 8: 验证 thread1 可以正常发起 AI 请求 ====================
         println!("\n步骤 8: thread1 发起真实 AI 请求");
-        app.thread.messages.push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
+        app.thread
+            .messages
+            .push(thread1_id, Message::user("你了解ruby语言吗".to_string()));
         app.set_thread_busy(thread1_id, true);
 
         let mut session_t1 = create_real_session();
         let t1_handle = tokio::spawn(async move {
             let (tx, _) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
             let (stx, _) = tokio::sync::mpsc::unbounded_channel::<String>();
-            let (atx, _) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+            let (atx, _) =
+                tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
             let (etx, _) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
             let session_t1 = Arc::new(tokio::sync::Mutex::new(session_t1));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
-            Session::stream_prompt_tui(session_t1, thread_ctx, "你了解ruby语言吗", tx, stx, atx, etx, thread1_id, TaskStore::new()).await
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
+            Session::stream_prompt_tui(
+                session_t1,
+                thread_ctx,
+                "你了解ruby语言吗",
+                tx,
+                stx,
+                atx,
+                etx,
+                thread1_id,
+                TaskStore::new(),
+            )
+            .await
         });
 
         let t1_result = tokio::time::timeout(std::time::Duration::from_secs(30), t1_handle).await;
         match t1_result {
             Ok(Ok(Ok(_))) => println!("  ✓ thread1 AI 请求成功"),
-            Ok(Ok(Err(e))) => println!("  ⚠️ thread1 AI 请求失败: {}", e.chars().take(50).collect::<String>()),
+            Ok(Ok(Err(e))) => println!(
+                "  ⚠️ thread1 AI 请求失败: {}",
+                e.chars().take(50).collect::<String>()
+            ),
             Ok(Err(e)) => println!("  ⚠️ thread1 task panic: {:?}", e),
             Err(_) => println!("  ⚠️ thread1 超时（30秒）"),
         }
@@ -1724,7 +2031,9 @@ mod tests {
         // ==================== 步骤 1: main 开始 streaming ====================
         println!("\n步骤 1: main 发送 '帮我写个2048小游戏'，开始 streaming");
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, Message::user("帮我写个2048小游戏".to_string()));
+        app.thread
+            .messages
+            .push(main_id, Message::user("帮我写个2048小游戏".to_string()));
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
 
@@ -1735,8 +2044,7 @@ mod tests {
         println!("\n步骤 2: 启动 main 的真实 LLM 请求（后台）");
         let (main_output_tx, mut main_output_rx) =
             tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
-        let (main_status_tx, mut main_status_rx) =
-            tokio::sync::mpsc::unbounded_channel::<String>();
+        let (main_status_tx, mut main_status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
         let (main_approval_tx, mut main_approval_rx) =
             tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
         let (main_thread_event_tx, mut main_thread_event_rx) =
@@ -1746,19 +2054,29 @@ mod tests {
         let main_handle = tokio::spawn(async move {
             let start = std::time::Instant::now();
             let session_main = Arc::new(tokio::sync::Mutex::new(session_main));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
             let result = Session::stream_prompt_tui(
-                session_main, thread_ctx, "帮我写个2048小游戏",
+                session_main,
+                thread_ctx,
+                "帮我写个2048小游戏",
                 main_output_tx,
                 main_status_tx,
                 main_approval_tx,
                 main_thread_event_tx,
                 main_id,
                 TaskStore::new(),
-            ).await;
-            println!("  [main] stream_prompt_tui 返回: {:?}, 耗时: {:?}",
-                result.as_ref().map(|_| "Ok").map_err(|e| e.chars().take(30).collect::<String>()),
-                start.elapsed());
+            )
+            .await;
+            println!(
+                "  [main] stream_prompt_tui 返回: {:?}, 耗时: {:?}",
+                result
+                    .as_ref()
+                    .map(|_| "Ok")
+                    .map_err(|e| e.chars().take(30).collect::<String>()),
+                start.elapsed()
+            );
             result
         });
 
@@ -1787,7 +2105,10 @@ mod tests {
             }
         }
 
-        println!("  ✓ main streaming 已建立（收到 {} 条输出）", main_output_count);
+        println!(
+            "  ✓ main streaming 已建立（收到 {} 条输出）",
+            main_output_count
+        );
 
         // ==================== 步骤 3: 模拟用户切到 thread1 ====================
         println!("\n步骤 3: 模拟用户切到 thread1");
@@ -1826,7 +2147,10 @@ mod tests {
         let main_result = main_handle.await;
         match &main_result {
             Ok(Ok(_)) => println!("  main 正常完成"),
-            Ok(Err(e)) => println!("  main 断链错误: {}", e.chars().take(50).collect::<String>()),
+            Ok(Err(e)) => println!(
+                "  main 断链错误: {}",
+                e.chars().take(50).collect::<String>()
+            ),
             Err(e) => println!("  main abort: {:?}", e),
         }
 
@@ -1840,7 +2164,7 @@ mod tests {
 
         // ==================== 步骤 6: 关键验证 — thread1 输入框 ====================
         println!("\n步骤 6: 关键验证 — thread1 输入框");
-        use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
         // 验证 is_busy
         assert!(!app.is_busy(), "is_busy() 必须返回 false");
@@ -1854,14 +2178,17 @@ mod tests {
             assert!(
                 matches!(action, InputAction::None),
                 "字符 '{}' 应返回 None，实际: {:?}",
-                c, action
+                c,
+                action
             );
         }
         assert_eq!(app.input.value(), test_input);
         println!("  ✓ 输入框正常接收: '{}'", test_input);
 
         // Enter 提交
-        let action = app.input.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        let action = app
+            .input
+            .handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         assert!(matches!(action, InputAction::Submit(_)));
         println!("  ✓ Enter 提交成功");
 
@@ -1872,8 +2199,7 @@ mod tests {
 
         let (t1_output_tx, mut t1_output_rx) =
             tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
-        let (t1_status_tx, mut t1_status_rx) =
-            tokio::sync::mpsc::unbounded_channel::<String>();
+        let (t1_status_tx, mut t1_status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
         let (t1_approval_tx, mut t1_approval_rx) =
             tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
         let (t1_thread_event_tx, mut t1_thread_event_rx) =
@@ -1883,16 +2209,21 @@ mod tests {
         let t1_handle = tokio::spawn(async move {
             let start = std::time::Instant::now();
             let session_t1 = Arc::new(tokio::sync::Mutex::new(session_t1));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
             Session::stream_prompt_tui(
-                session_t1, thread_ctx, "你了解ruby语言吗",
+                session_t1,
+                thread_ctx,
+                "你了解ruby语言吗",
                 t1_output_tx,
                 t1_status_tx,
                 t1_approval_tx,
                 t1_thread_event_tx,
                 thread1_id,
                 TaskStore::new(),
-            ).await
+            )
+            .await
         });
 
         // 接收 thread1 的输出
@@ -1928,10 +2259,17 @@ mod tests {
         let t1_result = t1_handle.await;
         match &t1_result {
             Ok(Ok(response)) => {
-                println!("  ✓ thread1 AI 响应成功（{} 字符, {} 条输出）", response.len(), t1_output_count);
+                println!(
+                    "  ✓ thread1 AI 响应成功（{} 字符, {} 条输出）",
+                    response.len(),
+                    t1_output_count
+                );
             }
             Ok(Err(e)) => {
-                println!("  ⚠️ thread1 AI 错误: {}", e.chars().take(50).collect::<String>());
+                println!(
+                    "  ⚠️ thread1 AI 错误: {}",
+                    e.chars().take(50).collect::<String>()
+                );
             }
             Err(e) => {
                 println!("  ⚠️ thread1 abort: {:?}", e);
@@ -1995,8 +2333,21 @@ mod tests {
             let (approval_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (thread_event_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let session = Arc::new(tokio::sync::Mutex::new(session_main));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
-            Session::stream_prompt_tui(session, thread_ctx, "说一句话", output_tx, status_tx, approval_tx, thread_event_tx, main_id, TaskStore::new()).await
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
+            Session::stream_prompt_tui(
+                session,
+                thread_ctx,
+                "说一句话",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                main_id,
+                TaskStore::new(),
+            )
+            .await
         });
 
         let t1_handle = tokio::spawn(async move {
@@ -2005,8 +2356,21 @@ mod tests {
             let (approval_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (thread_event_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let session = Arc::new(tokio::sync::Mutex::new(session_t1));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
-            Session::stream_prompt_tui(session, thread_ctx, "你了解ruby语言吗", output_tx, status_tx, approval_tx, thread_event_tx, thread1_id, TaskStore::new()).await
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
+            Session::stream_prompt_tui(
+                session,
+                thread_ctx,
+                "你了解ruby语言吗",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                thread1_id,
+                TaskStore::new(),
+            )
+            .await
         });
 
         // 等待两者都完成
@@ -2017,18 +2381,30 @@ mod tests {
         let mut main_success = false;
         let mut t1_success = false;
         match &main_result {
-            Ok(Ok(_)) => { println!("  OK main streaming 完成"); main_success = true; }
+            Ok(Ok(_)) => {
+                println!("  OK main streaming 完成");
+                main_success = true;
+            }
             Ok(Err(e)) if e.contains("429") || e.contains("速率限制") => {
-                println!("  [WARN] main 遇到 API 限流（非断链）: {}", e.chars().take(100).collect::<String>());
+                println!(
+                    "  [WARN] main 遇到 API 限流（非断链）: {}",
+                    e.chars().take(100).collect::<String>()
+                );
                 main_success = true; // 429 不是断链，算通过
             }
             Ok(Err(e)) => panic!("main streaming 失败（可能被断链）: {}", e),
             Err(e) => panic!("main task panic: {:?}", e),
         }
         match &t1_result {
-            Ok(Ok(_)) => { println!("  OK thread1 streaming 完成"); t1_success = true; }
+            Ok(Ok(_)) => {
+                println!("  OK thread1 streaming 完成");
+                t1_success = true;
+            }
             Ok(Err(e)) if e.contains("429") || e.contains("速率限制") => {
-                println!("  [WARN] thread1 遇到 API 限流（非断链）: {}", e.chars().take(100).collect::<String>());
+                println!(
+                    "  [WARN] thread1 遇到 API 限流（非断链）: {}",
+                    e.chars().take(100).collect::<String>()
+                );
                 t1_success = true; // 429 不是断链，算通过
             }
             Ok(Err(e)) => panic!("thread1 streaming 失败（可能被断链）: {}", e),
@@ -2063,7 +2439,9 @@ mod tests {
         // main 开始 streaming
         let mut session_main = create_real_session();
         let main_session_arc = Arc::new(tokio::sync::Mutex::new(session_main));
-        let main_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
+        let main_ctx = Arc::new(tokio::sync::Mutex::new(
+            crate::session::ThreadSessionContext::new(),
+        ));
 
         // 使用 Arc 共享 session 给 main streaming
         let main_session_for_stream = main_session_arc.clone();
@@ -2074,7 +2452,18 @@ mod tests {
             let (status_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (approval_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (thread_event_tx, _) = tokio::sync::mpsc::unbounded_channel();
-            Session::stream_prompt_tui(main_session_for_stream, main_ctx_for_stream, "详细介绍 Rust 的所有权系统", output_tx, status_tx, approval_tx, thread_event_tx, main_id, TaskStore::new()).await
+            Session::stream_prompt_tui(
+                main_session_for_stream,
+                main_ctx_for_stream,
+                "详细介绍 Rust 的所有权系统",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                main_id,
+                TaskStore::new(),
+            )
+            .await
         });
 
         // 等 2 秒让 main 开始 streaming
@@ -2089,8 +2478,21 @@ mod tests {
             let (approval_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (thread_event_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let session = Arc::new(tokio::sync::Mutex::new(session_t1));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
-            Session::stream_prompt_tui(session, thread_ctx, "说一句话", output_tx, status_tx, approval_tx, thread_event_tx, thread1_id, TaskStore::new()).await
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
+            Session::stream_prompt_tui(
+                session,
+                thread_ctx,
+                "说一句话",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                thread1_id,
+                TaskStore::new(),
+            )
+            .await
         });
 
         let (main_result, t1_result) = tokio::join!(main_handle, t1_handle);
@@ -2099,7 +2501,10 @@ mod tests {
         // 核心断言：main 不能是被 abort/cancelled 的
         match &main_result {
             Ok(Ok(response)) => {
-                println!("  OK main 正常完成（未被 abort），响应长度: {}", response.len());
+                println!(
+                    "  OK main 正常完成（未被 abort），响应长度: {}",
+                    response.len()
+                );
             }
             Ok(Err(e)) => {
                 // 检查是否是 abort 导致的错误
@@ -2107,14 +2512,20 @@ mod tests {
                     panic!("main 被 abort 中断！并发失败: {}", e);
                 }
                 // 429 或其他 API 错误可以接受（不是代码 bug）
-                println!("  [WARN] main 失败（API 错误，非 abort）: {}", e.chars().take(100).collect::<String>());
+                println!(
+                    "  [WARN] main 失败（API 错误，非 abort）: {}",
+                    e.chars().take(100).collect::<String>()
+                );
             }
             Err(e) => panic!("main task panic: {:?}", e),
         }
 
         match &t1_result {
             Ok(Ok(_)) => println!("  OK thread1 正常完成"),
-            Ok(Err(e)) => println!("  [WARN] thread1 失败: {}", e.chars().take(100).collect::<String>()),
+            Ok(Err(e)) => println!(
+                "  [WARN] thread1 失败: {}",
+                e.chars().take(100).collect::<String>()
+            ),
             Err(e) => println!("  [WARN] thread1 panic: {:?}", e),
         }
 
@@ -2151,9 +2562,22 @@ mod tests {
             let (approval_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (thread_event_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let session = Arc::new(tokio::sync::Mutex::new(session_main));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
             let s = std::time::Instant::now();
-            let result = Session::stream_prompt_tui(session, thread_ctx, "说一句话", output_tx, status_tx, approval_tx, thread_event_tx, main_id, TaskStore::new()).await;
+            let result = Session::stream_prompt_tui(
+                session,
+                thread_ctx,
+                "说一句话",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                main_id,
+                TaskStore::new(),
+            )
+            .await;
             (result, s.elapsed())
         });
 
@@ -2164,9 +2588,22 @@ mod tests {
             let (approval_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let (thread_event_tx, _) = tokio::sync::mpsc::unbounded_channel();
             let session = Arc::new(tokio::sync::Mutex::new(session_t1));
-            let thread_ctx = Arc::new(tokio::sync::Mutex::new(crate::session::ThreadSessionContext::new()));
+            let thread_ctx = Arc::new(tokio::sync::Mutex::new(
+                crate::session::ThreadSessionContext::new(),
+            ));
             let s = std::time::Instant::now();
-            let result = Session::stream_prompt_tui(session, thread_ctx, "说一句话", output_tx, status_tx, approval_tx, thread_event_tx, thread1_id, TaskStore::new()).await;
+            let result = Session::stream_prompt_tui(
+                session,
+                thread_ctx,
+                "说一句话",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx,
+                thread1_id,
+                TaskStore::new(),
+            )
+            .await;
             (result, s.elapsed())
         });
 
@@ -2181,8 +2618,10 @@ mod tests {
         println!("  并发总耗时: {:?}", total_time);
 
         // 如果任一遇到 API 429 限流，跳过耗时断言（网络问题非代码 bug）
-        let main_rate_limited = matches!(&main_result, Err(e) if e.contains("429") || e.contains("速率限制"));
-        let t1_rate_limited = matches!(&t1_result, Err(e) if e.contains("429") || e.contains("速率限制"));
+        let main_rate_limited =
+            matches!(&main_result, Err(e) if e.contains("429") || e.contains("速率限制"));
+        let t1_rate_limited =
+            matches!(&t1_result, Err(e) if e.contains("429") || e.contains("速率限制"));
 
         if main_rate_limited || t1_rate_limited {
             println!("  [WARN] API 限流，跳过耗时断言（网络问题，非代码 bug）");
@@ -2220,24 +2659,29 @@ mod tests {
 
         // 模拟：output_tx 高速发送，kb_tx 同时发送键盘事件
         // select! 必须两者都处理，不能饿死 keyboard
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+        let (output_tx, mut output_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (kb_tx, mut kb_rx) = tokio::sync::mpsc::unbounded_channel::<crossterm::event::Event>();
 
         // 启动一个线程高速发送 output 消息
         let output_thread = tokio::spawn(async move {
             for i in 0..100 {
-                output_tx.send(crate::OutputMessage::Text(format!("line {}", i))).unwrap();
+                output_tx
+                    .send(crate::OutputMessage::Text(format!("line {}", i)))
+                    .unwrap();
                 tokio::time::sleep(std::time::Duration::from_millis(1)).await;
             }
         });
 
         // 同时发送键盘事件（模拟 Alt+Right）
-        kb_tx.send(crossterm::event::Event::Key(
-            crossterm::event::KeyEvent::new(
-                crossterm::event::KeyCode::Right,
-                crossterm::event::KeyModifiers::ALT,
-            )
-        )).unwrap();
+        kb_tx
+            .send(crossterm::event::Event::Key(
+                crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Right,
+                    crossterm::event::KeyModifiers::ALT,
+                ),
+            ))
+            .unwrap();
 
         let mut output_count = 0;
         let mut keyboard_received = false;
@@ -2270,7 +2714,10 @@ mod tests {
         println!("  output_count: {}", output_count);
         println!("  keyboard_received: {}", keyboard_received);
 
-        assert!(keyboard_received, "keyboard 事件应该在 5 秒内被处理（output 高速输出时不能饿死 keyboard）");
+        assert!(
+            keyboard_received,
+            "keyboard 事件应该在 5 秒内被处理（output 高速输出时不能饿死 keyboard）"
+        );
 
         println!("\n  select! 公平性测试通过！");
     }
@@ -2307,17 +2754,22 @@ mod tests {
             s
         }));
 
-        let mut stream_states: std::collections::HashMap<crate::thread::ThreadId, crate::StreamState> =
-            std::collections::HashMap::new();
+        let mut stream_states: std::collections::HashMap<
+            crate::thread::ThreadId,
+            crate::StreamState,
+        > = std::collections::HashMap::new();
 
         // ===== Phase 1: main 线程开始 streaming =====
         println!("\n  [Phase 1] main 线程开始 streaming...");
 
         let session_clone = session.clone();
-        let (output_tx1, output_rx1) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+        let (output_tx1, output_rx1) =
+            tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx1, status_rx1) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (approval_tx1, _approval_rx1) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
-        let (thread_event_tx1, thread_event_rx1) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
+        let (approval_tx1, _approval_rx1) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (thread_event_tx1, thread_event_rx1) =
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
         let thread_event_tx1_task = thread_event_tx1.clone();
         let thread_ctx1 = app.ensure_session_context(main_id);
         let task_store1 = app.ensure_task_store(main_id);
@@ -2327,20 +2779,30 @@ mod tests {
 
         let handle1 = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
-                session_clone, thread_ctx1, "说一句话",
-                output_tx1, status_tx1, approval_tx1, thread_event_tx1_task,
-                main_id, task_store1,
-            ).await
+                session_clone,
+                thread_ctx1,
+                "说一句话",
+                output_tx1,
+                status_tx1,
+                approval_tx1,
+                thread_event_tx1_task,
+                main_id,
+                task_store1,
+            )
+            .await
         });
 
-        stream_states.insert(main_id, crate::StreamState {
-            handle: Some(handle1),
-            output_rx: Some(output_rx1),
-            status_rx: Some(status_rx1),
-            thread_event_rx: Some(thread_event_rx1),
-            thread_event_tx: Some(thread_event_tx1),
-            approval_tx_for_resend: None,
-        });
+        stream_states.insert(
+            main_id,
+            crate::StreamState {
+                handle: Some(handle1),
+                output_rx: Some(output_rx1),
+                status_rx: Some(status_rx1),
+                thread_event_rx: Some(thread_event_rx1),
+                thread_event_tx: Some(thread_event_tx1),
+                approval_tx_for_resend: None,
+            },
+        );
 
         println!("  main stream_states 已插入");
 
@@ -2358,7 +2820,8 @@ mod tests {
             } else {
                 std::future::pending().await
             }
-        }).await;
+        })
+        .await;
 
         match main_has_output {
             Ok(Some(crate::OutputMessage::Text(line))) => {
@@ -2374,7 +2837,8 @@ mod tests {
         // 放回 main 的 receivers
         // （上面的 timeout 可能已经消费了消息，receivers 仍在 take 出来的变量中）
         // 这里直接重建 stream_states[main]
-        let (output_tx1b, output_rx1b) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+        let (output_tx1b, output_rx1b) =
+            tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx1b, status_rx1b) = tokio::sync::mpsc::unbounded_channel::<String>();
         // 注意：旧的 tx 已被 move 到 spawn 里，我们无法重建
         // 但 main 的 spawn 仍在运行，只是新的 rx 收不到旧 tx 的消息了
@@ -2388,10 +2852,13 @@ mod tests {
         println!("\n  [Phase 3] thread1 发起新请求（并发）...");
 
         let session_clone2 = session.clone();
-        let (output_tx2, output_rx2) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+        let (output_tx2, output_rx2) =
+            tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx2, status_rx2) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (approval_tx2, _approval_rx2) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
-        let (thread_event_tx2, thread_event_rx2) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
+        let (approval_tx2, _approval_rx2) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (thread_event_tx2, thread_event_rx2) =
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
         let thread_event_tx2_task = thread_event_tx2.clone();
         let thread_ctx2 = app.ensure_session_context(thread1_id);
         let task_store2 = app.ensure_task_store(thread1_id);
@@ -2401,20 +2868,30 @@ mod tests {
 
         let handle2 = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
-                session_clone2, thread_ctx2, "你了解ruby语言吗",
-                output_tx2, status_tx2, approval_tx2, thread_event_tx2_task,
-                thread1_id, task_store2,
-            ).await
+                session_clone2,
+                thread_ctx2,
+                "你了解ruby语言吗",
+                output_tx2,
+                status_tx2,
+                approval_tx2,
+                thread_event_tx2_task,
+                thread1_id,
+                task_store2,
+            )
+            .await
         });
 
-        stream_states.insert(thread1_id, crate::StreamState {
-            handle: Some(handle2),
-            output_rx: Some(output_rx2),
-            status_rx: Some(status_rx2),
-            thread_event_rx: Some(thread_event_rx2),
-            thread_event_tx: Some(thread_event_tx2),
-            approval_tx_for_resend: None,
-        });
+        stream_states.insert(
+            thread1_id,
+            crate::StreamState {
+                handle: Some(handle2),
+                output_rx: Some(output_rx2),
+                status_rx: Some(status_rx2),
+                thread_event_rx: Some(thread_event_rx2),
+                thread_event_tx: Some(thread_event_tx2),
+                approval_tx_for_resend: None,
+            },
+        );
 
         println!("  thread1 stream_states 已插入");
         println!("  stream_states 线程数: {}", stream_states.len());
@@ -2432,13 +2909,18 @@ mod tests {
             }
 
             // 检查完成
-            let completed: Vec<_> = stream_states.iter()
+            let completed: Vec<_> = stream_states
+                .iter()
                 .filter(|(_, s)| s.handle.as_ref().map_or(false, |h| h.is_finished()))
                 .map(|(id, _)| *id)
                 .collect();
 
             for id in &completed {
-                println!("  thread {:?} 已完成 ({:.1}s)", id, start.elapsed().as_secs_f64());
+                println!(
+                    "  thread {:?} 已完成 ({:.1}s)",
+                    id,
+                    start.elapsed().as_secs_f64()
+                );
                 if let Some(mut state) = stream_states.remove(id) {
                     state.handle.take();
                     app.cleanup_after_stream(*id);
@@ -2517,15 +2999,19 @@ mod tests {
             s
         }));
 
-        let mut stream_states: std::collections::HashMap<crate::thread::ThreadId, crate::StreamState> =
-            std::collections::HashMap::new();
+        let mut stream_states: std::collections::HashMap<
+            crate::thread::ThreadId,
+            crate::StreamState,
+        > = std::collections::HashMap::new();
 
         // ===== 准备 main 线程的 streaming =====
         let session_clone = session.clone();
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx, status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (approval_tx, _approval_rx) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
-        let (thread_event_tx, thread_event_rx) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
+        let (approval_tx, _approval_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (thread_event_tx, thread_event_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
         let thread_event_tx_task = thread_event_tx.clone();
         let thread_ctx = app.ensure_session_context(main_id);
         let task_store = app.ensure_task_store(main_id);
@@ -2536,20 +3022,30 @@ mod tests {
 
         let handle = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
-                session_clone, thread_ctx, "用三句话介绍你自己",
-                output_tx, status_tx, approval_tx, thread_event_tx_task,
-                main_id, task_store,
-            ).await
+                session_clone,
+                thread_ctx,
+                "用三句话介绍你自己",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx_task,
+                main_id,
+                task_store,
+            )
+            .await
         });
 
-        stream_states.insert(main_id, crate::StreamState {
-            handle: Some(handle),
-            output_rx: Some(output_rx),
-            status_rx: Some(status_rx),
-            thread_event_rx: Some(thread_event_rx),
-            thread_event_tx: Some(thread_event_tx),
-            approval_tx_for_resend: None,
-        });
+        stream_states.insert(
+            main_id,
+            crate::StreamState {
+                handle: Some(handle),
+                output_rx: Some(output_rx),
+                status_rx: Some(status_rx),
+                thread_event_rx: Some(thread_event_rx),
+                thread_event_tx: Some(thread_event_tx),
+                approval_tx_for_resend: None,
+            },
+        );
 
         // ===== 模拟键盘 channel（与 run_streaming_loop 一致） =====
         let (kb_tx, mut kb_rx) = tokio::sync::mpsc::unbounded_channel::<crossterm::event::Event>();
@@ -2563,7 +3059,7 @@ mod tests {
                 crossterm::event::KeyEvent::new(
                     crossterm::event::KeyCode::Right,
                     crossterm::event::KeyModifiers::ALT,
-                )
+                ),
             ));
         });
 
@@ -2576,7 +3072,7 @@ mod tests {
                 crossterm::event::KeyEvent::new(
                     crossterm::event::KeyCode::Char('c'),
                     crossterm::event::KeyModifiers::CONTROL,
-                )
+                ),
             ));
         });
 
@@ -2597,25 +3093,33 @@ mod tests {
                 break;
             }
 
-            let active_id = app.thread.store.active_thread()
+            let active_id = app
+                .thread
+                .store
+                .active_thread()
                 .map(|t| t.id)
                 .unwrap_or_else(|| app.thread.store.primary_id());
 
             // take receivers（与 run_streaming_loop 一致）
-            let (mut output_rx_local, mut status_rx_local, mut thread_event_rx_local,
-                 mut thread_event_tx_local, mut approval_tx_local, mut handle_local) =
-                if let Some(state) = stream_states.get_mut(&active_id) {
-                    (
-                        state.output_rx.take(),
-                        state.status_rx.take(),
-                        state.thread_event_rx.take(),
-                        state.thread_event_tx.take(),
-                        state.approval_tx_for_resend.take(),
-                        state.handle.take(),
-                    )
-                } else {
-                    (None, None, None, None, None, None)
-                };
+            let (
+                mut output_rx_local,
+                mut status_rx_local,
+                mut thread_event_rx_local,
+                mut thread_event_tx_local,
+                mut approval_tx_local,
+                mut handle_local,
+            ) = if let Some(state) = stream_states.get_mut(&active_id) {
+                (
+                    state.output_rx.take(),
+                    state.status_rx.take(),
+                    state.thread_event_rx.take(),
+                    state.thread_event_tx.take(),
+                    state.approval_tx_for_resend.take(),
+                    state.handle.take(),
+                )
+            } else {
+                (None, None, None, None, None, None)
+            };
 
             let has_stream = output_rx_local.is_some();
 
@@ -2715,9 +3219,12 @@ mod tests {
         println!("============================================================");
 
         // 核心断言：streaming 期间键盘事件必须被处理
-        assert!(keyboard_events_received >= 2,
+        assert!(
+            keyboard_events_received >= 2,
             "应该收到至少 2 个键盘事件（Alt+Right + Ctrl+C），实际收到 {} 个 — \
-            如果为 0 说明 keyboard channel 在 output 高速输出时被饿死！", keyboard_events_received);
+            如果为 0 说明 keyboard channel 在 output 高速输出时被饿死！",
+            keyboard_events_received
+        );
         assert!(alt_right_received, "Alt+Right 应该被处理");
         assert!(ctrl_c_received, "Ctrl+C 应该被处理");
 
@@ -2753,15 +3260,19 @@ mod tests {
             s
         }));
 
-        let mut stream_states: std::collections::HashMap<crate::thread::ThreadId, crate::StreamState> =
-            std::collections::HashMap::new();
+        let mut stream_states: std::collections::HashMap<
+            crate::thread::ThreadId,
+            crate::StreamState,
+        > = std::collections::HashMap::new();
 
         // 准备 streaming
         let session_clone = session.clone();
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx, status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (approval_tx, _approval_rx) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
-        let (thread_event_tx, thread_event_rx) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
+        let (approval_tx, _approval_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (thread_event_tx, thread_event_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
         let thread_event_tx_task = thread_event_tx.clone();
         let thread_ctx = app.ensure_session_context(main_id);
         let task_store = app.ensure_task_store(main_id);
@@ -2772,20 +3283,30 @@ mod tests {
 
         let handle = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
-                session_clone, thread_ctx, "详细解释 Rust 的所有权系统，给出至少五个代码示例",
-                output_tx, status_tx, approval_tx, thread_event_tx_task,
-                main_id, task_store,
-            ).await
+                session_clone,
+                thread_ctx,
+                "详细解释 Rust 的所有权系统，给出至少五个代码示例",
+                output_tx,
+                status_tx,
+                approval_tx,
+                thread_event_tx_task,
+                main_id,
+                task_store,
+            )
+            .await
         });
 
-        stream_states.insert(main_id, crate::StreamState {
-            handle: Some(handle),
-            output_rx: Some(output_rx),
-            status_rx: Some(status_rx),
-            thread_event_rx: Some(thread_event_rx),
-            thread_event_tx: Some(thread_event_tx),
-            approval_tx_for_resend: None,
-        });
+        stream_states.insert(
+            main_id,
+            crate::StreamState {
+                handle: Some(handle),
+                output_rx: Some(output_rx),
+                status_rx: Some(status_rx),
+                thread_event_rx: Some(thread_event_rx),
+                thread_event_tx: Some(thread_event_tx),
+                approval_tx_for_resend: None,
+            },
+        );
 
         // 模拟 kb_thread
         let (kb_tx, mut kb_rx) = tokio::sync::mpsc::unbounded_channel::<crossterm::event::Event>();
@@ -2796,13 +3317,20 @@ mod tests {
         for i in 0..total_inject {
             let kb_tx_clone = kb_tx.clone();
             tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(inject_interval_ms * (i as u64 + 1))).await;
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    inject_interval_ms * (i as u64 + 1),
+                ))
+                .await;
                 let event = if i % 2 == 0 {
                     crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
-                        crossterm::event::KeyCode::PageUp, crossterm::event::KeyModifiers::empty()))
+                        crossterm::event::KeyCode::PageUp,
+                        crossterm::event::KeyModifiers::empty(),
+                    ))
                 } else {
                     crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
-                        crossterm::event::KeyCode::PageDown, crossterm::event::KeyModifiers::empty()))
+                        crossterm::event::KeyCode::PageDown,
+                        crossterm::event::KeyModifiers::empty(),
+                    ))
                 };
                 let _ = kb_tx_clone.send(event);
             });
@@ -2820,13 +3348,26 @@ mod tests {
                 break;
             }
 
-            let active_id = app.thread.store.active_thread().map(|t| t.id).unwrap_or_else(|| app.thread.store.primary_id());
+            let active_id = app
+                .thread
+                .store
+                .active_thread()
+                .map(|t| t.id)
+                .unwrap_or_else(|| app.thread.store.primary_id());
 
             let (mut orx, mut srx, mut terx, mut tetx, mut atx, mut hdl) =
                 if let Some(state) = stream_states.get_mut(&active_id) {
-                    (state.output_rx.take(), state.status_rx.take(), state.thread_event_rx.take(),
-                     state.thread_event_tx.take(), state.approval_tx_for_resend.take(), state.handle.take())
-                } else { (None, None, None, None, None, None) };
+                    (
+                        state.output_rx.take(),
+                        state.status_rx.take(),
+                        state.thread_event_rx.take(),
+                        state.thread_event_tx.take(),
+                        state.approval_tx_for_resend.take(),
+                        state.handle.take(),
+                    )
+                } else {
+                    (None, None, None, None, None, None)
+                };
 
             let has = orx.is_some();
 
@@ -2849,10 +3390,15 @@ mod tests {
 
             if let Some(state) = stream_states.get_mut(&active_id) {
                 if state.output_rx.is_none() && orx.is_some() {
-                    state.output_rx = orx; state.status_rx = srx; state.thread_event_rx = terx;
-                    state.thread_event_tx = tetx; state.approval_tx_for_resend = atx;
+                    state.output_rx = orx;
+                    state.status_rx = srx;
+                    state.thread_event_rx = terx;
+                    state.thread_event_tx = tetx;
+                    state.approval_tx_for_resend = atx;
                 }
-                if state.handle.is_none() && hdl.is_some() { state.handle = hdl; }
+                if state.handle.is_none() && hdl.is_some() {
+                    state.handle = hdl;
+                }
             }
         }
 
@@ -2862,15 +3408,26 @@ mod tests {
         println!("    收到: {} 个键盘事件", keyboard_received);
         println!("    output: {} 条", output_received);
         println!("    丢失: {} 个", total_inject - keyboard_received);
-        println!("    接收率: {:.1}%", keyboard_received as f64 / total_inject as f64 * 100.0);
+        println!(
+            "    接收率: {:.1}%",
+            keyboard_received as f64 / total_inject as f64 * 100.0
+        );
         println!("    耗时: {:.1}s", start.elapsed().as_secs_f64());
         println!("============================================================");
 
         let recv_rate = keyboard_received as f64 / total_inject as f64;
-        assert!(recv_rate >= 0.9,
-            "键盘事件接收率应 >= 90%，实际 {:.1}%（{} / {}）", recv_rate * 100.0, keyboard_received, total_inject);
+        assert!(
+            recv_rate >= 0.9,
+            "键盘事件接收率应 >= 90%，实际 {:.1}%（{} / {}）",
+            recv_rate * 100.0,
+            keyboard_received,
+            total_inject
+        );
 
-        println!("\n  长时间持续注入测试通过！接收率 {:.1}%。", recv_rate * 100.0);
+        println!(
+            "\n  长时间持续注入测试通过！接收率 {:.1}%。",
+            recv_rate * 100.0
+        );
     }
 
     // ========================================================================
@@ -2914,19 +3471,25 @@ mod tests {
             s
         }));
 
-        let mut stream_states: std::collections::HashMap<crate::thread::ThreadId, crate::StreamState> =
-            std::collections::HashMap::new();
+        let mut stream_states: std::collections::HashMap<
+            crate::thread::ThreadId,
+            crate::StreamState,
+        > = std::collections::HashMap::new();
 
         // ===== 全局 approval channel（与 run_streaming_loop 一致） =====
-        let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (approval_tx, mut approval_rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
 
         // ===== 准备 main 线程 streaming（执行ls -l → 触发工具审批） =====
         let session_clone_main = session.clone();
-        let (output_tx_main, output_rx_main) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+        let (output_tx_main, output_rx_main) =
+            tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx_main, status_rx_main) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (approval_tx_main, mut approval_rx_main) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (approval_tx_main, mut approval_rx_main) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
         let approval_tx_for_resend_main = approval_tx_main.clone();
-        let (thread_event_tx_main, thread_event_rx_main) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
+        let (thread_event_tx_main, thread_event_rx_main) =
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
         let thread_event_tx_main_task = thread_event_tx_main.clone();
         let thread_ctx_main = app.ensure_session_context(main_id);
         let task_store_main = app.ensure_task_store(main_id);
@@ -2948,28 +3511,41 @@ mod tests {
 
         let handle_main = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
-                session_clone_main, thread_ctx_main, "执行ls -l",
-                output_tx_main, status_tx_main, approval_tx_main, thread_event_tx_main_task,
-                main_id, task_store_main,
-            ).await
+                session_clone_main,
+                thread_ctx_main,
+                "执行ls -l",
+                output_tx_main,
+                status_tx_main,
+                approval_tx_main,
+                thread_event_tx_main_task,
+                main_id,
+                task_store_main,
+            )
+            .await
         });
 
-        stream_states.insert(main_id, crate::StreamState {
-            handle: Some(handle_main),
-            output_rx: Some(output_rx_main),
-            status_rx: Some(status_rx_main),
-            thread_event_rx: Some(thread_event_rx_main),
-            thread_event_tx: Some(thread_event_tx_main),
-            approval_tx_for_resend: Some(approval_tx_for_resend_main),
-        });
+        stream_states.insert(
+            main_id,
+            crate::StreamState {
+                handle: Some(handle_main),
+                output_rx: Some(output_rx_main),
+                status_rx: Some(status_rx_main),
+                thread_event_rx: Some(thread_event_rx_main),
+                thread_event_tx: Some(thread_event_tx_main),
+                approval_tx_for_resend: Some(approval_tx_for_resend_main),
+            },
+        );
 
         // ===== 准备 thread1 streaming（你了解python语言吗 → 普通对话） =====
         let session_clone_t1 = session.clone();
-        let (output_tx_t1, output_rx_t1) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+        let (output_tx_t1, output_rx_t1) =
+            tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
         let (status_tx_t1, status_rx_t1) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (approval_tx_t1, mut approval_rx_t1) = tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
+        let (approval_tx_t1, mut approval_rx_t1) =
+            tokio::sync::mpsc::unbounded_channel::<crate::approval_overlay::ApprovalRequest>();
         let approval_tx_for_resend_t1 = approval_tx_t1.clone();
-        let (thread_event_tx_t1, thread_event_rx_t1) = tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
+        let (thread_event_tx_t1, thread_event_rx_t1) =
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>();
         let thread_event_tx_t1_task = thread_event_tx_t1.clone();
         let thread_ctx_t1 = app.ensure_session_context(thread1_id);
         let task_store_t1 = app.ensure_task_store(thread1_id);
@@ -2987,20 +3563,30 @@ mod tests {
 
         let handle_t1 = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
-                session_clone_t1, thread_ctx_t1, "你了解python语言吗",
-                output_tx_t1, status_tx_t1, approval_tx_t1, thread_event_tx_t1_task,
-                thread1_id, task_store_t1,
-            ).await
+                session_clone_t1,
+                thread_ctx_t1,
+                "你了解python语言吗",
+                output_tx_t1,
+                status_tx_t1,
+                approval_tx_t1,
+                thread_event_tx_t1_task,
+                thread1_id,
+                task_store_t1,
+            )
+            .await
         });
 
-        stream_states.insert(thread1_id, crate::StreamState {
-            handle: Some(handle_t1),
-            output_rx: Some(output_rx_t1),
-            status_rx: Some(status_rx_t1),
-            thread_event_rx: Some(thread_event_rx_t1),
-            thread_event_tx: Some(thread_event_tx_t1),
-            approval_tx_for_resend: Some(approval_tx_for_resend_t1),
-        });
+        stream_states.insert(
+            thread1_id,
+            crate::StreamState {
+                handle: Some(handle_t1),
+                output_rx: Some(output_rx_t1),
+                status_rx: Some(status_rx_t1),
+                thread_event_rx: Some(thread_event_rx_t1),
+                thread_event_tx: Some(thread_event_tx_t1),
+                approval_tx_for_resend: Some(approval_tx_for_resend_t1),
+            },
+        );
 
         // ===== 模拟键盘 channel =====
         let (kb_tx, mut kb_rx) = tokio::sync::mpsc::unbounded_channel::<crossterm::event::Event>();
@@ -3019,7 +3605,7 @@ mod tests {
                 crossterm::event::KeyEvent::new(
                     crossterm::event::KeyCode::Right,
                     crossterm::event::KeyModifiers::ALT,
-                )
+                ),
             ));
         });
 
@@ -3031,7 +3617,7 @@ mod tests {
                 crossterm::event::KeyEvent::new(
                     crossterm::event::KeyCode::Left,
                     crossterm::event::KeyModifiers::ALT,
-                )
+                ),
             ));
         });
 
@@ -3044,7 +3630,7 @@ mod tests {
                 crossterm::event::KeyEvent::new(
                     crossterm::event::KeyCode::Char('c'),
                     crossterm::event::KeyModifiers::CONTROL,
-                )
+                ),
             ));
         });
 
@@ -3066,25 +3652,33 @@ mod tests {
                 break;
             }
 
-            let active_id = app.thread.store.active_thread()
+            let active_id = app
+                .thread
+                .store
+                .active_thread()
                 .map(|t| t.id)
                 .unwrap_or_else(|| app.thread.store.primary_id());
 
             // take receivers
-            let (mut output_rx_local, mut status_rx_local, mut thread_event_rx_local,
-                 mut thread_event_tx_local, mut approval_tx_local, mut handle_local) =
-                if let Some(state) = stream_states.get_mut(&active_id) {
-                    (
-                        state.output_rx.take(),
-                        state.status_rx.take(),
-                        state.thread_event_rx.take(),
-                        state.thread_event_tx.take(),
-                        state.approval_tx_for_resend.take(),
-                        state.handle.take(),
-                    )
-                } else {
-                    (None, None, None, None, None, None)
-                };
+            let (
+                mut output_rx_local,
+                mut status_rx_local,
+                mut thread_event_rx_local,
+                mut thread_event_tx_local,
+                mut approval_tx_local,
+                mut handle_local,
+            ) = if let Some(state) = stream_states.get_mut(&active_id) {
+                (
+                    state.output_rx.take(),
+                    state.status_rx.take(),
+                    state.thread_event_rx.take(),
+                    state.thread_event_tx.take(),
+                    state.approval_tx_for_resend.take(),
+                    state.handle.take(),
+                )
+            } else {
+                (None, None, None, None, None, None)
+            };
 
             let has_stream = output_rx_local.is_some();
 
@@ -3281,28 +3875,52 @@ mod tests {
         println!("    main output: {} 条", output_main);
         println!("    thread1 output: {} 条", output_t1);
         println!("    keyboard 收到: {} 个", keyboard_events);
-        println!("    审批请求: {}", if approval_received { "收到" } else { "未收到" });
-        println!("    审批处理: {}", if approval_resolved { "已批准" } else { "未批准" });
+        println!(
+            "    审批请求: {}",
+            if approval_received {
+                "收到"
+            } else {
+                "未收到"
+            }
+        );
+        println!(
+            "    审批处理: {}",
+            if approval_resolved {
+                "已批准"
+            } else {
+                "未批准"
+            }
+        );
         println!("    main busy: {}", app.is_thread_busy(main_id));
         println!("    thread1 busy: {}", app.is_thread_busy(thread1_id));
         println!("    耗时: {:.1}s", start.elapsed().as_secs_f64());
         println!("============================================================");
 
         // 核心断言
-        assert!(keyboard_events >= 2,
-            "应该收到至少 2 个键盘事件（Alt+Right + Alt+Left），实际 {} 个", keyboard_events);
+        assert!(
+            keyboard_events >= 2,
+            "应该收到至少 2 个键盘事件（Alt+Right + Alt+Left），实际 {} 个",
+            keyboard_events
+        );
 
         // 两个线程都应完成（不再 busy）
-        assert!(!app.is_thread_busy(main_id),
-            "main 线程应已完成（busy=false），实际 busy=true");
-        assert!(!app.is_thread_busy(thread1_id),
-            "thread1 线程应已完成（busy=false），实际 busy=true");
+        assert!(
+            !app.is_thread_busy(main_id),
+            "main 线程应已完成（busy=false），实际 busy=true"
+        );
+        assert!(
+            !app.is_thread_busy(thread1_id),
+            "thread1 线程应已完成（busy=false），实际 busy=true"
+        );
 
         // 至少一个线程有输出
-        assert!(output_main + output_t1 > 0,
-            "至少一个线程应有 AI 输出，实际 main={} thread1={}", output_main, output_t1);
+        assert!(
+            output_main + output_t1 > 0,
+            "至少一个线程应有 AI 输出，实际 main={} thread1={}",
+            output_main,
+            output_t1
+        );
 
         println!("\n  用例 I 通过！双线程并发（main 工具审批 + thread1 普通对话）无卡死。");
     }
-
 }

@@ -9,12 +9,24 @@ mod render;
 mod session;
 // ✅ prompts.rs 已删除：CLI 现在使用 ifainew_lib::prompt_manager
 mod approval_overlay; // 🔥 TUI 工具审批 Overlay
+#[cfg(test)]
+mod approval_thread_leak_test; // 🧪 工具审批界面线程泄漏 E2E 测试
+#[cfg(test)]
+mod approval_thread_switch_test; // 🧪 审批期间线程切换 E2E 测试
 mod code_folding; // 🎨 代码折叠 - 元编程架构
 mod command_popup; // 🔥 声明式命令弹出框
+#[cfg(test)]
+mod concurrent_message_cross_talk_test; // 🔥 并发消息串台 E2E 测试
+#[cfg(test)]
+mod concurrent_processing_test; // 🧪 并发处理 E2E 测试
 mod detail_overlay; // 🔥 Ctrl+O Detail View Overlay
 mod diff_render; // 🔥 TUI Diff 渲染系统
+#[cfg(test)]
+mod e2e_concurrent_approval_test; // 🔥 Phase 6: 并发和审批 E2E 高保真测试
 mod event; // 🔥 TUI 事件系统 - 元编程级声明式事件处理框架
 mod input_composer; // 🔥 输入框组件（替代 rustyline）
+#[cfg(test)]
+mod input_help_bug_test; // 🧪 键盘输入触发帮助 E2E 测试
 mod keybindings; // 🔥 快捷键定义和帮助系统
 mod loop_detector; // 🎨 元编程循环检测引擎
 mod markdown_meta; // 🎨 Markdown 元编程驱动层
@@ -24,22 +36,28 @@ mod permission_store; // 🔥 权限规则存储（用户白名单）
 mod persistence; // 🔥 元编程会话持久化
 mod pipeline; // 🎨 元编程 Pipeline 可视化
 mod prompt_vars; // 🏛️ 元编程：变量自动收集器
+#[cfg(test)]
+mod queued_message_thread_test; // 🧪 排队消息线程错误 E2E 测试
+#[cfg(test)]
+#[cfg(feature = "real-llm")]
+mod real_llm_e2e_test; // 🔥 Phase 6: 真实 LLM API E2E 并发测试（需要真实 API，默认不编译）
+#[cfg(test)]
+mod real_streaming_test; // 🧪 真实流式输出场景测试
+#[cfg(test)]
+mod realistic_concurrent_test; // 🔥 高保真 LLM E2E 并发测试
+#[cfg(test)]
+mod session_archive_e2e_test; // 🧪 会话归档 E2E 测试
+#[cfg(test)]
+mod session_archive_snapshot_test; // 🧪 会话归档快照测试
 mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版）
 mod stream_render; // 🔥 声明式流式渲染管道
+#[cfg(test)]
+mod streaming_thread_leak_test; // 🧪 流式输出线程泄漏 E2E 测试
+#[cfg(test)]
+mod streaming_thread_switch_test; // 🧪 流式期间线程切换 E2E 测试
 mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
 mod terminal; // 🔥 终端抽象层（ANSI 光标定位）
 mod thread; // 🔥 多线程对话系统 - 元编程架构
-#[cfg(test)]
-mod thread_event_test; // 🧪 ThreadEvent TDD 测试
-mod token; // 🔥 元编程 Token 显示层
-mod tui; // 🔥 ratatui 全屏 TUI 模块
-mod tui_layout; // 🔥 声明式 TUI 布局层
-#[cfg(test)]
-mod tui_test;
-#[cfg(test)]
-mod thread_switch_test; // 🧪 线程切换 E2E 快照测试
-#[cfg(test)]
-mod streaming_thread_switch_test; // 🧪 流式期间线程切换 E2E 测试
 #[cfg(test)]
 mod thread2_message_test; // 🧪 Thread-2 消息显示 E2E 测试
 #[cfg(test)]
@@ -47,35 +65,17 @@ mod thread3_message_test; // 🧪 Thread-3 消息显示 E2E 测试
 #[cfg(test)]
 mod thread_cross_talk_test; // 🧪 线程消息串台 E2E 测试
 #[cfg(test)]
-mod input_help_bug_test; // 🧪 键盘输入触发帮助 E2E 测试
-#[cfg(test)]
-mod streaming_thread_leak_test; // 🧪 流式输出线程泄漏 E2E 测试
-#[cfg(test)]
-mod real_streaming_test; // 🧪 真实流式输出场景测试
-#[cfg(test)]
-mod session_archive_e2e_test; // 🧪 会话归档 E2E 测试
-#[cfg(test)]
-mod session_archive_snapshot_test; // 🧪 会话归档快照测试
-#[cfg(test)]
-mod queued_message_thread_test; // 🧪 排队消息线程错误 E2E 测试
-#[cfg(test)]
-mod approval_thread_leak_test; // 🧪 工具审批界面线程泄漏 E2E 测试
-#[cfg(test)]
-mod approval_thread_switch_test; // 🧪 审批期间线程切换 E2E 测试
-#[cfg(test)]
-mod concurrent_processing_test; // 🧪 并发处理 E2E 测试
-#[cfg(test)]
-mod realistic_concurrent_test; // 🔥 高保真 LLM E2E 并发测试
+mod thread_event_test; // 🧪 ThreadEvent TDD 测试
 mod thread_switch_mode_test; // 🔥 线程切换时 Mode 同步测试
 #[cfg(test)]
-mod concurrent_message_cross_talk_test; // 🔥 并发消息串台 E2E 测试
+mod thread_switch_test; // 🧪 线程切换 E2E 快照测试
+mod token; // 🔥 元编程 Token 显示层
+mod tui; // 🔥 ratatui 全屏 TUI 模块
+mod tui_layout; // 🔥 声明式 TUI 布局层
+#[cfg(test)]
+mod tui_test;
 #[cfg(test)]
 mod user_reported_cross_talk_test; // 🔥 用户报告的消息串台场景测试
-#[cfg(test)]
-mod e2e_concurrent_approval_test; // 🔥 Phase 6: 并发和审批 E2E 高保真测试
-#[cfg(test)]
-#[cfg(feature = "real-llm")]
-mod real_llm_e2e_test; // 🔥 Phase 6: 真实 LLM API E2E 并发测试（需要真实 API，默认不编译）
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
@@ -697,8 +697,10 @@ async fn run_prompt_async(
         match session.stream_prompt(text).await {
             Ok(content) => {
                 // 计算本次请求的 token 使用量
-                let input_tokens = session.default_ctx.cumulative_input_tokens - initial_input_tokens;
-                let output_tokens = session.default_ctx.cumulative_output_tokens - initial_output_tokens;
+                let input_tokens =
+                    session.default_ctx.cumulative_input_tokens - initial_input_tokens;
+                let output_tokens =
+                    session.default_ctx.cumulative_output_tokens - initial_output_tokens;
 
                 let response = JsonResponse::success(
                     provider,
@@ -773,9 +775,7 @@ fn extract_and_save_memories_cli(session: &session::Session) {
         .iter()
         .rev() // 恢复原始顺序
         .filter_map(|m| match &m.content {
-            ifainew_lib::harness::api::types::MessageContent::Text(text) => {
-                Some(text.trim())
-            }
+            ifainew_lib::harness::api::types::MessageContent::Text(text) => Some(text.trim()),
             _ => None,
         })
         .collect::<Vec<_>>()
@@ -900,7 +900,10 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     eprintln!("[Session Archive] 💾 Saving session summary...");
                     match save_session_summary_cli(&session) {
                         Ok(filepath) => {
-                            eprintln!("[Session Archive] ✓ Session summary saved to {}", filepath.display());
+                            eprintln!(
+                                "[Session Archive] ✓ Session summary saved to {}",
+                                filepath.display()
+                            );
                         }
                         Err(e) => {
                             eprintln!("[Session Archive] ⚠ Failed to save session summary: {}", e);
@@ -922,7 +925,10 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 eprintln!("[Session Archive] 💾 Saving session summary...");
                 match save_session_summary_cli(&session) {
                     Ok(filepath) => {
-                        eprintln!("[Session Archive] ✓ Session summary saved to {}", filepath.display());
+                        eprintln!(
+                            "[Session Archive] ✓ Session summary saved to {}",
+                            filepath.display()
+                        );
                     }
                     Err(e) => {
                         eprintln!("[Session Archive] ⚠ Failed to save session summary: {}", e);
@@ -954,7 +960,10 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
             eprintln!("[Session Archive] 💾 Saving session summary...");
             match save_session_summary_cli(&session) {
                 Ok(filepath) => {
-                    eprintln!("[Session Archive] ✓ Session summary saved to {}", filepath.display());
+                    eprintln!(
+                        "[Session Archive] ✓ Session summary saved to {}",
+                        filepath.display()
+                    );
                 }
                 Err(e) => {
                     eprintln!("[Session Archive] ⚠ Failed to save session summary: {}", e);
@@ -1047,7 +1056,8 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
             if app.thread.store.len() >= 5 {
                 app.push_line(format!(
                     "{}已达到最大线程数（5）{}",
-                    render::RESET, render::RESET
+                    render::RESET,
+                    render::RESET
                 ));
                 return;
             }
@@ -1058,7 +1068,11 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
             app.push_line(format!(
                 "{}✓ 已创建侧线程 {}{}",
                 theme.success,
-                app.thread.store.get_thread(id).map(|t| t.display_name()).unwrap_or_default(),
+                app.thread
+                    .store
+                    .get_thread(id)
+                    .map(|t| t.display_name())
+                    .unwrap_or_default(),
                 render::RESET
             ));
         }
@@ -1068,7 +1082,8 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
             let active_id = app.thread.store.active_id();
             // 先收集显示信息，避免借用冲突
             let display_infos: Vec<(usize, String, &'static str, bool)> = app
-                .thread.store
+                .thread
+                .store
                 .all_threads()
                 .iter()
                 .enumerate()
@@ -1103,7 +1118,8 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                     if parts.len() < 2 {
                         app.push_line(format!(
                             "{}用法: /thread switch <N>{}（N 为线程编号，从 1 开始）",
-                            theme.muted, render::RESET
+                            theme.muted,
+                            render::RESET
                         ));
                         return;
                     }
@@ -1121,10 +1137,7 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                                     render::RESET
                                 ));
                             } else {
-                                app.push_line(format!(
-                                    "{}切换失败{}",
-                                    theme.error, render::RESET
-                                ));
+                                app.push_line(format!("{}切换失败{}", theme.error, render::RESET));
                             }
                         }
                         _ => {
@@ -1144,7 +1157,8 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                         Some(t) if t.kind == crate::thread::ThreadKind::Main => {
                             app.push_line(format!(
                                 "{}不能关闭主线程{}",
-                                theme.error, render::RESET
+                                theme.error,
+                                render::RESET
                             ));
                         }
                         Some(t) => {
@@ -1175,7 +1189,8 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                     if parts.len() < 2 || parts[1].trim().is_empty() {
                         app.push_line(format!(
                             "{}用法: /thread rename <新名称>{}",
-                            theme.muted, render::RESET
+                            theme.muted,
+                            render::RESET
                         ));
                         return;
                     }
@@ -1201,11 +1216,14 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
                 _ => {
                     app.push_line(format!(
                         "{}未知子命令: '{}'{}",
-                        theme.error, parts[0], render::RESET
+                        theme.error,
+                        parts[0],
+                        render::RESET
                     ));
                     app.push_line(format!(
                         "{}用法: /thread [list|switch <N>|close|rename <name>]{}",
-                        theme.muted, render::RESET
+                        theme.muted,
+                        render::RESET
                     ));
                 }
             }
@@ -1220,7 +1238,8 @@ pub(crate) struct StreamState {
     pub(crate) status_rx: Option<tokio::sync::mpsc::UnboundedReceiver<String>>,
     pub(crate) thread_event_rx: Option<tokio::sync::mpsc::UnboundedReceiver<thread::ThreadEvent>>,
     pub(crate) thread_event_tx: Option<tokio::sync::mpsc::UnboundedSender<thread::ThreadEvent>>,
-    pub(crate) approval_tx_for_resend: Option<tokio::sync::mpsc::UnboundedSender<approval_overlay::ApprovalRequest>>,
+    pub(crate) approval_tx_for_resend:
+        Option<tokio::sync::mpsc::UnboundedSender<approval_overlay::ApprovalRequest>>,
 }
 
 /// select! 返回的控制信号
@@ -1230,7 +1249,10 @@ pub(crate) enum StreamingControl {
     /// 当前线程的 stream 完成
     StreamFinished,
     /// 用户提交了新消息（在非 busy 线程上 Enter）
-    NewRequest { text: String, thread_id: thread::ThreadId },
+    NewRequest {
+        text: String,
+        thread_id: thread::ThreadId,
+    },
     /// 用户按了 Ctrl+C
     Interrupted,
     /// 退出 TUI
@@ -1253,7 +1275,13 @@ async fn run_streaming_loop(
     initial_request: (String, thread::ThreadId),
 ) {
     // 处理初始请求
-    spawn_stream_request(app, session, stream_states, approval_tx.clone(), initial_request);
+    spawn_stream_request(
+        app,
+        session,
+        stream_states,
+        approval_tx.clone(),
+        initial_request,
+    );
 
     // 键盘事件专用线程：持续读取 crossterm 事件，通过 channel 发送
     // 这样 select! 中的 kb_rx.recv() 与 output_rx.recv() 是同类 channel receiver，公平竞争
@@ -1283,25 +1311,34 @@ async fn run_streaming_loop(
 
     // 单层事件循环
     loop {
-        let active_id = app.thread.store.active_thread()
+        let active_id = app
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| app.thread.store.primary_id());
 
         // === 从 stream_states 取出当前线程的 receivers（借用，不移动所有权） ===
         // 用 Option::take() 临时取出，select! 结束后放回
-        let (mut output_rx, mut status_rx, mut thread_event_rx, mut thread_event_tx, mut approval_tx_for_resend, mut stream_handle) =
-            if let Some(state) = stream_states.get_mut(&active_id) {
-                (
-                    state.output_rx.take(),
-                    state.status_rx.take(),
-                    state.thread_event_rx.take(),
-                    state.thread_event_tx.take(),
-                    state.approval_tx_for_resend.take(),
-                    state.handle.take(),
-                )
-            } else {
-                (None, None, None, None, None, None)
-            };
+        let (
+            mut output_rx,
+            mut status_rx,
+            mut thread_event_rx,
+            mut thread_event_tx,
+            mut approval_tx_for_resend,
+            mut stream_handle,
+        ) = if let Some(state) = stream_states.get_mut(&active_id) {
+            (
+                state.output_rx.take(),
+                state.status_rx.take(),
+                state.thread_event_rx.take(),
+                state.thread_event_tx.take(),
+                state.approval_tx_for_resend.take(),
+                state.handle.take(),
+            )
+        } else {
+            (None, None, None, None, None, None)
+        };
 
         // 检查是否有活跃的 stream
         let has_active_stream = output_rx.is_some();
@@ -1516,7 +1553,13 @@ async fn run_streaming_loop(
                 break;
             }
             StreamingControl::NewRequest { text, thread_id } => {
-                spawn_stream_request(app, session, stream_states, approval_tx.clone(), (text, thread_id));
+                spawn_stream_request(
+                    app,
+                    session,
+                    stream_states,
+                    approval_tx.clone(),
+                    (text, thread_id),
+                );
             }
         }
     }
@@ -1544,8 +1587,13 @@ fn spawn_stream_request(
 
     // 显示用户输入
     let theme = render::default_theme();
-    app.push_line_if_active_thread(thread_id, format!("{}⟩{} {}", theme.brand, render::RESET, &input));
-    app.thread.messages.push(thread_id, thread::Message::user(input.clone()));
+    app.push_line_if_active_thread(
+        thread_id,
+        format!("{}⟩{} {}", theme.brand, render::RESET, &input),
+    );
+    app.thread
+        .messages
+        .push(thread_id, thread::Message::user(input.clone()));
     app.render();
 
     // 设置 busy
@@ -1558,7 +1606,8 @@ fn spawn_stream_request(
     let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<OutputMessage>();
     let (status_tx, status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let approval_tx_for_resend = global_approval_tx.clone();
-    let (thread_event_tx, thread_event_rx) = tokio::sync::mpsc::unbounded_channel::<thread::ThreadEvent>();
+    let (thread_event_tx, thread_event_rx) =
+        tokio::sync::mpsc::unbounded_channel::<thread::ThreadEvent>();
     let thread_event_tx_task = thread_event_tx.clone();
 
     // spawn — stream_prompt_tui 是关联函数，接受 Arc<Mutex<Self>>
@@ -1567,20 +1616,31 @@ fn spawn_stream_request(
     let task_store = app.ensure_task_store(thread_id);
     let handle = tokio::spawn(async move {
         session::Session::stream_prompt_tui(
-            session_clone, thread_ctx, &input,
-            output_tx, status_tx, global_approval_tx, thread_event_tx_task, thread_id, task_store,
-        ).await
+            session_clone,
+            thread_ctx,
+            &input,
+            output_tx,
+            status_tx,
+            global_approval_tx,
+            thread_event_tx_task,
+            thread_id,
+            task_store,
+        )
+        .await
     });
 
     // 存入 stream_states（receivers 属于线程）
-    stream_states.insert(thread_id, StreamState {
-        handle: Some(handle),
-        output_rx: Some(output_rx),
-        status_rx: Some(status_rx),
-        thread_event_rx: Some(thread_event_rx),
-        thread_event_tx: Some(thread_event_tx),
-        approval_tx_for_resend: Some(approval_tx_for_resend),
-    });
+    stream_states.insert(
+        thread_id,
+        StreamState {
+            handle: Some(handle),
+            output_rx: Some(output_rx),
+            status_rx: Some(status_rx),
+            thread_event_rx: Some(thread_event_rx),
+            thread_event_tx: Some(thread_event_tx),
+            approval_tx_for_resend: Some(approval_tx_for_resend),
+        },
+    );
 }
 
 // ========================================================================
@@ -1648,20 +1708,52 @@ impl RouteBinding {
 /// Diff/Overlay/Approving 模式在 route_key_event 中由专用 handler 拦截。
 const NORMAL_BINDINGS: &[RouteBinding] = &[
     // Ctrl+D：进入 Diff
-    RouteBinding { key: crossterm::event::KeyCode::Char('d'), modifiers: crossterm::event::KeyModifiers::CONTROL, action: RouteAction::EnterDiff },
+    RouteBinding {
+        key: crossterm::event::KeyCode::Char('d'),
+        modifiers: crossterm::event::KeyModifiers::CONTROL,
+        action: RouteAction::EnterDiff,
+    },
     // Ctrl+O：进入 Overlay
-    RouteBinding { key: crossterm::event::KeyCode::Char('o'), modifiers: crossterm::event::KeyModifiers::CONTROL, action: RouteAction::EnterOverlay },
+    RouteBinding {
+        key: crossterm::event::KeyCode::Char('o'),
+        modifiers: crossterm::event::KeyModifiers::CONTROL,
+        action: RouteAction::EnterOverlay,
+    },
     // Ctrl+T：创建侧线程
-    RouteBinding { key: crossterm::event::KeyCode::Char('t'), modifiers: crossterm::event::KeyModifiers::CONTROL, action: RouteAction::CreateThread },
+    RouteBinding {
+        key: crossterm::event::KeyCode::Char('t'),
+        modifiers: crossterm::event::KeyModifiers::CONTROL,
+        action: RouteAction::CreateThread,
+    },
     // Alt+Left：上一个线程
-    RouteBinding { key: crossterm::event::KeyCode::Left, modifiers: crossterm::event::KeyModifiers::ALT, action: RouteAction::PrevThread },
+    RouteBinding {
+        key: crossterm::event::KeyCode::Left,
+        modifiers: crossterm::event::KeyModifiers::ALT,
+        action: RouteAction::PrevThread,
+    },
     // Alt+Right：下一个线程
-    RouteBinding { key: crossterm::event::KeyCode::Right, modifiers: crossterm::event::KeyModifiers::ALT, action: RouteAction::NextThread },
+    RouteBinding {
+        key: crossterm::event::KeyCode::Right,
+        modifiers: crossterm::event::KeyModifiers::ALT,
+        action: RouteAction::NextThread,
+    },
     // Esc：返回父线程
-    RouteBinding { key: crossterm::event::KeyCode::Esc, modifiers: crossterm::event::KeyModifiers::NONE, action: RouteAction::ReturnToParent },
+    RouteBinding {
+        key: crossterm::event::KeyCode::Esc,
+        modifiers: crossterm::event::KeyModifiers::NONE,
+        action: RouteAction::ReturnToParent,
+    },
     // 滚动
-    RouteBinding { key: crossterm::event::KeyCode::PageUp, modifiers: crossterm::event::KeyModifiers::NONE, action: RouteAction::ScrollUp(5) },
-    RouteBinding { key: crossterm::event::KeyCode::PageDown, modifiers: crossterm::event::KeyModifiers::NONE, action: RouteAction::ScrollDown(5) },
+    RouteBinding {
+        key: crossterm::event::KeyCode::PageUp,
+        modifiers: crossterm::event::KeyModifiers::NONE,
+        action: RouteAction::ScrollUp(5),
+    },
+    RouteBinding {
+        key: crossterm::event::KeyCode::PageDown,
+        modifiers: crossterm::event::KeyModifiers::NONE,
+        action: RouteAction::ScrollDown(5),
+    },
 ];
 
 /// 路由分发：遍历 NORMAL_BINDINGS 匹配 key，执行 action
@@ -1674,7 +1766,10 @@ fn route_normal_key(
     key: crossterm::event::KeyEvent,
 ) -> Option<StreamingControl> {
     // Shift+Up/Down 需要特殊匹配（modifiers 包含 SHIFT，不是精确匹配）
-    if key.modifiers.contains(crossterm::event::KeyModifiers::SHIFT) {
+    if key
+        .modifiers
+        .contains(crossterm::event::KeyModifiers::SHIFT)
+    {
         match key.code {
             crossterm::event::KeyCode::Up => {
                 app.scroll_up(3);
@@ -1693,7 +1788,12 @@ fn route_normal_key(
     // 遍历声明式路由表
     for binding in NORMAL_BINDINGS {
         if binding.matches(&key) {
-            return Some(execute_route_action(app, stream_states, active_id, binding.action));
+            return Some(execute_route_action(
+                app,
+                stream_states,
+                active_id,
+                binding.action,
+            ));
         }
     }
 
@@ -1801,7 +1901,8 @@ fn handle_single_key_event(
     event: crossterm::event::Event,
 ) -> StreamingControl {
     // 忽略 Key Release 事件
-    if matches!(event, crossterm::event::Event::Key(ref k) if k.kind == crossterm::event::KeyEventKind::Release) {
+    if matches!(event, crossterm::event::Event::Key(ref k) if k.kind == crossterm::event::KeyEventKind::Release)
+    {
         return StreamingControl::Continue;
     }
 
@@ -1822,9 +1923,17 @@ fn handle_single_key_event(
                 KeyCode::Up | KeyCode::Down => {
                     if options_count > 0 {
                         if key.code == KeyCode::Up {
-                            app.approval.selected = if app.approval.selected > 0 { app.approval.selected - 1 } else { options_count - 1 };
+                            app.approval.selected = if app.approval.selected > 0 {
+                                app.approval.selected - 1
+                            } else {
+                                options_count - 1
+                            };
                         } else {
-                            app.approval.selected = if app.approval.selected + 1 < options_count { app.approval.selected + 1 } else { 0 };
+                            app.approval.selected = if app.approval.selected + 1 < options_count {
+                                app.approval.selected + 1
+                            } else {
+                                0
+                            };
                         }
                         app.render();
                     }
@@ -1899,8 +2008,8 @@ fn handle_single_key_event(
 
         // === Diff 模式：仅由 DiffModeHandler 处理 ===
         if app.is_diff_mode() {
-            use crate::event::{EventHandler, ControlFlow};
             use crate::event::handlers::DiffModeHandler;
+            use crate::event::{ControlFlow, EventHandler};
             let mut handler = DiffModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
             app.render();
@@ -1909,8 +2018,8 @@ fn handle_single_key_event(
 
         // === Overlay 模式：仅由 DetailModeHandler 处理 ===
         if app.is_overlay_mode() {
-            use crate::event::{EventHandler, ControlFlow};
             use crate::event::handlers::DetailModeHandler;
+            use crate::event::{ControlFlow, EventHandler};
             let mut handler = DetailModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
             app.render();
@@ -1927,7 +2036,10 @@ fn handle_single_key_event(
         let action = app.input.handle_key(key);
         match action {
             InputAction::Submit(text) => {
-                let current_thread_id = app.thread.store.active_thread()
+                let current_thread_id = app
+                    .thread
+                    .store
+                    .active_thread()
                     .map(|t| t.id)
                     .unwrap_or_else(|| app.thread.store.primary_id());
 
@@ -2018,12 +2130,16 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                             for msg in messages {
                                 let role = match msg.role.as_str() {
                                     "user" => ifainew_lib::harness::api::types::MessageRole::User,
-                                    "assistant" => ifainew_lib::harness::api::types::MessageRole::Assistant,
+                                    "assistant" => {
+                                        ifainew_lib::harness::api::types::MessageRole::Assistant
+                                    }
                                     _ => continue,
                                 };
                                 result.push(ifainew_lib::harness::api::types::Message {
                                     role,
-                                    content: ifainew_lib::harness::api::types::MessageContent::Text(msg.content.clone()),
+                                    content: ifainew_lib::harness::api::types::MessageContent::Text(
+                                        msg.content.clone(),
+                                    ),
                                     tool_calls: None,
                                     tool_call_id: None,
                                 });
@@ -2033,7 +2149,11 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     };
 
                     let theme = render::default_theme();
-                    app.push_line(format!("{}💾 Saving session summary...{}", theme.brand, render::RESET));
+                    app.push_line(format!(
+                        "{}💾 Saving session summary...{}",
+                        theme.brand,
+                        render::RESET
+                    ));
                     app.scroll_to_bottom();
                     app.render();
 
@@ -2054,15 +2174,30 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                 0,
                             ) {
                                 Ok(filepath) => {
-                                    app.push_line(format!("{}✓ Session summary saved to {}{}", theme.success, filepath.display(), render::RESET));
+                                    app.push_line(format!(
+                                        "{}✓ Session summary saved to {}{}",
+                                        theme.success,
+                                        filepath.display(),
+                                        render::RESET
+                                    ));
                                 }
                                 Err(e) => {
-                                    app.push_line(format!("{}⚠ Failed to save session summary: {}{}", theme.warning, e, render::RESET));
+                                    app.push_line(format!(
+                                        "{}⚠ Failed to save session summary: {}{}",
+                                        theme.warning,
+                                        e,
+                                        render::RESET
+                                    ));
                                 }
                             }
                         }
                         Err(e) => {
-                            app.push_line(format!("{}⚠ Failed to create persistence: {}{}", theme.warning, e, render::RESET));
+                            app.push_line(format!(
+                                "{}⚠ Failed to create persistence: {}{}",
+                                theme.warning,
+                                e,
+                                render::RESET
+                            ));
                         }
                     }
                     app.scroll_to_bottom();
@@ -2101,14 +2236,27 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     }
                 } else {
                     // AI 调用 — 单层 select! 事件循环（StreamState per-thread）
-                    let thread_id = app.thread.store.active_thread()
+                    let thread_id = app
+                        .thread
+                        .store
+                        .active_thread()
                         .map(|t| t.id)
                         .unwrap_or_else(|| app.thread.store.primary_id());
                     let (approval_tx, mut approval_rx) =
                         tokio::sync::mpsc::unbounded_channel::<approval_overlay::ApprovalRequest>();
-                    let mut stream_states: std::collections::HashMap<thread::ThreadId, StreamState> =
-                        std::collections::HashMap::new();
-                    run_streaming_loop(&mut app, &session, &mut stream_states, approval_tx, &mut approval_rx, (text, thread_id)).await;
+                    let mut stream_states: std::collections::HashMap<
+                        thread::ThreadId,
+                        StreamState,
+                    > = std::collections::HashMap::new();
+                    run_streaming_loop(
+                        &mut app,
+                        &session,
+                        &mut stream_states,
+                        approval_tx,
+                        &mut approval_rx,
+                        (text, thread_id),
+                    )
+                    .await;
                 }
             }
             AppResult::Exit => {
@@ -2121,12 +2269,16 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         for msg in messages {
                             let role = match msg.role.as_str() {
                                 "user" => ifainew_lib::harness::api::types::MessageRole::User,
-                                "assistant" => ifainew_lib::harness::api::types::MessageRole::Assistant,
+                                "assistant" => {
+                                    ifainew_lib::harness::api::types::MessageRole::Assistant
+                                }
                                 _ => continue,
                             };
                             result.push(ifainew_lib::harness::api::types::Message {
                                 role,
-                                content: ifainew_lib::harness::api::types::MessageContent::Text(msg.content.clone()),
+                                content: ifainew_lib::harness::api::types::MessageContent::Text(
+                                    msg.content.clone(),
+                                ),
                                 tool_calls: None,
                                 tool_call_id: None,
                             });
@@ -2136,7 +2288,11 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 };
 
                 let theme = render::default_theme();
-                app.push_line(format!("{}💾 Saving session summary...{}", theme.brand, render::RESET));
+                app.push_line(format!(
+                    "{}💾 Saving session summary...{}",
+                    theme.brand,
+                    render::RESET
+                ));
                 app.scroll_to_bottom();
                 app.render();
 
@@ -2157,15 +2313,30 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                             0,
                         ) {
                             Ok(filepath) => {
-                                app.push_line(format!("{}✓ Session summary saved to {}{}", theme.success, filepath.display(), render::RESET));
+                                app.push_line(format!(
+                                    "{}✓ Session summary saved to {}{}",
+                                    theme.success,
+                                    filepath.display(),
+                                    render::RESET
+                                ));
                             }
                             Err(e) => {
-                                app.push_line(format!("{}⚠ Failed to save session summary: {}{}", theme.warning, e, render::RESET));
+                                app.push_line(format!(
+                                    "{}⚠ Failed to save session summary: {}{}",
+                                    theme.warning,
+                                    e,
+                                    render::RESET
+                                ));
                             }
                         }
                     }
                     Err(e) => {
-                        app.push_line(format!("{}⚠ Failed to create persistence: {}{}", theme.warning, e, render::RESET));
+                        app.push_line(format!(
+                            "{}⚠ Failed to create persistence: {}{}",
+                            theme.warning,
+                            e,
+                            render::RESET
+                        ));
                     }
                 }
                 app.scroll_to_bottom();
@@ -2427,23 +2598,33 @@ mod tests {
     // ========================================================================
 
     /// Helper: 创建一个用于测试的 app + stream_states + active_id
-    fn setup_streaming_test() -> (tui::App, std::collections::HashMap<thread::ThreadId, StreamState>, thread::ThreadId) {
+    fn setup_streaming_test() -> (
+        tui::App,
+        std::collections::HashMap<thread::ThreadId, StreamState>,
+        thread::ThreadId,
+    ) {
         let mut app = tui::App::new_for_test();
         let thread_id = app.thread.store.primary_id();
         let mut stream_states = std::collections::HashMap::new();
-        stream_states.insert(thread_id, StreamState {
-            handle: None,
-            output_rx: None,
-            status_rx: None,
-            thread_event_rx: None,
-            thread_event_tx: None,
-            approval_tx_for_resend: None,
-        });
+        stream_states.insert(
+            thread_id,
+            StreamState {
+                handle: None,
+                output_rx: None,
+                status_rx: None,
+                thread_event_rx: None,
+                thread_event_tx: None,
+                approval_tx_for_resend: None,
+            },
+        );
         (app, stream_states, thread_id)
     }
 
     /// Helper: 构造 Key event
-    fn key_event(code: crossterm::event::KeyCode, modifiers: crossterm::event::KeyModifiers) -> crossterm::event::Event {
+    fn key_event(
+        code: crossterm::event::KeyCode,
+        modifiers: crossterm::event::KeyModifiers,
+    ) -> crossterm::event::Event {
         crossterm::event::Event::Key(crossterm::event::KeyEvent::new(code, modifiers))
     }
 
@@ -2460,8 +2641,15 @@ mod tests {
             removed: 1,
         });
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('d'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('d'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert!(matches!(app.mode, tui::Mode::Diff));
         assert!(matches!(result, StreamingControl::Continue));
@@ -2484,8 +2672,15 @@ mod tests {
         assert!(matches!(app.mode, tui::Mode::Overlay));
 
         // Ctrl+D 在 overlay 模式下不应进入 diff
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('d'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('d'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         // overlay 的 handler 处理了这个 event（可能退出 overlay），但不会进入 diff
         assert!(!app.is_diff_mode());
@@ -2495,10 +2690,19 @@ mod tests {
     fn test_guard_ctrl_o_enters_overlay_in_normal() {
         let (mut app, mut states, id) = setup_streaming_test();
         // 添加 AI 响应使 Ctrl+O 生效
-        app.stream.streaming_response_buffers.insert(id, "AI response".to_string());
+        app.stream
+            .streaming_response_buffers
+            .insert(id, "AI response".to_string());
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('o'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('o'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert!(matches!(app.mode, tui::Mode::Overlay));
         assert!(matches!(result, StreamingControl::Continue));
@@ -2507,7 +2711,9 @@ mod tests {
     #[test]
     fn test_guard_ctrl_o_blocked_in_diff() {
         let (mut app, mut states, id) = setup_streaming_test();
-        app.stream.streaming_response_buffers.insert(id, "AI response".to_string());
+        app.stream
+            .streaming_response_buffers
+            .insert(id, "AI response".to_string());
         app.diff.files.push(crate::diff_render::DiffFileChange {
             path: std::path::PathBuf::from("test.rs"),
             kind: crate::diff_render::DiffChangeKind::Modified,
@@ -2519,8 +2725,15 @@ mod tests {
         app.enter_diff_mode();
         assert!(matches!(app.mode, tui::Mode::Diff));
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('o'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('o'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         // Diff handler 处理了 event，不应进入 overlay
         assert!(!app.is_overlay_mode());
@@ -2540,8 +2753,15 @@ mod tests {
         app.enter_diff_mode();
         let count_before = app.thread.store.len();
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('t'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         // Ctrl+T 在 Diff 模式下应被阻止，不创建新线程
         assert_eq!(app.thread.store.len(), count_before);
@@ -2555,8 +2775,15 @@ mod tests {
         app.enter_overlay_mode(overlay);
         let count_before = app.thread.store.len();
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('t'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert_eq!(app.thread.store.len(), count_before);
     }
@@ -2566,7 +2793,8 @@ mod tests {
         let (mut app, mut states, id) = setup_streaming_test();
         // 填充内容使滚动有意义
         for i in 0..30u16 {
-            app.content_lines.push(ratatui::text::Line::from(format!("Line {:02}", i)));
+            app.content_lines
+                .push(ratatui::text::Line::from(format!("Line {:02}", i)));
         }
         app.scroll_offset = 10;
         app.diff.files.push(crate::diff_render::DiffFileChange {
@@ -2580,8 +2808,15 @@ mod tests {
         app.enter_diff_mode();
 
         let offset_before = app.scroll_offset;
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::PageUp, crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::PageUp,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         // PageUp 在 Diff 模式下不应滚动 content_lines
         assert_eq!(app.scroll_offset, offset_before);
@@ -2592,8 +2827,15 @@ mod tests {
         let (mut app, mut states, id) = setup_streaming_test();
         app.stream.thread_busy.insert(id, true);
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('c'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('c'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::Interrupted));
         assert!(!app.is_current_thread_busy());
@@ -2604,8 +2846,15 @@ mod tests {
     fn test_guard_ctrl_d_no_op_when_no_diff_files() {
         let (mut app, mut states, id) = setup_streaming_test();
         // diff.files 为空，Ctrl+D 应该无效果
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('d'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('d'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert!(matches!(app.mode, tui::Mode::Normal));
         assert!(matches!(result, StreamingControl::Continue));
@@ -2615,8 +2864,15 @@ mod tests {
     fn test_guard_ctrl_o_no_op_when_no_content() {
         let (mut app, mut states, id) = setup_streaming_test();
         // 没有 AI 响应也没有 streaming buffer，Ctrl+O 应该无效果
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('o'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('o'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert!(matches!(app.mode, tui::Mode::Normal));
         assert!(!app.is_overlay_mode());
@@ -2627,8 +2883,15 @@ mod tests {
         let (mut app, mut states, id) = setup_streaming_test();
         app.thread.active_mode = false;
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Esc,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         assert!(matches!(app.mode, tui::Mode::Normal));
     }
@@ -2643,8 +2906,15 @@ mod tests {
         let count_before = app.thread.store.len();
         assert_eq!(count_before, 5);
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('t'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert_eq!(app.thread.store.len(), 5);
     }
@@ -2652,13 +2922,12 @@ mod tests {
     #[test]
     fn test_guard_key_release_ignored() {
         let (mut app, mut states, id) = setup_streaming_test();
-        let release_event = crossterm::event::Event::Key(
-            crossterm::event::KeyEvent::new_with_kind(
+        let release_event =
+            crossterm::event::Event::Key(crossterm::event::KeyEvent::new_with_kind(
                 crossterm::event::KeyCode::Char('a'),
                 crossterm::event::KeyModifiers::NONE,
                 crossterm::event::KeyEventKind::Release,
-            )
-        );
+            ));
 
         let result = handle_single_key_event(&mut app, &mut states, &id, release_event);
         assert!(matches!(result, StreamingControl::Continue));
@@ -2678,8 +2947,15 @@ mod tests {
         assert_eq!(app.thread.store.len(), 2);
         // 当前在 main，切到 Thread-1 需要先切一次
         // Alt+Left 在 main 时调用 previous_thread → 到 Thread-1
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Left, crossterm::event::KeyModifiers::ALT));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Left,
+                crossterm::event::KeyModifiers::ALT,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::ThreadSwitch));
     }
@@ -2689,13 +2965,25 @@ mod tests {
         let (mut app, mut states, id) = setup_streaming_test();
         app.create_side_thread(Some("Thread-1".into()));
         // 先切到侧线程
-        let side_id = app.thread.store.all_threads().iter()
+        let side_id = app
+            .thread
+            .store
+            .all_threads()
+            .iter()
             .find(|t| t.kind == crate::thread::ThreadKind::Side)
-            .map(|t| t.id).unwrap();
+            .map(|t| t.id)
+            .unwrap();
         app.switch_thread(side_id);
 
-        let result = handle_single_key_event(&mut app, &mut states, &side_id,
-            key_event(crossterm::event::KeyCode::Right, crossterm::event::KeyModifiers::ALT));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &side_id,
+            key_event(
+                crossterm::event::KeyCode::Right,
+                crossterm::event::KeyModifiers::ALT,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::ThreadSwitch));
     }
@@ -2705,13 +2993,24 @@ mod tests {
         let (mut app, mut states, id) = setup_streaming_test();
         // 通过 handle_key 注入文字 "hello"
         app.input.handle_key(crossterm::event::KeyEvent::new(
-            crossterm::event::KeyCode::Char('h'), crossterm::event::KeyModifiers::NONE));
+            crossterm::event::KeyCode::Char('h'),
+            crossterm::event::KeyModifiers::NONE,
+        ));
         app.input.handle_key(crossterm::event::KeyEvent::new(
-            crossterm::event::KeyCode::Char('i'), crossterm::event::KeyModifiers::NONE));
+            crossterm::event::KeyCode::Char('i'),
+            crossterm::event::KeyModifiers::NONE,
+        ));
         assert_eq!(app.input.value(), "hi");
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Enter,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::NewRequest { text, .. } if text == "hi"));
     }
@@ -2721,10 +3020,19 @@ mod tests {
         let (mut app, mut states, id) = setup_streaming_test();
         app.stream.thread_busy.insert(id, true);
         app.input.handle_key(crossterm::event::KeyEvent::new(
-            crossterm::event::KeyCode::Char('x'), crossterm::event::KeyModifiers::NONE));
+            crossterm::event::KeyCode::Char('x'),
+            crossterm::event::KeyModifiers::NONE,
+        ));
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Enter,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::Continue)); // 不返回 NewRequest
         assert_eq!(app.stream.queue.len(), 1);
@@ -2738,8 +3046,15 @@ mod tests {
         app.enter_overlay_mode(overlay);
         assert!(app.is_overlay_mode());
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Esc, crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Esc,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         // DetailModeHandler 处理 Esc → 退出 overlay
         assert!(!app.is_overlay_mode());
@@ -2750,13 +3065,21 @@ mod tests {
     fn test_route_pageup_scrolls_in_normal() {
         let (mut app, mut states, id) = setup_streaming_test();
         for i in 0..30u16 {
-            app.content_lines.push(ratatui::text::Line::from(format!("Line {:02}", i)));
+            app.content_lines
+                .push(ratatui::text::Line::from(format!("Line {:02}", i)));
         }
         // auto scroll to bottom
         app.scroll_offset = 5;
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::PageUp, crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::PageUp,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::Continue));
         assert!(app.scroll_offset < 5); // 向上滚动了
@@ -2767,8 +3090,15 @@ mod tests {
         let (mut app, mut states, id) = setup_streaming_test();
         assert_eq!(app.thread.store.len(), 1);
 
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('t'), crossterm::event::KeyModifiers::CONTROL));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('t'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::Continue));
         assert_eq!(app.thread.store.len(), 2);
@@ -2779,8 +3109,15 @@ mod tests {
     fn test_route_fallthrough_to_input() {
         let (mut app, mut states, id) = setup_streaming_test();
         // 普通字符应 fallthrough 到 input composer
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Char('a'), crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('a'),
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::Continue));
         assert_eq!(app.input.value(), "a");
@@ -2804,13 +3141,19 @@ mod tests {
         assert!(app.is_approving());
 
         // Enter 选择第一个选项
-        let result = handle_single_key_event(&mut app, &mut states, &id,
-            key_event(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::NONE));
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Enter,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        );
 
         assert!(matches!(result, StreamingControl::Continue));
         // 审批已解决，mode 回到 Normal
         assert!(!app.is_approving());
         assert!(matches!(app.mode, tui::Mode::Normal));
     }
-
 }

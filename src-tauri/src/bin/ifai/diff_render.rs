@@ -581,9 +581,9 @@ pub fn resolve_scroll_key(key: KeyEvent) -> Option<ScrollAction> {
 /// Diff 模式动作（组合模式：嵌入共享滚动 + Diff 特有动作）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiffAction {
-    Scroll(ScrollAction),  // 嵌入共享滚动
-    NextFile,              // Diff 特有
-    PrevFile,              // Diff 特有
+    Scroll(ScrollAction), // 嵌入共享滚动
+    NextFile,             // Diff 特有
+    PrevFile,             // Diff 特有
 }
 
 /// Diff 特有按键映射条目（仅 NextFile/PrevFile）
@@ -623,7 +623,7 @@ pub fn resolve_diff_key(key: KeyEvent) -> Option<DiffAction> {
     if let Some(scroll) = resolve_scroll_key(key) {
         // Ctrl+D 在 diff 模式是 NextFile，不是 Exit
         if scroll == ScrollAction::HalfDown {
-            return None;  // 让特有表处理
+            return None; // 让特有表处理
         }
         return Some(DiffAction::Scroll(scroll));
     }
@@ -688,26 +688,41 @@ mod tests {
         use crate::diff_render::ScrollAction;
 
         let key_j = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_j), Some(DiffAction::Scroll(ScrollAction::Down(1))));
+        assert_eq!(
+            resolve_diff_key(key_j),
+            Some(DiffAction::Scroll(ScrollAction::Down(1)))
+        );
 
         let key_q = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_q), Some(DiffAction::Scroll(ScrollAction::Exit)));
+        assert_eq!(
+            resolve_diff_key(key_q),
+            Some(DiffAction::Scroll(ScrollAction::Exit))
+        );
 
         let key_esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_esc), Some(DiffAction::Scroll(ScrollAction::Exit)));
+        assert_eq!(
+            resolve_diff_key(key_esc),
+            Some(DiffAction::Scroll(ScrollAction::Exit))
+        );
 
         // Ctrl+D 在 diff 模式不映射到任何操作（被排除）
         let key_ctrl_d = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
         assert_eq!(resolve_diff_key(key_ctrl_d), None);
 
         let key_bracket_right = KeyEvent::new(KeyCode::Char(']'), KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_bracket_right), Some(DiffAction::NextFile));
+        assert_eq!(
+            resolve_diff_key(key_bracket_right),
+            Some(DiffAction::NextFile)
+        );
 
         let key_right = KeyEvent::new(KeyCode::Right, KeyModifiers::empty());
         assert_eq!(resolve_diff_key(key_right), Some(DiffAction::NextFile));
 
         let key_bracket_left = KeyEvent::new(KeyCode::Char('['), KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_bracket_left), Some(DiffAction::PrevFile));
+        assert_eq!(
+            resolve_diff_key(key_bracket_left),
+            Some(DiffAction::PrevFile)
+        );
 
         let key_left = KeyEvent::new(KeyCode::Left, KeyModifiers::empty());
         assert_eq!(resolve_diff_key(key_left), Some(DiffAction::PrevFile));
@@ -751,7 +766,10 @@ mod tests {
         );
 
         let key_bracket_right = KeyEvent::new(KeyCode::Char(']'), KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_bracket_right), Some(DiffAction::NextFile));
+        assert_eq!(
+            resolve_diff_key(key_bracket_right),
+            Some(DiffAction::NextFile)
+        );
     }
 
     #[test]

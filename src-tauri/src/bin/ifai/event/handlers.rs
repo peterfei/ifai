@@ -110,10 +110,8 @@ impl EventHandler<Event> for MouseScrollHandler {
             // 因为 MouseUp 可能在 DisableMouseCapture 后丢失（终端不再转发鼠标事件）
             Event::FocusGained => {
                 self.selecting = false;
-                let _ = crossterm::execute!(
-                    std::io::stdout(),
-                    crossterm::event::EnableMouseCapture
-                );
+                let _ =
+                    crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
                 ControlFlow::Continue
             }
             Event::Mouse(mouse) => {
@@ -124,8 +122,11 @@ impl EventHandler<Event> for MouseScrollHandler {
                     .open("/tmp/ifai_mouse_debug.log")
                 {
                     use std::io::Write;
-                    let _ = writeln!(file, "鼠标事件: kind={:?}, column={}, row={}, selecting={}",
-                        mouse.kind, mouse.column, mouse.row, self.selecting);
+                    let _ = writeln!(
+                        file,
+                        "鼠标事件: kind={:?}, column={}, row={}, selecting={}",
+                        mouse.kind, mouse.column, mouse.row, self.selecting
+                    );
                 }
 
                 match mouse.kind {
@@ -213,12 +214,12 @@ impl EventHandler<Event> for InputSubmitHandler {
                 }
                 InputAction::Exit => {
                     // 🔍 调试：Ctrl+D 或其他 Exit 信号
-                    
+
                     return ControlFlow::Break(AppResult::Exit);
                 }
                 InputAction::Interrupt => {
                     // 🔍 调试：Ctrl+C 检测
-                    
+
                     // 不调用 push_line，避免访问 terminal
                 }
                 InputAction::None => {}
@@ -253,7 +254,12 @@ impl EventHandler<Event> for CombinedKeyHandler {
         // 如果处于搜索模式、帮助模式、diff 模式、overlay 模式或 busy（AI 响应中），跳过处理
         // 注意：streaming 期间的输入由 main.rs 的 tokio::select! 分支直接处理，
         // run_loop() 不会被调用，此守卫作为防御层防止意外穿透
-        if app.is_searching() || app.help_mode || app.is_diff_mode() || app.is_overlay_mode() || app.is_busy() {
+        if app.is_searching()
+            || app.help_mode
+            || app.is_diff_mode()
+            || app.is_overlay_mode()
+            || app.is_busy()
+        {
             return ControlFlow::Continue;
         }
 
@@ -317,7 +323,7 @@ impl EventHandler<Event> for CombinedKeyHandler {
                 }
                 InputAction::Exit => {
                     // 🔍 调试：Ctrl+D 或其他 Exit 信号
-                    
+
                     return ControlFlow::Break(AppResult::Exit);
                 }
                 InputAction::Interrupt => {
@@ -471,7 +477,11 @@ impl EventHandler<Event> for HelpEnterHandler {
             // ⚠️ 重要：只在输入框为空时才允许 '?' 触发帮助
             // 这样可以避免用户在正常输入时不小心按到 '?' 而进入帮助模式
             // 导致无法继续输入的问题
-            if key.code == KeyCode::Char('?') && !app.help_mode && !app.is_searching() && app.input.value().is_empty() {
+            if key.code == KeyCode::Char('?')
+                && !app.help_mode
+                && !app.is_searching()
+                && app.input.value().is_empty()
+            {
                 app.help_mode = true;
                 app.mode = crate::tui::Mode::Help;
                 // 清除输入框（防止 ? 被添加）
@@ -863,9 +873,16 @@ mod tests {
         // PageUp 通过 router
         let event = Event::Key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::empty()));
         let result = router.dispatch(&event, &mut app);
-        assert!(matches!(result, super::ControlFlow::Break(AppResult::Handled)));
-        assert!(app.scroll_offset < bottom_offset,
-            "PageUp 后 scroll_offset 应减小: {} < {}", app.scroll_offset, bottom_offset);
+        assert!(matches!(
+            result,
+            super::ControlFlow::Break(AppResult::Handled)
+        ));
+        assert!(
+            app.scroll_offset < bottom_offset,
+            "PageUp 后 scroll_offset 应减小: {} < {}",
+            app.scroll_offset,
+            bottom_offset
+        );
     }
 
     #[test]
@@ -893,8 +910,15 @@ mod tests {
             modifiers: KeyModifiers::empty(),
         });
         let result = router.dispatch(&event, &mut app);
-        assert!(matches!(result, super::ControlFlow::Break(AppResult::Handled)));
-        assert!(app.scroll_offset < bottom_offset,
-            "鼠标滚轮上滑后 scroll_offset 应减小: {} < {}", app.scroll_offset, bottom_offset);
+        assert!(matches!(
+            result,
+            super::ControlFlow::Break(AppResult::Handled)
+        ));
+        assert!(
+            app.scroll_offset < bottom_offset,
+            "鼠标滚轮上滑后 scroll_offset 应减小: {} < {}",
+            app.scroll_offset,
+            bottom_offset
+        );
     }
 }

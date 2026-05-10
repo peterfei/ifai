@@ -45,7 +45,8 @@ impl TodoWriteExecutor {
             .map_err(|e| ToolError::InvalidInput(e.to_string()))?;
 
         // 转换为 TaskItem 并存储
-        let tasks: Vec<TaskItem> = validated.todos
+        let tasks: Vec<TaskItem> = validated
+            .todos
             .into_iter()
             .map(|item| item.into())
             .collect();
@@ -208,7 +209,10 @@ mod tests {
 
         let result = executor.execute("TodoWrite", &input);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("todos 数组不能为空"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("todos 数组不能为空"));
     }
 
     #[test]

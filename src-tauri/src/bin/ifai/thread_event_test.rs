@@ -7,8 +7,8 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::thread::*;
     use crate::thread::ThreadEvent;
+    use crate::thread::*;
     use std::time::Duration;
     use tokio::sync::mpsc;
 
@@ -43,10 +43,7 @@ mod tests {
         let thread_id = ThreadId::new();
         let status = ThreadStatus::Paused;
 
-        let event = ThreadEvent::StatusChange {
-            thread_id,
-            status,
-        };
+        let event = ThreadEvent::StatusChange { thread_id, status };
 
         match event {
             ThreadEvent::StatusChange {
@@ -94,7 +91,10 @@ mod tests {
         // 接收事件
         let received = rx.recv().await.unwrap();
         match received {
-            ThreadEvent::NewMessage { thread_id: _, message } => {
+            ThreadEvent::NewMessage {
+                thread_id: _,
+                message,
+            } => {
                 assert_eq!(message, "Test message");
             }
             _ => panic!("Wrong event type"),
@@ -167,20 +167,12 @@ mod tests {
 
         // 模拟路由处理
         let event1 = rx.recv().await.unwrap();
-        if let ThreadEvent::NewMessage {
-            thread_id,
-            message,
-        } = event1
-        {
+        if let ThreadEvent::NewMessage { thread_id, message } = event1 {
             messages.push(thread_id, Message::user(message));
         }
 
         let event2 = rx.recv().await.unwrap();
-        if let ThreadEvent::NewMessage {
-            thread_id,
-            message,
-        } = event2
-        {
+        if let ThreadEvent::NewMessage { thread_id, message } = event2 {
             messages.push(thread_id, Message::user(message));
         }
 
@@ -234,8 +226,7 @@ mod tests {
         assert_eq!(messages.get(side_id).unwrap().len(), 1);
 
         // 发送关闭事件
-        tx.send(ThreadEvent::Closed { thread_id: side_id })
-            .unwrap();
+        tx.send(ThreadEvent::Closed { thread_id: side_id }).unwrap();
 
         // 模拟路由处理
         let event = rx.recv().await.unwrap();

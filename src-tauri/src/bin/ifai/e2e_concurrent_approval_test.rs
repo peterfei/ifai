@@ -11,9 +11,9 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::tui::App;
     use crate::approval_overlay::ApprovalRequest;
     use crate::session::PendingToolCall;
+    use crate::tui::App;
 
     // ========================================================================
     // 场景 1：并发 AI 请求
@@ -32,7 +32,10 @@ mod tests {
 
         // === 步骤 1：main 发送消息 ===
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, crate::thread::Message::user("What is Rust?".to_string()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::user("What is Rust?".to_string()),
+        );
         app.set_thread_busy(main_id, true);
 
         println!("步骤 1: main 发送消息 'What is Rust?'");
@@ -53,7 +56,10 @@ mod tests {
 
         // === 步骤 2：thread1 发送消息（并发） ===
         app.switch_thread(thread1_id);
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("What is Python?".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("What is Python?".to_string()),
+        );
         app.set_thread_busy(thread1_id, true);
 
         println!("\n步骤 2: thread1 发送消息 'What is Python?'");
@@ -147,12 +153,21 @@ mod tests {
 
         // === 步骤 1：main 收到 AI 响应 ===
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, crate::thread::Message::user("Main question".to_string()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::user("Main question".to_string()),
+        );
         let main_ai_response = "Rust is a systems programming language".to_string();
-        app.thread.messages.push(main_id, crate::thread::Message::user(main_ai_response.clone()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::user(main_ai_response.clone()),
+        );
 
         println!("步骤 1: main 收到 AI 响应");
-        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
+        println!(
+            "  → main messages: {}",
+            app.thread.messages.get(main_id).map_or(0, |m| m.len())
+        );
 
         insta::assert_snapshot!(format!(
             "Main received AI response:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
@@ -170,8 +185,14 @@ mod tests {
         app.switch_thread(thread1_id);
 
         println!("\n步骤 2: 切换到 thread1");
-        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
-        println!("  → thread1 messages: {}", app.thread.messages.get(thread1_id).map_or(0, |m| m.len()));
+        println!(
+            "  → main messages: {}",
+            app.thread.messages.get(main_id).map_or(0, |m| m.len())
+        );
+        println!(
+            "  → thread1 messages: {}",
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
+        );
 
         insta::assert_snapshot!(format!(
             "After switching to Thread-1:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
@@ -206,7 +227,8 @@ mod tests {
 
         // === 步骤 1：thread1 有审批 ===
         app.switch_thread(thread1_id);
-        let approval_request = make_approval_request("read_file", r#"{"path": "/tmp/test.txt"}"#, thread1_id);
+        let approval_request =
+            make_approval_request("read_file", r#"{"path": "/tmp/test.txt"}"#, thread1_id);
         app.set_approval_pending(approval_request);
 
         println!("步骤 1: thread1 有审批");
@@ -275,7 +297,10 @@ mod tests {
 
         // === 步骤 1：main 开始 streaming ===
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, crate::thread::Message::user("Main question".to_string()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::user("Main question".to_string()),
+        );
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
         app.append_streaming_output(main_id, "Partial response from main".to_string());
@@ -298,7 +323,10 @@ mod tests {
 
         // === 步骤 2：切换到 thread1 并发送消息 ===
         app.switch_thread(thread1_id);
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("Thread-1 question".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("Thread-1 question".to_string()),
+        );
         app.set_thread_busy(thread1_id, true);
 
         println!("\n步骤 2: 切换到 thread1 并发送消息");
@@ -319,8 +347,14 @@ mod tests {
 
         // === 步骤 3：验证消息隔离 ===
         println!("\n步骤 3: 验证消息隔离");
-        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
-        println!("  → thread1 messages: {}", app.thread.messages.get(thread1_id).map_or(0, |m| m.len()));
+        println!(
+            "  → main messages: {}",
+            app.thread.messages.get(main_id).map_or(0, |m| m.len())
+        );
+        println!(
+            "  → thread1 messages: {}",
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
+        );
 
         insta::assert_snapshot!(format!(
             "Message isolation verified:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
@@ -356,11 +390,20 @@ mod tests {
 
         // === 步骤 1：在 main 提问"天气如何" ===
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::user("天气如何".to_string()),
+        );
 
         println!("步骤 1: 在 main 提问'天气如何'");
-        println!("  → Active: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
-        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
+        println!(
+            "  → Active: {:?}",
+            app.thread.store.active_thread().map(|t| t.display_name())
+        );
+        println!(
+            "  → main messages: {}",
+            app.thread.messages.get(main_id).map_or(0, |m| m.len())
+        );
 
         insta::assert_snapshot!(format!(
             "Step 1 - Main asked about weather:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
@@ -376,12 +419,24 @@ mod tests {
 
         // === 步骤 2：在 thread1 提问"执行 ls -l" ===
         app.switch_thread(thread1_id);
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("执行 ls -l".to_string()),
+        );
 
         println!("\n步骤 2: 在 thread1 提问'执行 ls -l'");
-        println!("  → Active: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
-        println!("  → main messages: {}", app.thread.messages.get(main_id).map_or(0, |m| m.len()));
-        println!("  → thread1 messages: {}", app.thread.messages.get(thread1_id).map_or(0, |m| m.len()));
+        println!(
+            "  → Active: {:?}",
+            app.thread.store.active_thread().map(|t| t.display_name())
+        );
+        println!(
+            "  → main messages: {}",
+            app.thread.messages.get(main_id).map_or(0, |m| m.len())
+        );
+        println!(
+            "  → thread1 messages: {}",
+            app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
+        );
 
         insta::assert_snapshot!(format!(
             "Step 2 - Thread-1 asked to run ls:\nActive: {:?}\nMain messages: {}\nThread-1 messages: {}",
@@ -416,7 +471,10 @@ mod tests {
         app.switch_thread(main_id);
 
         println!("\n步骤 4: 回到 main");
-        println!("  → Active: {:?}", app.thread.store.active_thread().map(|t| t.display_name()));
+        println!(
+            "  → Active: {:?}",
+            app.thread.store.active_thread().map(|t| t.display_name())
+        );
         println!("  → main is_approving: {}", app.is_approving());
 
         insta::assert_snapshot!(format!(
@@ -460,7 +518,8 @@ mod tests {
         println!("\n=== 场景 7：多个线程同时有审批 ===\n");
 
         // === 三个线程都有审批 ===
-        let main_approval = make_approval_request("read_file", r#"{"path": "/tmp/main.txt"}"#, main_id);
+        let main_approval =
+            make_approval_request("read_file", r#"{"path": "/tmp/main.txt"}"#, main_id);
         app.set_approval_pending(main_approval);
 
         app.switch_thread(thread1_id);
@@ -468,7 +527,8 @@ mod tests {
         app.set_approval_pending(thread1_approval);
 
         app.switch_thread(thread2_id);
-        let thread2_approval = make_approval_request("write_file", r#"{"path": "/tmp/test.txt"}"#, thread2_id);
+        let thread2_approval =
+            make_approval_request("write_file", r#"{"path": "/tmp/test.txt"}"#, thread2_id);
         app.set_approval_pending(thread2_approval);
 
         // === 验证每个线程只显示自己的审批 ===
@@ -522,7 +582,11 @@ mod tests {
     // 辅助函数
     // ========================================================================
 
-    fn make_approval_request(tool_name: &str, args: &str, thread_id: crate::thread::ThreadId) -> ApprovalRequest {
+    fn make_approval_request(
+        tool_name: &str,
+        args: &str,
+        thread_id: crate::thread::ThreadId,
+    ) -> ApprovalRequest {
         let tool = PendingToolCall {
             tool_id: "test-0".to_string(),
             name: tool_name.to_string(),

@@ -9,8 +9,8 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::tui::App;
     use crate::thread;
+    use crate::tui::App;
     use crate::tui_test::render_to_buffer;
 
     // ========================================================================
@@ -25,11 +25,19 @@ mod tests {
         let primary_id = app.thread.store.primary_id();
 
         // 步骤 1: 在主线程添加消息（并保存到 thread_messages）
-        app.thread.messages.push(primary_id, thread::Message::user("Main thread message 1".to_string()));
-        app.thread.messages.push(primary_id, thread::Message::user("Main thread message 2".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            thread::Message::user("Main thread message 1".to_string()),
+        );
+        app.thread.messages.push(
+            primary_id,
+            thread::Message::user("Main thread message 2".to_string()),
+        );
 
         // 加载主线程消息到 content_lines
-        let messages_to_load: Vec<String> = app.thread.messages
+        let messages_to_load: Vec<String> = app
+            .thread
+            .messages
             .get(primary_id)
             .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
             .unwrap_or_default();
@@ -45,11 +53,19 @@ mod tests {
         assert_eq!(app.content_lines.len(), 0); // 侧线程没有消息
 
         // 步骤 3: 在侧线程添加消息（并保存到 thread_messages）
-        app.thread.messages.push(side_id, thread::Message::user("Side thread message 1".to_string()));
-        app.thread.messages.push(side_id, thread::Message::user("Side thread message 2".to_string()));
+        app.thread.messages.push(
+            side_id,
+            thread::Message::user("Side thread message 1".to_string()),
+        );
+        app.thread.messages.push(
+            side_id,
+            thread::Message::user("Side thread message 2".to_string()),
+        );
 
         // 加载侧线程消息到 content_lines
-        let messages_to_load: Vec<String> = app.thread.messages
+        let messages_to_load: Vec<String> = app
+            .thread
+            .messages
             .get(side_id)
             .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
             .unwrap_or_default();
@@ -64,7 +80,11 @@ mod tests {
 
         // ✅ 修复后：主线程消息应该被加载到 content_lines
         assert_eq!(app.content_lines.len(), 2, "主线程应该有 2 条消息");
-        assert_eq!(app.thread.messages.get(primary_id).unwrap().len(), 2, "主线程 thread_messages 应该有 2 条");
+        assert_eq!(
+            app.thread.messages.get(primary_id).unwrap().len(),
+            2,
+            "主线程 thread_messages 应该有 2 条"
+        );
     }
 
     // ========================================================================

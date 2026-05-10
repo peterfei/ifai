@@ -117,8 +117,8 @@ impl SessionPersistence {
     /// 3. %APPDATA%/ifai/sessions（Windows）
     /// 4. ~/.ifai/sessions（统一位置，与其他配置文件一致）
     fn get_sessions_dir() -> Result<PathBuf, String> {
-        let home = std::env::var("HOME")
-            .map_err(|_| "Could not determine HOME directory".to_string())?;
+        let home =
+            std::env::var("HOME").map_err(|_| "Could not determine HOME directory".to_string())?;
 
         // 统一使用 ~/.ifai/sessions，而不是 macOS Application Support
         Ok(PathBuf::from(home).join(".ifai").join("sessions"))
@@ -257,7 +257,14 @@ impl SessionPersistence {
         let filepath = self.sessions_dir.join(&filename);
 
         // 2. 生成 Markdown 内容
-        let summary = self.format_session_summary(messages, provider, model, input_tokens, output_tokens, &now);
+        let summary = self.format_session_summary(
+            messages,
+            provider,
+            model,
+            input_tokens,
+            output_tokens,
+            &now,
+        );
 
         // 3. 写入文件
         fs::write(&filepath, summary)
@@ -280,15 +287,25 @@ impl SessionPersistence {
 
         // 1. 标题和元数据
         result.push_str("# Session Summary\n\n");
-        result.push_str(&format!("**Date**: {}\n", timestamp.format("%Y-%m-%d %H:%M:%S UTC")));
+        result.push_str(&format!(
+            "**Date**: {}\n",
+            timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+        ));
         result.push_str(&format!("**Model**: {}/{}\n", provider, model));
-        result.push_str(&format!("**Tokens**: {} input + {} output = {} total\n\n",
-            input_tokens, output_tokens, input_tokens + output_tokens));
+        result.push_str(&format!(
+            "**Tokens**: {} input + {} output = {} total\n\n",
+            input_tokens,
+            output_tokens,
+            input_tokens + output_tokens
+        ));
 
         // 2. 对话内容
         result.push_str("## Conversation\n\n");
 
-        for msg in messages.iter().filter(|m| !matches!(m.role, MessageRole::System)) {
+        for msg in messages
+            .iter()
+            .filter(|m| !matches!(m.role, MessageRole::System))
+        {
             match msg.role {
                 MessageRole::User => {
                     result.push_str("### 👤 User\n\n");

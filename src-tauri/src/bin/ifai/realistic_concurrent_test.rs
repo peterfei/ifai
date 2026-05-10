@@ -43,18 +43,30 @@ mod tests {
         let (_t1_status_tx, t1_status_rx) = mpsc::unbounded_channel::<String>();
         drop(_t1_status_tx);
 
-        let mut stream_states: HashMap<crate::thread::ThreadId, crate::StreamState> = HashMap::new();
-        stream_states.insert(main_id, crate::StreamState {
-            handle: Some(main_handle),
-            output_rx: Some(main_output_rx),
-            status_rx: None, thread_event_rx: None, thread_event_tx: None, approval_tx_for_resend: None,
-        });
-        stream_states.insert(thread1_id, crate::StreamState {
-            handle: None,
-            output_rx: Some(t1_output_rx),
-            status_rx: Some(t1_status_rx),
-            thread_event_rx: None, thread_event_tx: None, approval_tx_for_resend: None,
-        });
+        let mut stream_states: HashMap<crate::thread::ThreadId, crate::StreamState> =
+            HashMap::new();
+        stream_states.insert(
+            main_id,
+            crate::StreamState {
+                handle: Some(main_handle),
+                output_rx: Some(main_output_rx),
+                status_rx: None,
+                thread_event_rx: None,
+                thread_event_tx: None,
+                approval_tx_for_resend: None,
+            },
+        );
+        stream_states.insert(
+            thread1_id,
+            crate::StreamState {
+                handle: None,
+                output_rx: Some(t1_output_rx),
+                status_rx: Some(t1_status_rx),
+                thread_event_rx: None,
+                thread_event_tx: None,
+                approval_tx_for_resend: None,
+            },
+        );
 
         app.switch_thread(thread1_id);
         app.set_thread_busy(thread1_id, true);
@@ -67,7 +79,7 @@ mod tests {
                 crossterm::event::KeyEvent::new(
                     crossterm::event::KeyCode::Char('c'),
                     crossterm::event::KeyModifiers::CONTROL,
-                )
+                ),
             ));
         });
 
@@ -80,17 +92,30 @@ mod tests {
 
         loop {
             loop_count += 1;
-            if loop_count > max_loops || start.elapsed() > timeout { break; }
+            if loop_count > max_loops || start.elapsed() > timeout {
+                break;
+            }
 
-            let active_id = app.thread.store.active_thread().map(|t| t.id)
+            let active_id = app
+                .thread
+                .store
+                .active_thread()
+                .map(|t| t.id)
                 .unwrap_or_else(|| app.thread.store.primary_id());
 
             let (mut output_rx, mut status_rx, _, _, _, _) =
                 if let Some(state) = stream_states.get_mut(&active_id) {
-                    (state.output_rx.take(), state.status_rx.take(),
-                     state.thread_event_rx.take(), state.thread_event_tx.take(),
-                     state.approval_tx_for_resend.take(), state.handle.take())
-                } else { (None, None, None, None, None, None) };
+                    (
+                        state.output_rx.take(),
+                        state.status_rx.take(),
+                        state.thread_event_rx.take(),
+                        state.thread_event_tx.take(),
+                        state.approval_tx_for_resend.take(),
+                        state.handle.take(),
+                    )
+                } else {
+                    (None, None, None, None, None, None)
+                };
 
             let has_active_stream = output_rx.is_some();
 
@@ -145,18 +170,28 @@ mod tests {
 
             match control {
                 crate::StreamingControl::Continue => {}
-                crate::StreamingControl::StreamFinished |
-                crate::StreamingControl::Interrupted |
-                crate::StreamingControl::Exit => { break; }
+                crate::StreamingControl::StreamFinished
+                | crate::StreamingControl::Interrupted
+                | crate::StreamingControl::Exit => {
+                    break;
+                }
                 _ => {}
             }
         }
 
-        println!("  循环次数: {}, 键盘收到: {}, 耗时: {:.1}ms",
-            loop_count, keyboard_received, start.elapsed().as_millis());
+        println!(
+            "  循环次数: {}, 键盘收到: {}, 耗时: {:.1}ms",
+            loop_count,
+            keyboard_received,
+            start.elapsed().as_millis()
+        );
 
         assert!(keyboard_received >= 1, "键盘事件应被收到");
-        assert!(loop_count < 1000, "循环次数应正常（< 1000），实际 {}", loop_count);
+        assert!(
+            loop_count < 1000,
+            "循环次数应正常（< 1000），实际 {}",
+            loop_count
+        );
     }
 
     // ====================================================================
@@ -215,10 +250,12 @@ mod tests {
         println!("  join() 结果: {:?}", result.is_ok());
 
         // 验证：join() 应该在合理时间内返回（< 500ms）
-        assert!(elapsed < Duration::from_secs(1),
-            "join() 应在 1 秒内返回，实际 {:.1}ms（可能死锁）", elapsed.as_millis());
-        assert!(!thread_alive.load(Ordering::SeqCst),
-            "键盘线程应已退出");
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "join() 应在 1 秒内返回，实际 {:.1}ms（可能死锁）",
+            elapsed.as_millis()
+        );
+        assert!(!thread_alive.load(Ordering::SeqCst), "键盘线程应已退出");
         assert!(result.is_ok(), "键盘线程应正常退出");
 
         println!("\n  场景 K 通过：kb_thread.join() 正常返回，无死锁。");

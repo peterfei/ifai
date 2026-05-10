@@ -34,12 +34,18 @@ mod tests {
         app.push_line(format!("⟩ {}", user_input));
 
         // 🔥 关键：记录用户输入时的线程 ID
-        let request_thread_id = app.thread.store.active_thread()
+        let request_thread_id = app
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| app.thread.store.primary_id());
 
         // 存储到 thread_messages
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(user_input.to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(user_input.to_string()),
+        );
 
         // 快照 1：用户输入后状态
         insta::assert_snapshot!(format!(
@@ -74,7 +80,10 @@ mod tests {
 
         // 修复后（正确）：
         // 使用 request_thread_id 而不是当前活动线程 ID
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(streaming_line_1.to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(streaming_line_1.to_string()),
+        );
 
         // === 场景 3：用户在流式输出期间切换到 Thread-2 ===
         app.switch_thread(thread2_id);
@@ -96,7 +105,10 @@ mod tests {
         let streaming_line_2 = " systems programming language";
 
         // ✅ 修复后：继续使用 request_thread_id（主线程）
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(streaming_line_2.to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(streaming_line_2.to_string()),
+        );
 
         // 验证：主线程有 3 条消息，Thread-2 只有 0 条
         insta::assert_snapshot!(format!(
@@ -130,7 +142,10 @@ mod tests {
 
         let request_thread_id = app.thread.store.active_thread().map(|t| t.id).unwrap();
 
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user("Question about Rust".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user("Question about Rust".to_string()),
+        );
 
         // === 步骤 2：第一行流式输出到达 ===
         // 修复前：使用当前活动线程 ID
@@ -138,7 +153,10 @@ mod tests {
 
         // 模拟修复前的错误行为：
         // 如果使用当前活动线程 ID，第一行会正确路由到主线程
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user("Rust is".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user("Rust is".to_string()),
+        );
 
         // === 步骤 3：用户切换到 Thread-2 ===
         app.switch_thread(thread2_id);
@@ -150,7 +168,10 @@ mod tests {
         let wrong_thread_id = app.thread.store.active_thread().map(|t| t.id).unwrap();
 
         // 模拟错误：使用 wrong_thread_id（当前活动线程 ID）
-        app.thread.messages.push(wrong_thread_id, crate::thread::Message::user(" a systems".to_string()));
+        app.thread.messages.push(
+            wrong_thread_id,
+            crate::thread::Message::user(" a systems".to_string()),
+        );
 
         // 快照：显示错误的结果
         insta::assert_snapshot!(format!(
@@ -184,23 +205,35 @@ mod tests {
 
         let request_thread_id = app.thread.store.active_thread().map(|t| t.id).unwrap();
 
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user("Tell me about Go".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user("Tell me about Go".to_string()),
+        );
 
         // === 流式输出第一行 ===
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user("Go is".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user("Go is".to_string()),
+        );
 
         // === 用户切换到 Thread-2 ===
         app.switch_thread(thread2_id);
 
         // === 流式输出第二行 ===
         // ✅ 修复后：使用 request_thread_id（主线程）而不是当前活动线程 ID
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(" a language".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(" a language".to_string()),
+        );
 
         // === 用户切换到 Thread-3 ===
         app.switch_thread(thread3_id);
 
         // === 流式输出第三行 ===
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(" by Google".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(" by Google".to_string()),
+        );
 
         // 快照：验证正确的路由
         insta::assert_snapshot!(format!(
@@ -278,7 +311,10 @@ mod tests {
 
         // === 步骤 1：用户在主线程输入 ===
         app.switch_thread(primary_id);
-        app.thread.messages.push(primary_id, crate::thread::Message::user("Explain Rust ownership".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("Explain Rust ownership".to_string()),
+        );
 
         // 记录请求线程 ID
         let request_thread_id = primary_id;
@@ -287,19 +323,28 @@ mod tests {
         // 响应分 3 行到达
 
         // 第 1 行（用户还在主线程）
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user("Rust's ownership system".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user("Rust's ownership system".to_string()),
+        );
 
         // 用户切换到 Thread-2
         app.switch_thread(thread2_id);
 
         // 第 2 行（用户在 Thread-2，但消息应该去主线程）
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(" is a way to manage".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(" is a way to manage".to_string()),
+        );
 
         // 用户再切换回主线程
         app.switch_thread(primary_id);
 
         // 第 3 行（用户在主线程）
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(" memory without GC".to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(" memory without GC".to_string()),
+        );
 
         // 快照：验证最终状态
         insta::assert_snapshot!(format!(
@@ -358,7 +403,10 @@ mod tests {
 
         // 模拟 main.rs:991-993 的逻辑
         app.switch_thread(primary_id);
-        let request_thread_id = app.thread.store.active_thread()
+        let request_thread_id = app
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id)
             .unwrap_or_else(|| app.thread.store.primary_id());
 
@@ -372,7 +420,10 @@ mod tests {
         // 修复后的逻辑应该使用 request_thread_id（主线程）而不是当前活动线程（Thread-2）
 
         let streaming_content = "AI response content";
-        app.thread.messages.push(request_thread_id, crate::thread::Message::user(streaming_content.to_string()));
+        app.thread.messages.push(
+            request_thread_id,
+            crate::thread::Message::user(streaming_content.to_string()),
+        );
 
         // 验证：内容被路由到主线程，而不是 Thread-2
         insta::assert_snapshot!(format!(

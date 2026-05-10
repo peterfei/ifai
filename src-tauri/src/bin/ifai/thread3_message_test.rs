@@ -60,7 +60,10 @@ mod tests {
         app.push_line(format!("⟩ {}", user_input));
 
         // 2.2 存储到 thread_messages
-        app.thread.messages.push(thread3_id, crate::thread::Message::user(user_input.to_string()));
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user(user_input.to_string()),
+        );
 
         // 快照 2：用户输入后状态
         insta::assert_snapshot!(format!(
@@ -83,10 +86,16 @@ mod tests {
         let ai_response = "AI response to Thread-3";
 
         // 3.1 存储 AI 响应到 thread_messages
-        app.thread.messages.push(thread3_id, crate::thread::Message::user(ai_response.to_string()));
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user(ai_response.to_string()),
+        );
 
         // 3.2 检查当前活动线程是否还是 Thread-3
-        let is_still_active = app.thread.store.active_thread()
+        let is_still_active = app
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id == thread3_id)
             .unwrap_or(false);
 
@@ -127,10 +136,26 @@ mod tests {
         let thread3_id = app.create_side_thread(Some("Thread-3".to_string()));
 
         // 验证层级结构
-        let primary_parent = app.thread.store.get_thread(primary_id).and_then(|t| t.parent_id);
-        let thread1_parent = app.thread.store.get_thread(thread1_id).and_then(|t| t.parent_id);
-        let thread2_parent = app.thread.store.get_thread(thread2_id).and_then(|t| t.parent_id);
-        let thread3_parent = app.thread.store.get_thread(thread3_id).and_then(|t| t.parent_id);
+        let primary_parent = app
+            .thread
+            .store
+            .get_thread(primary_id)
+            .and_then(|t| t.parent_id);
+        let thread1_parent = app
+            .thread
+            .store
+            .get_thread(thread1_id)
+            .and_then(|t| t.parent_id);
+        let thread2_parent = app
+            .thread
+            .store
+            .get_thread(thread2_id)
+            .and_then(|t| t.parent_id);
+        let thread3_parent = app
+            .thread
+            .store
+            .get_thread(thread3_id)
+            .and_then(|t| t.parent_id);
 
         insta::assert_snapshot!(format!(
             "Hierarchy:\n  Main parent: {:?}\n  Thread-1 parent: {:?}\n  Thread-2 parent: {:?}\n  Thread-3 parent: {:?}",
@@ -147,10 +172,22 @@ mod tests {
         "#);
 
         // 在每个线程添加消息
-        app.thread.messages.push(primary_id, crate::thread::Message::user("Main message".to_string()));
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("Thread-1 message".to_string()));
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("Thread-2 message".to_string()));
-        app.thread.messages.push(thread3_id, crate::thread::Message::user("Thread-3 message".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("Main message".to_string()),
+        );
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("Thread-1 message".to_string()),
+        );
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("Thread-2 message".to_string()),
+        );
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user("Thread-3 message".to_string()),
+        );
 
         // 验证每个线程的消息隔离
         insta::assert_snapshot!(format!(
@@ -182,12 +219,23 @@ mod tests {
         let thread3_id = app.create_side_thread(Some("Thread-3".to_string()));
 
         // 在 Thread-3 添加消息
-        app.thread.messages.push(thread3_id, crate::thread::Message::user("Thread-3 message 1".to_string()));
-        app.thread.messages.push(thread3_id, crate::thread::Message::user("Thread-3 message 2".to_string()));
-        app.thread.messages.push(thread3_id, crate::thread::Message::user("Thread-3 message 3".to_string()));
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user("Thread-3 message 1".to_string()),
+        );
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user("Thread-3 message 2".to_string()),
+        );
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user("Thread-3 message 3".to_string()),
+        );
 
         // 加载到 content_lines
-        let messages: Vec<String> = app.thread.messages
+        let messages: Vec<String> = app
+            .thread
+            .messages
             .get(thread3_id)
             .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
             .unwrap_or_default();
@@ -261,27 +309,55 @@ mod tests {
         let primary_id = app.thread.store.primary_id();
 
         // === 主线程对话 ===
-        app.thread.messages.push(primary_id, crate::thread::Message::user("What is Rust?".to_string()));
-        app.thread.messages.push(primary_id, crate::thread::Message::user("Rust is a systems programming language.".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("What is Rust?".to_string()),
+        );
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("Rust is a systems programming language.".to_string()),
+        );
 
         // === Thread-1 对话 ===
         let thread1_id = app.create_side_thread(Some("Thread-1".to_string()));
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("Tell me more about Rust's memory safety".to_string()));
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("Rust uses ownership and borrow checking...".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("Tell me more about Rust's memory safety".to_string()),
+        );
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("Rust uses ownership and borrow checking...".to_string()),
+        );
 
         // === Thread-2 对话 ===
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("How does Rust compare to C++?".to_string()));
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("Rust offers memory safety without garbage collection...".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("How does Rust compare to C++?".to_string()),
+        );
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user(
+                "Rust offers memory safety without garbage collection...".to_string(),
+            ),
+        );
 
         // === Thread-3 对话 ===
         let thread3_id = app.create_side_thread(Some("Thread-3".to_string()));
 
         // 用户在 Thread-3 发送消息
-        app.thread.messages.push(thread3_id, crate::thread::Message::user("What about Rust's async ecosystem?".to_string()));
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user("What about Rust's async ecosystem?".to_string()),
+        );
 
         // 模拟 AI 响应
-        app.thread.messages.push(thread3_id, crate::thread::Message::user("Rust has excellent async support with tokio...".to_string()));
+        app.thread.messages.push(
+            thread3_id,
+            crate::thread::Message::user(
+                "Rust has excellent async support with tokio...".to_string(),
+            ),
+        );
 
         // 快照：验证每个线程的消息数
         insta::assert_snapshot!(format!(

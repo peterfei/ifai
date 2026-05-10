@@ -47,15 +47,22 @@ mod tests {
             };
             app.set_approval_pending(request);
         }
-        assert_eq!(app.mode, Mode::Approving, "thread1 收到审批后 mode 应该是 Approving");
+        assert_eq!(
+            app.mode,
+            Mode::Approving,
+            "thread1 收到审批后 mode 应该是 Approving"
+        );
 
         // 4. 切回 main（thread1 仍在 streaming + 审批中）
         app.switch_thread(main_id);
 
         // ✅ 关键断言：切到 main 后 mode 应该是 Normal
         // 因为审批状态是 per-thread 的，main 没有审批请求
-        assert_eq!(app.mode, Mode::Normal,
-            "切回 main 后 mode 应该是 Normal，审批状态不应跨线程");
+        assert_eq!(
+            app.mode,
+            Mode::Normal,
+            "切回 main 后 mode 应该是 Normal，审批状态不应跨线程"
+        );
 
         // 5. 验证快捷键守卫能通过
         assert!(app.mode == Mode::Normal, "Ctrl+T 守卫应该通过");
@@ -90,17 +97,27 @@ mod tests {
             };
             app.set_approval_pending(request);
         }
-        assert_eq!(app.mode, Mode::Approving, "main 收到审批后 mode 应该是 Approving");
+        assert_eq!(
+            app.mode,
+            Mode::Approving,
+            "main 收到审批后 mode 应该是 Approving"
+        );
 
         // 2. 切到 thread1（审批模式不应跨线程）
         app.switch_thread(thread1_id);
-        assert_eq!(app.mode, Mode::Normal,
-            "切到 thread1 后 mode 应该是 Normal（审批不跨线程）");
+        assert_eq!(
+            app.mode,
+            Mode::Normal,
+            "切到 thread1 后 mode 应该是 Normal（审批不跨线程）"
+        );
 
         // 3. 切回 main
         app.switch_thread(main_id);
-        assert_eq!(app.mode, Mode::Approving,
-            "切回 main 后 mode 应该恢复为 Approving（main 有待审批请求）");
+        assert_eq!(
+            app.mode,
+            Mode::Approving,
+            "切回 main 后 mode 应该恢复为 Approving（main 有待审批请求）"
+        );
     }
 
     #[test]

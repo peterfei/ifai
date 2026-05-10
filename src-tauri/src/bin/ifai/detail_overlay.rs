@@ -21,20 +21,15 @@ use super::diff_render::{resolve_scroll_key, ScrollAction, ScrollableDiff};
 #[derive(Debug, Clone)]
 pub enum OverlayContent {
     /// 文件内容查看
-    File {
-        path: PathBuf,
-        content: String,
-    },
+    File { path: PathBuf, content: String },
     /// AI 输出回放（最近一次完整响应）
-    Transcript {
-        text: String,
-    },
+    Transcript { text: String },
     /// Diff 上下文查看（在 diff 模式中按 Ctrl+O 查看完整文件）
     DiffContext {
         path: PathBuf,
         old_content: String,
         new_content: String,
-        showing_new: bool,  // true=新文件, false=旧文件
+        showing_new: bool, // true=新文件, false=旧文件
     },
 }
 
@@ -42,9 +37,9 @@ pub enum OverlayContent {
 #[derive(Debug, Clone)]
 pub struct DetailOverlay {
     pub content: OverlayContent,
-    pub view: ScrollableDiff,      // 复用现有滚动视图
+    pub view: ScrollableDiff, // 复用现有滚动视图
     pub search: Option<SearchState>,
-    pub is_done: bool,              // 用于退出 overlay
+    pub is_done: bool, // 用于退出 overlay
 }
 
 /// 搜索状态（仅 Transcript 和 File 支持）
@@ -62,11 +57,11 @@ pub struct SearchState {
 /// Overlay 模式动作（嵌入共享滚动 + Overlay 特有动作）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OverlayAction {
-    Scroll(ScrollAction),  // 嵌入共享滚动
-    Search,                // / 进入搜索
-    SearchNext,            // n 下一个匹配
-    SearchPrev,            // N 上一个匹配
-    ToggleOldNew,          // Tab 切换 old/new（仅 DiffContext）
+    Scroll(ScrollAction), // 嵌入共享滚动
+    Search,               // / 进入搜索
+    SearchNext,           // n 下一个匹配
+    SearchPrev,           // N 上一个匹配
+    ToggleOldNew,         // Tab 切换 old/new（仅 DiffContext）
 }
 
 /// Overlay 特有按键映射条目
@@ -154,7 +149,11 @@ impl DetailOverlay {
         showing_new: bool,
     ) -> Self {
         let mut view = ScrollableDiff::new();
-        let content = if showing_new { &new_content } else { &old_content };
+        let content = if showing_new {
+            &new_content
+        } else {
+            &old_content
+        };
         let lines = content.lines().map(|s| s.to_string()).collect();
         view.set_content(lines);
 
@@ -178,9 +177,14 @@ impl DetailOverlay {
             ref old_content,
             ref new_content,
             ref mut showing_new,
-        } = self.content {
+        } = self.content
+        {
             *showing_new = !*showing_new;
-            let content = if *showing_new { new_content } else { old_content };
+            let content = if *showing_new {
+                new_content
+            } else {
+                old_content
+            };
             let lines = content.lines().map(|s| s.to_string()).collect();
             self.view.set_content(lines);
         }
@@ -215,8 +219,14 @@ impl DetailOverlay {
                 format!("文件: {}", path.display())
             }
             OverlayContent::Transcript { .. } => "对话记录".to_string(),
-            OverlayContent::DiffContext { path, showing_new, .. } => {
-                let suffix = if *showing_new { " 新版本" } else { " 旧版本" };
+            OverlayContent::DiffContext {
+                path, showing_new, ..
+            } => {
+                let suffix = if *showing_new {
+                    " 新版本"
+                } else {
+                    " 旧版本"
+                };
                 format!("文件差异: {}{}", path.display(), suffix)
             }
         }
@@ -229,9 +239,7 @@ impl DetailOverlay {
             OverlayContent::DiffContext { .. } => {
                 format!("{}  Tab 切换 old/new", base)
             }
-            OverlayContent::File { .. } | OverlayContent::Transcript { .. } => {
-                base.to_string()
-            }
+            OverlayContent::File { .. } | OverlayContent::Transcript { .. } => base.to_string(),
         }
     }
 }
@@ -303,7 +311,11 @@ fn diff_context_overlay_sections() -> &'static [OverlaySection] {
             label: "View",
             value_fn: |o| {
                 if let OverlayContent::DiffContext { showing_new, .. } = &o.content {
-                    if *showing_new { "NEW".to_string() } else { "OLD".to_string() }
+                    if *showing_new {
+                        "NEW".to_string()
+                    } else {
+                        "OLD".to_string()
+                    }
                 } else {
                     "".to_string()
                 }
@@ -338,7 +350,10 @@ pub fn render_overlay_panel_lines(overlay: &DetailOverlay) -> Vec<Line<'static>>
 
     let title_with_slash = format!("/ {}", overlay.title());
     let mut lines = vec![
-        Line::from(Span::styled(title_with_slash, Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(
+            title_with_slash,
+            Style::default().fg(Color::DarkGray),
+        )),
         Line::from(""),
     ];
 
@@ -374,9 +389,9 @@ impl DetailOverlay {
             .direction(ratatui::layout::Direction::Vertical)
             .margin(0)
             .constraints([
-                ratatui::layout::Constraint::Length(2),  // Header
-                ratatui::layout::Constraint::Min(0),     // Content
-                ratatui::layout::Constraint::Length(1),  // Footer
+                ratatui::layout::Constraint::Length(2), // Header
+                ratatui::layout::Constraint::Min(0),    // Content
+                ratatui::layout::Constraint::Length(1), // Footer
             ])
             .split(area);
 
@@ -394,18 +409,20 @@ impl DetailOverlay {
     fn render_header(&self, f: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
         // 1. 先用 "/ / / / ..." 填充背景（装饰性，类似 codex）
         let bg_line = "/ ".repeat(area.width as usize / 2);
-        let bg = ratatui::widgets::Paragraph::new(bg_line)
-            .style(
-                ratatui::style::Style::default()
-                    .bg(ratatui::style::Color::Black)
-                    .fg(ratatui::style::Color::DarkGray)
-            );
+        let bg = ratatui::widgets::Paragraph::new(bg_line).style(
+            ratatui::style::Style::default()
+                .bg(ratatui::style::Color::Black)
+                .fg(ratatui::style::Color::DarkGray),
+        );
         f.render_widget(bg, area);
 
         // 2. 渲染标题信息（在背景之上）
         let panel_lines = render_overlay_panel_lines(self);
         let visible_count = area.height as usize;
-        let visible_lines = panel_lines.into_iter().take(visible_count).collect::<Vec<_>>();
+        let visible_lines = panel_lines
+            .into_iter()
+            .take(visible_count)
+            .collect::<Vec<_>>();
 
         let header = ratatui::widgets::Paragraph::new(visible_lines)
             .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
@@ -451,12 +468,11 @@ impl DetailOverlay {
         let spacer_count = total_width.saturating_sub(left_len + right_len);
 
         let footer_text = format!("{}{}{}", left_hint, " ".repeat(spacer_count), right_hint);
-        let footer = ratatui::widgets::Paragraph::new(Line::from(footer_text))
-            .style(
-                ratatui::style::Style::default()
-                    .bg(ratatui::style::Color::DarkGray)
-                    .fg(ratatui::style::Color::White),
-            );
+        let footer = ratatui::widgets::Paragraph::new(Line::from(footer_text)).style(
+            ratatui::style::Style::default()
+                .bg(ratatui::style::Color::DarkGray)
+                .fg(ratatui::style::Color::White),
+        );
         f.render_widget(footer, area);
     }
 }
@@ -509,7 +525,10 @@ mod tests {
         let new = "new".to_string();
         let overlay = DetailOverlay::new_diff_context(path.clone(), old.clone(), new.clone(), true);
 
-        assert!(matches!(overlay.content, OverlayContent::DiffContext { .. }));
+        assert!(matches!(
+            overlay.content,
+            OverlayContent::DiffContext { .. }
+        ));
     }
 
     // ── resolve_overlay_key 测试 ──
@@ -546,7 +565,10 @@ mod tests {
 
         // Tab 是 Overlay 特有
         let key_tab = KeyEvent::new(KeyCode::Tab, KeyModifiers::empty());
-        assert_eq!(resolve_overlay_key(key_tab), Some(OverlayAction::ToggleOldNew));
+        assert_eq!(
+            resolve_overlay_key(key_tab),
+            Some(OverlayAction::ToggleOldNew)
+        );
     }
 
     // ── 面板渲染测试 ──

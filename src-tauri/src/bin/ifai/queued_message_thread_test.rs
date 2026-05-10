@@ -32,7 +32,10 @@ mod tests {
 
         // 模拟用户输入
         app.push_line("⟩ What is Rust?".to_string());
-        app.thread.messages.push(primary_id, crate::thread::Message::user("What is Rust?".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("What is Rust?".to_string()),
+        );
 
         // 快照 1：主线程用户输入后
         insta::assert_snapshot!(format!(
@@ -200,7 +203,10 @@ mod tests {
         // 而不是当前活动线程（main）
 
         // 模拟正确的处理逻辑
-        app.thread.messages.push(target_thread_id, crate::thread::Message::user(thread2_input.to_string()));
+        app.thread.messages.push(
+            target_thread_id,
+            crate::thread::Message::user(thread2_input.to_string()),
+        );
 
         // 验证：消息在 Thread-2
         insta::assert_snapshot!(format!(

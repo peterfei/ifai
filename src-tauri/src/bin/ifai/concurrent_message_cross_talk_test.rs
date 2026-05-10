@@ -30,7 +30,10 @@ mod tests {
 
         // === 步骤 1：在 Main 提问"天气如何" ===
         app.switch_thread(main_id);
-        app.thread.messages.push(main_id, crate::thread::Message::user("天气如何".to_string()));
+        app.thread.messages.push(
+            main_id,
+            crate::thread::Message::user("天气如何".to_string()),
+        );
 
         // 快照 1：Main 有 1 条消息
         insta::assert_snapshot!(format!(
@@ -47,7 +50,10 @@ mod tests {
 
         // === 步骤 2：切换到 Thread-1 提问"执行 ls -l" ===
         app.switch_thread(thread1_id);
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("执行 ls -l".to_string()),
+        );
 
         // 快照 2：Thread-1 有 1 条消息，Main 仍然有 1 条消息
         insta::assert_snapshot!(format!(
@@ -65,7 +71,10 @@ mod tests {
         // === 步骤 3：模拟 Thread-1 收到 AI 响应（需要审批 ls -l） ===
         // 模拟 AI 响应路由到 Thread-1
         let ai_response_for_thread1 = "我需要执行 ls -l 命令来列出文件".to_string();
-        app.thread.messages.push(thread1_id, crate::thread::Message::user(ai_response_for_thread1.clone()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user(ai_response_for_thread1.clone()),
+        );
 
         // 快照 3：Thread-1 收到 AI 响应
         insta::assert_snapshot!(format!(
@@ -160,7 +169,9 @@ mod tests {
 
         // 模拟 Main 的流式输出
         app.append_streaming_output(main_id, "北京".to_string());
-        app.thread.messages.push(main_id, crate::thread::Message::user("北京".to_string()));
+        app.thread
+            .messages
+            .push(main_id, crate::thread::Message::user("北京".to_string()));
 
         // 快照 1：Main 正在 streaming
         insta::assert_snapshot!(format!(
@@ -181,7 +192,10 @@ mod tests {
         app.switch_thread(thread1_id);
 
         // 模拟用户输入
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("执行 ls -l".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("执行 ls -l".to_string()),
+        );
 
         // 快照 2：切换到 Thread-1
         insta::assert_snapshot!(format!(
@@ -206,7 +220,10 @@ mod tests {
 
         // 模拟 Thread-1 的流式输出
         app.append_streaming_output(thread1_id, "file1.txt".to_string());
-        app.thread.messages.push(thread1_id, crate::thread::Message::user("file1.txt".to_string()));
+        app.thread.messages.push(
+            thread1_id,
+            crate::thread::Message::user("file1.txt".to_string()),
+        );
 
         // 快照 3：Thread-1 正在 streaming
         insta::assert_snapshot!(format!(
@@ -248,7 +265,11 @@ mod tests {
     // 辅助函数
     // ========================================================================
 
-    fn make_approval_request(tool_name: &str, args: &str, thread_id: crate::thread::ThreadId) -> crate::approval_overlay::ApprovalRequest {
+    fn make_approval_request(
+        tool_name: &str,
+        args: &str,
+        thread_id: crate::thread::ThreadId,
+    ) -> crate::approval_overlay::ApprovalRequest {
         let tool = crate::session::PendingToolCall {
             tool_id: "test-0".to_string(),
             name: tool_name.to_string(),

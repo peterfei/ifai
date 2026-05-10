@@ -30,7 +30,10 @@ impl HelpOverlay {
             ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
         )]));
         lines.push(Line::from(vec![
-            Span::styled("║", ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray)),
+            Span::styled(
+                "║",
+                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+            ),
             Span::raw(" "),
             Span::styled(
                 "快捷键帮助 - 按 ? 或 Esc 退出",
@@ -38,7 +41,10 @@ impl HelpOverlay {
                     .fg(ratatui::style::Color::Yellow)
                     .add_modifier(ratatui::style::Modifier::BOLD),
             ),
-            Span::styled("║", ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray)),
+            Span::styled(
+                "║",
+                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+            ),
         ]));
         lines.push(Line::from(vec![Span::styled(
             "╚════════════════════════════════════════════════════════════════════════════════════════════════════╝",
@@ -120,14 +126,12 @@ impl KeybindingCategory {
 
     /// 渲染该分类标题
     fn render_title(&self) -> Line<'static> {
-        Line::from(vec![
-            Span::styled(
-                self.name,
-                ratatui::style::Style::default()
-                    .fg(ratatui::style::Color::Cyan)
-                    .add_modifier(ratatui::style::Modifier::BOLD),
-            ),
-        ])
+        Line::from(vec![Span::styled(
+            self.name,
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Cyan)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        )])
     }
 
     /// 渲染单列快捷键行
@@ -395,9 +399,13 @@ mod tests {
         }
 
         // 验证包含 Ctrl+O
-        let view_category = categories.iter()
+        let view_category = categories
+            .iter()
             .find(|c| c.name == "📖 查看详情")
             .expect("应该有查看详情分类");
-        assert!(view_category.bindings.iter().any(|b| b.keys.contains("Ctrl+O")));
+        assert!(view_category
+            .bindings
+            .iter()
+            .any(|b| b.keys.contains("Ctrl+O")));
     }
 }

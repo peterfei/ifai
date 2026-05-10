@@ -159,7 +159,9 @@ mod tests {
 
         // 验证包含 Ctrl+O 快捷键
         let has_ctrl_o = lines.iter().any(|line| {
-            line.spans.iter().any(|span| span.content.contains("Ctrl+O"))
+            line.spans
+                .iter()
+                .any(|span| span.content.contains("Ctrl+O"))
         });
         assert!(has_ctrl_o, "应该包含 Ctrl+O 快捷键");
     }

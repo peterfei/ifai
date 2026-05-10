@@ -162,7 +162,8 @@ impl InputComposer {
                         let prev_line_end = line_start.saturating_sub(1);
                         let prev_line = &self.buffer[prev_line_start..prev_line_end];
                         // 计算 current_col_offset 在当前行的显示列
-                        let target_col = display_width_up_to(&self.buffer[line_start..self.cursor_pos]);
+                        let target_col =
+                            display_width_up_to(&self.buffer[line_start..self.cursor_pos]);
                         // 找到上一行中不超过 target_col 的位置
                         let new_offset = byte_offset_at_display_col(prev_line, target_col);
                         self.cursor_pos = prev_line_start + new_offset;
@@ -209,7 +210,8 @@ impl InputComposer {
                             .rfind('\n')
                             .map(|i| i + 1)
                             .unwrap_or(0);
-                        let target_col = display_width_up_to(&self.buffer[current_line_start..self.cursor_pos]);
+                        let target_col =
+                            display_width_up_to(&self.buffer[current_line_start..self.cursor_pos]);
                         // 找下一行结尾
                         let next_line_end = self.buffer[next_line_start..]
                             .find('\n')
@@ -1015,8 +1017,8 @@ mod tests {
     fn test_byte_offset_at_display_col() {
         assert_eq!(byte_offset_at_display_col("hello", 3), 3);
         assert_eq!(byte_offset_at_display_col("hello", 10), 5); // 超出长度
-        assert_eq!(byte_offset_at_display_col("你好", 2), 3);   // 一个中文字符宽度 2
-        assert_eq!(byte_offset_at_display_col("你好", 3), 3);   // 不到第二个中文字符
-        assert_eq!(byte_offset_at_display_col("你好", 4), 6);   // 两个中文字符
+        assert_eq!(byte_offset_at_display_col("你好", 2), 3); // 一个中文字符宽度 2
+        assert_eq!(byte_offset_at_display_col("你好", 3), 3); // 不到第二个中文字符
+        assert_eq!(byte_offset_at_display_col("你好", 4), 6); // 两个中文字符
     }
 }

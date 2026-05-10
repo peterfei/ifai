@@ -37,12 +37,18 @@ mod tests {
         // 场景：主线程和 Thread-2 的对话历史
         // 主线程：
         app.switch_thread(primary_id);
-        app.thread.messages.push(primary_id, crate::thread::Message::user("Main message 1".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("Main message 1".to_string()),
+        );
         app.push_line("⟩ Main message 1".to_string());
 
         // Thread-2：
         app.switch_thread(thread2_id);
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("Thread-2 message 1".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("Thread-2 message 1".to_string()),
+        );
         app.push_line("⟩ Thread-2 message 1".to_string());
 
         // 快照 1：切换前，Thread-2 有 1 条消息
@@ -84,7 +90,10 @@ mod tests {
         // 正确的修复：只在 thread_id 是活动线程时渲染
 
         // 模拟当前错误的逻辑：
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("AI response to Thread-2".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("AI response to Thread-2".to_string()),
+        );
         app.push_line("AI response to Thread-2".to_string()); // ❌ 这会在主线程显示 Thread-2 的消息！
 
         // 快照 3：消息串台！
@@ -122,14 +131,20 @@ mod tests {
 
         // 在 Thread-2 发送消息
         app.switch_thread(thread2_id);
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("Thread-2 message".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("Thread-2 message".to_string()),
+        );
         app.push_line("⟩ Thread-2 message".to_string());
 
         // 切换到主线程
         app.switch_thread(primary_id);
 
         // Thread-2 的 AI 响应到达
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("AI response".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("AI response".to_string()),
+        );
 
         // 正确逻辑：只在 thread_id == active_id 时渲染
         let active_id = app.thread.store.active_thread().map(|t| t.id);
@@ -199,7 +214,10 @@ mod tests {
         app.push_line(format!("⟩ {}", user_input));
 
         // 步骤 4: 存储到 thread_messages（main.rs:988）
-        app.thread.messages.push(thread2_id, crate::thread::Message::user(user_input.to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user(user_input.to_string()),
+        );
 
         // 快照 2：用户输入后状态
         insta::assert_snapshot!(format!(
@@ -222,7 +240,7 @@ mod tests {
         // 模拟：AI 响应到达，创建 ThreadEvent
         let ai_response = "AI response to Thread-2";
         let _ = std::sync::Arc::new(tokio::sync::Mutex::new(
-            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>()
+            tokio::sync::mpsc::unbounded_channel::<crate::thread::ThreadEvent>(),
         ));
 
         // 在流式输出循环中，ThreadEvent::NewMessage 会被处理
@@ -230,10 +248,16 @@ mod tests {
         // main.rs:1335: app.thread.messages.push(thread_id, thread::Message::user(message.clone()));
         // main.rs:1337-1342: 如果是当前活动线程，渲染消息
 
-        app.thread.messages.push(thread2_id, crate::thread::Message::user(ai_response.to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user(ai_response.to_string()),
+        );
 
         // 模拟：检查活动线程是否还是 Thread-2
-        let is_still_active = app.thread.store.active_thread()
+        let is_still_active = app
+            .thread
+            .store
+            .active_thread()
             .map(|t| t.id == thread2_id)
             .unwrap_or(false);
 
@@ -267,7 +291,10 @@ mod tests {
         // 2. 消息也被渲染到当前活动线程的 content_lines
         // 这样设计是因为用户切换线程是主动行为，应该看到 AI 响应
 
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("Second AI response".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("Second AI response".to_string()),
+        );
 
         // 模拟 ThreadEvent 处理：渲染到当前线程
         app.push_line("Second AI response".to_string());
@@ -320,9 +347,21 @@ mod tests {
         let thread2_id = app.create_side_thread(Some("Thread-2".to_string()));
 
         // 验证线程层级（只检查是否有 parent_id，不检查具体值）
-        let primary_has_parent = app.thread.store.get_thread(primary_id).map(|t| t.parent_id.is_some());
-        let thread1_has_parent = app.thread.store.get_thread(thread1_id).map(|t| t.parent_id.is_some());
-        let thread2_has_parent = app.thread.store.get_thread(thread2_id).map(|t| t.parent_id.is_some());
+        let primary_has_parent = app
+            .thread
+            .store
+            .get_thread(primary_id)
+            .map(|t| t.parent_id.is_some());
+        let thread1_has_parent = app
+            .thread
+            .store
+            .get_thread(thread1_id)
+            .map(|t| t.parent_id.is_some());
+        let thread2_has_parent = app
+            .thread
+            .store
+            .get_thread(thread2_id)
+            .map(|t| t.parent_id.is_some());
 
         insta::assert_snapshot!(format!(
             "Primary parent: {:?}\nThread-1 parent: {:?}\nThread-2 parent: {:?}",
@@ -336,7 +375,10 @@ mod tests {
         "#);
 
         // 在 Thread-2 添加消息
-        app.thread.messages.push(thread2_id, crate::thread::Message::user("Test message".to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user("Test message".to_string()),
+        );
 
         // 切换回主线程
         app.switch_thread(primary_id);
@@ -384,7 +426,10 @@ mod tests {
         app.push_line(format!("⟩ {}", user_input));
 
         // 然后存储到 thread_messages（main.rs:979-982）
-        app.thread.messages.push(thread2_id, crate::thread::Message::user(user_input.to_string()));
+        app.thread.messages.push(
+            thread2_id,
+            crate::thread::Message::user(user_input.to_string()),
+        );
 
         // 快照：检查状态
         insta::assert_snapshot!(format!(

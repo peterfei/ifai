@@ -222,7 +222,11 @@ pub fn compute_compress_threshold(model: &str) -> usize {
 // ============================================================================
 
 /// 🔥 元编程：检查是否需要压缩（模型感知阈值）
-pub fn format_compaction_warning(messages: &[Message], model: &str, theme: &Theme) -> Option<String> {
+pub fn format_compaction_warning(
+    messages: &[Message],
+    model: &str,
+    theme: &Theme,
+) -> Option<String> {
     if messages.len() >= 10 {
         let count = estimate_tokens(messages);
         let threshold = compute_compress_threshold(model);
@@ -431,7 +435,7 @@ mod tests {
     #[test]
     fn test_find_char_boundary_utf8() {
         let s = "你好世界"; // 12 bytes, 4 chars, 每个中文字 3 字节
-        // 位置 0 = 合法边界（第 1 个字符起始）
+                            // 位置 0 = 合法边界（第 1 个字符起始）
         assert_eq!(find_char_boundary(s, 0), 0);
         // 位置 3 = 第 1 个字符结束/第 2 个字符起始（合法边界）
         assert_eq!(find_char_boundary(s, 3), 3);

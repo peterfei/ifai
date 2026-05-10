@@ -309,7 +309,8 @@ impl ThreadStore {
     /// 创建侧线程
     pub fn create_side_thread(&mut self, parent_id: ThreadId, name: Option<String>) -> ThreadId {
         let thread_id = ThreadId::new();
-        self.threads.push(ThreadInfo::side(thread_id, parent_id, name));
+        self.threads
+            .push(ThreadInfo::side(thread_id, parent_id, name));
         thread_id
     }
 
@@ -823,7 +824,10 @@ mod tests {
         let primary_id = store.primary_id;
 
         assert!(store.update_status(primary_id, ThreadStatus::Paused));
-        assert_eq!(store.get_thread(primary_id).unwrap().status, ThreadStatus::Paused);
+        assert_eq!(
+            store.get_thread(primary_id).unwrap().status,
+            ThreadStatus::Paused
+        );
 
         assert!(!store.update_status(ThreadId::new(), ThreadStatus::Active));
     }
@@ -857,7 +861,10 @@ mod tests {
 
         assert_eq!(messages.get(id1).unwrap().len(), 1);
         assert_eq!(messages.get(id2).unwrap().len(), 1);
-        assert_ne!(messages.get(id1).unwrap()[0].content, messages.get(id2).unwrap()[0].content);
+        assert_ne!(
+            messages.get(id1).unwrap()[0].content,
+            messages.get(id2).unwrap()[0].content
+        );
     }
 
     #[test]
@@ -895,7 +902,10 @@ mod tests {
         let primary_id = store.primary_id;
 
         // 2. 主线程发送消息
-        messages.push(primary_id, Message::user("Help me understand Rust".to_string()));
+        messages.push(
+            primary_id,
+            Message::user("Help me understand Rust".to_string()),
+        );
 
         // 3. 创建侧线程
         let side_id = store.create_side_thread(primary_id, Some("Query".to_string()));

@@ -21,25 +21,22 @@ mod tests {
         let mut app = App::new_for_test();
 
         // 模拟流式输出状态
-        app.set_busy(true);  // 设置为 busy 状态（流式输出期间）
+        app.set_busy(true); // 设置为 busy 状态（流式输出期间）
 
         let primary_id = app.thread.store.primary_id();
 
         // 添加一些消息
         app.push_line("Main thread message".to_string());
-        app.thread.messages.push(primary_id, crate::thread::Message::user("Main thread message".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("Main thread message".to_string()),
+        );
 
         // 创建 Ctrl+T 事件
-        let ctrl_t_event = Event::Key(KeyEvent::new(
-            KeyCode::Char('t'),
-            KeyModifiers::CONTROL,
-        ));
+        let ctrl_t_event = Event::Key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL));
 
         // 创建 Alt+Right 事件
-        let alt_right_event = Event::Key(KeyEvent::new(
-            KeyCode::Right,
-            KeyModifiers::ALT,
-        ));
+        let alt_right_event = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::ALT));
 
         // 快照：当前线程数量
         insta::assert_snapshot!(format!(
@@ -67,7 +64,10 @@ mod tests {
         let primary_id = app.thread.store.primary_id();
 
         // 添加主线程消息
-        app.thread.messages.push(primary_id, crate::thread::Message::user("Main message".to_string()));
+        app.thread.messages.push(
+            primary_id,
+            crate::thread::Message::user("Main message".to_string()),
+        );
 
         // 创建侧线程
         let side_id = app.create_side_thread(Some("Thread-1".to_string()));
@@ -99,7 +99,9 @@ mod tests {
         let mut app = App::new_for_test();
 
         // 模拟 overlay 模式
-        app.enter_overlay_mode(crate::detail_overlay::DetailOverlay::new_transcript("Test".to_string()));
+        app.enter_overlay_mode(crate::detail_overlay::DetailOverlay::new_transcript(
+            "Test".to_string(),
+        ));
 
         // 在 overlay 模式下，线程快捷键应该被禁用
         // 这是由 ThreadEnterHandler 的模式守卫保证的
