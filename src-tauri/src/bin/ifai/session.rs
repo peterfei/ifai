@@ -741,6 +741,51 @@ impl Session {
             .map_err(|_| format!("API key not found. Set {} environment variable or add api_key to ~/.ifai/config.toml [providers.{}]", env_key, self.provider))
     }
 
+    /// 构造 workflow 所需的 AIProviderConfig JSON
+    /// 用于注入到 workflow.variables["provider_config"]
+    pub fn workflow_provider_config_json(&self) -> Option<String> {
+        let env_key = match self.provider.as_str() {
+            "anthropic-official" | "anthropic" => "ANTHROPIC_API_KEY",
+            "deepseek-official" | "deepseek" => "DEEPSEEK_API_KEY",
+            "openai-official" | "openai" => "OPENAI_API_KEY",
+            "zhipu-official" | "zhipu" => "ZHIPU_API_KEY",
+            "kimi-official" | "kimi" => "KIMI_API_KEY",
+            "gemini-official" | "gemini" => "GEMINI_API_KEY",
+            _ => "API_KEY",
+        };
+
+        let api_key = match self.get_api_key(env_key) {
+            Ok(k) => k,
+            Err(_) => return None,
+        };
+
+        // base_url：优先用 session 配置，否则根据 provider 选默认值
+        // workflow tool_loop 直接 POST 到此 URL，需要完整的 /chat/completions 路径
+        let base_url = self.base_url.as_deref().unwrap_or_else(|| {
+            match self.provider.as_str() {
+                p if p.contains("deepseek") => "https://api.deepseek.com/chat/completions",
+                p if p.contains("openai") => "https://api.openai.com/v1/chat/completions",
+                p if p.contains("anthropic") => "https://api.anthropic.com/v1/messages",
+                p if p.contains("zhipu") => "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                p if p.contains("kimi") => "https://api.moonshot.cn/v1/chat/completions",
+                p if p.contains("gemini") => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                _ => "",
+            }
+        });
+
+        let config = serde_json::json!({
+            "id": self.provider,
+            "name": self.provider,
+            "apiKey": api_key,
+            "baseUrl": base_url,
+            "models": [self.model.clone()],
+            "protocol": "openai",
+            "enabled": true
+        });
+
+        serde_json::to_string(&config).ok()
+    }
+
     pub fn add_message(&mut self, msg: String) {
         // 将简单字符串消息转换为 Message 格式
         self.default_ctx.messages.push(Message {

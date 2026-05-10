@@ -291,12 +291,12 @@ impl WorkflowRunner {
     where
         F: Fn(ProgressEvent) + Send + Sync + 'static,
     {
-        println!("[WorkflowRunner] 🔧 with_progress_callback called, setting up callback...");
+        wf_log!("[WorkflowRunner] 🔧 with_progress_callback called, setting up callback...");
         let cb = self.progress_callback.clone();
         let mut cb_guard =
             tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(cb.write()));
         *cb_guard = Some(Box::new(callback));
-        println!("[WorkflowRunner] ✅ Progress callback set successfully");
+        wf_log!("[WorkflowRunner] ✅ Progress callback set successfully");
         self
     }
 
@@ -353,12 +353,12 @@ impl WorkflowRunner {
                 })
                 .collect();
 
-            println!(
+            wf_log!(
                 "[WorkflowRunner] 📋 Extracted {} planned nodes for workflow:started event",
                 planned_nodes.len()
             );
             for (i, node) in planned_nodes.iter().enumerate() {
-                println!("  {}. {} ({})", i + 1, node.label, node.agent_type);
+                wf_log!("  {}. {} ({})", i + 1, node.label, node.agent_type);
             }
 
             let event = ProgressEvent {
@@ -372,30 +372,30 @@ impl WorkflowRunner {
                 content_delta: None,        // workflow:started 事件不包含内容增量
                 content_finished: None,
             };
-            println!(
+            wf_log!(
                 "[WorkflowRunner] 📤 Calling callback with workflow:started event (with {} nodes)",
                 event.nodes.as_ref().map(|n| n.len()).unwrap_or(0)
             );
             callback(event);
-            println!("[WorkflowRunner] ✅ workflow:started callback executed IMMEDIATELY");
+            wf_log!("[WorkflowRunner] ✅ workflow:started callback executed IMMEDIATELY");
         }
     }
 
     /// 执行工作流
     pub async fn run(&self) -> Result<WorkflowResult> {
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🚀 run() called, workflow_id: {}",
             self.workflow.id
         );
-        println!(
+        wf_log!(
             "[WorkflowRunner] 📊 Total nodes: {}",
             self.workflow.nodes.len()
         );
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🔗 Total edges: {}",
             self.workflow.edges.len()
         );
-        println!(
+        wf_log!(
             "[WorkflowRunner] 📋 Node IDs: {:?}",
             self.workflow
                 .nodes
@@ -414,11 +414,11 @@ impl WorkflowRunner {
         self.emit_workflow_started().await;
 
         let schedule = self.schedule.as_ref().expect("Schedule should exist");
-        println!(
+        wf_log!(
             "[WorkflowRunner] 📅 Schedule created, execution_order: {:?}",
             schedule.execution_order
         );
-        println!(
+        wf_log!(
             "[WorkflowRunner] 📅 Parallel groups: {:?}",
             schedule.parallel_groups
         );
@@ -496,7 +496,7 @@ impl WorkflowRunner {
         &self,
         group: &[String],
     ) -> Result<HashMap<String, NodeResult>> {
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🔧 execute_parallel_group called with nodes: {:?}",
             group
         );
@@ -509,10 +509,10 @@ impl WorkflowRunner {
         let config = self.config.clone();
         let progress_callback = self.progress_callback.clone();
 
-        println!("[WorkflowRunner] 🔧 progress_callback cloned, checking if it exists...");
+        wf_log!("[WorkflowRunner] 🔧 progress_callback cloned, checking if it exists...");
         {
             let cb_check = progress_callback.read().await;
-            println!(
+            wf_log!(
                 "[WorkflowRunner] 📊 progress_callback exists: {}",
                 cb_check.is_some()
             );
@@ -585,10 +585,10 @@ impl WorkflowRunner {
         let node_id = node.id.clone();
 
         // 🔥 发送节点开始事件
-        println!("[WorkflowRunner] 🔧 About to check progress_callback for node_started");
+        wf_log!("[WorkflowRunner] 🔧 About to check progress_callback for node_started");
         let callback_guard = progress_callback.read().await;
         if let Some(callback) = callback_guard.as_ref() {
-            println!("[WorkflowRunner] ✅ Progress callback exists, sending node_started event for node: {}", node_id);
+            wf_log!("[WorkflowRunner] ✅ Progress callback exists, sending node_started event for node: {}", node_id);
             let event = ProgressEvent {
                 event_type: "node_started".to_string(),
                 workflow_id: Some(workflow.id.clone()),
@@ -603,14 +603,14 @@ impl WorkflowRunner {
                 content_delta: None, // node_started 事件不包含内容增量
                 content_finished: None,
             };
-            println!(
+            wf_log!(
                 "[WorkflowRunner] 📤 Calling callback with event: {:?}",
                 event
             );
             callback(event);
-            println!("[WorkflowRunner] ✅ Callback executed successfully");
+            wf_log!("[WorkflowRunner] ✅ Callback executed successfully");
         } else {
-            println!(
+            wf_log!(
                 "[WorkflowRunner] ⚠️ Progress callback is None! No event will be sent for node: {}",
                 node_id
             );
@@ -652,14 +652,14 @@ impl WorkflowRunner {
                     if is_rate_limit {
                         // 🔥 指数退避（参考 claw-code）：200ms 起始，每次翻倍，上限 2 秒
                         let delay_ms = std::cmp::min(2000, 200 * 2usize.pow(retry_count as u32));
-                        println!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
+                        wf_log!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
                             retry_count, config.max_retries, delay_ms);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms as u64))
                             .await;
-                        println!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
+                        wf_log!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
                     } else {
                         // 其他错误，使用较短延迟
-                        println!(
+                        wf_log!(
                             "[WorkflowRunner] ⚠️ Node {} failed (retry {}/{}): {}",
                             node_id, retry_count, config.max_retries, e
                         );
@@ -668,7 +668,7 @@ impl WorkflowRunner {
                     continue;
                 }
                 Err(e) => {
-                    println!(
+                    wf_log!(
                         "[WorkflowRunner] ❌ Node {} failed after {} retries: {}",
                         node_id, config.max_retries, e
                     );
@@ -692,7 +692,7 @@ impl WorkflowRunner {
         workflow: &Workflow,
         progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
     ) -> Result<NodeResult> {
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🔧 Executing node: {} ({:?})",
             node.id, node.agent_type
         );
@@ -710,7 +710,7 @@ impl WorkflowRunner {
                     .unwrap_or_else(|_| ".".to_string())
             });
 
-        println!("[WorkflowRunner] 📂 Using project root: {}", project_root);
+        wf_log!("[WorkflowRunner] 📂 Using project root: {}", project_root);
 
         // 获取目标路径（从工作流变量中）
         let target_path = workflow
@@ -745,7 +745,7 @@ impl WorkflowRunner {
             "⚠️ 无法读取目录".to_string()
         };
 
-        println!("[WorkflowRunner] 📂 Directory info: {}", file_list_info);
+        wf_log!("[WorkflowRunner] 📂 Directory info: {}", file_list_info);
 
         // 🔥 获取 provider_config（从工作流变量中）
         let provider_config: Option<crate::core_traits::ai::AIProviderConfig> = workflow
@@ -755,18 +755,18 @@ impl WorkflowRunner {
 
         // 如果没有配置，使用默认配置
         let provider_config = provider_config.unwrap_or_else(|| {
-            println!("[WorkflowRunner] ⚠️ No provider config found, using default");
+            wf_log!("[WorkflowRunner] ⚠️ No provider config found, using default");
             crate::agent_system::workflow::executor::default_provider_config()
         });
 
         // 🔥 获取 current_model（从工作流变量中）
         let current_model = workflow.variables.get("current_model").cloned();
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🤖 Current model from workflow variables: {:?}",
             current_model
         );
 
-        println!(
+        wf_log!(
             "[WorkflowRunner] ⚙️ Using provider: {} ({} models)",
             provider_config.name,
             provider_config.models.len()
@@ -796,7 +796,7 @@ impl WorkflowRunner {
 
         // 🔥 如果存在 current_model，将其传递到执行上下文
         if let Some(model) = current_model {
-            println!(
+            wf_log!(
                 "[WorkflowRunner] ✅ Passing current_model to execution context: {}",
                 model
             );
@@ -860,7 +860,7 @@ impl WorkflowRunner {
                     });
                 },
             ));
-            println!(
+            wf_log!(
                 "[WorkflowRunner] ✅ Content delta callback set up for Doc agent: {}",
                 node.id
             );
@@ -868,25 +868,25 @@ impl WorkflowRunner {
 
         // 🔥 使用真实的执行器
         let executor = AgentNodeExecutor::new();
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🎯 About to execute node {} with executor",
             node.id
         );
         let result = executor.execute(node, &ctx).await?;
 
-        println!(
+        wf_log!(
             "[WorkflowRunner] ✅ Node {} completed with status: {:?}",
             node.id, result.status
         );
         if let Some(output) = &result.output {
-            println!("[WorkflowRunner] 📝 Output length: {} chars", output.len());
-            println!(
+            wf_log!("[WorkflowRunner] 📝 Output length: {} chars", output.len());
+            wf_log!(
                 "[WorkflowRunner] 📝 Output preview: {}...",
                 output.chars().take(100).collect::<String>()
             );
         }
         if let Some(error) = &result.error {
-            println!("[WorkflowRunner] ❌ Error: {}", error);
+            wf_log!("[WorkflowRunner] ❌ Error: {}", error);
         }
         Ok(result)
     }
@@ -929,14 +929,14 @@ impl WorkflowRunner {
                     if is_rate_limit {
                         // 🔥 指数退避（参考 claw-code）：200ms 起始，每次翻倍，上限 2 秒
                         let delay_ms = std::cmp::min(2000, 200 * 2usize.pow(retry_count as u32));
-                        println!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
+                        wf_log!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
                             retry_count, self.config.max_retries, delay_ms);
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms as u64))
                             .await;
-                        println!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
+                        wf_log!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
                     } else {
                         // 其他错误，使用较短延迟
-                        println!(
+                        wf_log!(
                             "[WorkflowRunner] ⚠️ Node {} failed (retry {}/{}): {}",
                             node_id, retry_count, self.config.max_retries, e
                         );
@@ -945,7 +945,7 @@ impl WorkflowRunner {
                     continue;
                 }
                 Err(e) => {
-                    println!(
+                    wf_log!(
                         "[WorkflowRunner] ❌ Node {} failed after {} retries: {}",
                         node_id, self.config.max_retries, e
                     );
@@ -965,7 +965,7 @@ impl WorkflowRunner {
 
     /// 执行节点一次（无重试）
     async fn execute_node_once(&self, node: &WorkflowNode) -> Result<NodeResult> {
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🔧 Executing node: {} ({:?})",
             node.id, node.agent_type
         );
@@ -984,7 +984,7 @@ impl WorkflowRunner {
                     .unwrap_or_else(|_| ".".to_string())
             });
 
-        println!("[WorkflowRunner] 📂 Using project root: {}", project_root);
+        wf_log!("[WorkflowRunner] 📂 Using project root: {}", project_root);
 
         // 获取目标路径（从工作流变量中）
         let target_path = self
@@ -1020,7 +1020,7 @@ impl WorkflowRunner {
             "⚠️ 无法读取目录".to_string()
         };
 
-        println!("[WorkflowRunner] 📂 Directory info: {}", file_list_info);
+        wf_log!("[WorkflowRunner] 📂 Directory info: {}", file_list_info);
 
         // 🔥 获取 provider_config（从工作流变量中）
         let provider_config: Option<crate::core_traits::ai::AIProviderConfig> = self
@@ -1031,18 +1031,18 @@ impl WorkflowRunner {
 
         // 如果没有配置，使用默认配置
         let provider_config = provider_config.unwrap_or_else(|| {
-            println!("[WorkflowRunner] ⚠️ No provider config found, using default");
+            wf_log!("[WorkflowRunner] ⚠️ No provider config found, using default");
             crate::agent_system::workflow::executor::default_provider_config()
         });
 
         // 🔥 获取 current_model（从工作流变量中）
         let current_model = self.workflow.variables.get("current_model").cloned();
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🤖 Current model from workflow variables: {:?}",
             current_model
         );
 
-        println!(
+        wf_log!(
             "[WorkflowRunner] ⚙️ Using provider: {} ({} models)",
             provider_config.name,
             provider_config.models.len()
@@ -1072,7 +1072,7 @@ impl WorkflowRunner {
 
         // 🔥 如果存在 current_model，将其传递到执行上下文
         if let Some(model) = current_model {
-            println!(
+            wf_log!(
                 "[WorkflowRunner] ✅ Passing current_model to execution context: {}",
                 model
             );
@@ -1081,25 +1081,25 @@ impl WorkflowRunner {
 
         // 🔥 使用真实的执行器
         let executor = AgentNodeExecutor::new();
-        println!(
+        wf_log!(
             "[WorkflowRunner] 🎯 About to execute node {} with executor",
             node.id
         );
         let result = executor.execute(node, &ctx).await?;
 
-        println!(
+        wf_log!(
             "[WorkflowRunner] ✅ Node {} completed with status: {:?}",
             node.id, result.status
         );
         if let Some(output) = &result.output {
-            println!("[WorkflowRunner] 📝 Output length: {} chars", output.len());
-            println!(
+            wf_log!("[WorkflowRunner] 📝 Output length: {} chars", output.len());
+            wf_log!(
                 "[WorkflowRunner] 📝 Output preview: {}...",
                 output.chars().take(100).collect::<String>()
             );
         }
         if let Some(error) = &result.error {
-            println!("[WorkflowRunner] ❌ Error: {}", error);
+            wf_log!("[WorkflowRunner] ❌ Error: {}", error);
         }
         Ok(result)
     }

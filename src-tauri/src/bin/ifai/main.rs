@@ -7,6 +7,9 @@ mod config;
 mod provider;
 mod render;
 mod session;
+mod workflow_cmd; // 🔥 /workflow 命令
+mod agent_cmd;   // 🔥 /agent 命令
+mod note_cmd;    // 🔥 /note 命令
 // ✅ prompts.rs 已删除：CLI 现在使用 ifainew_lib::prompt_manager
 mod approval_overlay; // 🔥 TUI 工具审批 Overlay
 #[cfg(test)]

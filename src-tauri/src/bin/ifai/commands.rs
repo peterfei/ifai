@@ -181,6 +181,27 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         min_permission: PermissionMode::None,
         handler: cmd_thread_stub,
     },
+    CommandSpec {
+        name: "workflow",
+        summary: "执行工作流（YAML）",
+        arg_hint: Some("[run <模板名|file.yaml>|templates]"),
+        min_permission: PermissionMode::None,
+        handler: cmd_workflow,
+    },
+    CommandSpec {
+        name: "agent",
+        summary: "启动专用智能体",
+        arg_hint: Some("<explore|review|refactor|test|doc> <task>"),
+        min_permission: PermissionMode::None,
+        handler: cmd_agent,
+    },
+    CommandSpec {
+        name: "note",
+        summary: "查看/导出会话笔记",
+        arg_hint: Some("[export]"),
+        min_permission: PermissionMode::None,
+        handler: cmd_note,
+    },
 ];
 
 // ============================================================================
@@ -918,6 +939,62 @@ fn cmd_thread_stub(_session: &mut Session, arg: Option<&str>) -> CommandResult {
          /thread rename X 重命名当前线程"
             .to_string(),
     ))
+}
+
+// ── /workflow ────────────────────────────────────────────────────────────────
+
+fn cmd_workflow(session: &mut Session, arg: Option<&str>) -> CommandResult {
+    let arg = arg.unwrap_or("");
+    let (sub, path) = super::workflow_cmd::parse_workflow_args(arg);
+
+    match sub {
+        "templates" => {
+            let templates = super::workflow_cmd::list_templates();
+            let list: Vec<String> = templates.iter().map(|t| format!("  {:<14} {}", t.name, t.description)).collect();
+            Ok(Some(format!("📋 可用工作流模板:\n{}", list.join("\n"))))
+        }
+        "run" => {
+            let path = path.ok_or("用法: /workflow run <模板名|file.yaml>")?;
+            let provider_json = session.workflow_provider_config_json();
+            super::workflow_cmd::run_workflow(path, provider_json.as_deref())?;
+            Ok(None)
+        }
+        _ => Ok(Some(
+            "用法:\n\
+             /workflow run <模板名>       执行内置工作流（explore/code-review/quality-check）\n\
+             /workflow run <file.yaml>    执行指定 YAML 工作流\n\
+             /workflow templates          列出可用模板"
+                .to_string(),
+        )),
+    }
+}
+
+// ── /agent ───────────────────────────────────────────────────────────────────
+
+fn cmd_agent(session: &mut Session, arg: Option<&str>) -> CommandResult {
+    let arg = arg.ok_or("用法: /agent <explore|review|refactor|test|doc> <task>")?;
+    let (agent_type, task) = super::agent_cmd::parse_agent_args(arg)?;
+    let provider_json = session.workflow_provider_config_json();
+    super::agent_cmd::run_agent(agent_type, task, provider_json.as_deref())?;
+    Ok(None)
+}
+
+// ── /note ────────────────────────────────────────────────────────────────────
+
+fn cmd_note(_session: &mut Session, arg: Option<&str>) -> CommandResult {
+    let arg = arg.unwrap_or("");
+    match arg.trim() {
+        "export" => {
+            let output = super::note_cmd::export_notes()?;
+            Ok(Some(format!("✅ 笔记已导出: {}", output)))
+        }
+        _ => {
+            match super::note_cmd::show_notes() {
+                Ok(content) => Ok(Some(content)),
+                Err(e) => Ok(Some(format!("📝 {}", e))),
+            }
+        }
+    }
 }
 
 // ============================================================================

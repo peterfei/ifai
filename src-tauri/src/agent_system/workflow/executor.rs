@@ -337,17 +337,17 @@ impl AgentNodeExecutor {
         >,
         content_delta_callback: Option<std::sync::Arc<dyn Fn(String, bool) + Send + Sync>>,
     ) -> Result<String> {
-        println!(
+        wf_log!(
             "[WorkflowExecutor] 🤖 Executing real agent: {:?}",
             node.agent_type
         );
-        println!("[WorkflowExecutor] 📁 Project root: {}", ctx.project_root);
-        println!("[WorkflowExecutor] 📝 Task: {}", ctx.task_description);
-        println!(
+        wf_log!("[WorkflowExecutor] 📁 Project root: {}", ctx.project_root);
+        wf_log!("[WorkflowExecutor] 📝 Task: {}", ctx.task_description);
+        wf_log!(
             "[WorkflowExecutor] 🤖 Current model from context: {:?}",
             ctx.current_model
         );
-        println!(
+        wf_log!(
             "[WorkflowExecutor] 🔧 Provider models: {:?}",
             ctx.provider_config.models
         );
@@ -358,12 +358,12 @@ impl AgentNodeExecutor {
         // 构建用户消息
         let user_message = ctx.task_description.clone();
 
-        println!("[WorkflowExecutor] 📡 Starting AI call...");
-        println!(
+        wf_log!("[WorkflowExecutor] 📡 Starting AI call...");
+        wf_log!(
             "[WorkflowExecutor] 📊 System prompt length: {} chars",
             system_prompt.len()
         );
-        println!(
+        wf_log!(
             "[WorkflowExecutor] 📊 User message length: {} chars",
             user_message.len()
         );
@@ -375,14 +375,14 @@ impl AgentNodeExecutor {
 
         // 如果用户指定了模型，优先使用它
         if let Some(ref model) = ctx.current_model {
-            println!("[WorkflowExecutor] 🎯 Using user-selected model: {}", model);
+            wf_log!("[WorkflowExecutor] 🎯 Using user-selected model: {}", model);
             // 将用户选择的模型放到数组第一位
             let mut models = provider_config.models.clone();
             models.retain(|m| m != model); // 移除重复的
             models.insert(0, model.clone()); // 插入到第一位
             provider_config.models = models;
         } else {
-            println!(
+            wf_log!(
                 "[WorkflowExecutor] 📋 Using default model from config: {:?}",
                 provider_config.models.first()
             );
@@ -392,7 +392,7 @@ impl AgentNodeExecutor {
         let response_text = match node.agent_type {
             // 🔥 Doc agent 使用流式输出（不使用工具）
             AgentType::Doc => {
-                println!("[WorkflowExecutor] 📝 Using streaming output for Doc agent");
+                wf_log!("[WorkflowExecutor] 📝 Using streaming output for Doc agent");
 
                 // 🔥 使用 content_delta_callback 发送流式内容
                 let callback = content_delta_callback.unwrap_or_else(|| {
@@ -410,7 +410,7 @@ impl AgentNodeExecutor {
                 .await
                 .map_err(|e| {
                     let elapsed = start_time.elapsed();
-                    println!(
+                    wf_log!(
                         "[WorkflowExecutor] ❌ Streaming AI call failed after {:?}: {}",
                         elapsed, e
                     );
@@ -421,7 +421,7 @@ impl AgentNodeExecutor {
             }
             // 🔥 其他 agent 使用工具调用循环
             _ => {
-                println!(
+                wf_log!(
                     "[WorkflowExecutor] 🔧 Using tool-enabled execution for {:?}",
                     node.agent_type
                 );
@@ -445,7 +445,7 @@ impl AgentNodeExecutor {
                 .await
                 .map_err(|e| {
                     let elapsed = start_time.elapsed();
-                    println!(
+                    wf_log!(
                         "[WorkflowExecutor] ❌ Tool-enabled AI call failed after {:?}: {}",
                         elapsed, e
                     );
@@ -455,20 +455,20 @@ impl AgentNodeExecutor {
         };
 
         let elapsed = start_time.elapsed();
-        println!(
+        wf_log!(
             "[WorkflowExecutor] ✅ AI response received successfully (took {:?})",
             elapsed
         );
-        println!(
+        wf_log!(
             "[WorkflowExecutor] ✅ Text response: {} chars",
             response_text.len()
         );
-        println!(
+        wf_log!(
             "[WorkflowExecutor] 📝 Response preview: {}...",
             response_text.chars().take(100).collect::<String>()
         );
 
-        println!(
+        wf_log!(
             "[WorkflowExecutor] ✅ Returning output to runner (total: {:?})",
             start_time.elapsed()
         );
@@ -480,7 +480,7 @@ impl AgentNodeExecutor {
     fn build_system_prompt(node: &WorkflowNode, ctx: &AgentContext) -> String {
         use crate::agent_system::workflow::prompt_loader::{AgentPromptLoader, PromptContext};
 
-        println!(
+        wf_log!(
             "[WorkflowExecutor] 🔍 Loading {} prompt via AgentPromptLoader...",
             format!("{:?}", node.agent_type).to_lowercase()
         );

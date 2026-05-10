@@ -69,7 +69,7 @@ impl AgentPromptLoader {
         let config = self.get_config_for_agent(agent_type);
         let prompt_path = self.prompts_dir.join(config.prompt_file);
 
-        println!(
+        wf_log!(
             "[AgentPromptLoader] 🔍 Loading {} prompt from: {:?}",
             format!("{:?}", agent_type).to_lowercase(),
             prompt_path
@@ -81,7 +81,7 @@ impl AgentPromptLoader {
                 let prompt_body = self.extract_markdown_body(&content);
                 let replaced = self.replace_variables(&prompt_body, config.variable_names, context);
 
-                println!(
+                wf_log!(
                     "[AgentPromptLoader] ✅ Loaded {} from file ({} bytes)",
                     format!("{:?}", agent_type).to_lowercase(),
                     replaced.len()
@@ -90,13 +90,13 @@ impl AgentPromptLoader {
                 replaced
             }
             Err(e) => {
-                println!(
+                wf_log!(
                     "[AgentPromptLoader] ⚠️ Failed to load {} from {:?}: {}",
                     format!("{:?}", agent_type).to_lowercase(),
                     prompt_path,
                     e
                 );
-                println!(
+                wf_log!(
                     "[AgentPromptLoader] 🔄 Using fallback built-in {} prompt",
                     format!("{:?}", agent_type).to_lowercase()
                 );

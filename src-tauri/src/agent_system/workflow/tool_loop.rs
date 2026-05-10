@@ -55,9 +55,9 @@ pub async fn execute_with_tools(
     let mut ai_time_total = std::time::Duration::ZERO;
     let mut tool_time_total = std::time::Duration::ZERO;
 
-    println!("[ToolLoop] 🚀 工具循环开始");
-    println!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
-    println!("[ToolLoop] 📊 用户消息长度: {} 字符", user_message.len());
+    wf_log!("[ToolLoop] 🚀 工具循环开始");
+    wf_log!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
+    wf_log!("[ToolLoop] 📊 用户消息长度: {} 字符", user_message.len());
 
     let mut messages = vec![
         Message {
@@ -83,7 +83,7 @@ pub async fn execute_with_tools(
             return Err(format!("超过最大迭代次数: {}", config.max_iterations));
         }
 
-        println!(
+        wf_log!(
             "[ToolLoop] 🔄 迭代 {}/{}",
             iterations, config.max_iterations
         );
@@ -99,7 +99,7 @@ pub async fn execute_with_tools(
         let ai_duration = ai_start.elapsed();
         ai_time_total += ai_duration;
 
-        println!("[ToolLoop] ⏱️ AI API 调用耗时: {:?}", ai_duration);
+        wf_log!("[ToolLoop] ⏱️ AI API 调用耗时: {:?}", ai_duration);
 
         // 检查是否有工具调用
         let tool_calls = extract_tool_calls(&response)?;
@@ -107,7 +107,7 @@ pub async fn execute_with_tools(
         if tool_calls.is_empty() {
             // 没有工具调用，返回 AI 响应
             final_response = response;
-            println!(
+            wf_log!(
                 "[ToolLoop] ✅ 完成，最终响应长度: {} 字符",
                 final_response.len()
             );
@@ -117,10 +117,10 @@ pub async fn execute_with_tools(
         // 🔥 移除单次工具调用数量限制，允许 AI 根据任务需求自由调用工具
         // 参考 claw-code 设计，不限制单次工具调用数量
 
-        println!("[ToolLoop] 🔧 检测到 {} 个工具调用", tool_calls.len());
+        wf_log!("[ToolLoop] 🔧 检测到 {} 个工具调用", tool_calls.len());
 
         // 🔥 发送工具调用进度事件
-        println!(
+        wf_log!(
             "[ToolLoop] 📤 发送工具调用进度事件: {} 个工具",
             tool_calls.len()
         );
@@ -135,7 +135,7 @@ pub async fn execute_with_tools(
 
         let mut tool_tasks = Vec::new();
         for tool_call in &tool_calls {
-            println!("[ToolLoop] 🔧 启动工具: {}", tool_call.name);
+            wf_log!("[ToolLoop] 🔧 启动工具: {}", tool_call.name);
 
             let tool_call = tool_call.clone();
             let callback_for_task = progress_callback_clone.clone(); // 🔥 为每个任务克隆回调
@@ -149,7 +149,7 @@ pub async fn execute_with_tools(
                 {
                     Ok(output) => {
                         let execution_time = tool_start.elapsed().as_millis() as i64;
-                        println!(
+                        wf_log!(
                             "[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符，耗时: {}ms",
                             tool_call.name,
                             output.len(),
@@ -181,7 +181,7 @@ pub async fn execute_with_tools(
                     Err(e) => {
                         let execution_time = tool_start.elapsed().as_millis() as i64;
                         let error_msg = format!("工具执行失败: {}", e);
-                        println!(
+                        wf_log!(
                             "[ToolLoop] ❌ 工具 {} 失败: {}，耗时: {}ms",
                             tool_call.name, e, execution_time
                         );
@@ -214,12 +214,12 @@ pub async fn execute_with_tools(
         }
 
         // 🔥 等待所有工具完成（并行执行）
-        println!("[ToolLoop] ⏳ 等待 {} 个工具完成...", tool_tasks.len());
+        wf_log!("[ToolLoop] ⏳ 等待 {} 个工具完成...", tool_tasks.len());
         let results = join_all(tool_tasks).await;
 
         let tool_duration = tool_start.elapsed();
         tool_time_total += tool_duration;
-        println!(
+        wf_log!(
             "[ToolLoop] ⏱️ 工具执行总耗时: {:?} ({} 个工具并行)",
             tool_duration,
             tool_calls.len()
@@ -245,24 +245,24 @@ pub async fn execute_with_tools(
 
     // 🔥 输出性能统计
     let total_duration = workflow_start.elapsed();
-    println!("[ToolLoop] 📊 ========== 性能统计 ==========");
-    println!("[ToolLoop] 📊 总执行时长: {:?}", total_duration);
-    println!("[ToolLoop] 📊 迭代次数: {}", iterations);
-    println!(
+    wf_log!("[ToolLoop] 📊 ========== 性能统计 ==========");
+    wf_log!("[ToolLoop] 📊 总执行时长: {:?}", total_duration);
+    wf_log!("[ToolLoop] 📊 迭代次数: {}", iterations);
+    wf_log!(
         "[ToolLoop] 📊 AI API 调用总时长: {:?} (平均: {:?}/次)",
         ai_time_total,
         ai_time_total / iterations as u32
     );
-    println!("[ToolLoop] 📊 工具执行总时长: {:?}", tool_time_total);
-    println!(
+    wf_log!("[ToolLoop] 📊 工具执行总时长: {:?}", tool_time_total);
+    wf_log!(
         "[ToolLoop] 📊 AI 占比: {:.1}%",
         (ai_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0
     );
-    println!(
+    wf_log!(
         "[ToolLoop] 📊 工具占比: {:.1}%",
         (tool_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0
     );
-    println!("[ToolLoop] 📊 ================================");
+    wf_log!("[ToolLoop] 📊 ================================");
 
     Ok(final_response)
 }
@@ -299,7 +299,7 @@ async fn call_ai_with_tools(
         "tool_choice": "auto"
     });
 
-    println!("[ToolLoop] 📤 发送请求到 AI，工具数量: {}", tools.len());
+    wf_log!("[ToolLoop] 📤 发送请求到 AI，工具数量: {}", tools.len());
 
     let response = timeout(
         Duration::from_secs(60),
@@ -359,7 +359,7 @@ async fn call_ai_with_tools_unified(
     provider_config: crate::core_traits::ai::AIProviderConfig,
     messages: &[Message],
 ) -> Result<String, String> {
-    println!("[ToolLoop] 📤 调用 ifainew_core::ai::chat_with_tools");
+    wf_log!("[ToolLoop] 📤 调用 ifainew_core::ai::chat_with_tools");
 
     // 🔥 使用私有库的统一接口
     #[cfg(feature = "commercial")]
@@ -372,7 +372,7 @@ async fn call_ai_with_tools_unified(
         .await
         .map_err(|e| format!("AI 调用失败: {}", e))?;
 
-        println!(
+        wf_log!(
             "[ToolLoop] ⏱️ AI API 耗时: {}ms",
             response.metrics.ai_api_duration_ms
         );
@@ -380,10 +380,10 @@ async fn call_ai_with_tools_unified(
         // 返回工具调用 JSON 或内容
         if let Some(tool_calls) = response.tool_calls {
             let tool_calls_json = serde_json::to_string(&tool_calls).unwrap_or_default();
-            println!("[ToolLoop] 🔧 返回工具调用: {} 个", tool_calls.len());
+            wf_log!("[ToolLoop] 🔧 返回工具调用: {} 个", tool_calls.len());
             Ok(tool_calls_json)
         } else {
-            println!("[ToolLoop] ✅ 返回内容: {} 字符", response.content.len());
+            wf_log!("[ToolLoop] ✅ 返回内容: {} 字符", response.content.len());
             Ok(response.content)
         }
     }
@@ -397,7 +397,7 @@ async fn call_ai_with_tools_unified(
 
 /// 从 AI 响应中提取工具调用
 fn extract_tool_calls(response: &str) -> Result<Vec<ToolCall>, String> {
-    println!("[ToolLoop] 🔍 Parsing tool calls from: {}", response);
+    wf_log!("[ToolLoop] 🔍 Parsing tool calls from: {}", response);
 
     // 尝试解析为工具调用数组
     if let Ok(tool_calls) = serde_json::from_str::<Vec<serde_json::Value>>(response) {
@@ -425,7 +425,7 @@ fn extract_tool_calls(response: &str) -> Result<Vec<ToolCall>, String> {
                 .clone()
                 .unwrap_or(serde_json::json!({}));
 
-            println!("[ToolLoop] 🔍 Tool call: {} -> {:?}", name, input);
+            wf_log!("[ToolLoop] 🔍 Tool call: {} -> {:?}", name, input);
             calls.push(ToolCall { id, name, input });
         }
         return Ok(calls);
@@ -478,7 +478,7 @@ async fn call_ai_with_tools_stream(
     messages: &[Message],
     progress_callback: Option<ToolProgressCallback>,
 ) -> Result<String, String> {
-    println!("[ToolLoop] 📤 [STREAM] 调用流式 AI API");
+    wf_log!("[ToolLoop] 📤 [STREAM] 调用流式 AI API");
 
     #[cfg(feature = "commercial")]
     {
@@ -542,7 +542,7 @@ async fn call_ai_with_tools_stream(
             "stream": true,
         });
 
-        println!("[ToolLoop] 📤 [STREAM] 发送流式请求到: {}", completions_url);
+        wf_log!("[ToolLoop] 📤 [STREAM] 发送流式请求到: {}", completions_url);
 
         // 🔥 步骤2：发送流式请求
         let client = Client::new();
@@ -576,7 +576,7 @@ async fn call_ai_with_tools_stream(
             match event_result {
                 Ok(event) => {
                     if event.data == "[DONE]" {
-                        println!("[ToolLoop] 📤 [STREAM] 收到 [DONE] 信号");
+                        wf_log!("[ToolLoop] 📤 [STREAM] 收到 [DONE] 信号");
                         break;
                     }
 
@@ -641,7 +641,7 @@ async fn call_ai_with_tools_stream(
                                         let tool_id = &entry.0;
                                         let tool_name = &entry.1;
 
-                                        println!(
+                                        wf_log!(
                                             "[ToolLoop] 🔥 [STREAM] 检测到新工具调用 #{}: {} ({})",
                                             index, tool_name, tool_id
                                         );
@@ -661,7 +661,7 @@ async fn call_ai_with_tools_stream(
 
                             // 检查是否完成
                             if choice.finish_reason.is_some() {
-                                println!(
+                                wf_log!(
                                     "[ToolLoop] 📤 [STREAM] 流结束，原因: {:?}",
                                     choice.finish_reason
                                 );
@@ -671,14 +671,14 @@ async fn call_ai_with_tools_stream(
                     }
                 }
                 Err(e) => {
-                    println!("[ToolLoop] ⚠️ [STREAM] 流处理错误: {}", e);
+                    wf_log!("[ToolLoop] ⚠️ [STREAM] 流处理错误: {}", e);
                     break;
                 }
             }
         }
 
-        println!("[ToolLoop] 📊 [STREAM] 处理了 {} 个 chunks", chunk_count);
-        println!(
+        wf_log!("[ToolLoop] 📊 [STREAM] 处理了 {} 个 chunks", chunk_count);
+        wf_log!(
             "[ToolLoop] 🔧 [STREAM] 累积了 {} 个工具调用",
             accumulated_tools.len()
         );
@@ -702,7 +702,7 @@ async fn call_ai_with_tools_stream(
             let result_json = serde_json::to_string(&final_tool_calls)
                 .map_err(|e| format!("JSON 序列化失败: {}", e))?;
 
-            println!(
+            wf_log!(
                 "[ToolLoop] ✅ [STREAM] 返回 {} 个工具调用，总长度: {} 字符",
                 final_tool_calls.len(),
                 result_json.len()
@@ -711,7 +711,7 @@ async fn call_ai_with_tools_stream(
             Ok(result_json)
         } else {
             // 没有工具调用，返回内容
-            println!(
+            wf_log!(
                 "[ToolLoop] ✅ [STREAM] 返回文本内容，长度: {} 字符",
                 final_content.len()
             );
@@ -722,7 +722,7 @@ async fn call_ai_with_tools_stream(
     // 🔥 Community 版本的降级处理
     #[cfg(not(feature = "commercial"))]
     {
-        println!("[ToolLoop] ⚠️ [STREAM] Community 版本，回退到非流式 API");
+        wf_log!("[ToolLoop] ⚠️ [STREAM] Community 版本，回退到非流式 API");
         call_ai_with_tools_unified(provider_config, messages).await
     }
 }
@@ -748,9 +748,9 @@ pub async fn call_ai_streaming_simple(
     user_message: String,
     content_callback: ContentDeltaCallback,
 ) -> Result<String, String> {
-    println!("[ToolLoop] 📤 [SIMPLE_STREAM] 调用简化流式 AI API");
-    println!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
-    println!("[ToolLoop] 📊 用户消息长度: {} 字符", user_message.len());
+    wf_log!("[ToolLoop] 📤 [SIMPLE_STREAM] 调用简化流式 AI API");
+    wf_log!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
+    wf_log!("[ToolLoop] 📊 用户消息长度: {} 字符", user_message.len());
 
     #[cfg(feature = "commercial")]
     {
@@ -786,7 +786,7 @@ pub async fn call_ai_streaming_simple(
             "stream": true,
         });
 
-        println!(
+        wf_log!(
             "[ToolLoop] 📤 [SIMPLE_STREAM] 发送流式请求到: {}",
             completions_url
         );
@@ -819,14 +819,14 @@ pub async fn call_ai_streaming_simple(
         const CALLBACK_INTERVAL_MS: u64 = 100;
         const MIN_DELTA_LENGTH: usize = 30;
 
-        println!("[ToolLoop] 📥 [SIMPLE_STREAM] 开始接收流式响应...");
+        wf_log!("[ToolLoop] 📥 [SIMPLE_STREAM] 开始接收流式响应...");
 
         // 🔥 处理每个流式 chunk
         while let Some(event_result) = stream.next().await {
             match event_result {
                 Ok(event) => {
                     if event.data == "[DONE]" {
-                        println!("[ToolLoop] 📤 [SIMPLE_STREAM] 收到 [DONE] 信号");
+                        wf_log!("[ToolLoop] 📤 [SIMPLE_STREAM] 收到 [DONE] 信号");
                         break;
                     }
 
@@ -860,7 +860,7 @@ pub async fn call_ai_streaming_simple(
 
                             // 检查是否完成
                             if choice.finish_reason.is_some() {
-                                println!(
+                                wf_log!(
                                     "[ToolLoop] 📤 [SIMPLE_STREAM] 流结束，原因: {:?}",
                                     choice.finish_reason
                                 );
@@ -879,7 +879,7 @@ pub async fn call_ai_streaming_simple(
                     }
                 }
                 Err(e) => {
-                    println!("[ToolLoop] ⚠️ [SIMPLE_STREAM] 流处理错误: {}", e);
+                    wf_log!("[ToolLoop] ⚠️ [SIMPLE_STREAM] 流处理错误: {}", e);
 
                     // 🔥 出错时也要发送剩余的累积内容
                     if !accumulated_delta.is_empty() {
@@ -894,11 +894,11 @@ pub async fn call_ai_streaming_simple(
             }
         }
 
-        println!(
+        wf_log!(
             "[ToolLoop] 📊 [SIMPLE_STREAM] 处理了 {} 个 chunks",
             chunk_count
         );
-        println!(
+        wf_log!(
             "[ToolLoop] ✅ [SIMPLE_STREAM] 返回完整内容，长度: {} 字符",
             final_content.len()
         );
@@ -909,7 +909,7 @@ pub async fn call_ai_streaming_simple(
     // 🔥 Community 版本的降级处理
     #[cfg(not(feature = "commercial"))]
     {
-        println!("[ToolLoop] ⚠️ [SIMPLE_STREAM] Community 版本，回退到非流式 API");
+        wf_log!("[ToolLoop] ⚠️ [SIMPLE_STREAM] Community 版本，回退到非流式 API");
         // Community 版本使用非流式调用
         let messages = vec![
             crate::core_traits::ai::Message {
