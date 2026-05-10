@@ -3197,7 +3197,7 @@ dependencies = [
 
 [[package]]
 name = "ifainew"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "anyhow",
  "arboard",

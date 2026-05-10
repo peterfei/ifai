@@ -1232,9 +1232,9 @@ mod tests {
     #[test]
     fn test_render_banner() {
         let theme = default_theme();
-        let output = render_banner("v0.4.6", "DeepSeek", "deepseek-chat", &theme);
+        let output = render_banner("v0.4.7", "DeepSeek", "deepseek-chat", &theme);
 
-        assert!(output.contains("IfAI v0.4.6"));
+        assert!(output.contains("IfAI v0.4.7"));
         assert!(output.contains("Provider:"));
         assert!(output.contains("DeepSeek"));
         assert!(output.contains("Model:"));

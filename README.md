@@ -16,6 +16,15 @@
 
 ---
 
+### 🌟 v0.4.7 新特性：持久化记忆系统 — 让 AI 跨会话记住你
+- **持久化记忆系统**：零依赖纯 Markdown 存储，两层记忆架构（热记忆注入 system prompt + 冷记忆会话归档），空间隐喻组织（Wing → Hall → Room 三层路径），18μs 注入延迟。
+- **MemorySave 工具**：AI 对话中主动保存用户偏好、技术决策、项目知识，自动执行无需审批，自动去重避免重复条目。
+- **会话后批量提取**：LLM 驱动的智能记忆提取，从对话中自动挖掘值得记忆的信息，外部化提示词模板支持自定义（`~/.ifai/prompts/memory/extract.md`）。
+- **会话归档（冷记忆）**：TUI 会话结束自动生成摘要归档至 `~/.ifai/sessions/`，人类可浏览 Markdown 格式。
+- **智能压缩系统**：工具输出截断 + 模型感知阈值 + AI 摘要，解决长对话 Token 爆炸问题。
+- **TUI + GUI 记忆共享**：同一份 `~/.ifai/memories.md`，跨界面无缝使用。
+- **10 项 Bug 修复**：Overlay 内容泄漏、Agentic Loop 空转、Ctrl+O/Ctrl+D 黑屏、TodoWrite 遮挡/断链、LLM 连接超时无反馈等。
+
 ### 🌟 v0.4.6 新特性：多线程并发对话系统 & TUI 架构重构
 - **多线程并发对话系统**：Per-Thread Session 隔离，支持多个 AI 对话线程同时运行，Arc<Mutex> 三阶段锁策略，ThreadEvent 类型安全事件路由，并发 Streaming + 审批隔离。
 - **/thread 系列斜杠命令**：`/thread new` 创建、`/thread list` 列出、`/thread switch <id>` 切换、`/thread close` 关闭线程，线程模式弹出框渲染。
@@ -120,6 +129,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.4.7** | **持久化记忆系统** | **零依赖纯 Markdown 两层记忆（热记忆注入 + 冷记忆归档）、MemorySave 工具（AI 主动保存 + 自动去重）、LLM 批量提取、外部化提示词、18μs 注入延迟、会话归档、智能压缩系统、TUI+GUI 共享、10 项 Bug 修复** |
 | **v0.4.6** | **多线程并发对话系统 & TUI 架构重构** | **Per-Thread Session 隔离（并发 Streaming + 审批隔离）、/thread 斜杠命令、多行输入（Shift+Enter）、TUI God Object 重构 Phase 1-4（App 27→14 字段、Mode enum、声明式路由表、StreamState 统一 cleanup）、862 测试用例、10 项 Bug 修复** |
 | **v0.4.5** | **TUI 增强与测试框架完善** | **Ctrl+O Detail View Overlay（全屏查看）、Ctrl+D Diff Mode（Toggle 开关）、输入消息队列（Streaming 期间排队）、斜杠命令弹出框（元编程）、510+ 测试用例（参数化/并行/快照/E2E）、元编程架构、10 项 Bug 修复** |
 | **v0.4.4** | **CLI 全面升级 — 工业级终端 AI 助手** | **元数据驱动 CLI 架构、元编程权限引擎、Token 系统、TOML 配置、会话持久化、Pipeline 可视化、循环检测引擎、ratatui 全屏 TUI、智能 Glob 搜索、49 个测试** |

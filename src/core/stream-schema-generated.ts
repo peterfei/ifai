@@ -56,6 +56,8 @@ export const TOOL_PERMISSIONS: Record<string, PermissionMode> = {
   'TodoWrite': 'ReadOnly',
   'todowrite': 'ReadOnly',
   'init_rag_index': 'ReadOnly',
+  'MemorySave': 'ReadOnly',
+  'memory_save': 'ReadOnly',
   'agent_write_file': 'WorkspaceWrite',
   'write_file': 'WorkspaceWrite',
   'agent_create_file': 'WorkspaceWrite',

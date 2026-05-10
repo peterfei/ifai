@@ -81,7 +81,9 @@ pub fn required_permission_for(tool_name: &str) -> PermissionMode {
         | "search_file_content"
         | "TodoWrite"
         | "todowrite"
-        | "init_rag_index" => PermissionMode::ReadOnly,
+        | "init_rag_index"
+        | "MemorySave"
+        | "memory_save" => PermissionMode::ReadOnly,
         "write_file" | "create_file" | "replace_text" | "edit_file" => {
             PermissionMode::WorkspaceWrite
         }

@@ -556,7 +556,7 @@ fn run_action(action: CliAction) -> Result<(), String> {
 
 /// 📋 显示版本信息
 fn show_version() {
-    println!("IfAI CLI v0.4.6");
+    println!("IfAI CLI v0.4.7");
     println!("Industrial-grade AI code assistant");
 }
 
@@ -628,7 +628,7 @@ fn config_show() -> Result<(), String> {
 
     println!(
         "{}",
-        render::render_banner("v0.4.6", &config.provider(), &config.model(), &theme)
+        render::render_banner("v0.4.7", &config.provider(), &config.model(), &theme)
     );
     println!();
     println!(
@@ -828,7 +828,7 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 显示 Banner
     println!(
         "{}",
-        render::render_banner("v0.4.6", &config.provider(), &config.model(), &theme)
+        render::render_banner("v0.4.7", &config.provider(), &config.model(), &theme)
     );
     println!();
 

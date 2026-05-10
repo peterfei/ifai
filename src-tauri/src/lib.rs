@@ -22,6 +22,7 @@ mod intelligence_router;
 mod local_model;
 mod lsp;
 pub mod memory; // 🆕 持久化记忆系统：Wing/Hall/Room/Drawer 4 层空间隐喻
+mod session_archive; // 🆕 会话归档（冷记忆存储），TUI + GUI 共用
 mod meta; // 🔥 Scanner 配置和缓存系统
 mod multimodal; // v0.3.0 新增：多模态功能
 mod openspec; // v0.2.6 新增：OpenSpec 集成
@@ -1126,6 +1127,15 @@ async fn ai_chat(
                 }
             }
         }),
+        // 🆕 MemorySave 工具（持久化记忆 — AI 主动保存用户偏好）
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "MemorySave",
+                "description": "Save an important user preference, project knowledge, or decision to persistent memory. Use proactively when user states a clear preference (e.g., 'I prefer TypeScript'), makes an important technical decision, or shares workflow patterns. Supports spatial metaphor paths: 2-layer (e.g., 'Preferences/programming-languages') or 3-layer (e.g., 'project/Preferences/code-style'). Memories persist across sessions.",
+                "parameters": crate::memory::memory_save_schema()
+            }
+        }),
     ];
 
     // 🚀 v0.5.0: 双模引擎工具策略
@@ -1143,6 +1153,7 @@ async fn ai_chat(
                     || name == "read_file"
                     || name == "glob_search"
                     || name == "grep_search"
+                    || name == "MemorySave"
             });
             println!(
                 "[AI Chat] Vibe Mode: {} → {} PIVO tools",
@@ -1165,6 +1176,23 @@ async fn ai_chat(
     );
 
     let is_vibe_mode = mode.as_deref() == Some("vibe");
+
+    // 🆕 冷记忆：在流处理前提取对话摘要（messages 将被 move 进 stream_chat）
+    let cold_memory_provider = provider_config.id.clone();
+    let cold_memory_model = provider_config.name.clone();
+    let cold_memory_pairs: Vec<(String, String)> = messages
+        .iter()
+        .filter_map(|m| {
+            let role = m.role.clone();
+            match &m.content {
+                core_traits::ai::Content::Text(t) if !t.is_empty() => {
+                    Some((role, t.clone()))
+                }
+                _ => None,
+            }
+        })
+        .collect();
+
     state.ai_service.stream_chat(
         &provider_config,
         messages,
@@ -1380,9 +1408,42 @@ async fn ai_chat(
                  if should_finish {
                      let _ = app_for_finish.emit(&format!("{}_finish", event_id_for_finish), "DONE");
 
-                     // 🆕 Phase 4: 会话结束时提取记忆（占位实现）
-                     let summary = format!("GUI chat session ended: event_id={}", event_id_for_finish);
-                     let _ = crate::memory::on_session_end(&summary);
+                     // 🆕 冷记忆：会话归档 + 记忆提取
+                     {
+                         // 1. 会话归档（保存到 ~/.ifai/sessions/）
+                         match crate::session_archive::SessionArchiver::new() {
+                             Ok(archiver) => {
+                                 let pairs: Vec<(&str, &str)> = cold_memory_pairs
+                                     .iter()
+                                     .map(|(r, t)| (r.as_str(), t.as_str()))
+                                     .collect();
+                                 if let Ok(filepath) = archiver.save_session_summary(
+                                     &cold_memory_provider,
+                                     &cold_memory_model,
+                                     0, 0, // GUI 端暂无精确 token 统计
+                                     &pairs,
+                                 ) {
+                                     println!("[Cold Memory] ✓ Session archived: {}", filepath.display());
+                                 }
+                             }
+                             Err(e) => eprintln!("[Cold Memory] ⚠ Archiver init failed: {}", e),
+                         }
+
+                         // 2. 记忆提取（从用户消息中提取偏好）
+                         let pairs: Vec<(&str, &str)> = cold_memory_pairs
+                             .iter()
+                             .map(|(r, t)| (r.as_str(), t.as_str()))
+                             .collect();
+                         let user_summary = crate::session_archive::build_user_summary(&pairs);
+                         if !user_summary.is_empty() {
+                             match crate::memory::extract_memories_simple(&user_summary) {
+                                 Ok(count) if count > 0 => {
+                                     println!("[Cold Memory] ✓ Extracted {} memories", count);
+                                 }
+                                 _ => {}
+                             }
+                         }
+                     }
                  }
              }
         })
