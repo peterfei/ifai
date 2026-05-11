@@ -1,0 +1,16 @@
+---
+source: src/bin/ifai/session_archive_snapshot_test.rs
+assertion_line: 106
+expression: content
+---
+# Session Summary
+
+**Date**: 2026-05-11 02:58:13 UTC
+**Model**: deepseek-official/deepseek-chat
+**Tokens**: 0 input + 0 output = 0 total
+
+## Conversation
+
+---
+
+*This session summary was automatically generated.*

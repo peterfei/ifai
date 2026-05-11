@@ -179,7 +179,15 @@ fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
             }
         }
         "node_completed" => {
-            lines.push(format!("{} Done", sym::DONE));
+            lines.push(String::new()); // 分隔线
+            if let Some(msg) = &event.message {
+                // message 包含完整输出，按行推送
+                for line in msg.split('\n') {
+                    lines.push(line.to_string());
+                }
+            } else {
+                lines.push(format!("{} Done", sym::DONE));
+            }
         }
         "tool_call" => {
             if let Some(details) = &event.tool_details {

@@ -487,6 +487,27 @@ impl WorkflowRunner {
             }
         }
 
+        // 🔥 发送 workflow:completed 事件
+        {
+            let is_success = result.is_all_success();
+            let error_msg = if is_success {
+                None
+            } else {
+                result.node_results.values().find_map(|r| r.error.clone())
+            };
+            self.emit_progress(
+                if is_success { "workflow:completed" } else { "workflow:error" },
+                Some(&self.workflow.id),
+                None,
+                if is_success {
+                    Some("Workflow complete")
+                } else {
+                    error_msg.as_deref()
+                },
+            )
+            .await;
+        }
+
         result.completed_at = Some(chrono::Utc::now().timestamp_millis());
         Ok(result)
     }
@@ -681,6 +702,30 @@ impl WorkflowRunner {
         {
             let mut results = node_results.write().await;
             results.insert(node_id.clone(), result.clone());
+        }
+
+        // 🔥 发送 node_completed 事件 + 输出内容
+        {
+            let cb = progress_callback.read().await;
+            if let Some(callback) = cb.as_ref() {
+                let is_success = result.status.is_success();
+                let event = ProgressEvent {
+                    event_type: "node_completed".to_string(),
+                    workflow_id: Some(workflow.id.clone()),
+                    node_id: Some(node_id.clone()),
+                    message: if is_success {
+                        result.output.as_ref().map(|o| format!("✔ {}", o))
+                    } else {
+                        result.error.clone().map(|e| format!("✘ {}", e))
+                    },
+                    timestamp: chrono::Utc::now().timestamp_millis(),
+                    tool_details: None,
+                    nodes: None,
+                    content_delta: None,
+                    content_finished: None,
+                };
+                callback(event);
+            }
         }
 
         (node_id, result)

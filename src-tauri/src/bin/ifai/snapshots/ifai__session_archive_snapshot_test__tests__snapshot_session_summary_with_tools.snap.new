@@ -1,0 +1,24 @@
+---
+source: src/bin/ifai/session_archive_snapshot_test.rs
+assertion_line: 179
+expression: content
+---
+# Session Summary
+
+**Date**: 2026-05-11 02:58:13 UTC
+**Model**: openai-official/gpt-4
+**Tokens**: 300 input + 200 output = 500 total
+
+## Conversation
+
+### 👤 User
+
+请帮我读取当前目录的文件
+
+### 🤖 Assistant
+
+我来帮你读取当前目录的文件。
+
+---
+
+*This session summary was automatically generated.*
