@@ -142,9 +142,17 @@ pub struct ThreadEnterHandler;
 
 impl EventHandler<Event> for ThreadEnterHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        // 模式守卫：非 Normal 模式时不响应
-        if app.mode != crate::tui::Mode::Normal {
-            return ControlFlow::Continue;
+        // 模式守卫：只在以下模式时响应线程切换快捷键
+        // - Normal: 正常浏览模式（允许）
+        // - Approving: 工具审批模式（允许 - 用户可能想切换线程查看其他内容）
+        // 阻止的模式：Overlay, Diff, Search, Help, ThreadPicker, CommandPopup
+        match app.mode {
+            crate::tui::Mode::Normal | crate::tui::Mode::Approving => {
+                // 允许线程切换
+            }
+            _ => {
+                return ControlFlow::Continue;
+            }
         }
 
         if let Event::Key(key) = event {
