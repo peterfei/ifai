@@ -3,8 +3,11 @@
 //! 参考 claw-code 的 ConversationRuntime 实现，支持 AI 工具调用循环
 
 use anyhow::Result;
+use rayon::prelude::*;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 /// 工具调用请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,6 +135,148 @@ impl DefaultToolExecutor {
         Ok(result)
     }
 
+    /// 执行 agent_search 工具（在代码中搜索模式）
+    async fn search(&self, pattern: &str, rel_path: &str) -> Result<String> {
+        use regex::Regex;
+
+        let full_path = std::path::Path::new(&self.project_root).join(rel_path);
+
+        // 安全检查
+        let canonical_path = full_path.canonicalize()?;
+        let canonical_root = std::path::Path::new(&self.project_root).canonicalize()?;
+        if !canonical_path.starts_with(&canonical_root) {
+            return Err(anyhow::anyhow!("路径访问被拒绝：路径在项目根目录之外"));
+        }
+
+        let regex = Regex::new(pattern)
+            .map_err(|e| anyhow::anyhow!("无效的正则表达式: {}", e))?;
+
+        let mut result = Vec::new();
+
+        // 如果是文件，直接搜索
+        if full_path.is_file() {
+            self.search_in_file(&full_path, &regex, &rel_path, &mut result)?;
+        } else if full_path.is_dir() {
+            // 如果是目录，递归搜索所有文件
+            self.search_in_dir(&full_path, &regex, &rel_path, &mut result)?;
+        }
+
+        if result.is_empty() {
+            Ok(format!("未找到匹配 \"{}\" 的内容", pattern))
+        } else {
+            Ok(result.join("\n"))
+        }
+    }
+
+    /// 在文件中搜索模式
+    fn search_in_file(
+        &self,
+        file_path: &std::path::Path,
+        regex: &Regex,
+        display_path: &str,
+        result: &mut Vec<String>,
+    ) -> Result<()> {
+        let content = std::fs::read_to_string(file_path)
+            .map_err(|e| anyhow::anyhow!("读取文件失败 {:?}: {}", file_path, e))?;
+
+        for (line_num, line) in content.lines().enumerate() {
+            if regex.find(line).is_some() {
+                result.push(format!("{}:{}:{}", display_path, line_num + 1, line));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 🔥 在目录中递归搜索（并行版本）
+    fn search_in_dir(
+        &self,
+        dir_path: &std::path::Path,
+        regex: &Regex,
+        _display_path: &str,
+        result: &mut Vec<String>,
+    ) -> Result<()> {
+        // 第一步：串行收集所有需要搜索的文件路径
+        let files_to_search = self.collect_searchable_files(dir_path)?;
+
+        // 第二步：并行搜索所有文件
+        let mutex_result = Mutex::new(result);
+        files_to_search.par_iter().for_each(|(file_path, rel_path)| {
+            if let Ok(content) = std::fs::read_to_string(file_path) {
+                let mut matches: Vec<String> = content
+                    .lines()
+                    .enumerate()
+                    .filter(|(_, line)| regex.find(line).is_some())
+                    .map(|(line_num, line)| format!("{}:{}:{}", rel_path, line_num + 1, line))
+                    .collect();
+
+                if !matches.is_empty() {
+                    if let Ok(mut result_guard) = mutex_result.lock() {
+                        result_guard.append(&mut matches);
+                    }
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// 收集目录中所有需要搜索的文件路径
+    fn collect_searchable_files(&self, dir_path: &std::path::Path) -> Result<Vec<(std::path::PathBuf, String)>> {
+        let mut files = Vec::new();
+        self.collect_files_recursive(dir_path, &mut files)?;
+        Ok(files)
+    }
+
+    /// 递归收集文件路径
+    fn collect_files_recursive(
+        &self,
+        dir_path: &std::path::Path,
+        files: &mut Vec<(std::path::PathBuf, String)>,
+    ) -> Result<()> {
+        let entries = std::fs::read_dir(dir_path)
+            .map_err(|e| anyhow::anyhow!("读取目录失败 {:?}: {}", dir_path, e))?;
+
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+
+            // 跳过隐藏目录和常见忽略目录
+            if let Some(name) = path.file_name() {
+                let name_str = name.to_string_lossy();
+                if name_str.starts_with('.')
+                    || name_str == "node_modules"
+                    || name_str == "target"
+                    || name_str == "dist"
+                    || name_str == ".git" {
+                    continue;
+                }
+            }
+
+            if path.is_file() {
+                // 只收集文本文件
+                if let Some(ext) = path.extension() {
+                    let ext_str = ext.to_string_lossy();
+                    let is_text = matches!(
+                        ext_str.as_ref(),
+                        "rs" | "toml" | "yaml" | "yml" | "json" | "md" | "txt" | "js" | "ts" | "tsx" | "jsx" | "py" | "go" | "java" | "cpp" | "c" | "h" | "cs" | "swift"
+                    );
+                    if is_text {
+                        let rel_path = path.strip_prefix(&self.project_root)
+                            .unwrap_or(&path)
+                            .to_string_lossy()
+                            .to_string();
+                        files.push((path, rel_path));
+                    }
+                }
+            } else if path.is_dir() {
+                // 递归收集子目录中的文件
+                let _ = self.collect_files_recursive(&path, files);
+            }
+        }
+
+        Ok(())
+    }
+
     /// 递归扫描目录
     fn scan_dir_recursive(
         &self,
@@ -203,12 +348,21 @@ impl ToolExecutor for DefaultToolExecutor {
             "agent_scan_project" => {
                 let rel_path = input["rel_path"]
                     .as_str()
-                    .ok_or_else(|| anyhow::anyhow!("缺少 rel_path 参数。工具调用格式: {{\"type\": \"function\", \"function\": {{\"name\": \"agent_scan_project\", \"arguments\": {{\"rel_path\": \"路径\", \"max_depth\": 3}}}}"))?;
+                    .ok_or_else(|| anyhow::anyhow!("缺少 rel_path 参数"))?;
                 let max_depth = input["max_depth"].as_u64().map(|d| d as usize);
                 self.scan_project(rel_path, max_depth).await
             }
+            "agent_search" => {
+                let pattern = input["pattern"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 pattern 参数"))?;
+                let path = input["path"]
+                    .as_str()
+                    .unwrap_or("."); // 默认搜索当前目录
+                self.search(pattern, path).await
+            }
             _ => Err(anyhow::anyhow!(
-                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project",
+                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project, agent_search",
                 name
             )),
         }
@@ -298,6 +452,29 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
                         }
                     },
                     "required": ["rel_path"]
+                }
+            }
+        }),
+        // 🔥 优先级5：搜索代码（在代码中搜索模式，类似 grep）
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "agent_search",
+                "description": "在代码中搜索匹配正则表达式的文本。支持递归搜索目录。会跳过常见忽略目录（node_modules/target/.git）。返回格式：文件路径:行号:匹配行内容",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": {
+                            "type": "string",
+                            "description": "正则表达式模式，例如：\"struct\\w+\"、\"fn\\w+\"、\"TODO|FIXME\"、\"async fn\""
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "搜索路径（文件或目录），默认为当前目录 \".\"。支持递归搜索目录。",
+                            "default": "."
+                        }
+                    },
+                    "required": ["pattern"]
                 }
             }
         }),
