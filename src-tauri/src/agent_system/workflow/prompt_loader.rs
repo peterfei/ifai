@@ -223,35 +223,29 @@ fn fallback_explore_prompt(ctx: &AgentContext) -> String {
 - 项目根目录：{}
 
 **可用工具**（按优先级排序）：
-1. `agent_scan_project(rel_path, max_depth)` - **优先使用**，一次获取完整目录结构
-2. `agent_batch_read(paths)` - 批量并行读取多个文件（推荐）
-3. `agent_read_file(rel_path)` - 读取单个文件内容
-4. `grep` - 搜索文件内容
+1. `agent_scan_project(rel_path, max_depth)` - 扫描目录结构（深度建议 2）
+2. `agent_batch_read(paths)` - 批量读取多个文件（最多10个，**强烈推荐**）
+3. `agent_read_file(rel_path)` - 读取单个文件
+4. `agent_list_dir(rel_path)` - 列出单层目录内容
 
-**工具使用策略**（性能优化）：
-1. ✅ 第一步：使用 `agent_scan_project` 一次获取完整结构
-2. ✅ 第二步：根据结构，**批量并行读取**关键文件（3-10个）
-3. ❌ 避免使用 `agent_list_dir`（scan_project 已包含完整信息）
+**工具使用策略**（关键：减少调用次数）：
+1. 第一步：`agent_scan_project(".", 2)` 快速获取项目骨架
+2. 第二步：用 `agent_batch_read` 一次读取所有关键文件（3-8个）
+3. 尽量用 batch_read 替代多次 read_file，减少交互轮次
 
-**核心探索策略 (PIVO)**：
-- **优先全景扫描**：始终先调用 `agent_scan_project` 获取项目全局拓扑
-- **禁止盲目爬行**：严禁在不了解全貌的情况下使用 `agent_list_dir`
-- **精准深入**：确定关键文件后，使用 `agent_batch_read` 批量读取
-
-**两阶段扫描工作流**：
-Phase 1: 使用 `agent_scan_project` 扫描路径："{}"（深度建议 2-3）
-Phase 2: 使用 `agent_batch_read` 批量读取关键文件（配置文件、入口文件、核心模块）
+**两阶段工作流**：
+Phase 1: `agent_scan_project` 扫描结构
+Phase 2: `agent_batch_read` 批量读取关键文件 → 分析 → 输出结果
 
 **输出格式**（简洁实用）：
-- 📊 **项目概述**（1-2句话）
-- 🛠️ **技术栈**（列出框架、语言、工具）
-- 📁 **关键目录**（3-5个最重要的）
-- 🔑 **关键文件**（已读取的文件摘要）
-- 🏗️ **架构特点**（3-5点）
+- 项目概述（1-2句话）
+- 技术栈（框架、语言、工具）
+- 关键目录（3-5个）
+- 架构特点（3-5点）
 
 快速完成，输出简洁明了，避免冗长。
 "#,
-        ctx.project_root, ctx.task_description
+        ctx.project_root
     )
 }
 

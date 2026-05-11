@@ -86,7 +86,7 @@ impl DefaultToolExecutor {
 
     /// 执行 scan_project 工具（递归扫描项目结构）
     async fn scan_project(&self, rel_path: &str, max_depth: Option<usize>) -> Result<String> {
-        let max_depth = max_depth.unwrap_or(3);
+        let max_depth = max_depth.unwrap_or(2);
         let full_path = std::path::Path::new(&self.project_root).join(rel_path);
 
         let mut result = String::new();
@@ -138,6 +138,47 @@ impl DefaultToolExecutor {
 
         Ok(())
     }
+
+    /// 执行 batch_read 工具（并行读取多个文件）
+    async fn batch_read(&self, paths: &[String]) -> Result<String> {
+        let mut results = Vec::new();
+
+        for rel_path in paths {
+            let full_path = std::path::Path::new(&self.project_root).join(rel_path);
+
+            // 安全检查
+            let canonical_path = match full_path.canonicalize() {
+                Ok(p) => p,
+                Err(e) => {
+                    results.push(format!("=== {} ===\n[ERROR] 路径无效: {}", rel_path, e));
+                    continue;
+                }
+            };
+            let canonical_root = match std::path::Path::new(&self.project_root).canonicalize() {
+                Ok(p) => p,
+                Err(e) => {
+                    results.push(format!("=== {} ===\n[ERROR] 项目根目录无效: {}", rel_path, e));
+                    continue;
+                }
+            };
+
+            if !canonical_path.starts_with(&canonical_root) {
+                results.push(format!("=== {} ===\n[ERROR] 路径访问被拒绝：在项目根目录之外", rel_path));
+                continue;
+            }
+
+            match std::fs::read_to_string(&full_path) {
+                Ok(content) => {
+                    results.push(format!("=== {} ===\n{}", rel_path, content));
+                }
+                Err(e) => {
+                    results.push(format!("=== {} ===\n[ERROR] 读取失败: {}", rel_path, e));
+                }
+            }
+        }
+
+        Ok(results.join("\n\n"))
+    }
 }
 
 #[async_trait::async_trait]
@@ -169,8 +210,24 @@ impl ToolExecutor for DefaultToolExecutor {
                 let max_depth = input["max_depth"].as_u64().map(|d| d as usize);
                 self.scan_project(rel_path, max_depth).await
             }
+            "agent_batch_read" => {
+                let paths = input["paths"]
+                    .as_array()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 paths 参数（数组）。格式: {{\"paths\": [\"file1.rs\", \"file2.rs\"]}}"))?;
+                let path_strs: Vec<String> = paths
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                if path_strs.is_empty() {
+                    return Err(anyhow::anyhow!("paths 数组为空，至少需要一个文件路径"));
+                }
+                if path_strs.len() > 10 {
+                    return Err(anyhow::anyhow!("单次最多读取 10 个文件，当前: {}", path_strs.len()));
+                }
+                self.batch_read(&path_strs).await
+            }
             _ => Err(anyhow::anyhow!(
-                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project",
+                "未知的工具: {}。可用工具: agent_read_file, agent_batch_read, agent_list_dir, agent_scan_project",
                 name
             )),
         }
@@ -209,30 +266,49 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "agent_scan_project",
-                "description": "【优先使用】深度扫描项目结构，一次性获取完整目录树。递归列出所有目录和文件，是理解项目的最快方式。",
+                "description": "扫描项目目录结构，获取目录树。用于快速了解项目骨架。深度建议 2，避免输出过长。",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "rel_path": {
                             "type": "string",
-                            "description": "相对于项目根目录的扫描路径"
+                            "description": "相对于项目根目录的扫描路径，通常为 \".\""
                         },
                         "max_depth": {
                             "type": "number",
-                            "description": "最大扫描深度（推荐2-3，默认3）",
-                            "default": 3
+                            "description": "最大扫描深度（推荐2，默认2）",
+                            "default": 2
                         }
                     },
                     "required": ["rel_path"]
                 }
             }
         }),
-        // 🔥 优先级2：读取文件
+        // 🔥 优先级2：批量读取文件（推荐，减少调用次数）
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "agent_batch_read",
+                "description": "批量读取多个文件内容（最多10个）。一次调用读取所有需要的文件，大幅减少交互轮次。每个文件用 === path === 分隔。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "paths": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "相对于项目根目录的文件路径数组，如 [\"Cargo.toml\", \"src/main.rs\", \"README.md\"]"
+                        }
+                    },
+                    "required": ["paths"]
+                }
+            }
+        }),
+        // 🔥 优先级3：读取单个文件（仅读取1个文件时使用）
         serde_json::json!({
             "type": "function",
             "function": {
                 "name": "agent_read_file",
-                "description": "读取文件内容。用于查看配置文件、源代码等。可以在一次调用中并行读取多个文件。",
+                "description": "读取单个文件内容。仅在只需要读取1个文件时使用。多个文件请用 agent_batch_read。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -245,12 +321,12 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
                 }
             }
         }),
-        // 🔥 优先级3：列出目录（仅在需要时使用）
+        // 🔥 优先级4：列出目录（仅在需要查看特定目录时使用）
         serde_json::json!({
             "type": "function",
             "function": {
                 "name": "agent_list_dir",
-                "description": "列出目录内容（仅一层）。注意：agent_scan_project 已包含完整目录结构，通常不需要单独使用此工具。",
+                "description": "列出指定目录的内容（仅一层）。当只需要查看某个目录下有哪些文件时使用。",
                 "parameters": {
                     "type": "object",
                     "properties": {
