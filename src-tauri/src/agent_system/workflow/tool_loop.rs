@@ -107,6 +107,7 @@ pub async fn execute_with_tools(
             provider_config.clone(),
             &messages,
             progress_callback.clone(), // 🔥 传递进度回调给流式函数
+            cancellation_token.clone(), // 🔥 传递取消令牌
         )
         .await?;
         let ai_duration = ai_start.elapsed();
@@ -562,6 +563,7 @@ async fn call_ai_with_tools_stream(
     provider_config: crate::core_traits::ai::AIProviderConfig,
     messages: &[Message],
     progress_callback: Option<ToolProgressCallback>,
+    cancellation_token: Option<CancellationToken>,
 ) -> Result<String, String> {
     wf_log!("[ToolLoop] 📤 [STREAM] 调用流式 AI API");
 
@@ -662,9 +664,17 @@ async fn call_ai_with_tools_stream(
         let mut chunk_count = 0;
         let mut sent_tool_notifications = std::collections::HashSet::new();
 
-        // 🔥 步骤5：处理每个流式 chunk（带超时保护，防止 API 半开连接导致永久挂起）
+        // 🔥 步骤5：处理每个流式 chunk（带超时保护 + 取消支持）
         let stream_timeout = Duration::from_secs(180);
         loop {
+            // 🔥 检查取消状态（在每次迭代开始时）
+            if let Some(ref token) = cancellation_token {
+                if token.is_cancelled() {
+                    wf_log!("[ToolLoop] 🛑 [STREAM] 收到取消信号，中止流式处理");
+                    return Err("操作已取消".to_string());
+                }
+            }
+
             let event_result = match timeout(stream_timeout, stream.next()).await {
                 Ok(Some(result)) => result,
                 Ok(None) => {
@@ -849,6 +859,7 @@ async fn call_ai_with_tools_stream(
 /// - `system_prompt`: 系统提示词
 /// - `user_message`: 用户消息
 /// - `content_callback`: 内容增量回调 (delta_text, is_finished)
+/// - `cancellation_token`: 取消令牌（可选）
 ///
 /// # 返回
 /// 完整的响应文本
@@ -857,6 +868,7 @@ pub async fn call_ai_streaming_simple(
     system_prompt: String,
     user_message: String,
     content_callback: ContentDeltaCallback,
+    cancellation_token: Option<CancellationToken>,
 ) -> Result<String, String> {
     wf_log!("[ToolLoop] 📤 [SIMPLE_STREAM] 调用简化流式 AI API");
     wf_log!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
@@ -931,8 +943,16 @@ pub async fn call_ai_streaming_simple(
 
         wf_log!("[ToolLoop] 📥 [SIMPLE_STREAM] 开始接收流式响应...");
 
-        // 🔥 处理每个流式 chunk
+        // 🔥 处理每个流式 chunk（带取消检查）
         while let Some(event_result) = stream.next().await {
+            // 🔥 检查取消状态（在每次迭代开始时）
+            if let Some(ref token) = cancellation_token {
+                if token.is_cancelled() {
+                    wf_log!("[ToolLoop] 🛑 [SIMPLE_STREAM] 收到取消信号，中止流式处理");
+                    return Err("操作已取消".to_string());
+                }
+            }
+
             match event_result {
                 Ok(event) => {
                     if event.data == "[DONE]" {

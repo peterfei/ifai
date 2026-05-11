@@ -79,6 +79,10 @@ mod tui_layout; // 🔥 声明式 TUI 布局层
 mod tui_test;
 #[cfg(test)]
 mod user_reported_cross_talk_test; // 🔥 用户报告的消息串台场景测试
+#[cfg(test)]
+mod workflow_cancel_e2e_test; // 🧪 Workflow ESC 取消 E2E 测试
+#[cfg(test)]
+mod workflow_cancel_unit_test; // 🧪 Workflow 取消功能单元测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
@@ -1316,6 +1320,31 @@ async fn handle_agent_command(
     // mini-event-loop：消费进度事件并渲染到内容区
     let mut tick_count = 0u32;
     loop {
+        // 检查键盘事件：ESC 或 Ctrl+C 取消
+        if crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
+            if let Ok(event) = crossterm::event::read() {
+                if let crossterm::event::Event::Key(key) = event {
+                    use crossterm::event::KeyCode;
+                    use crossterm::event::KeyModifiers;
+
+                    // 检查 ESC 或 Ctrl+C
+                    let is_cancel = key.code == KeyCode::Esc
+                        || (key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c'));
+
+                    if is_cancel {
+                        // 中断 agent 任务
+                        handle.abort();
+
+                        app.push_line("⊘ Agent 已中断".to_string());
+                        app.set_status(String::new());
+                        app.scroll_to_bottom();
+                        app.render();
+                        break;
+                    }
+                }
+            }
+        }
+
         // 尝试非阻塞接收进度事件
         let mut got_events = false;
         while let Ok(line) = progress_rx.try_recv() {
@@ -1430,25 +1459,38 @@ async fn handle_workflow_command(
 
             let path_owned = path_str.clone();
             let provider_owned = provider_json.map(|s| s.to_string());
-            app.set_status(format!("Workflow running: {}", path_str));
+            app.set_status(format!("Workflow running: {} (按 ESC 取消)", path_str));
             app.render();
 
-            let handle = tokio::spawn(async move {
-                workflow_cmd::run_workflow(&path_owned, provider_owned.as_deref())
+            // 异步启动 workflow，立即返回不阻塞
+            let workflow_future = async move {
+                workflow_cmd::run_workflow_async(&path_owned, provider_owned).await
+            };
+
+            // 在后台启动 workflow 并监控完成状态
+            tokio::spawn(async move {
+                if let Ok(workflow_id) = workflow_future.await {
+                    // 监控 workflow 直到完成
+                    let manager = ifainew_lib::commands::workflow_commands::get_workflow_manager();
+
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                        let mgr = manager.lock().await;
+                        let is_running = mgr.get_workflow(&workflow_id).is_some();
+                        drop(mgr);
+
+                        if !is_running {
+                            break;
+                        }
+                    }
+
+                    // Workflow 完成后通过检查状态更新 UI
+                    // (这里简化处理，实际完成时会自动清理)
+                }
             });
 
-            match handle.await {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => {
-                    app.push_line(format!("Error: {}", e));
-                }
-                Err(e) => {
-                    app.push_line(format!("Error: workflow task panicked: {}", e));
-                }
-            }
-            app.set_status(String::new());
-            app.scroll_to_bottom();
-            app.render();
+            // 立即返回，让主循环继续处理键盘事件
+            return;
         }
         _ => {
             app.push_line(format!(
@@ -1731,8 +1773,9 @@ async fn run_streaming_loop(
                     if mouse_scrolled {
                         StreamingControl::Continue
                     } else {
-                        // 处理键盘事件
-                        handle_single_key_event(app, stream_states, &active_id, event)
+                        // 其他键盘事件：走正常路由处理
+                        handle_single_key_event(app, stream_states, &active_id, event);
+                        StreamingControl::Continue
                     }
                 }
             }
@@ -2083,16 +2126,60 @@ fn execute_route_action(
             StreamingControl::Continue
         }
         RouteAction::ReturnToParent => {
-            if app.thread.active_mode {
-                if app.return_to_parent() {
+            // 🔥 优先检查是否有运行的 workflow 需要取消
+            let manager = ifainew_lib::commands::workflow_commands::get_workflow_manager();
+
+            // 使用 try_lock 在同步上下文中检查
+            let workflow_cancelled = if let Ok(mgr) = manager.try_lock() {
+                let all_workflows = mgr.all_workflows();
+                let workflow_id: Option<String> = all_workflows
+                    .iter()
+                    .find(|id| id.starts_with("tui-"))
+                    .cloned();
+
+                if let Some(wf_id) = workflow_id {
+                    app.push_line("⊘ 正在取消工作流...".to_string());
+                    app.scroll_to_bottom();
                     app.render();
-                    if let Some(thread) = app.thread.store.active_thread() {
-                        if thread.kind == crate::thread::ThreadKind::Main {
-                            app.thread.active_mode = false;
+
+                    // 在后台任务中执行取消
+                    tokio::spawn(async move {
+                        let manager = ifainew_lib::commands::workflow_commands::get_workflow_manager();
+                        let mut mgr = manager.lock().await;
+                        if let Some(runner_arc) = mgr.get_workflow(&wf_id) {
+                            let mut runner = runner_arc.lock().await;
+                            let _ = runner.cancel().await;
+                        }
+                        mgr.remove_workflow(&wf_id);
+                    });
+
+                    app.push_line("⊘ 工作流已取消".to_string());
+                    app.set_status(String::new());
+                    app.scroll_to_bottom();
+                    app.render();
+
+                    true // Workflow 已取消
+                } else {
+                    false // 没有 workflow，继续正常处理
+                }
+            } else {
+                false // Manager 被锁定，无法检查，继续正常处理
+            };
+
+            // 如果没有取消 workflow，执行原有的返回父线程逻辑
+            if !workflow_cancelled {
+                if app.thread.active_mode {
+                    if app.return_to_parent() {
+                        app.render();
+                        if let Some(thread) = app.thread.store.active_thread() {
+                            if thread.kind == crate::thread::ThreadKind::Main {
+                                app.thread.active_mode = false;
+                            }
                         }
                     }
                 }
             }
+
             StreamingControl::Continue
         }
         RouteAction::ScrollUp(n) => {

@@ -8,7 +8,7 @@ pub mod agent_system; // 🔥 公开 agent_system 供 CLI 使用
 mod ai; // v0.3.7 新增：PIVO 任务拆解与自愈引擎
 mod ai_utils;
 mod analysis; // 🏆 PIVO 3.0: 物理感知与符号探测
-mod commands;
+pub mod commands; // 🔥 公开 commands 供 CLI 使用（workflow_manager）
 mod community;
 pub mod conversation; // 🔥 公开 conversation 供 CLI 使用（token_counter）
 pub mod core_traits; // 公开 core_traits 供 CLI 使用

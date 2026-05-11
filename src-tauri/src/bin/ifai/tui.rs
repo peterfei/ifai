@@ -592,6 +592,8 @@ pub struct App {
     /// 测试模式下的终端尺寸（None 表示使用实际 terminal 尺寸）
     #[cfg(test)]
     test_size: Option<(u16, u16)>,
+    /// 🔥 当前运行的 workflow ID（用于 ESC 取消）
+    pub running_workflow_id: Option<String>,
 }
 
 impl App {
@@ -631,6 +633,7 @@ impl App {
             selection: Selection::new(),
             #[cfg(test)]
             test_size: None,
+            running_workflow_id: None,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -662,6 +665,7 @@ impl App {
             selection: Selection::new(),
             #[cfg(test)]
             test_size: None,
+            running_workflow_id: None,
         }
     }
 

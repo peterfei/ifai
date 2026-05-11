@@ -129,6 +129,7 @@ impl AgentPromptLoader {
             variables: context.variables.clone(),
             provider_config: self.default_provider_config(),
             current_model: None,
+            cancellation_token: None, // 🔥 fallback 场景无需取消令牌
         };
 
         (config.fallback_template)(&agent_ctx)

@@ -1179,6 +1179,84 @@ export const initStoreMapper = () => {
       }
     });
 
+    // 🔥 P4.5: 映射工作流取消
+    chatEventBus.on('workflow:cancelled', (payload) => {
+      const { workflowId } = payload as any;
+
+      console.log('[StoreMapper] ⚠️ workflow:cancelled received:', {
+        workflowId,
+      });
+
+      // 更新全局工作流状态
+      import('@/components/workflow/WorkflowInlineMonitor').then(({ updateGlobalWorkflowState }) => {
+        updateGlobalWorkflowState(workflowId, {
+          status: 'cancelled' as const,
+          endTime: Date.now(),
+        });
+      }).catch(err => {
+        console.error('[StoreMapper] ❌ Failed to update global workflow state on cancelled:', err);
+      });
+
+      const updater = (state: any) => {
+        if (!state || !state.messages) {
+          console.warn('[StoreMapper] ⚠️ State is invalid in workflow:cancelled handler, preserving current state');
+          return state;
+        }
+
+        // 查找包含此 workflowId 的助手消息
+        const assistantIndex = state.messages.findIndex((m: any) =>
+          m.role === 'assistant' &&
+          m.metadata?.workflowId === workflowId
+        );
+
+        if (assistantIndex === -1) {
+          console.warn('[StoreMapper] ⚠️ Assistant message not found for cancelled workflow:', workflowId);
+          return state;
+        }
+
+        const existingMessage = state.messages[assistantIndex];
+        const existingContent = existingMessage.content || '';
+
+        // 构建取消消息内容
+        const cancelledContent = `${existingContent}\n\n## ⚠️ 工作流已取消\n\n执行被用户中断。`;
+
+        const newMessages = [...state.messages];
+        newMessages[assistantIndex] = {
+          ...existingMessage,
+          content: cancelledContent,
+          status: 'completed',
+          // 🔥 FIX: 保留原始时间戳，避免消息乱序
+          timestamp: existingMessage.timestamp || Date.now(),
+          segments: [
+            ...(existingMessage.segments || []),
+            {
+              id: `seg-workflow-cancelled-${workflowId}`,
+              type: 'text' as const,
+              phase: 'pre-tool' as const,
+              content: '\n\n## ⚠️ 工作流已取消\n\n执行被用户中断。',
+              order: (existingMessage.segments?.length || 0) + 1,
+              timestamp: Date.now(),
+            }
+          ],
+          metadata: {
+            ...existingMessage.metadata,
+            completed: true,
+            completedAt: Date.now(),
+            cancelled: true,
+          }
+        };
+
+        console.log('[StoreMapper] ✅ Updated message with workflow cancellation');
+
+        return {
+          messages: newMessages,
+          isLoading: false,
+        };
+      };
+
+      useChatStore.setState(updater as any);
+    });
+
     // P4: 映射工作流错误
     chatEventBus.on('workflow:error', (payload) => {
       const { correlationId, error } = payload as any;

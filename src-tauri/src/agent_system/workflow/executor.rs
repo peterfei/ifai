@@ -85,6 +85,8 @@ pub struct NodeExecutionContext {
     pub tool_progress_callback: Option<ToolProgressCallback>,
     /// 🔥 流式内容增量回调（可选，用于 Doc agent 的渐进式输出）
     pub content_delta_callback: Option<ContentDeltaCallback>,
+    /// 🔥 取消令牌（用于中断执行）
+    pub cancellation_token: Option<tokio_util::sync::CancellationToken>,
 }
 
 impl NodeExecutionContext {
@@ -99,6 +101,7 @@ impl NodeExecutionContext {
             provider_config: None,
             tool_progress_callback: None,
             content_delta_callback: None,
+            cancellation_token: None,
         }
     }
 
@@ -141,6 +144,12 @@ impl NodeExecutionContext {
         self
     }
 
+    /// 🔥 设置取消令牌
+    pub fn with_cancellation_token(mut self, token: tokio_util::sync::CancellationToken) -> Self {
+        self.cancellation_token = Some(token);
+        self
+    }
+
     /// 获取完整的任务描述（包含输入数据）
     pub fn get_full_task_description(&self) -> String {
         if self.inputs.is_empty() {
@@ -173,6 +182,7 @@ impl NodeExecutionContext {
                 .clone()
                 .unwrap_or_else(|| default_provider_config()),
             current_model, // 🔥 使用用户选择的模型
+            cancellation_token: self.cancellation_token.clone(), // 🔥 传递取消令牌
         }
     }
 }
@@ -269,6 +279,7 @@ impl NodeExecutor for AgentNodeExecutor {
                 .clone()
                 .unwrap_or_else(|| default_provider_config()),
             current_model, // 🔥 使用用户选择的模型
+            cancellation_token: ctx.cancellation_token.clone(), // 🔥 传递取消令牌
         };
 
         // 🔥 执行真实的智能体调用
@@ -406,6 +417,7 @@ impl AgentNodeExecutor {
                     system_prompt,
                     user_message,
                     callback,
+                    ctx.cancellation_token.clone(), // 🔥 传递取消令牌
                 )
                 .await
                 .map_err(|e| {
@@ -441,7 +453,7 @@ impl AgentNodeExecutor {
                     &tool_executor,
                     tool_config,
                     tool_progress_callback_clone,
-                    None, // cancellation_token: Phase 2 暂不传播，后续接入
+                    ctx.cancellation_token.clone(),
                 )
                 .await
                 .map_err(|e| {

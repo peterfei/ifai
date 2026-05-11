@@ -73,6 +73,11 @@ impl WorkflowManager {
     pub fn remove_workflow(&mut self, id: &str) {
         self.running_workflows.remove(id);
     }
+
+    /// 🔥 获取所有运行中的 workflow ID
+    pub fn all_workflows(&self) -> Vec<String> {
+        self.running_workflows.keys().cloned().collect()
+    }
 }
 
 /// 从 YAML 字符串解析工作流
@@ -356,7 +361,7 @@ pub async fn execute_workflow(
 
 /// 取消工作流执行
 #[tauri::command]
-pub async fn cancel_workflow(workflow_id: String) -> Result<(), String> {
+pub async fn cancel_workflow(workflow_id: String, window: tauri::Window) -> Result<(), String> {
     let manager = get_workflow_manager();
     let mut manager = manager.lock().await;
 
@@ -368,6 +373,19 @@ pub async fn cancel_workflow(workflow_id: String) -> Result<(), String> {
             .map_err(|e| format!("取消失败: {}", e))?;
 
         manager.remove_workflow(&workflow_id);
+
+        // 🔥 发送取消事件到前端
+        println!("[Workflow] 📤 Emitting workflow:cancelled event to frontend...");
+        let cancelled_event = serde_json::json!({
+            "workflowId": workflow_id,
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+        });
+        if let Err(e) = window.emit("workflow:cancelled", &cancelled_event) {
+            println!("[Workflow] ⚠️ Failed to emit cancelled event: {}", e);
+        } else {
+            println!("[Workflow] ✅ Successfully sent workflow:cancelled event");
+        }
+
         Ok(())
     } else {
         Err("工作流不存在".to_string())

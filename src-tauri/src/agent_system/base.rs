@@ -32,6 +32,8 @@ pub struct AgentContext {
     pub variables: HashMap<String, String>,
     pub provider_config: crate::core_traits::ai::AIProviderConfig,
     pub current_model: Option<String>, // 🔥 用户当前选择的模型
+    #[serde(skip)]
+    pub cancellation_token: Option<tokio_util::sync::CancellationToken>, // 🔥 取消令牌
 }
 
 #[async_trait]

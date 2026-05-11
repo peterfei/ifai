@@ -139,6 +139,65 @@ pub fn run_workflow(path: &str, provider_config_json: Option<&str>) -> Result<()
     Ok(())
 }
 
+/// 🔥 异步版本：注册到 WorkflowManager 并返回 workflow_id（用于 TUI 取消）
+pub async fn run_workflow_async(
+    path: &str,
+    provider_config_json: Option<String>,
+) -> Result<String, String> {
+    use ifainew_lib::commands::workflow_commands;
+
+    // 0. 解析路径（支持模板名 / 相对路径 / 绝对路径）
+    let resolved = resolve_template_path(path)?;
+
+    // 1. 读取文件
+    let yaml = fs::read_to_string(&resolved)
+        .map_err(|e| format!("文件读取失败: {} - {}", resolved, e))?;
+
+    // 2. 解析 YAML
+    let mut workflow = WorkflowParser::from_str(&yaml)
+        .map_err(|e| format!("YAML 解析失败: {}", e))?;
+
+    // 3. 注入 provider_config 到 workflow variables
+    if let Some(ref config_json) = provider_config_json {
+        workflow.variables.insert("provider_config".to_string(), config_json.clone());
+    }
+
+    // 4. 生成 workflow_id
+    let workflow_id = format!("tui-{}", uuid::Uuid::new_v4());
+
+    // 5. 构建 runner + TUI callback
+    let config = ifainew_lib::agent_system::workflow::runner::RunnerConfig::default();
+    let runner = ifainew_lib::agent_system::workflow::runner::WorkflowRunner::new(workflow, config)
+        .map_err(|e| format!("工作流初始化失败: {}", e))?
+        .with_progress_callback(tui_progress_callback());
+
+    // 5. 注册到 WorkflowManager
+    let manager = workflow_commands::get_workflow_manager();
+    let mut manager = manager.lock().await;
+    manager.start_workflow(workflow_id.clone(), runner)?;
+    drop(manager); // 释放锁
+
+    // 6. 在后台执行
+    let manager_for_run = workflow_commands::get_workflow_manager();
+    let workflow_id_clone = workflow_id.clone();
+    tokio::spawn(async move {
+        let manager = manager_for_run.lock().await;
+        if let Some(runner_arc) = manager.get_workflow(&workflow_id_clone) {
+            let mut runner = runner_arc.lock().await;
+            match runner.run().await {
+                Ok(_) => {
+                    println!("[TUI] ✅ Workflow {} completed", workflow_id_clone);
+                }
+                Err(e) => {
+                    eprintln!("[TUI] ❌ Workflow {} failed: {}", workflow_id_clone, e);
+                }
+            }
+        }
+    });
+
+    Ok(workflow_id)
+}
+
 /// TUI 进度 callback — 将 ProgressEvent 格式化为文本行（用于 channel 发送到 TUI 内容区）
 ///
 /// 返回的闭包将每个 ProgressEvent 转换为一行或多行 String，

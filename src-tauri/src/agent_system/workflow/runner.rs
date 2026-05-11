@@ -225,6 +225,8 @@ pub struct WorkflowRunner {
     node_results: Arc<RwLock<HashMap<String, NodeResult>>>,
     /// 🔥 进度回调（用于流式输出）
     progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
+    /// 🔥 取消令牌（用于中断正在执行的工具）
+    cancellation_token: tokio_util::sync::CancellationToken,
 }
 
 /// 🔥 工具调用详细信息
@@ -278,6 +280,7 @@ impl WorkflowRunner {
             schedule: Some(schedule),
             node_results: Arc::new(RwLock::new(HashMap::new())),
             progress_callback: Arc::new(RwLock::new(None)),
+            cancellation_token: tokio_util::sync::CancellationToken::new(),
         })
     }
 
@@ -529,6 +532,7 @@ impl WorkflowRunner {
         let node_results = self.node_results.clone();
         let config = self.config.clone();
         let progress_callback = self.progress_callback.clone();
+        let cancellation_token = self.cancellation_token.clone();
 
         wf_log!("[WorkflowRunner] 🔧 progress_callback cloned, checking if it exists...");
         {
@@ -551,6 +555,7 @@ impl WorkflowRunner {
                 let node_results_clone = node_results.clone();
                 let config_clone = config.clone();
                 let progress_callback_clone = progress_callback.clone();
+                let cancellation_token_clone = cancellation_token.clone();
 
                 tasks.push(async move {
                     // 🔥 执行节点（内联版本，避免生命周期问题）
@@ -560,6 +565,7 @@ impl WorkflowRunner {
                         node_results_clone,
                         config_clone,
                         progress_callback_clone,
+                        cancellation_token_clone,
                     )
                     .await
                 });
@@ -602,6 +608,7 @@ impl WorkflowRunner {
         node_results: Arc<RwLock<HashMap<String, NodeResult>>>,
         config: RunnerConfig,
         progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
+        cancellation_token: tokio_util::sync::CancellationToken,
     ) -> (String, NodeResult) {
         let node_id = node.id.clone();
 
@@ -654,47 +661,57 @@ impl WorkflowRunner {
             );
         }
 
-        // 执行节点（带智能重试）
-        let mut retry_count = 0;
-        let result = loop {
-            match Self::execute_node_once_static(&node, &workflow, progress_callback.clone()).await
-            {
-                Ok(result) => break result,
-                Err(e) if retry_count < config.max_retries => {
-                    retry_count += 1;
+        // 🔥 执行节点（带智能重试 + 超时）
+        let timeout_duration = tokio::time::Duration::from_secs(config.node_timeout_secs);
+        let result = match tokio::time::timeout(timeout_duration, async {
+            let mut retry_count = 0;
+            loop {
+                match Self::execute_node_once_static(&node, &workflow, progress_callback.clone(), cancellation_token.clone()).await
+                {
+                    Ok(result) => break result,
+                    Err(e) if retry_count < config.max_retries => {
+                        retry_count += 1;
 
-                    // 🔥 检查是否是速率限制错误
-                    let error_str = e.to_string().to_lowercase();
-                    let is_rate_limit = error_str.contains("429")
-                        || error_str.contains("rate limit")
-                        || error_str.contains("速率限制")
-                        || error_str.contains("达到速率限制");
+                        // 🔥 检查是否是速率限制错误
+                        let error_str = e.to_string().to_lowercase();
+                        let is_rate_limit = error_str.contains("429")
+                            || error_str.contains("rate limit")
+                            || error_str.contains("速率限制")
+                            || error_str.contains("达到速率限制");
 
-                    if is_rate_limit {
-                        // 🔥 指数退避（参考 claw-code）：200ms 起始，每次翻倍，上限 2 秒
-                        let delay_ms = std::cmp::min(2000, 200 * 2usize.pow(retry_count as u32));
-                        wf_log!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
-                            retry_count, config.max_retries, delay_ms);
-                        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms as u64))
-                            .await;
-                        wf_log!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
-                    } else {
-                        // 其他错误，使用较短延迟
-                        wf_log!(
-                            "[WorkflowRunner] ⚠️ Node {} failed (retry {}/{}): {}",
-                            node_id, retry_count, config.max_retries, e
-                        );
-                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        if is_rate_limit {
+                            // 🔥 指数退避（参考 claw-code）：200ms 起始，每次翻倍，上限 2 秒
+                            let delay_ms = std::cmp::min(2000, 200 * 2usize.pow(retry_count as u32));
+                            wf_log!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
+                                retry_count, config.max_retries, delay_ms);
+                            tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms as u64))
+                                .await;
+                            wf_log!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
+                        } else {
+                            // 其他错误，使用较短延迟
+                            wf_log!(
+                                "[WorkflowRunner] ⚠️ Node {} failed (retry {}/{}): {}",
+                                node_id, retry_count, config.max_retries, e
+                            );
+                            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        }
+                        continue;
                     }
-                    continue;
+                    Err(e) => {
+                        wf_log!(
+                            "[WorkflowRunner] ❌ Node {} failed after {} retries: {}",
+                            node_id, config.max_retries, e
+                        );
+                        break NodeResult::failure(node_id.clone(), e.to_string());
+                    }
                 }
-                Err(e) => {
-                    wf_log!(
-                        "[WorkflowRunner] ❌ Node {} failed after {} retries: {}",
-                        node_id, config.max_retries, e
-                    );
-                    break NodeResult::failure(node_id.clone(), e.to_string());
-                }
+            }
+        }).await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                wf_log!("[WorkflowRunner] ⏱️ Node {} timed out after {} seconds", node_id, config.node_timeout_secs);
+                NodeResult::failure(node_id.clone(), format!("节点执行超时（{}秒）", config.node_timeout_secs))
             }
         };
 
@@ -736,6 +753,7 @@ impl WorkflowRunner {
         node: &WorkflowNode,
         workflow: &Workflow,
         progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
+        cancellation_token: tokio_util::sync::CancellationToken,
     ) -> Result<NodeResult> {
         wf_log!(
             "[WorkflowRunner] 🔧 Executing node: {} ({:?})",
@@ -847,6 +865,10 @@ impl WorkflowRunner {
             );
             ctx = ctx.with_variable("current_model".to_string(), model);
         }
+
+        // 🔥 创建 child cancellation token 并传递到执行上下文
+        let child_token = cancellation_token.child_token();
+        ctx = ctx.with_cancellation_token(child_token);
 
         // 🔥 添加工具调用进度回调
         let progress_callback_for_tool = progress_callback.clone();
@@ -1189,6 +1211,8 @@ impl WorkflowRunner {
     pub async fn cancel(&self) -> Result<()> {
         let mut status = self.status.write().await;
         *status = WorkflowStatus::Cancelled;
+        // 🔥 触发 cancellation token 以中断正在执行的工具
+        self.cancellation_token.cancel();
         Ok(())
     }
 

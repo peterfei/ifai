@@ -8,12 +8,13 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from
 import { flushSync } from 'react-dom';
 import { Card } from '../UI/card';
 import { Badge } from '../UI/badge';
-import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileText, Edit, Code, Play, Network } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileText, Edit, Code, Play, Network, X } from 'lucide-react';
 import { WorkflowDAGMonitor, type DAGNode, type DAGEdge, type ToolCallDetails } from './WorkflowDAGMonitor';
 import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
 import { useThreadStore } from '../../stores/threadStore';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n/config';
+import { invoke } from '@tauri-apps/api/core';
 
 // ==================== 工具函数 ====================
 
@@ -305,7 +306,7 @@ interface WorkflowNode {
 interface WorkflowInfo {
   id: string;
   name: string;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   startTime: number;
   endTime?: number;
   progress?: number;
@@ -777,6 +778,22 @@ export function WorkflowInlineMonitor({
   });
   const [isExpanded, setIsExpanded] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'dag'>('list'); // 🔥 默认使用列表视图
+
+  // 🔥 取消工作流
+  const handleCancelWorkflow = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止展开/收起
+    try {
+      await invoke('cancel_workflow', { workflowId: actualWorkflowId });
+      // 更新本地状态为 cancelled
+      setWorkflow(prev => ({ ...prev, status: 'cancelled' as const, endTime: Date.now() }));
+      updateGlobalWorkflowState(actualWorkflowId, {
+        status: 'cancelled' as const,
+        endTime: Date.now()
+      });
+    } catch (error) {
+      console.error('[WorkflowInlineMonitor] ❌ Failed to cancel workflow:', error);
+    }
+  }, [actualWorkflowId]);
 
   // 🔥 辅助方法：流式内容智能去重（通用算法，防止卡顿导致的重复）
   const deduplicateStreamingContent = useCallback((delta: string, existingContent: string): string => {
@@ -1519,6 +1536,8 @@ export function WorkflowInlineMonitor({
         return '!text-green-400 !border-green-600';
       case 'failed':
         return '!text-red-400 !border-red-600';
+      case 'cancelled':
+        return '!text-yellow-400 !border-yellow-600';
       default:
         return '!text-gray-300 !border-gray-600';
     }
@@ -1530,6 +1549,8 @@ export function WorkflowInlineMonitor({
         return t('workflowInline.statusCompleted');
       case 'failed':
         return t('workflowInline.statusFailed');
+      case 'cancelled':
+        return '已取消';
       default:
         return t('workflowInline.statusRunning');
     }
@@ -1548,6 +1569,8 @@ export function WorkflowInlineMonitor({
     ? t('workflowInline.completed')
     : workflow.status === 'failed'
     ? t('workflowInline.failed')
+    : workflow.status === 'cancelled'
+    ? '已取消'
     : workflow.name;
 
   // 🔥 FIX: 移除高频渲染日志，避免控制台刷屏
@@ -1592,6 +1615,17 @@ export function WorkflowInlineMonitor({
               <Badge variant="outline" className="!text-gray-300 border-gray-600 bg-gray-800">
                 {workflow.nodes.length} {t('workflowInline.steps')}
               </Badge>
+            )}
+            {/* 🔥 取消按钮 - 仅在运行时显示 */}
+            {workflow.status === 'running' && (
+              <button
+                onClick={handleCancelWorkflow}
+                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-gray-800"
+                title="取消工作流"
+              >
+                <X className="w-3 h-3" />
+                取消
+              </button>
             )}
           </div>
           <div className="flex items-center gap-3">
