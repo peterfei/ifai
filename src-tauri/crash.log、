@@ -1,0 +1,4280 @@
+warning: unused import: `std::env`
+ --> build.rs:7:5
+  |
+7 | use std::env;
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused variable: `yaml_path`
+   --> build.rs:104:5
+    |
+104 |     yaml_path: &Path,
+    |     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_yaml_path`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: `ifainew` (build script) generated 2 warnings
+warning: ifainew@0.4.7: 正在生成测试代码...
+warning: ifainew@0.4.7: 📄 正在处理: "tag_example.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "tag_example.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "session_compression.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "session_compression.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "full_workflow.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "full_workflow.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "task_management.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "task_management.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "command_registry.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "command_registry.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "cli_basic.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "cli_basic.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "network_example.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "network_example.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "tools_execution.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "tools_execution.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "cli_repl.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "cli_repl.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "cli_api.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "cli_api.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "debug_mock.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "debug_mock.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "error_handling.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "error_handling.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "streaming.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "streaming.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "cli_simple.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "cli_simple.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "parametrized_example.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "parametrized_example.rs"
+warning: ifainew@0.4.7: 📄 正在处理: "config_precedence.yaml"
+warning: ifainew@0.4.7: ⏭️  跳过已存在: "config_precedence.rs"
+warning: ifainew@0.4.7: ✨ 生成 0 个测试文件
+warning: ifainew@0.4.7: 测试代码生成完成
+warning: unused import: `crate::ai_utils`
+ --> src/agent_system/workflow/executor.rs:8:5
+  |
+8 | use crate::ai_utils;
+  |     ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `Content` and `Message`
+ --> src/agent_system/workflow/executor.rs:9:30
+  |
+9 | use crate::core_traits::ai::{Content, Message};
+  |                              ^^^^^^^  ^^^^^^^
+
+warning: unused imports: `Deserialize` and `Serialize`
+ --> src/agent_system/workflow/prompt_loader.rs:6:13
+  |
+6 | use serde::{Deserialize, Serialize};
+  |             ^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `WorkflowValidationError`
+ --> src/agent_system/workflow/runner.rs:7:55
+  |
+7 | use super::types::{AgentType, Workflow, WorkflowNode, WorkflowValidationError};
+  |                                                       ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `HashSet`
+  --> src/agent_system/workflow/runner.rs:10:33
+   |
+10 | use std::collections::{HashMap, HashSet};
+   |                                 ^^^^^^^
+
+warning: unused import: `Mutex`
+  --> src/agent_system/workflow/runner.rs:12:19
+   |
+12 | use tokio::sync::{Mutex, RwLock};
+   |                   ^^^^^
+
+warning: unused import: `AgentType`
+ --> src/agent_system/workflow/scheduler.rs:5:20
+  |
+5 | use super::types::{AgentType, Workflow};
+  |                    ^^^^^^^^^
+
+warning: unused import: `serde_json::json`
+  --> src/agent_system/workflow/tool_loop.rs:11:5
+   |
+11 | use serde_json::json;
+   |     ^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/agent_system/workflow/tools.rs:9:5
+  |
+9 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MessagePriority`
+ --> src/agent_system/communication/bus.rs:5:31
+  |
+5 | use super::message::{Message, MessagePriority};
+  |                               ^^^^^^^^^^^^^^^
+
+warning: unused import: `MessageId`
+ --> src/agent_system/communication/bus.rs:6:22
+  |
+6 | use super::{AgentId, MessageId};
+  |                      ^^^^^^^^^
+
+warning: unused imports: `MessagePriority` and `MessageType`
+ --> src/agent_system/communication/channel.rs:6:47
+  |
+6 | use super::message::{ControlMessage, Message, MessagePriority, MessageType, StatusMessage};
+  |                                               ^^^^^^^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+  --> src/agent_system/communication.rs:16:5
+   |
+16 | use anyhow::Result;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused imports: `DateTime` and `Utc`
+  --> src/agent_system/communication.rs:17:14
+   |
+17 | use chrono::{DateTime, Utc};
+   |              ^^^^^^^^  ^^^
+
+warning: unused imports: `Deserialize` and `Serialize`
+  --> src/agent_system/communication.rs:18:13
+   |
+18 | use serde::{Deserialize, Serialize};
+   |             ^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> src/agent_system/communication.rs:19:5
+   |
+19 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> src/agent_system/communication.rs:20:5
+   |
+20 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused imports: `RwLock` and `mpsc`
+  --> src/agent_system/communication.rs:21:19
+   |
+21 | use tokio::sync::{mpsc, RwLock};
+   |                   ^^^^  ^^^^^^
+
+warning: unused import: `commands::*`
+ --> src/ai/pivo/mod.rs:5:9
+  |
+5 | pub use commands::*;
+  |         ^^^^^^^^^^^
+
+warning: unnecessary parentheses around closure body
+   --> src/ai_utils.rs:554:25
+    |
+554 |             .filter(|c| (*c >= '\u{4e00}' && *c <= '\u{9fff}'))
+    |                         ^                                    ^
+    |
+    = note: `#[warn(unused_parens)]` on by default
+help: remove these parentheses
+    |
+554 -             .filter(|c| (*c >= '\u{4e00}' && *c <= '\u{9fff}'))
+554 +             .filter(|c| *c >= '\u{4e00}' && *c <= '\u{9fff}')
+    |
+
+warning: unused import: `Content`
+ --> src/commands/conversation_commands.rs:7:48
+  |
+7 | use crate::core_traits::ai::{AIProviderConfig, Content, Message};
+  |                                                ^^^^^^^
+
+warning: unused import: `PromptMetadata`
+ --> src/commands/prompt_commands.rs:3:45
+  |
+3 | use crate::prompt_manager::{BuiltinPrompts, PromptMetadata, PromptTemplate};
+  |                                             ^^^^^^^^^^^^^^
+
+warning: unused import: `HashSet`
+ --> src/commands/prompt_commands.rs:4:33
+  |
+4 | use std::collections::{HashMap, HashSet};
+  |                                 ^^^^^^^
+
+warning: unused import: `std::sync::Mutex`
+ --> src/commands/prompt_commands.rs:7:5
+  |
+7 | use std::sync::Mutex;
+  |     ^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PathBuf` and `Path`
+  --> src/commands/symbol_commands.rs:10:17
+   |
+10 | use std::path::{Path, PathBuf};
+   |                 ^^^^  ^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/conversation/notes.rs:8:5
+  |
+8 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `tokio::task::JoinSet`
+ --> src/file_walker.rs:5:5
+  |
+5 | use tokio::task::JoinSet;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `async_stream::stream`
+ --> src/harness/api/client.rs:5:5
+  |
+5 | use async_stream::stream;
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::sse::SseParser`
+  --> src/harness/api/client.rs:10:5
+   |
+10 | use super::sse::SseParser;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::harness::api::types::ProviderConfig`
+ --> src/harness/api/client_factory.rs:5:5
+  |
+5 | use crate::harness::api::types::ProviderConfig;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `FormatAdapter`, `GeminiFormatAdapter`, and `OpenAIFormatAdapter`
+  --> src/harness/api/code_gen.rs:51:5
+   |
+51 |     FormatAdapter, GeminiFormatAdapter, OpenAIFormatAdapter,
+   |     ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `async_trait::async_trait`
+ --> src/harness/api/event_stream.rs:1:5
+  |
+1 | use async_trait::async_trait;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MessageContent`
+  --> src/harness/api/format_adapter.rs:32:43
+   |
+32 | use crate::harness::api::types::{Message, MessageContent, StreamEvent, StreamRequest};
+   |                                           ^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> src/harness/api/format_adapter.rs:35:5
+   |
+35 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused doc comment
+  --> src/harness/api/generated_clients.rs:29:1
+   |
+29 | / /// 🏛️ 自动生成：OpenAI 官方客户端
+30 | | ///
+31 | | /// 从 `providers/registry/openai.yaml` 配置生成
+   | |_----------------------------------------------^^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+   = note: `#[warn(unused_doc_comments)]` on by default
+
+warning: unused doc comment
+  --> src/harness/api/generated_clients.rs:34:1
+   |
+34 | / /// 🏛️ 自动生成：Zhipu AI 客户端
+35 | | ///
+36 | | /// 从 `providers/registry/zhipu.yaml` 配置生成
+   | |_---------------------------------------------^^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+  --> src/harness/api/generated_clients.rs:39:1
+   |
+39 | / /// 🏛️ 自动生成：Kimi (Moonshot AI) 客户端
+40 | | ///
+41 | | /// 从 `providers/registry/kimi.yaml` 配置生成
+   | |_--------------------------------------------^^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+  --> src/harness/api/generated_clients.rs:48:1
+   |
+48 | / /// 🏛️ 自动生成：Google Gemini 客户端
+49 | | ///
+50 | | /// 从 `providers/registry/gemini.yaml` 配置生成
+51 | | /// 使用 GeminiFormatAdapter 处理独特的 Gemini API 格式
+   | |_-----------------------------------------------------^^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused imports: `GeminiFormatAdapter` and `OpenAIFormatAdapter`
+  --> src/harness/api/generated_clients.rs:23:43
+   |
+23 | use crate::harness::api::format_adapter::{GeminiFormatAdapter, OpenAIFormatAdapter};
+   |                                           ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MessageContent`
+ --> src/harness/api/message_builder.rs:5:43
+  |
+5 | use crate::harness::api::types::{Message, MessageContent, MessageRole, StreamRequest};
+  |                                           ^^^^^^^^^^^^^^
+
+warning: unused import: `super::sse::SseParser`
+  --> src/harness/api/metadata_client.rs:16:5
+   |
+16 | use super::sse::SseParser;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `MessageContent`, `MessageRole`, and `Message`
+  --> src/harness/api/metadata_client.rs:18:15
+   |
+18 |     ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest,
+   |               ^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused imports: `MessageRole` and `Message`
+  --> src/harness/api/providers/deepseek.rs:16:37
+   |
+16 | use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+   |                                     ^^^^^^^  ^^^^^^^^^^^
+
+warning: unused imports: `FunctionDelta` and `ToolCallDelta`
+  --> src/harness/api/providers/deepseek.rs:17:48
+   |
+17 | use super::openai_format::{parse_openai_frame, FunctionDelta, ToolCallDelta};
+   |                                                ^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused imports: `MessageRole` and `Message`
+  --> src/harness/api/providers/kimi.rs:16:37
+   |
+16 | use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+   |                                     ^^^^^^^  ^^^^^^^^^^^
+
+warning: unused imports: `FunctionDelta` and `ToolCallDelta`
+  --> src/harness/api/providers/kimi.rs:17:48
+   |
+17 | use super::openai_format::{parse_openai_frame, FunctionDelta, ToolCallDelta};
+   |                                                ^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused imports: `MessageRole` and `Message`
+  --> src/harness/api/providers/openai.rs:13:37
+   |
+13 | use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+   |                                     ^^^^^^^  ^^^^^^^^^^^
+
+warning: unused imports: `MessageContent`, `MessageRole`, and `Message`
+  --> src/harness/api/providers/zhipu.rs:18:15
+   |
+18 |     ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest,
+   |               ^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused imports: `FunctionDelta` and `ToolCallDelta`
+  --> src/harness/api/providers/zhipu.rs:20:48
+   |
+20 | use super::openai_format::{parse_openai_frame, FunctionDelta, ToolCallDelta};
+   |                                                ^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused imports: `ErrorKind` and `Error`
+ --> src/harness/api/sse.rs:6:15
+  |
+6 | use std::io::{Error, ErrorKind};
+  |               ^^^^^  ^^^^^^^^^
+
+warning: unused imports: `Deserialize` and `Serialize`
+ --> src/harness/api/streaming.rs:3:13
+  |
+3 | use serde::{Deserialize, Serialize};
+  |             ^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/harness/api/types.rs:6:5
+  |
+6 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt`
+ --> src/harness/task/validation.rs:8:5
+  |
+8 | use std::fmt;
+  |     ^^^^^^^^
+
+warning: unused import: `Map`
+ --> src/harness/tool/executor/aliastools.rs:6:24
+  |
+6 | use serde_json::{json, Map, Value};
+  |                        ^^^
+
+warning: unused import: `Pattern`
+ --> src/harness/tool/executor/searchtools.rs:5:34
+  |
+5 | use glob::{glob as glob_pattern, Pattern};
+  |                                  ^^^^^^^
+
+warning: unused import: `HashSet`
+ --> src/harness/tool/registry.rs:6:43
+  |
+6 | use std::collections::{BTreeMap, HashMap, HashSet};
+  |                                           ^^^^^^^
+
+warning: unused import: `Arc`
+ --> src/harness/tool/router.rs:7:17
+  |
+7 | use std::sync::{Arc, Mutex, OnceLock};
+  |                 ^^^
+
+warning: unused import: `EventStream`
+  --> src/harness_ai_service.rs:15:45
+   |
+15 | use crate::harness::api::{BatchEventStream, EventStream, StreamToEventStream}; // 🔥 方案 1: 使用 EventStream + BatchEventStream
+   |                                             ^^^^^^^^^^^
+
+warning: unused import: `std::time::Duration`
+  --> src/harness_ai_service.rs:23:5
+   |
+23 | use std::time::Duration;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Response`
+  --> src/http_api.rs:19:42
+   |
+19 |     response::{sse::Event, IntoResponse, Response, Sse},
+   |                                          ^^^^^^^^
+
+warning: unused import: `extract_text_content as router_extract_text`
+   --> src/local_model.rs:775:9
+    |
+775 |         extract_text_content as router_extract_text, IntelligenceRouter,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::core_traits::ai::Message`
+   --> src/local_model.rs:893:9
+    |
+893 |     use crate::core_traits::ai::Message;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused doc comment
+  --> src/memory/categories.rs:51:1
+   |
+51 | /// 声明式定义 Wing（扩展只需在此添加）
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> src/memory/categories.rs:100:1
+    |
+100 | /// 声明式定义 Hall（扩展只需在此添加）
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused import: `Path`
+  --> src/memory/extractor.rs:10:17
+   |
+10 | use std::path::{Path, PathBuf};
+   |                 ^^^^
+
+warning: unused import: `crate::memory::meta::content_fingerprint`
+  --> src/memory/tool.rs:29:9
+   |
+29 |     use crate::memory::meta::content_fingerprint;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Path`
+ --> src/session_archive.rs:8:17
+  |
+8 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused import: `crate::meta::scanner::ScanError`
+ --> src/meta/scanner/cache.rs:5:5
+  |
+5 | use crate::meta::scanner::ScanError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> src/meta/scanner/config.rs:7:5
+  |
+7 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+ --> src/meta/scanner/streaming.rs:7:5
+  |
+7 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `ProgressEvent`
+  --> src/meta/scanner/streaming.rs:10:23
+   |
+10 | use super::progress::{ProgressEvent, ProgressTracker};
+   |                       ^^^^^^^^^^^^^
+
+warning: unused import: `progress::*`
+  --> src/meta/scanner/mod.rs:16:9
+   |
+16 | pub use progress::*;
+   |         ^^^^^^^^^^^
+
+warning: unused import: `streaming::*`
+  --> src/meta/scanner/mod.rs:18:9
+   |
+18 | pub use streaming::*;
+   |         ^^^^^^^^^^^^
+
+warning: unused import: `scanner::*`
+  --> src/meta/mod.rs:10:9
+   |
+10 | pub use scanner::*;
+   |         ^^^^^^^^^^
+
+warning: unused imports: `OpenspecStatus`, `detect_openspec_cli`, and `detect_openspec`
+ --> src/openspec/mod.rs:9:20
+  |
+9 | pub use detector::{detect_openspec, detect_openspec_cli, OpenspecStatus};
+  |                    ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unused import: `DateTime`
+ --> src/prompt_manager/export.rs:2:14
+  |
+2 | use chrono::{DateTime, Utc};
+  |              ^^^^^^^^
+
+warning: unused import: `std::io::Write`
+ --> src/prompt_manager/export.rs:5:5
+  |
+5 | use std::io::Write;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> src/prompt_manager/tool_parser.rs:5:5
+  |
+5 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `Context`
+ --> src/prompt_manager/validation.rs:1:14
+  |
+1 | use anyhow::{Context, Result};
+  |              ^^^^^^^
+
+warning: unused import: `crate::scanners::ExploreScanner`
+ --> src/scanners/bench.rs:5:5
+  |
+5 | use crate::scanners::ExploreScanner;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Duration` and `Instant`
+ --> src/scanners/bench.rs:6:17
+  |
+6 | use std::time::{Duration, Instant};
+  |                 ^^^^^^^^  ^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> src/scanners/explore.rs:10:5
+   |
+10 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `PathBuf`
+  --> src/scanners/explore.rs:11:23
+   |
+11 | use std::path::{Path, PathBuf};
+   |                       ^^^^^^^
+
+warning: unused import: `Duration`
+  --> src/scanners/explore.rs:13:17
+   |
+13 | use std::time::{Duration, Instant};
+   |                 ^^^^^^^^
+
+warning: unused imports: `CacheStrategy` and `ScanResult`
+  --> src/scanners/explore.rs:16:18
+   |
+16 |     CacheConfig, CacheStrategy, ScanCache, ScanError, ScanResult, ScanStats, Scanner, ScannerConfig,
+   |                  ^^^^^^^^^^^^^                        ^^^^^^^^^^
+
+warning: unused imports: `Arc` and `Mutex`
+   --> src/scanners/explore.rs:211:25
+    |
+211 |         use std::sync::{Arc, Mutex};
+    |                         ^^^  ^^^^^
+
+warning: unused imports: `CacheConfig`, `CacheStrategy`, and `ScanCache`
+ --> src/scanners/perf.rs:5:28
+  |
+5 | use crate::meta::scanner::{CacheConfig, CacheStrategy, ScanCache, ScannerConfig};
+  |                            ^^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused imports: `Arc` and `RwLock`
+ --> src/scanners/perf.rs:8:17
+  |
+8 | use std::sync::{Arc, RwLock};
+  |                 ^^^  ^^^^^^
+
+warning: unused import: `perf::*`
+  --> src/scanners/mod.rs:10:9
+   |
+10 | pub use perf::*;
+   |         ^^^^^^^
+
+warning: unused import: `crate::meta::scanner::*`
+  --> src/scanners/mod.rs:13:9
+   |
+13 | pub use crate::meta::scanner::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Language`
+ --> src/symbol_engine.rs:2:19
+  |
+2 | use tree_sitter::{Language, Parser};
+  |                   ^^^^^^^^
+
+warning: unused imports: `o200k_base` and `p50k_base`
+ --> src/token_counter.rs:4:52
+  |
+4 | use tiktoken_rs::{cl100k_base, get_bpe_from_model, o200k_base, p50k_base};
+  |                                                    ^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `ClassificationLayer`
+  --> src/tool_classification/layer1_exact_match.rs:14:20
+   |
+14 | use super::types::{ClassificationLayer, ClassificationResult, ToolCategory};
+   |                    ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ClassificationLayer`
+  --> src/tool_classification/layer2_rule_based.rs:17:20
+   |
+17 | use super::types::{ClassificationLayer, ClassificationResult, ToolCategory};
+   |                    ^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ClassificationLayer` and `ToolCategory`
+  --> src/tool_classification/layer3_llm.rs:14:20
+   |
+14 | use super::types::{ClassificationLayer, ClassificationResult, ToolCategory};
+   |                    ^^^^^^^^^^^^^^^^^^^                        ^^^^^^^^^^^^
+
+warning: unused imports: `is_commercial_edition` and `is_community_edition`
+  --> src/tool_classification/mod.rs:29:34
+   |
+29 | pub use mock::{get_edition_info, is_commercial_edition, is_community_edition};
+   |                                  ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> src/tool_classification/mod.rs:37:5
+   |
+37 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ContentPart`, `Content`, and `Message`
+  --> src/lib.rs:52:30
+   |
+52 | use crate::core_traits::ai::{Content, ContentPart, Message};
+   |                              ^^^^^^^  ^^^^^^^^^^^  ^^^^^^^
+
+warning: use of deprecated function `commands::core_wrappers::agent_write_file`: Use ToolRouter::execute("agent_write_file", ...) instead
+    --> src/lib.rs:1759:38
+     |
+1759 |             commands::core_wrappers::agent_write_file,
+     |                                      ^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated function `commands::core_wrappers::agent_read_file`: Use ToolRouter::execute("agent_read_file", ...) instead
+    --> src/lib.rs:1760:38
+     |
+1760 |             commands::core_wrappers::agent_read_file,
+     |                                      ^^^^^^^^^^^^^^^
+
+warning: use of deprecated function `commands::core_wrappers::agent_list_dir`: Use ToolRouter::execute("agent_list_dir", ...) instead
+    --> src/lib.rs:1761:38
+     |
+1761 |             commands::core_wrappers::agent_list_dir,
+     |                                      ^^^^^^^^^^^^^^
+
+warning: use of deprecated function `commands::core_wrappers::agent_scan_project`: Use ToolRouter::execute("agent_scan_project", ...) instead
+    --> src/lib.rs:1762:38
+     |
+1762 |             commands::core_wrappers::agent_scan_project,
+     |                                      ^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated function `commands::conversation_commands::save_conversation_archive`: 使用前端多格式归档引擎替代 (src/core/archive/ConversationArchiveService)
+    --> src/lib.rs:1898:46
+     |
+1898 |             commands::conversation_commands::save_conversation_archive,
+     |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated function `memory::extractor::on_session_end`: Use extract_memories_with_llm instead for actual LLM integration
+  --> src/memory/mod.rs:20:32
+   |
+20 |     extract_memories_with_llm, on_session_end, parse_extraction_result, save_extracted_memories,
+   |                                ^^^^^^^^^^^^^^
+
+warning: value assigned to `pivo_stage` is never read
+  --> src/agent_system/runner.rs:33:13
+   |
+33 |     let mut pivo_stage = PivoStage::Idle;
+   |             ^^^^^^^^^^
+   |
+   = help: maybe it is overwritten before being read?
+   = note: `#[warn(unused_assignments)]` on by default
+
+warning: unused variable: `idx`
+   --> src/agent_system/runner.rs:130:26
+    |
+130 |                     for (idx, tool_call) in tool_calls.iter().enumerate() {
+    |                          ^^^ help: if this is intentional, prefix it with an underscore: `_idx`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: value assigned to `pivo_stage` is never read
+   --> src/agent_system/runner.rs:228:41
+    |
+228 | ...                   pivo_stage = PivoStage::Optimize;
+    |                       ^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: unused variable: `todos_array`
+   --> src/agent_system/tools.rs:426:17
+    |
+426 |             let todos_array = args
+    |                 ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_todos_array`
+
+warning: unused variable: `node_id`
+   --> src/agent_system/workflow/runner.rs:568:21
+    |
+568 |                 let node_id = node_id.clone();
+    |                     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_node_id`
+
+warning: unused variable: `node`
+   --> src/agent_system/workflow/runner.rs:612:42
+    |
+612 |     async fn check_node_condition(&self, node: &WorkflowNode) -> Result<Option<bool>> {
+    |                                          ^^^^ help: if this is intentional, prefix it with an underscore: `_node`
+
+warning: value assigned to `final_response` is never read
+  --> src/agent_system/workflow/tool_loop.rs:83:13
+   |
+83 |     let mut final_response = String::new();
+   |             ^^^^^^^^^^^^^^
+   |
+   = help: maybe it is overwritten before being read?
+
+warning: unused variable: `progress_callback`
+   --> src/agent_system/workflow/tool_loop.rs:565:5
+    |
+565 |     progress_callback: Option<ToolProgressCallback>,
+    |     ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_progress_callback`
+
+warning: unused variable: `cancellation_token`
+   --> src/agent_system/workflow/tool_loop.rs:566:5
+    |
+566 |     cancellation_token: Option<CancellationToken>,
+    |     ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cancellation_token`
+
+warning: unused variable: `content_callback`
+   --> src/agent_system/workflow/tool_loop.rs:870:5
+    |
+870 |     content_callback: ContentDeltaCallback,
+    |     ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_content_callback`
+
+warning: unused variable: `cancellation_token`
+   --> src/agent_system/workflow/tool_loop.rs:871:5
+    |
+871 |     cancellation_token: Option<CancellationToken>,
+    |     ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cancellation_token`
+
+warning: unused variable: `from`
+   --> src/agent_system/communication/bus.rs:154:13
+    |
+154 |         let from = message.from.clone();
+    |             ^^^^ help: if this is intentional, prefix it with an underscore: `_from`
+
+warning: unused variable: `agent_id`
+   --> src/agent_system/communication/bus.rs:238:9
+    |
+238 |         agent_id: AgentId,
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_agent_id`
+
+warning: unused variable: `to`
+   --> src/agent_system/communication/channel.rs:357:33
+    |
+357 |     pub async fn request(&self, to: AgentId, request: Message) -> Result<Message> {
+    |                                 ^^ help: if this is intentional, prefix it with an underscore: `_to`
+
+warning: unused variable: `status`
+   --> src/commands/bash_commands.rs:196:13
+    |
+196 |         let status = child.wait().await.map_err(|e| e.to_string())?;
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_status`
+
+warning: variable does not need to be mutable
+   --> src/commands/bash_commands.rs:116:9
+    |
+116 |     let mut child_stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+    |         ----^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+   --> src/commands/bash_commands.rs:117:9
+    |
+117 |     let mut child_stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+    |         ----^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused variable: `depth`
+   --> src/commands/core_wrappers.rs:470:13
+    |
+470 |         let depth = entry.depth();
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_depth`
+
+warning: unused variable: `e`
+   --> src/commands/core_wrappers.rs:156:25
+    |
+156 |                     Err(e) => (rel_path, None::<String>),
+    |                         ^ help: if this is intentional, prefix it with an underscore: `_e`
+
+warning: unused variable: `status`
+   --> src/commands/bash_streaming.rs:339:13
+    |
+339 |         let status = child.wait().await.map_err(|e| e.to_string())?;
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_status`
+
+warning: variable does not need to be mutable
+   --> src/commands/bash_streaming.rs:175:9
+    |
+175 |     let mut read_stream = async {
+    |         ----^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused variable: `model`
+  --> src/commands/conversation_commands.rs:38:60
+   |
+38 | pub async fn count_messages_tokens(messages: Vec<Message>, model: String) -> Result<usize, String> {
+   |                                                            ^^^^^ help: if this is intentional, prefix it with an underscore: `_model`
+
+warning: unused variable: `model`
+   --> src/commands/conversation_commands.rs:178:54
+    |
+178 | pub async fn get_token_stats(messages: Vec<Message>, model: String) -> Result<TokenStats, String> {
+    |                                                      ^^^^^ help: if this is intentional, prefix it with an underscore: `_model`
+
+warning: unused variable: `file_path`
+   --> src/commands/symbol_commands.rs:155:5
+    |
+155 |     file_path: String,
+    |     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_file_path`
+
+warning: variable does not need to be mutable
+   --> src/commands/workflow_commands.rs:259:17
+    |
+259 |             let mut runner = runner_arc.lock().await;
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/commands/workflow_commands.rs:369:13
+    |
+369 |         let mut runner = runner_arc.lock().await;
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `result`
+   --> src/http_api.rs:424:20
+    |
+424 |                 Ok(result) => {
+    |                    ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+warning: variable does not need to be mutable
+   --> src/http_api.rs:422:17
+    |
+422 |             let mut runner = runner_arc.lock().await;
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: unused variable: `state`
+   --> src/http_api.rs:594:11
+    |
+594 |     State(state): State<HttpApiState>,
+    |           ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: variable does not need to be mutable
+   --> src/local_model.rs:624:9
+    |
+624 |     let mut start_time = Instant::now();
+    |         ----^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused variable: `prefix`
+   --> src/local_model.rs:913:5
+    |
+913 |     prefix: String,
+    |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_prefix`
+
+warning: unused variable: `suffix`
+   --> src/local_model.rs:914:5
+    |
+914 |     suffix: String,
+    |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_suffix`
+
+warning: unused variable: `max_tokens`
+   --> src/local_model.rs:915:5
+    |
+915 |     max_tokens: Option<usize>,
+    |     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_max_tokens`
+
+warning: unused variable: `start_time`
+   --> src/local_model.rs:919:9
+    |
+919 |     let start_time = Instant::now();
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_start_time`
+
+warning: unused variable: `max_tokens`
+   --> src/local_model.rs:992:5
+    |
+992 |     max_tokens: Option<usize>,
+    |     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_max_tokens`
+
+warning: unused variable: `start_time`
+   --> src/local_model.rs:996:9
+    |
+996 |     let start_time = Instant::now();
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_start_time`
+
+warning: unused variable: `enable_tools`
+   --> src/lib.rs:245:5
+    |
+245 |     enable_tools: Option<bool>,
+    |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_enable_tools`
+
+warning: unused variable: `m`
+   --> src/lib.rs:583:25
+    |
+583 |         if let Some(ref m) = mode {
+    |                         ^ help: if this is intentional, prefix it with an underscore: `_m`
+
+warning: unused variable: `idx`
+   --> src/lib.rs:799:26
+    |
+799 |                     for (idx, tool_call) in result.tool_calls.iter().enumerate() {
+    |                          ^^^ help: if this is intentional, prefix it with an underscore: `_idx`
+
+warning: unused variable: `prompt`
+   --> src/lib.rs:841:29
+    |
+841 |                 if let Some(prompt) = user_message {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_prompt`
+
+warning: unused variable: `project_root_clone`
+   --> src/lib.rs:923:9
+    |
+923 |     let project_root_clone = project_root.clone();
+    |         ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_project_root_clone`
+
+warning: value assigned to `current_reasoning` is never read
+    --> src/lib.rs:1208:26
+     |
+1208 |                  let mut current_reasoning = String::new();
+     |                          ^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: value assigned to `current_content` is never read
+    --> src/lib.rs:1209:26
+     |
+1209 |                  let mut current_content = String::new();
+     |                          ^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:559:13
+    |
+559 |         let mut skills_prompt: Option<String> = None;
+    |             ----^^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused import: `futures_util::StreamExt`
+  --> src/agent_system/workflow/tool_loop.rs:10:5
+   |
+10 | use futures_util::StreamExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+ --> src/harness/api/client.rs:7:5
+  |
+7 | use futures_util::StreamExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:181:21
+    |
+181 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:32:1
+    |
+ 32 | crate::generate_provider_client!("openai-official", OpenAIOfficialClient, OpenAIFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:186:21
+    |
+186 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:32:1
+    |
+ 32 | crate::generate_provider_client!("openai-official", OpenAIOfficialClient, OpenAIFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:191:21
+    |
+191 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:32:1
+    |
+ 32 | crate::generate_provider_client!("openai-official", OpenAIOfficialClient, OpenAIFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:199:21
+    |
+199 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:32:1
+    |
+ 32 | crate::generate_provider_client!("openai-official", OpenAIOfficialClient, OpenAIFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:207:21
+    |
+207 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:32:1
+    |
+ 32 | crate::generate_provider_client!("openai-official", OpenAIOfficialClient, OpenAIFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:212:21
+    |
+212 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:32:1
+    |
+ 32 | crate::generate_provider_client!("openai-official", OpenAIOfficialClient, OpenAIFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:181:21
+    |
+181 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:37:1
+    |
+ 37 | crate::generate_provider_client!("zhipu-official", ZhipuOfficialClient, OpenAIFormatAdapter);
+    | -------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:186:21
+    |
+186 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:37:1
+    |
+ 37 | crate::generate_provider_client!("zhipu-official", ZhipuOfficialClient, OpenAIFormatAdapter);
+    | -------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:191:21
+    |
+191 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:37:1
+    |
+ 37 | crate::generate_provider_client!("zhipu-official", ZhipuOfficialClient, OpenAIFormatAdapter);
+    | -------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:199:21
+    |
+199 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:37:1
+    |
+ 37 | crate::generate_provider_client!("zhipu-official", ZhipuOfficialClient, OpenAIFormatAdapter);
+    | -------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:207:21
+    |
+207 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:37:1
+    |
+ 37 | crate::generate_provider_client!("zhipu-official", ZhipuOfficialClient, OpenAIFormatAdapter);
+    | -------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:212:21
+    |
+212 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:37:1
+    |
+ 37 | crate::generate_provider_client!("zhipu-official", ZhipuOfficialClient, OpenAIFormatAdapter);
+    | -------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:181:21
+    |
+181 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:42:1
+    |
+ 42 | crate::generate_provider_client!("kimi-official", KimiOfficialClient, OpenAIFormatAdapter);
+    | ------------------------------------------------------------------------------------------ in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:186:21
+    |
+186 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:42:1
+    |
+ 42 | crate::generate_provider_client!("kimi-official", KimiOfficialClient, OpenAIFormatAdapter);
+    | ------------------------------------------------------------------------------------------ in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:191:21
+    |
+191 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:42:1
+    |
+ 42 | crate::generate_provider_client!("kimi-official", KimiOfficialClient, OpenAIFormatAdapter);
+    | ------------------------------------------------------------------------------------------ in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:199:21
+    |
+199 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:42:1
+    |
+ 42 | crate::generate_provider_client!("kimi-official", KimiOfficialClient, OpenAIFormatAdapter);
+    | ------------------------------------------------------------------------------------------ in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:207:21
+    |
+207 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:42:1
+    |
+ 42 | crate::generate_provider_client!("kimi-official", KimiOfficialClient, OpenAIFormatAdapter);
+    | ------------------------------------------------------------------------------------------ in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:212:21
+    |
+212 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:42:1
+    |
+ 42 | crate::generate_provider_client!("kimi-official", KimiOfficialClient, OpenAIFormatAdapter);
+    | ------------------------------------------------------------------------------------------ in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:181:21
+    |
+181 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:52:1
+    |
+ 52 | crate::generate_provider_client!("gemini-official", GeminiOfficialClient, GeminiFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:186:21
+    |
+186 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:52:1
+    |
+ 52 | crate::generate_provider_client!("gemini-official", GeminiOfficialClient, GeminiFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:191:21
+    |
+191 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:52:1
+    |
+ 52 | crate::generate_provider_client!("gemini-official", GeminiOfficialClient, GeminiFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:199:21
+    |
+199 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:52:1
+    |
+ 52 | crate::generate_provider_client!("gemini-official", GeminiOfficialClient, GeminiFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:207:21
+    |
+207 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:52:1
+    |
+ 52 | crate::generate_provider_client!("gemini-official", GeminiOfficialClient, GeminiFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `$crate::harness::api::format_adapter::FormatAdapter`
+   --> src/harness/api/code_gen.rs:212:21
+    |
+212 |                 use $crate::harness::api::format_adapter::FormatAdapter;
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: src/harness/api/generated_clients.rs:52:1
+    |
+ 52 | crate::generate_provider_client!("gemini-official", GeminiOfficialClient, GeminiFormatAdapter);
+    | ---------------------------------------------------------------------------------------------- in this macro invocation
+    |
+    = note: this warning originates in the macro `crate::generate_provider_client` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `futures_util::StreamExt`
+   --> src/harness/api/metadata_client.rs:101:17
+    |
+101 |             use futures_util::StreamExt;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+ --> src/harness/api/providers/anthropic.rs:5:5
+  |
+5 | use futures_util::StreamExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+  --> src/harness/api/providers/custom.rs:10:5
+   |
+10 | use futures_util::StreamExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+ --> src/harness/api/providers/deepseek.rs:7:5
+  |
+7 | use futures_util::StreamExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+ --> src/harness/api/providers/kimi.rs:7:5
+  |
+7 | use futures_util::StreamExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+ --> src/harness/api/providers/openai.rs:5:5
+  |
+5 | use futures_util::StreamExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+ --> src/harness/api/providers/zhipu.rs:8:5
+  |
+8 | use futures_util::StreamExt;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `futures_util::StreamExt`
+  --> src/harness_ai_service.rs:19:5
+   |
+19 | use futures_util::StreamExt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `StreamExt`
+  --> src/http_api.rs:23:37
+   |
+23 | use futures::stream::{self, Stream, StreamExt};
+   |                                     ^^^^^^^^^
+
+warning: unused import: `AIService`
+  --> src/http_api.rs:37:47
+   |
+37 |     AIProviderConfig as CoreAIProviderConfig, AIService, Content as CoreContent,
+   |                                               ^^^^^^^^^
+
+warning: unused import: `std::error::Error`
+  --> src/multimodal.rs:10:5
+   |
+10 | use std::error::Error;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rust_embed::RustEmbed`
+   --> src/project_config.rs:342:9
+    |
+342 |     use rust_embed::RustEmbed; // 🏆 PIVO 3.0: 修正 trait 导入
+    |         ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rayon::prelude`
+ --> src/scanners/explore.rs:8:5
+  |
+8 | use rayon::prelude::*;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused variable: `agent_type_str`
+   --> src/agent_system/workflow/executor.rs:251:13
+    |
+251 |         let agent_type_str = format!("{:?}", node.agent_type);
+    |             ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_agent_type_str`
+
+warning: variable does not need to be mutable
+   --> src/agent_system/workflow/runner.rs:306:38
+    |
+306 |     pub fn with_progress_callback<F>(mut self, callback: F) -> Self
+    |                                      ----^^^^
+    |                                      |
+    |                                      help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/agent_system/communication/message.rs:294:21
+    |
+294 |                 let mut custom_command = None;
+    |                     ----^^^^^^^^^^^^^^
+    |                     |
+    |                     help: remove this `mut`
+
+warning: unused variable: `status_type`
+   --> src/agent_system/communication/message.rs:555:25
+    |
+555 |                 let mut status_type: Option<String> = None;
+    |                         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_status_type`
+
+warning: variable does not need to be mutable
+   --> src/agent_system/communication/message.rs:555:21
+    |
+555 |                 let mut status_type: Option<String> = None;
+    |                     ----^^^^^^^^^^^
+    |                     |
+    |                     help: remove this `mut`
+
+warning: unused variable: `raw_line`
+   --> src/commands/error_commands.rs:164:5
+    |
+164 |     raw_line: String,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_raw_line`
+
+warning: unused variable: `state`
+   --> src/commands/error_commands.rs:313:9
+    |
+313 |     let state = state
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: unused variable: `event_id`
+  --> src/community/mod.rs:22:9
+   |
+22 |         event_id: &str,
+   |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_event_id`
+
+warning: unused variable: `results`
+   --> src/file_walker.rs:101:17
+    |
+101 |         let mut results: Vec<Vec<String>> = Vec::with_capacity(pool_size);
+    |                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_results`
+
+warning: variable does not need to be mutable
+   --> src/file_walker.rs:101:13
+    |
+101 |         let mut results: Vec<Vec<String>> = Vec::with_capacity(pool_size);
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: value assigned to `last_finish_reason` is never read
+   --> src/harness/api/providers/zhipu.rs:195:41
+    |
+195 | ...                   last_finish_reason = Some(reason.clone());
+    |                       ^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: unused variable: `last_finish_reason`
+   --> src/harness/api/providers/zhipu.rs:195:41
+    |
+195 | ...                   last_finish_reason = Some(reason.clone());
+    |                       ^^^^^^^^^^^^^^^^^^
+    |
+    = help: did you mean to capture by reference instead?
+
+warning: variable does not need to be mutable
+  --> src/harness/permission/mod.rs:41:9
+   |
+41 |         mut self,
+   |         ----^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: unused variable: `index`
+  --> src/harness/task/validation.rs:76:31
+   |
+76 |             fn validate(self, index: usize) -> Result<ValidatedTaskItem, ValidationError> {
+   |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_index`
+
+warning: unused variable: `max_depth`
+   --> src/harness/tool/executor/aliastools.rs:256:13
+    |
+256 |         let max_depth = input.get("max_depth").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_max_depth`
+
+warning: unused variable: `after_mid`
+   --> src/harness/tool/executor/filetools.rs:157:33
+    |
+157 | ...                   let after_mid = &content[mid_pos + mid_line.len()..];
+    |                           ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_after_mid`
+
+warning: unused variable: `i`
+   --> src/harness/tool/executor/filetools.rs:162:34
+    |
+162 | ...                   for (i, line) in old_lines[..mid_idx].iter().rev().enumerate() {
+    |                            ^ help: if this is intentional, prefix it with an underscore: `_i`
+
+warning: unused variable: `name`
+  --> src/harness/tool/executor.rs:57:28
+   |
+57 |     fn is_available(&self, name: &str) -> bool {
+   |                            ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+
+warning: unused variable: `input`
+  --> src/harness/tool/executor.rs:91:39
+   |
+91 |     fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
+   |                                       ^^^^^ help: if this is intentional, prefix it with an underscore: `_input`
+
+warning: unused variable: `loop_start_delta_index`
+   --> src/harness_ai_service.rs:317:17
+    |
+317 |             let loop_start_delta_index = global_delta_index;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_loop_start_delta_index`
+
+warning: unused variable: `loop_finish_reason`
+   --> src/harness_ai_service.rs:434:21
+    |
+434 |             let mut loop_finish_reason: Option<String> = None; // 🔥 CRITICAL FIX: 追踪本轮的 finish_reason
+    |                     ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_loop_finish_reason`
+
+warning: variable does not need to be mutable
+   --> src/harness_ai_service.rs:342:17
+    |
+342 |             let mut stream = match stream_result {
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/harness_ai_service.rs:434:17
+    |
+434 |             let mut loop_finish_reason: Option<String> = None; // 🔥 CRITICAL FIX: 追踪本轮的 finish_reason
+    |                 ----^^^^^^^^^^^^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+  --> src/memory/tool.rs:49:14
+   |
+49 |         Some(mut existing) => {
+   |              ----^^^^^^^^
+   |              |
+   |              help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/prompt_manager/export.rs:163:13
+    |
+163 |         let mut errors = Vec::new();
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `start`
+   --> src/prompt_manager/validation.rs:188:57
+    |
+188 | ...                   } else if let Some((start, HandlebarsType::Triple)) =
+    |                                           ^^^^^ help: if this is intentional, prefix it with an underscore: `_start`
+
+warning: unused variable: `is_root`
+   --> src/scanners/explore.rs:336:45
+    |
+336 |         fn build_dir(entries: &Vec<String>, is_root: bool) -> Map<String, Value> {
+    |                                             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_is_root`
+
+warning: method `get_agent` is never used
+   --> src/agent_system/workflow/executor.rs:225:14
+    |
+210 | impl AgentNodeExecutor {
+    | ---------------------- method in this implementation
+...
+225 |     async fn get_agent(&self, agent_type: &str) -> Option<Box<dyn Agent>> {
+    |              ^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: methods `execute_node` and `execute_node_once` are never used
+    --> src/agent_system/workflow/runner.rs:1034:14
+     |
+ 283 | impl WorkflowRunner {
+     | ------------------- methods in this implementation
+...
+1034 |     async fn execute_node(&self, node: WorkflowNode) -> NodeResult {
+     |              ^^^^^^^^^^^^
+...
+1106 |     async fn execute_node_once(&self, node: &WorkflowNode) -> Result<NodeResult> {
+     |              ^^^^^^^^^^^^^^^^^
+
+warning: struct `StreamToolCallChunk` is never constructed
+   --> src/agent_system/workflow/tool_loop.rs:526:8
+    |
+526 | struct StreamToolCallChunk {
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `StreamFunction` is never constructed
+   --> src/agent_system/workflow/tool_loop.rs:535:8
+    |
+535 | struct StreamFunction {
+    |        ^^^^^^^^^^^^^^
+
+warning: struct `StreamChoice` is never constructed
+   --> src/agent_system/workflow/tool_loop.rs:541:8
+    |
+541 | struct StreamChoice {
+    |        ^^^^^^^^^^^^
+
+warning: struct `StreamDelta` is never constructed
+   --> src/agent_system/workflow/tool_loop.rs:548:8
+    |
+548 | struct StreamDelta {
+    |        ^^^^^^^^^^^
+
+warning: struct `OpenAIStreamResponse` is never constructed
+   --> src/agent_system/workflow/tool_loop.rs:554:8
+    |
+554 | struct OpenAIStreamResponse {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `example_execute_workflow` is never used
+   --> src/agent_system/workflow/examples/usage_examples.rs:162:10
+    |
+162 | async fn example_execute_workflow() {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `main` is never used
+   --> src/agent_system/workflow/examples/usage_examples.rs:332:4
+    |
+332 | fn main() {
+    |    ^^^^
+
+warning: field `id` is never read
+  --> src/agent_system/communication/bus.rs:62:5
+   |
+60 | struct Subscriber {
+   |        ---------- field in this struct
+61 |     /// 订阅者 ID
+62 |     id: AgentId,
+   |     ^^
+   |
+   = note: `Subscriber` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `created_at` is never read
+   --> src/agent_system/communication/channel.rs:235:5
+    |
+227 | pub struct Session {
+    |            ------- field in this struct
+...
+235 |     created_at: i64,
+    |     ^^^^^^^^^^
+    |
+    = note: `Session` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: struct `PivoGenerator` is never constructed
+ --> src/ai/pivo/generator.rs:5:12
+  |
+5 | pub struct PivoGenerator;
+  |            ^^^^^^^^^^^^^
+
+warning: associated functions `load_planner_prompt` and `generate_tasks` are never used
+  --> src/ai/pivo/generator.rs:8:12
+   |
+ 7 | impl PivoGenerator {
+   | ------------------ associated functions in this implementation
+ 8 |     pub fn load_planner_prompt(project_root: &str) -> Result<String, String> {
+   |            ^^^^^^^^^^^^^^^^^^^
+...
+36 |     pub async fn generate_tasks(_intent: &str, _prompt: &str) -> Result<Vec<TaskNode>, String> {
+   |                  ^^^^^^^^^^^^^^
+
+warning: function `safe_truncate_start` is never used
+  --> src/ai_utils.rs:14:8
+   |
+14 | pub fn safe_truncate_start(s: &str, max_chars: usize) -> String {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `agent_stream_chat` is never used
+   --> src/ai_utils.rs:603:14
+    |
+603 | pub async fn agent_stream_chat(
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: constant `MAX_OUTPUT_SIZE` is never used
+  --> src/commands/bash_commands.rs:82:11
+   |
+82 |     const MAX_OUTPUT_SIZE: u64 = 10 * 1024 * 1024; // 10MB limit
+   |           ^^^^^^^^^^^^^^^
+
+warning: field `parser` is never read
+  --> src/commands/error_commands.rs:64:5
+   |
+59 | pub struct ErrorParserState {
+   |            ---------------- field in this struct
+...
+64 |     parser: Option<()>,
+   |     ^^^^^^
+
+warning: struct `BasicAIService` is never constructed
+ --> src/community/mod.rs:6:12
+  |
+6 | pub struct BasicAIService;
+  |            ^^^^^^^^^^^^^^
+
+warning: field `max_memory` is never read
+  --> src/file_cache/mod.rs:22:5
+   |
+19 | pub struct FileCache {
+   |            --------- field in this struct
+...
+22 |     max_memory: u64,
+   |     ^^^^^^^^^^
+
+warning: method `invalidate` is never used
+   --> src/file_cache/mod.rs:105:18
+    |
+ 27 | impl FileCache {
+    | -------------- method in this implementation
+...
+105 |     pub async fn invalidate(&self, path: &Path) {
+    |                  ^^^^^^^^^^
+
+warning: function `invalidate_cache` is never used
+   --> src/file_cache/mod.rs:173:14
+    |
+173 | pub async fn invalidate_cache(path: &Path) {
+    |              ^^^^^^^^^^^^^^^^
+
+warning: variant `Unknown` is never constructed
+  --> src/git.rs:18:5
+   |
+ 8 | pub enum GitStatus {
+   |          --------- variant in this enum
+...
+18 |     Unknown,
+   |     ^^^^^^^
+   |
+   = note: `GitStatus` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `id` is never read
+   --> src/harness/api/provider_metadata.rs:218:5
+    |
+216 | struct PromptRule {
+    |        ---------- field in this struct
+217 |     /// 规则唯一标识
+218 |     id: &'static str,
+    |     ^^
+
+warning: method `handle_powershell` is never used
+  --> src/harness/tool/executor/shelltools.rs:95:8
+   |
+16 | impl ShellToolsExecutor {
+   | ----------------------- method in this implementation
+...
+95 |     fn handle_powershell(&self, input: &Value) -> Result<String, ToolError> {
+   |        ^^^^^^^^^^^^^^^^^
+
+warning: static `GLOBAL_TOOL_REGISTRY` is never used
+  --> src/harness_ai_service.rs:28:8
+   |
+28 | static GLOBAL_TOOL_REGISTRY: OnceLock<ToolRegistry> = OnceLock::new();
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_global_tool_registry` is never used
+  --> src/harness_ai_service.rs:30:4
+   |
+30 | fn get_global_tool_registry() -> &'static ToolRegistry {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `result` is never read
+  --> src/harness_ai_service.rs:54:9
+   |
+52 | pub struct ApprovalResult {
+   |            -------------- field in this struct
+53 |     pub approved: bool,
+54 |     pub result: Option<String>, // 执行结果（approved=true 时有值）
+   |         ^^^^^^
+   |
+   = note: `ApprovalResult` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `truncate_str` is never used
+  --> src/harness_ai_service.rs:85:4
+   |
+85 | fn truncate_str(s: &str, max_chars: usize) -> String {
+   |    ^^^^^^^^^^^^
+
+warning: method `convert_tools_to_openai_format` is never used
+   --> src/harness_ai_service.rs:104:8
+    |
+ 98 | impl HarnessAIService {
+    | --------------------- method in this implementation
+...
+104 |     fn convert_tools_to_openai_format(&self) -> Vec<serde_json::Value> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `error` is never used
+  --> src/http_api.rs:58:12
+   |
+49 | impl<T> ApiResponse<T> {
+   | ---------------------- associated function in this implementation
+...
+58 |     pub fn error(message: String) -> Self {
+   |            ^^^^^
+
+warning: fields `project_root` and `stream` are never read
+  --> src/http_api.rs:91:9
+   |
+87 | pub struct AIChatRequest {
+   |            ------------- fields in this struct
+...
+91 |     pub project_root: Option<String>,
+   |         ^^^^^^^^^^^^
+92 |     pub enable_tools: Option<bool>,
+93 |     pub stream: Option<bool>, // 是否使用流式输出（默认 false）
+   |         ^^^^^^
+   |
+   = note: `AIChatRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: function `send_content_delta_event` is never used
+   --> src/http_api.rs:276:14
+    |
+276 | pub async fn send_content_delta_event(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `stop` is never used
+   --> src/http_api.rs:926:18
+    |
+841 | impl HttpApiServer {
+    | ------------------ method in this implementation
+...
+926 |     pub async fn stop(&mut self) {
+    |                  ^^^^
+
+warning: method `is_debug_request` is never used
+   --> src/intelligence_router.rs:295:12
+    |
+ 55 | impl IntelligenceRouter {
+    | ----------------------- method in this implementation
+...
+295 |     pub fn is_debug_request(&self, text: &str) -> bool {
+    |            ^^^^^^^^^^^^^^^^
+
+warning: field `checksum` is never read
+   --> src/local_model.rs:180:9
+    |
+169 | pub struct ModelDownloadConfig {
+    |            ------------------- field in this struct
+...
+180 |     pub checksum: Option<String>,
+    |         ^^^^^^^^
+    |
+    = note: `ModelDownloadConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `clear` and `is_empty` are never used
+   --> src/meta/scanner/cache.rs:101:12
+    |
+ 58 | / impl<K, V> ScanCache<K, V>
+ 59 | | where
+ 60 | |     K: Hash + Eq + Clone,
+ 61 | |     V: Clone,
+    | |_____________- methods in this implementation
+...
+101 |       pub fn clear(&mut self) {
+    |              ^^^^^
+...
+113 |       pub fn is_empty(&self) -> bool {
+    |              ^^^^^^^^
+
+warning: variant `ValidationError` is never constructed
+   --> src/meta/scanner/config.rs:119:5
+    |
+111 | pub enum ConfigError {
+    |          ----------- variant in this enum
+...
+119 |     ValidationError(String),
+    |     ^^^^^^^^^^^^^^^
+    |
+    = note: `ConfigError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: struct `ProgressEvent` is never constructed
+  --> src/meta/scanner/progress.rs:11:12
+   |
+11 | pub struct ProgressEvent {
+   |            ^^^^^^^^^^^^^
+
+warning: struct `ProgressTracker` is never constructed
+  --> src/meta/scanner/progress.rs:23:12
+   |
+23 | pub struct ProgressTracker {
+   |            ^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `increment`, `update`, `complete`, `current`, and `percentage` are never used
+   --> src/meta/scanner/progress.rs:38:12
+    |
+ 36 | impl ProgressTracker {
+    | -------------------- associated items in this implementation
+ 37 |     /// 创建新的进度跟踪器
+ 38 |     pub fn new<F>(total: usize, throttle_ms: u64, callback: F) -> Self
+    |            ^^^
+...
+ 52 |     pub async fn increment(&self, delta: usize, message: String) {
+    |                  ^^^^^^^^^
+...
+ 85 |     pub async fn update(&self, value: usize, message: String) {
+    |                  ^^^^^^
+...
+118 |     pub async fn complete(&self, message: String) {
+    |                  ^^^^^^^^
+...
+123 |     pub async fn current(&self) -> usize {
+    |                  ^^^^^^^
+...
+128 |     pub async fn percentage(&self) -> f64 {
+    |                  ^^^^^^^^^^
+
+warning: struct `SyncProgressTracker` is never constructed
+   --> src/meta/scanner/progress.rs:135:12
+    |
+135 | pub struct SyncProgressTracker {
+    |            ^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `increment`, `update`, `complete`, `current`, and `percentage` are never used
+   --> src/meta/scanner/progress.rs:150:12
+    |
+148 | impl SyncProgressTracker {
+    | ------------------------ associated items in this implementation
+149 |     /// 创建新的同步进度跟踪器
+150 |     pub fn new<F>(total: usize, throttle_ms: u64, callback: F) -> Self
+    |            ^^^
+...
+167 |     pub fn increment(&self, delta: usize, message: String) {
+    |            ^^^^^^^^^
+...
+189 |     pub fn update(&self, value: usize, message: String) {
+    |            ^^^^^^
+...
+210 |     pub fn complete(&self, message: String) {
+    |            ^^^^^^^^
+...
+215 |     pub fn current(&self) -> usize {
+    |            ^^^^^^^
+...
+220 |     pub fn percentage(&self) -> f64 {
+    |            ^^^^^^^^^^
+
+warning: trait `Scanner` is never used
+ --> src/meta/scanner/scanner_trait.rs:9:11
+  |
+9 | pub trait Scanner: Send + Sync {
+  |           ^^^^^^^
+
+warning: fields `max_files` and `progress` are never read
+  --> src/meta/scanner/scanner_trait.rs:31:9
+   |
+23 | pub struct ScannerConfig {
+   |            ------------- fields in this struct
+...
+31 |     pub max_files: Option<usize>,
+   |         ^^^^^^^^^
+...
+34 |     pub progress: ProgressConfig,
+   |         ^^^^^^^^
+   |
+   = note: `ScannerConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `interval_ms` and `strategy` are never read
+  --> src/meta/scanner/scanner_trait.rs:46:9
+   |
+44 | pub struct ProgressConfig {
+   |            -------------- fields in this struct
+45 |     /// 发送间隔（毫秒）
+46 |     pub interval_ms: u64,
+   |         ^^^^^^^^^^^
+...
+49 |     pub strategy: ThrottleStrategy,
+   |         ^^^^^^^^
+   |
+   = note: `ProgressConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `strategy` is never read
+  --> src/meta/scanner/scanner_trait.rs:65:9
+   |
+60 | pub struct CacheConfig {
+   |            ----------- field in this struct
+...
+65 |     pub strategy: CacheStrategy,
+   |         ^^^^^^^^
+   |
+   = note: `CacheConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `MaxDepthExceeded`, `MaxFilesExceeded`, and `NotImplemented` are never constructed
+   --> src/meta/scanner/scanner_trait.rs:97:5
+    |
+ 89 | pub enum ScanError {
+    |          --------- variants in this enum
+...
+ 97 |     MaxDepthExceeded(usize),
+    |     ^^^^^^^^^^^^^^^^
+...
+100 |     MaxFilesExceeded(usize),
+    |     ^^^^^^^^^^^^^^^^
+...
+103 |     NotImplemented,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `ScanError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: struct `ScanResult` is never constructed
+   --> src/meta/scanner/scanner_trait.rs:108:12
+    |
+108 | pub struct ScanResult {
+    |            ^^^^^^^^^^
+
+warning: methods `with_parallel`, `with_max_depth`, and `clone_config` are never used
+   --> src/meta/scanner/scanner_trait.rs:146:12
+    |
+144 | impl ScannerConfig {
+    | ------------------ methods in this implementation
+145 |     /// 设置并行模式
+146 |     pub fn with_parallel(mut self, parallel: bool) -> Self {
+    |            ^^^^^^^^^^^^^
+...
+152 |     pub fn with_max_depth(mut self, depth: Option<usize>) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+158 |     pub fn clone_config(&self) -> Self {
+    |            ^^^^^^^^^^^^
+
+warning: struct `StreamProgressEvent` is never constructed
+  --> src/meta/scanner/streaming.rs:15:12
+   |
+15 | pub struct StreamProgressEvent {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: enum `StreamStage` is never used
+  --> src/meta/scanner/streaming.rs:34:10
+   |
+34 | pub enum StreamStage {
+   |          ^^^^^^^^^^^
+
+warning: struct `StreamingScanner` is never constructed
+  --> src/meta/scanner/streaming.rs:55:12
+   |
+55 | pub struct StreamingScanner<F, R>
+   |            ^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `with_progress`, `send_progress`, and `scan` are never used
+   --> src/meta/scanner/streaming.rs:75:12
+    |
+ 69 | / impl<F, R> StreamingScanner<F, R>
+ 70 | | where
+ 71 | |     F: Fn(&Path) -> Result<R, ScanError> + Send + Sync,
+ 72 | |     R: Send + 'static,
+    | |______________________- associated items in this implementation
+...
+ 75 |       pub fn new(scan_func: F, config: ScannerConfig) -> Self {
+    |              ^^^
+...
+ 84 |       pub fn with_progress(mut self, tx: mpsc::UnboundedSender<StreamProgressEvent>) -> Self {
+    |              ^^^^^^^^^^^^^
+...
+ 90 |       fn send_progress(&self, stage: StreamStage, current: usize, total: usize, message: String) {
+    |          ^^^^^^^^^^^^^
+...
+108 |       pub fn scan(&self, path: &Path) -> Result<R, ScanError> {
+    |              ^^^^
+
+warning: function `create_streaming_channel` is never used
+   --> src/meta/scanner/streaming.rs:152:8
+    |
+152 | pub fn create_streaming_channel() -> (
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `with_config` and `config` are never used
+  --> src/scanners/explore.rs:84:12
+   |
+56 | impl ExploreScanner {
+   | ------------------- associated items in this implementation
+...
+84 |     pub fn with_config(config: ScannerConfig) -> Self {
+   |            ^^^^^^^^^^^
+...
+95 |     pub fn config(&self) -> &ScannerConfig {
+   |            ^^^^^^
+
+warning: struct `PerformanceReport` is never constructed
+  --> src/scanners/perf.rs:13:12
+   |
+13 | pub struct PerformanceReport {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: method `to_markdown` is never used
+  --> src/scanners/perf.rs:38:12
+   |
+36 | impl PerformanceReport {
+   | ---------------------- method in this implementation
+37 |     /// 生成 Markdown 报告
+38 |     pub fn to_markdown(&self) -> String {
+   |            ^^^^^^^^^^^
+
+warning: function `run_performance_analysis` is never used
+  --> src/scanners/perf.rs:86:8
+   |
+86 | pub fn run_performance_analysis(path: &Path) -> PerformanceReport {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `StreamPhase` is never used
+ --> src/stream_schema_generated.rs:9:10
+  |
+9 | pub enum StreamPhase {
+  |          ^^^^^^^^^^^
+
+warning: methods `is_loading` and `allowed_transitions` are never used
+  --> src/stream_schema_generated.rs:18:12
+   |
+16 | impl StreamPhase {
+   | ---------------- methods in this implementation
+17 |     /// 是否处于加载状态（由 streamPhases[].loading 自动生成）
+18 |     pub fn is_loading(&self) -> bool {
+   |            ^^^^^^^^^^
+...
+26 |     pub fn allowed_transitions(&self) -> Vec<StreamPhase> {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: variants `Prompt` and `Allow` are never constructed
+  --> src/stream_schema_generated.rs:49:5
+   |
+45 | pub enum PermissionMode {
+   |          -------------- variants in this enum
+...
+49 |     Prompt,
+   |     ^^^^^^
+50 |     Allow,
+   |     ^^^^^
+   |
+   = note: `PermissionMode` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `auto_approve` is never used
+  --> src/stream_schema_generated.rs:55:12
+   |
+53 | impl PermissionMode {
+   | ------------------- method in this implementation
+54 |     /// 是否自动批准（由 permissionModes[].autoApprove 自动生成）
+55 |     pub fn auto_approve(&self) -> bool {
+   |            ^^^^^^^^^^^^
+
+warning: function `is_final_round_only_event` is never used
+   --> src/stream_schema_generated.rs:121:8
+    |
+121 | pub fn is_final_round_only_event(event_type: &str) -> bool {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `TokenCountResult` is never constructed
+ --> src/token_counter.rs:8:12
+  |
+8 | pub struct TokenCountResult {
+  |            ^^^^^^^^^^^^^^^^
+
+warning: function `get_edition_info_command` is never used
+  --> src/tool_classification/mod.rs:33:8
+   |
+33 | pub fn get_edition_info_command() -> String {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `rule_priority` is never used
+   --> src/tool_classification/layer2_rule_based.rs:229:4
+    |
+229 | fn rule_priority(category: ToolCategory) -> u8 {
+    |    ^^^^^^^^^^^^^
+
+warning: function `is_community_edition` is never used
+  --> src/tool_classification/mock.rs:64:8
+   |
+64 | pub fn is_community_edition() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_commercial_edition` is never used
+  --> src/tool_classification/mock.rs:69:8
+   |
+69 | pub fn is_commercial_edition() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_edition_info` is never used
+  --> src/tool_classification/mock.rs:74:8
+   |
+74 | pub fn get_edition_info() -> &'static str {
+   |        ^^^^^^^^^^^^^^^^
+
+warning: method `description` is never used
+  --> src/tool_classification/types.rs:55:12
+   |
+40 | impl ToolCategory {
+   | ----------------- method in this implementation
+...
+55 |     pub fn description(&self) -> &'static str {
+   |            ^^^^^^^^^^^
+
+warning: methods `icon` and `description` are never used
+   --> src/tool_classification/types.rs:94:12
+    |
+ 92 | impl ClassificationLayer {
+    | ------------------------ methods in this implementation
+ 93 |     /// 获取层级的显示图标
+ 94 |     pub fn icon(&self) -> &'static str {
+    |            ^^^^
+...
+103 |     pub fn description(&self) -> &'static str {
+    |            ^^^^^^^^^^^
+
+warning: associated items `layer3` and `display_info` are never used
+   --> src/tool_classification/types.rs:159:12
+    |
+135 | impl ClassificationResult {
+    | ------------------------- associated items in this implementation
+...
+159 |     pub fn layer3(category: ToolCategory, confidence: f32) -> Self {
+    |            ^^^^^^
+...
+170 |     pub fn display_info(&self) -> String {
+    |            ^^^^^^^^^^^^
+
+warning: struct `ClassifyToolRequest` is never constructed
+   --> src/tool_classification/types.rs:187:12
+    |
+187 | pub struct ClassifyToolRequest {
+    |            ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `BatchClassifyRequest` is never constructed
+   --> src/tool_classification/types.rs:200:12
+    |
+200 | pub struct BatchClassifyRequest {
+    |            ^^^^^^^^^^^^^^^^^^^^
+
+warning: creating a shared reference to mutable static
+    --> src/lib.rs:1305:120
+     |
+1305 | ...eady_intercepted={}, is_xml_fragment={}", SUPPRESS_COUNT, already_intercepted, is_xml_fragment);
+     |                                              ^^^^^^^^^^^^^^ shared reference to mutable static
+     |
+     = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+     = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+     = note: `#[warn(static_mut_refs)]` on by default
+
+warning: creating a shared reference to mutable static
+    --> src/lib.rs:1384:90
+     |
+1384 | ...                   println!("[AI Chat] ❌ Tauri emit failed #{}: {:?}", EMIT_ERROR_COUNT, e);
+     |                                                                            ^^^^^^^^^^^^^^^^ shared reference to mutable static
+     |
+     = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/static-mut-references.html>
+     = note: shared references to mutable statics are dangerous; it's undefined behavior if the static is mutated or if a mutable reference is created for it while the shared reference lives
+
+warning: `ifainew` (lib) generated 290 warnings (run `cargo fix --lib -p ifainew` to apply 109 suggestions)
+warning: unused import: `SessionSnapshot`
+   --> src/bin/ifai/commands.rs:420:50
+    |
+420 |     use super::persistence::{SessionPersistence, SessionSnapshot};
+    |                                                  ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `Path`
+  --> src/bin/ifai/config.rs:13:17
+   |
+13 | use std::path::{Path, PathBuf};
+   |                 ^^^^
+
+warning: unused import: `get_provider_spec`
+ --> src/bin/ifai/provider.rs:5:52
+  |
+5 | use ifainew_lib::harness::api::provider_metadata::{get_provider_spec, ProviderSpec};
+  |                                                    ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `RiskLevel` and `ToolCategory`
+  --> src/bin/ifai/session.rs:12:43
+   |
+12 | use crate::permission::{self as approval, RiskLevel, ToolCategory};
+   |                                           ^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `crate::pipeline::PipelineTracker`
+  --> src/bin/ifai/session.rs:14:5
+   |
+14 | use crate::pipeline::PipelineTracker; // 🎨 元编程：Pipeline 可视化
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Ordering`
+   --> src/bin/ifai/session.rs:670:45
+    |
+670 |         use std::sync::atomic::{AtomicBool, Ordering};
+    |                                             ^^^^^^^^
+
+warning: unused imports: `AgentType`, `WorkflowEdge`, `WorkflowNode`, and `Workflow`
+ --> src/bin/ifai/workflow_cmd.rs:5:13
+  |
+5 |     types::{AgentType, Workflow, WorkflowEdge, WorkflowNode},
+  |             ^^^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `ratatui::layout::Rect`
+ --> src/bin/ifai/detail_overlay.rs:9:5
+  |
+9 | use ratatui::layout::Rect;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Modifier`
+  --> src/bin/ifai/detail_overlay.rs:10:29
+   |
+10 | use ratatui::style::{Color, Modifier, Style};
+   |                             ^^^^^^^^
+
+warning: unused imports: `KeyEvent` and `KeyModifiers`
+ --> src/bin/ifai/event/handler.rs:5:24
+  |
+5 | use crossterm::event::{KeyEvent, KeyModifiers};
+  |                        ^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `MouseEvent`
+  --> src/bin/ifai/event/handlers.rs:10:64
+   |
+10 | use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+   |                                                                ^^^^^^^^^^
+
+warning: unused import: `OverlayContent`
+   --> src/bin/ifai/event/handlers.rs:638:60
+    |
+638 |                 use crate::detail_overlay::{DetailOverlay, OverlayContent};
+    |                                                            ^^^^^^^^^^^^^^
+
+warning: unused import: `crate::AppResult`
+ --> src/bin/ifai/event/router.rs:5:5
+  |
+5 | use crate::AppResult;
+  |     ^^^^^^^^^^^^^^^^
+
+warning: unused imports: `KeyCode`, `KeyEvent`, and `KeyModifiers`
+ --> src/bin/ifai/event/router.rs:6:24
+  |
+6 | use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+  |                        ^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused imports: `CopyHandler`, `InputSubmitHandler`, and `KeyScrollHandler`
+  --> src/bin/ifai/event/mod.rs:44:25
+   |
+44 |     CombinedKeyHandler, CopyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler,
+   |                         ^^^^^^^^^^^
+45 |     DiffModeHandler, HelpEnterHandler, HelpExitHandler, IgnoreHandler, InputSubmitHandler,
+   |                                                                        ^^^^^^^^^^^^^^^^^^
+46 |     KeyScrollHandler, MouseScrollHandler, ResizeHandler, SearchEnterHandler, SearchInputHandler,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: unused import: `THREAD_KEYMAP`
+  --> src/bin/ifai/event/mod.rs:49:63
+   |
+49 | pub use thread_event::{ThreadEnterHandler, ThreadModeHandler, THREAD_KEYMAP};
+   |                                                               ^^^^^^^^^^^^^
+
+warning: unused import: `ratatui::layout::Alignment`
+ --> src/bin/ifai/keybindings.rs:5:5
+  |
+5 | use ratatui::layout::Alignment;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Paragraph`
+ --> src/bin/ifai/keybindings.rs:7:24
+  |
+7 | use ratatui::widgets::{Paragraph, Widget};
+  |                        ^^^^^^^^^
+
+warning: unused import: `serde_json::Value`
+ --> src/bin/ifai/loop_detector.rs:8:5
+  |
+8 | use serde_json::Value;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Instant`
+ --> src/bin/ifai/pipeline/tracker.rs:7:27
+  |
+7 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused imports: `PipelineStepStatus`, `PipelineStep`, `StepMetadata`, and `TokenUsage`
+  --> src/bin/ifai/pipeline/mod.rs:9:5
+   |
+ 9 |     PipelineStep,
+   |     ^^^^^^^^^^^^
+10 |     PipelineStepStatus,
+   |     ^^^^^^^^^^^^^^^^^^
+11 |     StepMetadata,
+   |     ^^^^^^^^^^^^
+...
+14 |     TokenUsage,
+   |     ^^^^^^^^^^
+
+warning: unused import: `std::path::PathBuf`
+ --> src/bin/ifai/prompt_vars.rs:7:5
+  |
+7 | use std::path::PathBuf;
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Path`
+  --> src/bin/ifai/smart_glob_summary.rs:18:17
+   |
+18 | use std::path::{Path, PathBuf};
+   |                 ^^^^
+
+warning: unused import: `std::time::Duration`
+  --> src/bin/ifai/stream_render.rs:14:5
+   |
+14 | use std::time::Duration;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ContentPart`
+  --> src/bin/ifai/token/display.rs:13:40
+   |
+13 | use ifainew_lib::harness::api::types::{ContentPart, Message, MessageContent};
+   |                                        ^^^^^^^^^^^
+
+warning: unused imports: `format_compaction_warning` and `format_session_stats`
+  --> src/bin/ifai/token/mod.rs:25:5
+   |
+25 |     format_compaction_warning,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+26 |     format_cost,
+27 |     format_session_stats,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `STATUS_REFRESH_INTERVAL`
+  --> src/bin/ifai/token/mod.rs:37:5
+   |
+37 |     STATUS_REFRESH_INTERVAL,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `KeyCode`, `KeyEvent`, `KeyModifiers`, `MouseEventKind`, and `MouseEvent`
+ --> src/bin/ifai/tui.rs:9:26
+  |
+9 |     event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
+  |                          ^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^^  ^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unused imports: `Block` and `Borders`
+  --> src/bin/ifai/tui.rs:17:15
+   |
+17 |     widgets::{Block, Borders, Clear, Paragraph, Widget},
+   |               ^^^^^  ^^^^^^^
+
+warning: unused import: `EventHandler`
+  --> src/bin/ifai/tui.rs:26:33
+   |
+26 | use crate::event::{ControlFlow, EventHandler, EventRouter};
+   |                                 ^^^^^^^^^^^^
+
+warning: unused import: `crate::render`
+  --> src/bin/ifai/tui.rs:27:5
+   |
+27 | use crate::render;
+   |     ^^^^^^^^^^^^^
+
+warning: unused import: `InputAction`
+  --> src/bin/ifai/tui.rs:32:35
+   |
+32 | use super::input_composer::{self, InputAction, InputComposer};
+   |                                   ^^^^^^^^^^^
+
+warning: unused import: `self`
+  --> src/bin/ifai/tui.rs:33:21
+   |
+33 | use super::thread::{self, ThreadId, ThreadMessages, ThreadStore};
+   |                     ^^^^
+
+warning: unused import: `Write`
+   --> src/bin/ifai/main.rs:131:33
+    |
+131 | use std::io::{self, IsTerminal, Write};
+    |                                 ^^^^^
+
+warning: unused import: `ifainew_lib::harness::api::types::Message`
+   --> src/bin/ifai/main.rs:771:9
+    |
+771 |     use ifainew_lib::harness::api::types::Message;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ControlFlow`
+    --> src/bin/ifai/main.rs:2335:32
+     |
+2335 |             use crate::event::{ControlFlow, EventHandler};
+     |                                ^^^^^^^^^^^
+
+warning: unused import: `ControlFlow`
+    --> src/bin/ifai/main.rs:2345:32
+     |
+2345 |             use crate::event::{ControlFlow, EventHandler};
+     |                                ^^^^^^^^^^^
+
+warning: unused variable: `max_continuations`
+   --> src/bin/ifai/session.rs:933:13
+    |
+933 |         let max_continuations = approval::max_iterations(current_category);
+    |             ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_max_continuations`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `input`
+    --> src/bin/ifai/session.rs:1129:77
+     |
+1129 | ...                   StreamEvent::ToolStart { tool_id, name, input } => {
+     |                                                               ^^^^^ help: try ignoring the field: `input: _`
+
+warning: unused variable: `tool_id`
+    --> src/bin/ifai/session.rs:1329:18
+     |
+1329 |             for (tool_id, name, _result, _duration) in &tool_results {
+     |                  ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_tool_id`
+
+warning: value assigned to `stream_retry_count` is never read
+    --> src/bin/ifai/session.rs:1386:13
+     |
+1386 |             stream_retry_count = 0;
+     |             ^^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+     = note: `#[warn(unused_assignments)]` on by default
+
+warning: unused variable: `thread_event_tx`
+    --> src/bin/ifai/session.rs:1426:9
+     |
+1426 |         thread_event_tx: tokio::sync::mpsc::UnboundedSender<crate::thread::ThreadEvent>,
+     |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_thread_event_tx`
+
+warning: unused variable: `provider`
+    --> src/bin/ifai/session.rs:1453:17
+     |
+1453 |             let provider = match spec.metadata.id.as_str() {
+     |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_provider`
+
+warning: unused variable: `max_continuations`
+    --> src/bin/ifai/session.rs:1619:13
+     |
+1619 |         let max_continuations = approval::max_iterations(current_category);
+     |             ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_max_continuations`
+
+warning: unused variable: `ended_with_no_tools`
+    --> src/bin/ifai/session.rs:1621:17
+     |
+1621 |         let mut ended_with_no_tools = false; // 🔥 标记是否因为没有工具调用而结束（避免重复生成总结）
+     |                 ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_ended_with_no_tools`
+
+warning: unused variable: `input`
+    --> src/bin/ifai/session.rs:1732:33
+     |
+1732 | ...                   input,
+     |                       ^^^^^ help: try ignoring the field: `input: _`
+
+warning: unused variable: `s`
+    --> src/bin/ifai/session.rs:1933:29
+     |
+1933 |                     let mut s = session.lock().await;
+     |                             ^ help: if this is intentional, prefix it with an underscore: `_s`
+
+warning: unused variable: `tool_id`
+    --> src/bin/ifai/session.rs:2043:22
+     |
+2043 |                 for (tool_id, name, _result, _duration) in &tool_results {
+     |                      ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_tool_id`
+
+warning: value assigned to `stream_retry_count` is never read
+    --> src/bin/ifai/session.rs:2156:13
+     |
+2156 |             stream_retry_count = 0;
+     |             ^^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/session.rs:1438:17
+     |
+1438 |             let mut s = session.lock().await;
+     |                 ----^
+     |                 |
+     |                 help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/session.rs:1621:13
+     |
+1621 |         let mut ended_with_no_tools = false; // 🔥 标记是否因为没有工具调用而结束（避免重复生成总结）
+     |             ----^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/session.rs:1933:25
+     |
+1933 |                     let mut s = session.lock().await;
+     |                         ----^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/session.rs:1951:25
+     |
+1951 |                     let mut s = session.lock().await;
+     |                         ----^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/session.rs:1952:25
+     |
+1952 |                     let mut ctx = thread_ctx.lock().await;
+     |                         ----^^^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: unused variable: `bottom_status_bar`
+    --> src/bin/ifai/session.rs:2184:9
+     |
+2184 |         bottom_status_bar: &mut token::BottomStatusBar,
+     |         ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_bottom_status_bar`
+
+warning: variable does not need to be mutable
+   --> src/bin/ifai/workflow_cmd.rs:186:17
+    |
+186 |             let mut runner = runner_arc.lock().await;
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: unused variable: `resume_name`
+   --> src/bin/ifai/main.rs:833:25
+    |
+833 | async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
+    |                         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_resume_name`
+
+warning: variable `got_events` is assigned to, but never used
+    --> src/bin/ifai/main.rs:1355:17
+     |
+1355 |         let mut got_events = false;
+     |                 ^^^^^^^^^^
+     |
+     = note: consider using `_got_events` instead
+
+warning: value assigned to `got_events` is never read
+    --> src/bin/ifai/main.rs:1357:13
+     |
+1357 |             got_events = true;
+     |             ^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/main.rs:1605:13
+     |
+1605 |             mut thread_event_tx,
+     |             ----^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/main.rs:1606:13
+     |
+1606 |             mut approval_tx_for_resend,
+     |             ----^^^^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/main.rs:1607:13
+     |
+1607 |             mut stream_handle,
+     |             ----^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `thread_id`
+    --> src/bin/ifai/main.rs:2452:30
+     |
+2452 |                         for (thread_id, messages) in app.thread.messages.get_all() {
+     |                              ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_thread_id`
+
+warning: unused variable: `thread_id`
+    --> src/bin/ifai/main.rs:2603:26
+     |
+2603 |                     for (thread_id, messages) in app.thread.messages.get_all() {
+     |                          ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_thread_id`
+
+warning: unused import: `Widget`
+ --> src/bin/ifai/keybindings.rs:7:35
+  |
+7 | use ratatui::widgets::{Paragraph, Widget};
+  |                                   ^^^^^^
+
+warning: unused import: `Widget`
+  --> src/bin/ifai/tui.rs:17:49
+   |
+17 |     widgets::{Block, Borders, Clear, Paragraph, Widget},
+   |                                                 ^^^^^^
+
+warning: unused variable: `session`
+   --> src/bin/ifai/commands.rs:370:14
+    |
+370 | fn cmd_model(session: &mut Session, arg: Option<&str>) -> CommandResult {
+    |              ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_session`
+
+warning: unused variable: `i`
+   --> src/bin/ifai/commands.rs:910:18
+    |
+910 |             for (i, task) in tasks.iter().enumerate() {
+    |                  ^ help: if this is intentional, prefix it with an underscore: `_i`
+
+warning: unused variable: `arg`
+   --> src/bin/ifai/commands.rs:932:44
+    |
+932 | fn cmd_thread_stub(_session: &mut Session, arg: Option<&str>) -> CommandResult {
+    |                                            ^^^ help: if this is intentional, prefix it with an underscore: `_arg`
+
+warning: unused variable: `muted`
+   --> src/bin/ifai/render.rs:546:9
+    |
+546 |     let muted = theme.muted;
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_muted`
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/session.rs:2836:9
+     |
+2836 |     let mut variables = collect_cli_variables(spec);
+     |         ----^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `task`
+  --> src/bin/ifai/agent_cmd.rs:58:52
+   |
+58 | pub fn build_agent_workflow(agent_type_name: &str, task: &str) -> Workflow {
+   |                                                    ^^^^ help: if this is intentional, prefix it with an underscore: `_task`
+
+warning: unused variable: `color`
+   --> src/bin/ifai/command_popup.rs:328:49
+    |
+328 |     fn highlight_match(text: &str, query: &str, color: Color) -> Span<'static> {
+    |                                                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_color`
+
+warning: unused variable: `path`
+   --> src/bin/ifai/detail_overlay.rs:176:13
+    |
+176 |             ref path,
+    |             ^^^^^^^^ help: try ignoring the field: `path: _`
+
+warning: unused variable: `text`
+   --> src/bin/ifai/event/handlers.rs:437:45
+    |
+437 |                         InputAction::Submit(text) => {
+    |                                             ^^^^ help: if this is intentional, prefix it with an underscore: `_text`
+
+warning: unused variable: `current_col_offset`
+   --> src/bin/ifai/input_composer.rs:160:29
+    |
+160 |                         let current_col_offset = self.cursor_pos - line_start;
+    |                             ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_col_offset`
+
+warning: unused variable: `estimated_input`
+   --> src/bin/ifai/token/stream_status.rs:222:13
+    |
+222 |             estimated_input,
+    |             ^^^^^^^^^^^^^^^-
+    |             |
+    |             help: try removing the field
+
+warning: variable does not need to be mutable
+   --> src/bin/ifai/tui.rs:615:13
+    |
+615 |         let mut app = Self {
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `stream_states`
+    --> src/bin/ifai/main.rs:2085:5
+     |
+2085 |     stream_states: &mut std::collections::HashMap<thread::ThreadId, StreamState>,
+     |     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_stream_states`
+
+warning: unused variable: `active_id`
+    --> src/bin/ifai/main.rs:2086:5
+     |
+2086 |     active_id: &thread::ThreadId,
+     |     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_active_id`
+
+warning: variable does not need to be mutable
+    --> src/bin/ifai/main.rs:2156:33
+     |
+2156 | ...                   let mut runner = runner_arc.lock().await;
+     |                           ----^^^^^^
+     |                           |
+     |                           help: remove this `mut`
+
+warning: variant `Exit` is never constructed
+    --> src/bin/ifai/main.rs:1537:5
+     |
+1524 | pub(crate) enum StreamingControl {
+     |                 ---------------- variant in this enum
+...
+1537 |     Exit,
+     |     ^^^^
+     |
+     = note: `#[warn(dead_code)]` on by default
+
+warning: variants `AbortAll`, `ScrollUpLine`, `ScrollDownLine`, and `Fallthrough` are never constructed
+    --> src/bin/ifai/main.rs:1933:5
+     |
+1931 | enum RouteAction {
+     |      ----------- variants in this enum
+1932 |     /// Ctrl+C：中断所有 streaming
+1933 |     AbortAll,
+     |     ^^^^^^^^
+...
+1951 |     ScrollUpLine(u16),
+     |     ^^^^^^^^^^^^
+1952 |     /// Shift+Down：向下滚动（Normal only）
+1953 |     ScrollDownLine(u16),
+     |     ^^^^^^^^^^^^^^
+1954 |     /// 未匹配任何 binding → fallthrough 到 input composer
+1955 |     Fallthrough,
+     |     ^^^^^^^^^^^
+     |
+     = note: `RouteAction` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `Auth` and `Admin` are never constructed
+  --> src/bin/ifai/commands.rs:32:5
+   |
+26 | pub enum PermissionMode {
+   |          -------------- variants in this enum
+...
+32 |     Auth = 2,
+   |     ^^^^
+33 |     /// 管理员
+34 |     Admin = 3,
+   |     ^^^^^
+   |
+   = note: `PermissionMode` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `min_permission` is never read
+  --> src/bin/ifai/commands.rs:46:9
+   |
+38 | pub struct CommandSpec {
+   |            ----------- field in this struct
+...
+46 |     pub min_permission: PermissionMode,
+   |         ^^^^^^^^^^^^^^
+
+warning: method `as_str` is never used
+  --> src/bin/ifai/config.rs:33:12
+   |
+32 | impl ConfigSource {
+   | ----------------- method in this implementation
+33 |     pub fn as_str(&self) -> &'static str {
+   |            ^^^^^^
+
+warning: field `source` is never read
+  --> src/bin/ifai/config.rs:47:5
+   |
+45 | struct TracedValue<T> {
+   |        ----------- field in this struct
+46 |     value: T,
+47 |     source: ConfigSource,
+   |     ^^^^^^
+   |
+   = note: `TracedValue` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `provider_source` and `visualize_sources` are never used
+   --> src/bin/ifai/config.rs:221:12
+    |
+ 73 | impl EffectiveConfig {
+    | -------------------- methods in this implementation
+...
+221 |     pub fn provider_source(&self) -> ConfigSource {
+    |            ^^^^^^^^^^^^^^^
+...
+226 |     pub fn visualize_sources(&self) -> String {
+    |            ^^^^^^^^^^^^^^^^^
+
+warning: function `config_file_exists` is never used
+   --> src/bin/ifai/config.rs:257:8
+    |
+257 | pub fn config_file_exists() -> bool {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: constant `BRAND_PALETTE` is never used
+  --> src/bin/ifai/render.rs:12:7
+   |
+12 | const BRAND_PALETTE: &[(&str, u8, bool, bool)] = &[
+   |       ^^^^^^^^^^^^^
+
+warning: constant `PROGRESS_FRAMES_SPIN` is never used
+  --> src/bin/ifai/render.rs:36:7
+   |
+36 | const PROGRESS_FRAMES_SPIN: &[char] = &['⟳', '⟲', '⊶', '⊷'];
+   |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `PROGRESS_FRAMES_DOT` is never used
+  --> src/bin/ifai/render.rs:42:7
+   |
+42 | const PROGRESS_FRAMES_DOT: &[char] = &['⠁', '⠂', '⠄', '⠠'];
+   |       ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `ANIMATION_FRAME_INTERVAL_MS` is never used
+  --> src/bin/ifai/render.rs:47:7
+   |
+47 | const ANIMATION_FRAME_INTERVAL_MS: u64 = 200;
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `current_progress_frame` is never used
+  --> src/bin/ifai/render.rs:52:8
+   |
+52 | pub fn current_progress_frame() -> char {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `box_bg`, `diff_add_bg`, and `diff_del_bg` are never read
+  --> src/bin/ifai/render.rs:80:9
+   |
+70 | pub struct Theme {
+   |            ----- fields in this struct
+...
+80 |     pub box_bg: &'static str,
+   |         ^^^^^^
+81 |     pub diff_add_bg: &'static str,
+   |         ^^^^^^^^^^^
+82 |     pub diff_del_bg: &'static str,
+   |         ^^^^^^^^^^^
+   |
+   = note: `Theme` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `bold_color_256` is never used
+   --> src/bin/ifai/render.rs:444:8
+    |
+444 | pub fn bold_color_256(code: u8) -> String {
+    |        ^^^^^^^^^^^^^^
+
+warning: constant `H` is never used
+   --> src/bin/ifai/render.rs:452:7
+    |
+452 | const H: &str = "─"; // Horizontal
+    |       ^
+
+warning: constant `V` is never used
+   --> src/bin/ifai/render.rs:453:7
+    |
+453 | const V: &str = "│"; // Vertical
+    |       ^
+
+warning: constant `TL` is never used
+   --> src/bin/ifai/render.rs:454:7
+    |
+454 | const TL: &str = "╭"; // Top-Left
+    |       ^^
+
+warning: constant `TR` is never used
+   --> src/bin/ifai/render.rs:455:7
+    |
+455 | const TR: &str = "╮"; // Top-Right
+    |       ^^
+
+warning: constant `BL` is never used
+   --> src/bin/ifai/render.rs:456:7
+    |
+456 | const BL: &str = "╰"; // Bottom-Left
+    |       ^^
+
+warning: constant `BR` is never used
+   --> src/bin/ifai/render.rs:457:7
+    |
+457 | const BR: &str = "╯"; // Bottom-Right
+    |       ^^
+
+warning: constant `LJ` is never used
+   --> src/bin/ifai/render.rs:458:7
+    |
+458 | const LJ: &str = "├"; // Left-Join
+    |       ^^
+
+warning: constant `RJ` is never used
+   --> src/bin/ifai/render.rs:459:7
+    |
+459 | const RJ: &str = "┤"; // Right-Join
+    |       ^^
+
+warning: constant `TJ` is never used
+   --> src/bin/ifai/render.rs:460:7
+    |
+460 | const TJ: &str = "┴"; // Top-Join
+    |       ^^
+
+warning: constant `BJ` is never used
+   --> src/bin/ifai/render.rs:461:7
+    |
+461 | const BJ: &str = "┬"; // Bottom-Join
+    |       ^^
+
+warning: constant `XJ` is never used
+   --> src/bin/ifai/render.rs:462:7
+    |
+462 | const XJ: &str = "┼"; // Cross-Join
+    |       ^^
+
+warning: field `cursor_pos` is never read
+   --> src/bin/ifai/render.rs:475:5
+    |
+474 | pub struct Spinner {
+    |            ------- field in this struct
+475 |     cursor_pos: usize,
+    |     ^^^^^^^^^^
+
+warning: method `tick` is never used
+   --> src/bin/ifai/render.rs:495:12
+    |
+482 | impl Spinner {
+    | ------------ method in this implementation
+...
+495 |     pub fn tick(&mut self) -> String {
+    |            ^^^^
+
+warning: function `render_tool_start` is never used
+   --> src/bin/ifai/render.rs:544:8
+    |
+544 | pub fn render_tool_start(name: &str, args: &str, theme: &Theme) -> String {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: function `render_tool_result` is never used
+   --> src/bin/ifai/render.rs:563:8
+    |
+563 | pub fn render_tool_result(name: &str, result: &str, success: bool, theme: &Theme) -> String {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `render_status_bar` is never used
+   --> src/bin/ifai/render.rs:580:8
+    |
+580 | pub fn render_status_bar(
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: struct `MarkdownStreamState` is never constructed
+   --> src/bin/ifai/render.rs:672:12
+    |
+672 | pub struct MarkdownStreamState {
+    |            ^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new` and `process_delta` are never used
+   --> src/bin/ifai/render.rs:679:12
+    |
+678 | impl MarkdownStreamState {
+    | ------------------------ associated items in this implementation
+679 |     pub fn new() -> Self {
+    |            ^^^
+...
+688 |     pub fn process_delta(&mut self, delta: &str, theme: &Theme) -> String {
+    |            ^^^^^^^^^^^^^
+
+warning: function `render_table` is never used
+   --> src/bin/ifai/render.rs:764:8
+    |
+764 | pub fn render_table(headers: &[&str], rows: &[Vec<String>]) -> String {
+    |        ^^^^^^^^^^^^
+
+warning: methods `response_text` and `clear` are never used
+   --> src/bin/ifai/session.rs:269:12
+    |
+246 | impl EventCollector {
+    | ------------------- methods in this implementation
+...
+269 |     pub fn response_text(&self) -> &str {
+    |            ^^^^^^^^^^^^^
+...
+277 |     pub fn clear(&mut self) {
+    |            ^^^^^
+
+warning: constant `MAX_CONTINUATIONS` is never used
+   --> src/bin/ifai/session.rs:326:11
+    |
+326 | pub const MAX_CONTINUATIONS: u32 = 5;
+    |           ^^^^^^^^^^^^^^^^^
+
+warning: struct `ContinuationCounter` is never constructed
+   --> src/bin/ifai/session.rs:330:12
+    |
+330 | pub struct ContinuationCounter {
+    |            ^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `increment`, `count`, and `is_exceeded` are never used
+   --> src/bin/ifai/session.rs:335:12
+    |
+334 | impl ContinuationCounter {
+    | ------------------------ associated items in this implementation
+335 |     pub fn new() -> Self {
+    |            ^^^
+...
+340 |     pub fn increment(&mut self) -> Result<(), String> {
+    |            ^^^^^^^^^
+...
+350 |     pub fn count(&self) -> u32 {
+    |            ^^^^^
+...
+355 |     pub fn is_exceeded(&self) -> bool {
+    |            ^^^^^^^^^^^
+
+warning: field `session_start` is never read
+   --> src/bin/ifai/session.rs:428:5
+    |
+404 | pub struct Session {
+    |            ------- field in this struct
+...
+428 |     session_start: Instant,
+    |     ^^^^^^^^^^^^^
+
+warning: variant `Manual` is never constructed
+   --> src/bin/ifai/session.rs:449:5
+    |
+446 | enum CompactionMode {
+    |      -------------- variant in this enum
+...
+449 |     Manual,  // /compact 命令，完整压缩
+    |     ^^^^^^
+
+warning: methods `get_stored_api_key`, `set_auto_approve_all`, `get_session_duration`, `add_message`, and `clear_history` are never used
+   --> src/bin/ifai/session.rs:703:12
+    |
+651 | impl Session {
+    | ------------ methods in this implementation
+...
+703 |     pub fn get_stored_api_key(&self) -> Option<&str> {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+723 |     pub fn set_auto_approve_all(&mut self, value: bool) {
+    |            ^^^^^^^^^^^^^^^^^^^^
+...
+728 |     fn get_session_duration(&self) -> Duration {
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+798 |     pub fn add_message(&mut self, msg: String) {
+    |            ^^^^^^^^^^^
+...
+808 |     pub fn clear_history(&mut self) {
+    |            ^^^^^^^^^^^^^
+
+warning: fields `tool_id` and `risk_level` are never read
+  --> src/bin/ifai/approval_overlay.rs:52:9
+   |
+48 | pub struct ApprovalRequest {
+   |            --------------- fields in this struct
+...
+52 |     pub tool_id: String,
+   |         ^^^^^^^
+...
+55 |     pub risk_level: RiskLevel,
+   |         ^^^^^^^^^^
+
+warning: field `label` is never read
+  --> src/bin/ifai/approval_overlay.rs:92:9
+   |
+89 | pub struct KeyAction {
+   |            --------- field in this struct
+...
+92 |     pub label: &'static str,
+   |         ^^^^^
+
+warning: function `render_keymap_hint` is never used
+   --> src/bin/ifai/approval_overlay.rs:138:8
+    |
+138 | pub fn render_keymap_hint() -> Span<'static> {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: struct `RiskDisplay` is never constructed
+   --> src/bin/ifai/approval_overlay.rs:159:12
+    |
+159 | pub struct RiskDisplay {
+    |            ^^^^^^^^^^^
+
+warning: constant `RISK_DISPLAYS` is never used
+   --> src/bin/ifai/approval_overlay.rs:164:11
+    |
+164 | pub const RISK_DISPLAYS: &[(RiskLevel, RiskDisplay)] = &[
+    |           ^^^^^^^^^^^^^
+
+warning: function `risk_display` is never used
+   --> src/bin/ifai/approval_overlay.rs:189:8
+    |
+189 | pub fn risk_display(level: RiskLevel) -> &'static RiskDisplay {
+    |        ^^^^^^^^^^^^
+
+warning: field `color` is never read
+   --> src/bin/ifai/approval_overlay.rs:296:9
+    |
+293 | pub struct ToolDisplayNameDef {
+    |            ------------------ field in this struct
+...
+296 |     pub color: Color,
+    |         ^^^^^
+
+warning: function `get_tool_color` is never used
+   --> src/bin/ifai/approval_overlay.rs:338:8
+    |
+338 | pub fn get_tool_color(tool_name: &str) -> Color {
+    |        ^^^^^^^^^^^^^^
+
+warning: struct `PanelSection` is never constructed
+   --> src/bin/ifai/approval_overlay.rs:351:12
+    |
+351 | pub struct PanelSection {
+    |            ^^^^^^^^^^^^
+
+warning: struct `PanelDef` is never constructed
+   --> src/bin/ifai/approval_overlay.rs:358:12
+    |
+358 | pub struct PanelDef<'a> {
+    |            ^^^^^^^^
+
+warning: function `approval_sections` is never used
+   --> src/bin/ifai/approval_overlay.rs:426:4
+    |
+426 | fn approval_sections() -> &'static [PanelSection] {
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `approval_panel_def` is never used
+   --> src/bin/ifai/approval_overlay.rs:454:4
+    |
+454 | fn approval_panel_def() -> PanelDef<'static> {
+    |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `render_panel_lines` is never used
+   --> src/bin/ifai/approval_overlay.rs:465:8
+    |
+465 | pub fn render_panel_lines(req: &ApprovalRequest) -> Vec<Line<'static>> {
+    |        ^^^^^^^^^^^^^^^^^^
+
+warning: enum `FoldState` is never used
+  --> src/bin/ifai/code_folding.rs:23:10
+   |
+23 | pub enum FoldState {
+   |          ^^^^^^^^^
+
+warning: struct `FoldingStrategy` is never constructed
+  --> src/bin/ifai/code_folding.rs:32:12
+   |
+32 | pub struct FoldingStrategy {
+   |            ^^^^^^^^^^^^^^^
+
+warning: struct `FoldMetadata` is never constructed
+  --> src/bin/ifai/code_folding.rs:59:12
+   |
+59 | pub struct FoldMetadata {
+   |            ^^^^^^^^^^^^
+
+warning: associated items `generate` and `toggle` are never used
+  --> src/bin/ifai/code_folding.rs:72:12
+   |
+70 | impl FoldMetadata {
+   | ----------------- associated items in this implementation
+71 |     /// 🔥 自动生成折叠元数据
+72 |     pub fn generate(block_id: usize, total_lines: usize, strategy: &FoldingStrategy) -> Self {
+   |            ^^^^^^^^
+...
+88 |     pub fn toggle(&mut self) {
+   |            ^^^^^^
+
+warning: struct `ANSICursor` is never constructed
+  --> src/bin/ifai/code_folding.rs:97:12
+   |
+97 | pub struct ANSICursor;
+   |            ^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> src/bin/ifai/code_folding.rs:101:15
+    |
+ 99 | impl ANSICursor {
+    | --------------- associated items in this implementation
+100 |     /// 保存光标位置
+101 |     pub const SAVE: &'static str = "\x1b[s";
+    |               ^^^^
+102 |     /// 恢复光标位置
+103 |     pub const RESTORE: &'static str = "\x1b[u";
+    |               ^^^^^^^
+104 |     /// 隐藏光标
+105 |     pub const HIDE: &'static str = "\x1b[?25l";
+    |               ^^^^
+106 |     /// 显示光标
+107 |     pub const SHOW: &'static str = "\x1b[?25h";
+    |               ^^^^
+108 |     /// 清除从光标到屏幕末尾
+109 |     pub const CLEAR_TO_END: &'static str = "\x1b[0J";
+    |               ^^^^^^^^^^^^
+110 |     /// 向上移动 N 行
+111 |     pub fn up(n: usize) -> String {
+    |            ^^
+...
+115 |     pub fn down(n: usize) -> String {
+    |            ^^^^
+
+warning: struct `FoldingRenderer` is never constructed
+   --> src/bin/ifai/code_folding.rs:121:12
+    |
+121 | pub struct FoldingRenderer {
+    |            ^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `render_folded_block`, `generate_folded_output`, `generate_full_output`, and `toggle_fold` are never used
+   --> src/bin/ifai/code_folding.rs:132:12
+    |
+130 | impl FoldingRenderer {
+    | -------------------- associated items in this implementation
+131 |     /// 创建新的折叠渲染器
+132 |     pub fn new(strategy: FoldingStrategy) -> Self {
+    |            ^^^
+...
+141 |     pub fn render_folded_block(
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+162 |     fn generate_folded_output(
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+228 |     fn generate_full_output(
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+290 |     pub fn toggle_fold(&mut self, block_id: usize) {
+    |            ^^^^^^^^^^^
+
+warning: field `border_color` is never read
+  --> src/bin/ifai/command_popup.rs:98:9
+   |
+93 | pub struct PopupStyle {
+   |            ---------- field in this struct
+...
+98 |     pub border_color: Color,
+   |         ^^^^^^^^^^^^
+
+warning: field `text` is never read
+  --> src/bin/ifai/detail_overlay.rs:26:18
+   |
+26 |     Transcript { text: String },
+   |     ----------   ^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `OverlayContent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `File` and `DiffContext` are never constructed
+  --> src/bin/ifai/detail_overlay.rs:24:5
+   |
+22 | pub enum OverlayContent {
+   |          -------------- variants in this enum
+23 |     /// 文件内容查看
+24 |     File { path: PathBuf, content: String },
+   |     ^^^^
+...
+28 |     DiffContext {
+   |     ^^^^^^^^^^^
+   |
+   = note: `OverlayContent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `search` and `is_done` are never read
+  --> src/bin/ifai/detail_overlay.rs:41:9
+   |
+38 | pub struct DetailOverlay {
+   |            ------------- fields in this struct
+...
+41 |     pub search: Option<SearchState>,
+   |         ^^^^^^
+42 |     pub is_done: bool, // 用于退出 overlay
+   |         ^^^^^^^
+   |
+   = note: `DetailOverlay` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `query`, `matches`, and `current` are never read
+  --> src/bin/ifai/detail_overlay.rs:48:9
+   |
+47 | pub struct SearchState {
+   |            ----------- fields in this struct
+48 |     pub query: String,
+   |         ^^^^^
+49 |     pub matches: Vec<usize>,
+   |         ^^^^^^^
+50 |     pub current: usize,
+   |         ^^^^^^^
+   |
+   = note: `SearchState` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: associated functions `new_file` and `new_diff_context` are never used
+   --> src/bin/ifai/detail_overlay.rs:117:12
+    |
+115 | impl DetailOverlay {
+    | ------------------ associated functions in this implementation
+116 |     /// 创建 File overlay
+117 |     pub fn new_file(path: PathBuf, content: String) -> Self {
+    |            ^^^^^^^^
+...
+145 |     pub fn new_diff_context(
+    |            ^^^^^^^^^^^^^^^^
+
+warning: variant `HunkHeader` is never constructed
+  --> src/bin/ifai/diff_render.rs:31:5
+   |
+27 | pub enum DiffLineType {
+   |          ------------ variant in this enum
+...
+31 |     HunkHeader, // @@ @@ hunk 头
+   |     ^^^^^^^^^^
+   |
+   = note: `DiffLineType` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: struct `DiffLineStyle` is never constructed
+  --> src/bin/ifai/diff_render.rs:58:8
+   |
+58 | struct DiffLineStyle {
+   |        ^^^^^^^^^^^^^
+
+warning: constant `DIFF_LINE_STYLES` is never used
+  --> src/bin/ifai/diff_render.rs:67:7
+   |
+67 | const DIFF_LINE_STYLES: &[(DiffLineType, DiffLineStyle)] = &[
+   |       ^^^^^^^^^^^^^^^^
+
+warning: function `line_style` is never used
+   --> src/bin/ifai/diff_render.rs:110:4
+    |
+110 | fn line_style(kind: DiffLineType) -> &'static DiffLineStyle {
+    |    ^^^^^^^^^^
+
+warning: function `render_diff_line` is never used
+   --> src/bin/ifai/diff_render.rs:201:8
+    |
+201 | pub fn render_diff_line(line: &DiffLine, width: usize) -> Line<'static> {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `style_with_bg` is never used
+   --> src/bin/ifai/diff_render.rs:642:8
+    |
+642 | pub fn style_with_bg(fg: Color, bg: Color) -> Style {
+    |        ^^^^^^^^^^^^^
+
+warning: function `style_fg` is never used
+   --> src/bin/ifai/diff_render.rs:647:8
+    |
+647 | pub fn style_fg(fg: Color) -> Style {
+    |        ^^^^^^^^
+
+warning: struct `KeyScrollHandler` is never constructed
+  --> src/bin/ifai/event/handlers.rs:17:12
+   |
+17 | pub struct KeyScrollHandler;
+   |            ^^^^^^^^^^^^^^^^
+
+warning: struct `CopyHandler` is never constructed
+  --> src/bin/ifai/event/handlers.rs:52:12
+   |
+52 | pub struct CopyHandler;
+   |            ^^^^^^^^^^^
+
+warning: struct `InputSubmitHandler` is never constructed
+   --> src/bin/ifai/event/handlers.rs:202:12
+    |
+202 | pub struct InputSubmitHandler;
+    |            ^^^^^^^^^^^^^^^^^^
+
+warning: field `label` is never read
+  --> src/bin/ifai/event/thread_event.rs:55:9
+   |
+47 | pub struct KeyAction {
+   |            --------- field in this struct
+...
+55 |     pub label: &'static str,
+   |         ^^^^^
+   |
+   = note: `KeyAction` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `global_empty_args_count` and `stats` are never used
+   --> src/bin/ifai/loop_detector.rs:337:12
+    |
+157 | impl LoopDetector {
+    | ----------------- methods in this implementation
+...
+337 |     pub fn global_empty_args_count(&self) -> u32 {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+...
+342 |     pub fn stats(&self) -> LoopDetectorStats {
+    |            ^^^^^
+
+warning: struct `LoopDetectorStats` is never constructed
+   --> src/bin/ifai/loop_detector.rs:356:12
+    |
+356 | pub struct LoopDetectorStats {
+    |            ^^^^^^^^^^^^^^^^^
+
+warning: function `global_loop_detector` is never used
+   --> src/bin/ifai/loop_detector.rs:369:8
+    |
+369 | pub fn global_loop_detector() -> &'static LoopDetector {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `MarkdownRenderConfig` is never constructed
+  --> src/bin/ifai/markdown_meta.rs:28:12
+   |
+28 | pub struct MarkdownRenderConfig {
+   |            ^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `RenderMode` is never used
+  --> src/bin/ifai/markdown_meta.rs:52:10
+   |
+52 | pub enum RenderMode {
+   |          ^^^^^^^^^^
+
+warning: struct `MetaPipeline` is never constructed
+  --> src/bin/ifai/markdown_meta.rs:64:12
+   |
+64 | pub struct MetaPipeline {
+   |            ^^^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> src/bin/ifai/markdown_meta.rs:75:12
+    |
+ 73 | impl MetaPipeline {
+    | ----------------- associated items in this implementation
+ 74 |     /// 创建新的元编程管道
+ 75 |     pub fn new(config: MarkdownRenderConfig) -> Self {
+    |            ^^^
+...
+ 84 |     pub fn render_block(
+    |            ^^^^^^^^^^^^
+...
+104 |     fn auto_select_render_mode(&self, code_lines: &[&str]) -> RenderMode {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+...
+118 |     fn render_basic(
+    |        ^^^^^^^^^^^^
+...
+179 |     fn render_with_folding(
+    |        ^^^^^^^^^^^^^^^^^^^
+...
+190 |     fn render_with_highlight(
+    |        ^^^^^^^^^^^^^^^^^^^^^
+...
+253 |     fn render_full(
+    |        ^^^^^^^^^^^
+
+warning: struct `EnhancedMarkdownStream` is never constructed
+   --> src/bin/ifai/markdown_meta.rs:327:12
+    |
+327 | pub struct EnhancedMarkdownStream {
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `process_delta`, `process_text_char`, and `process_code_body_char` are never used
+   --> src/bin/ifai/markdown_meta.rs:336:12
+    |
+334 | impl EnhancedMarkdownStream {
+    | --------------------------- associated items in this implementation
+335 |     /// 创建增强的流式状态机
+336 |     pub fn new(config: MarkdownRenderConfig) -> Self {
+    |            ^^^
+...
+344 |     pub fn process_delta(&mut self, delta: &str) -> Vec<String> {
+    |            ^^^^^^^^^^^^^
+...
+373 |     fn process_text_char(&mut self, char: char) -> Option<String> {
+    |        ^^^^^^^^^^^^^^^^^
+...
+379 |     fn process_code_body_char(&mut self, char: char) -> Option<String> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: variant `Ascii` is never constructed
+  --> src/bin/ifai/markdown_stream.rs:22:5
+   |
+18 | pub enum BoxStyle {
+   |          -------- variant in this enum
+...
+22 |     Ascii,
+   |     ^^^^^
+   |
+   = note: `BoxStyle` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `output_buffer` is never read
+  --> src/bin/ifai/markdown_stream.rs:88:5
+   |
+76 | pub struct MarkdownStreamState {
+   |            ------------------- field in this struct
+...
+88 |     output_buffer: String,
+   |     ^^^^^^^^^^^^^
+
+warning: associated items `with_theme`, `with_box_style`, `with_copy_hint`, `last_code_block`, and `current_state` are never used
+   --> src/bin/ifai/markdown_stream.rs:114:12
+    |
+ 97 | impl MarkdownStreamState {
+    | ------------------------ associated items in this implementation
+...
+114 |     pub fn with_theme(theme: TerminalTheme) -> Self {
+    |            ^^^^^^^^^^
+...
+122 |     pub fn with_box_style(mut self, box_style: BoxStyle) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+128 |     pub fn with_copy_hint(mut self, show_copy: bool) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+134 |     pub fn last_code_block(&self) -> &str {
+    |            ^^^^^^^^^^^^^^^
+...
+427 |     pub fn current_state(&self) -> StreamState {
+    |            ^^^^^^^^^^^^^
+
+warning: field `global_path_risk_rules` is never read
+   --> src/bin/ifai/permission.rs:140:9
+    |
+134 | pub struct ApprovalConfig {
+    |            -------------- field in this struct
+...
+140 |     pub global_path_risk_rules: Vec<PathRiskRule>,
+    |         ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `ApprovalConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `tools_by_category` and `max_iterations_by_category` are never read
+   --> src/bin/ifai/permission.rs:150:5
+    |
+147 | pub struct ToolApprovalEngine {
+    |            ------------------ fields in this struct
+...
+150 |     tools_by_category: HashMap<ToolCategory, Vec<ToolConfig>>,
+    |     ^^^^^^^^^^^^^^^^^
+151 |     max_iterations_by_category: HashMap<ToolCategory, usize>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `loop_detection_config` and `get_config` are never used
+   --> src/bin/ifai/permission.rs:197:12
+    |
+157 | impl ToolApprovalEngine {
+    | ----------------------- methods in this implementation
+...
+197 |     pub fn loop_detection_config(&self) -> Option<LoopDetectionConfig> {
+    |            ^^^^^^^^^^^^^^^^^^^^^
+...
+256 |     pub fn get_config(&self, name: &str) -> Option<&ToolConfig> {
+    |            ^^^^^^^^^^
+
+warning: enum `ApprovalDecision` is never used
+  --> src/bin/ifai/permission_store.rs:46:10
+   |
+46 | pub enum ApprovalDecision {
+   |          ^^^^^^^^^^^^^^^^
+
+warning: struct `ApprovalOption` is never constructed
+  --> src/bin/ifai/permission_store.rs:56:12
+   |
+56 | pub struct ApprovalOption {
+   |            ^^^^^^^^^^^^^^
+
+warning: struct `ApprovalOptionRequest` is never constructed
+  --> src/bin/ifai/permission_store.rs:63:12
+   |
+63 | pub struct ApprovalOptionRequest {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `ApprovalOptionType` is never used
+   --> src/bin/ifai/permission_store.rs:104:10
+    |
+104 | pub enum ApprovalOptionType {
+    |          ^^^^^^^^^^^^^^^^^^
+
+warning: struct `ToolApprovalOptionDef` is never constructed
+   --> src/bin/ifai/permission_store.rs:110:8
+    |
+110 | struct ToolApprovalOptionDef {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `APPROVAL_OPTION_DEFS` is never used
+   --> src/bin/ifai/permission_store.rs:116:7
+    |
+116 | const APPROVAL_OPTION_DEFS: &[ToolApprovalOptionDef] = &[
+    |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `TOOL_DISPLAY_NAMES` is never used
+   --> src/bin/ifai/permission_store.rs:130:7
+    |
+130 | const TOOL_DISPLAY_NAMES: &[(&str, &str, Color)] = &[
+    |       ^^^^^^^^^^^^^^^^^^
+
+warning: associated items `build_options`, `tool_display_name`, and `add_session_rule` are never used
+   --> src/bin/ifai/permission_store.rs:352:12
+    |
+185 | impl PermissionStore {
+    | -------------------- associated items in this implementation
+...
+352 |     pub fn build_options(req: &ApprovalOptionRequest) -> Vec<ApprovalOption> {
+    |            ^^^^^^^^^^^^^
+...
+403 |     pub fn tool_display_name(tool_name: &str) -> (String, Color) {
+    |            ^^^^^^^^^^^^^^^^^
+...
+413 |     pub fn add_session_rule(&mut self, rule: PermissionRule) {
+    |            ^^^^^^^^^^^^^^^^
+
+warning: method `delete_session` is never used
+   --> src/bin/ifai/persistence.rs:213:12
+    |
+100 | impl SessionPersistence {
+    | ----------------------- method in this implementation
+...
+213 |     pub fn delete_session(&self, name: &str) -> Result<(), String> {
+    |            ^^^^^^^^^^^^^^
+
+warning: fields `cumulative_input_tokens` and `cumulative_output_tokens` are never read
+   --> src/bin/ifai/persistence.rs:403:9
+    |
+398 | pub struct SessionMetadata {
+    |            --------------- fields in this struct
+...
+403 |     pub cumulative_input_tokens: u32,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^
+404 |     pub cumulative_output_tokens: u32,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `SessionMetadata` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variant `Warning` is never constructed
+  --> src/bin/ifai/pipeline/step.rs:40:5
+   |
+18 | pub enum PipelineStepStatus {
+   |          ------------------ variant in this enum
+...
+40 |     Warning,
+   |     ^^^^^^^
+   |
+   = note: `PipelineStepStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `token_usage` is never read
+  --> src/bin/ifai/pipeline/step.rs:65:9
+   |
+63 | pub struct StepMetadata {
+   |            ------------ field in this struct
+64 |     pub duration: Option<Duration>,
+65 |     pub token_usage: Option<TokenUsage>,
+   |         ^^^^^^^^^^^
+   |
+   = note: `StepMetadata` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `input` and `output` are never read
+  --> src/bin/ifai/pipeline/step.rs:71:9
+   |
+70 | pub struct TokenUsage {
+   |            ---------- fields in this struct
+71 |     pub input: usize,
+   |         ^^^^^
+72 |     pub output: usize,
+   |         ^^^^^^
+   |
+   = note: `TokenUsage` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `get_active_step` and `active_steps` are never used
+  --> src/bin/ifai/pipeline/tracker.rs:82:12
+   |
+19 | impl PipelineTracker {
+   | -------------------- methods in this implementation
+...
+82 |     pub fn get_active_step(&self, tool_id: &str) -> Option<&PipelineStep> {
+   |            ^^^^^^^^^^^^^^^
+...
+87 |     pub fn active_steps(&self) -> Vec<&PipelineStep> {
+   |            ^^^^^^^^^^^^
+
+warning: field `show_size` is never read
+  --> src/bin/ifai/smart_glob_summary.rs:26:9
+   |
+22 | pub struct SmartGlobConfig {
+   |            --------------- field in this struct
+...
+26 |     pub show_size: bool,
+   |         ^^^^^^^^^
+   |
+   = note: `SmartGlobConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `with_config` is never used
+  --> src/bin/ifai/smart_glob_summary.rs:83:12
+   |
+67 | impl SmartGlob {
+   | -------------- method in this implementation
+...
+83 |     pub fn with_config(mut self, config: SmartGlobConfig) -> Self {
+   |            ^^^^^^^^^^^
+
+warning: associated constant `FAILED` is never used
+  --> src/bin/ifai/stream_render.rs:28:15
+   |
+22 | impl StatusSymbols {
+   | ------------------ associated constant in this implementation
+...
+28 |     pub const FAILED: char = '✗'; // U+2717
+   |               ^^^^^^
+
+warning: enum `ProgressState` is never used
+  --> src/bin/ifai/stream_render.rs:33:10
+   |
+33 | pub enum ProgressState {
+   |          ^^^^^^^^^^^^^
+
+warning: variants `Inline` and `Tui` are never constructed
+   --> src/bin/ifai/stream_render.rs:116:5
+    |
+114 | pub enum RenderMode {
+    |          ---------- variants in this enum
+115 |     /// 内联模式（无动画）
+116 |     Inline,
+    |     ^^^^^^
+...
+120 |     Tui,
+    |     ^^^
+    |
+    = note: `RenderMode` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: struct `StreamData` is never constructed
+   --> src/bin/ifai/stream_render.rs:125:12
+    |
+125 | pub struct StreamData {
+    |            ^^^^^^^^^^
+
+warning: enum `SyntaxElement` is never used
+  --> src/bin/ifai/syntax_highlight.rs:25:10
+   |
+25 | pub enum SyntaxElement {
+   |          ^^^^^^^^^^^^^
+
+warning: struct `SyntaxPattern` is never constructed
+  --> src/bin/ifai/syntax_highlight.rs:48:12
+   |
+48 | pub struct SyntaxPattern {
+   |            ^^^^^^^^^^^^^
+
+warning: struct `LanguageSyntax` is never constructed
+  --> src/bin/ifai/syntax_highlight.rs:57:12
+   |
+57 | pub struct LanguageSyntax {
+   |            ^^^^^^^^^^^^^^
+
+warning: associated functions `rust`, `python`, and `javascript` are never used
+   --> src/bin/ifai/syntax_highlight.rs:66:12
+    |
+ 64 | impl LanguageSyntax {
+    | ------------------- associated functions in this implementation
+ 65 |     /// 🔥 Rust 语法定义（声明式）
+ 66 |     pub fn rust() -> Self {
+    |            ^^^^
+...
+115 |     pub fn python() -> Self {
+    |            ^^^^^^
+...
+154 |     pub fn javascript() -> Self {
+    |            ^^^^^^^^^^
+
+warning: struct `HighlightTheme` is never constructed
+   --> src/bin/ifai/syntax_highlight.rs:195:12
+    |
+195 | pub struct HighlightTheme {
+    |            ^^^^^^^^^^^^^^
+
+warning: struct `FeatureExtractor` is never constructed
+   --> src/bin/ifai/syntax_highlight.rs:233:12
+    |
+233 | pub struct FeatureExtractor {
+    |            ^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `extract_features`, and `get_or_compile_regex` are never used
+   --> src/bin/ifai/syntax_highlight.rs:240:12
+    |
+238 | impl FeatureExtractor {
+    | --------------------- associated items in this implementation
+239 |     /// 创建新的特征提取器
+240 |     pub fn new() -> Self {
+    |            ^^^
+...
+247 |     pub fn extract_features(
+    |            ^^^^^^^^^^^^^^^^
+...
+273 |     fn get_or_compile_regex(&mut self, pattern: &str) -> Result<&Regex, regex::Error> {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `HighlightRenderer` is never constructed
+   --> src/bin/ifai/syntax_highlight.rs:289:12
+    |
+289 | pub struct HighlightRenderer {
+    |            ^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `render_highlighted`, `apply_highlighting`, and `get_color_for_element` are never used
+   --> src/bin/ifai/syntax_highlight.rs:300:12
+    |
+298 | impl HighlightRenderer {
+    | ---------------------- associated items in this implementation
+299 |     /// 创建新的高亮渲染器
+300 |     pub fn new(theme: HighlightTheme) -> Self {
+    |            ^^^
+...
+319 |     pub fn render_highlighted(&mut self, code: &str, lang: &str) -> String {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+344 |     fn apply_highlighting(
+    |        ^^^^^^^^^^^^^^^^^^
+...
+380 |     fn get_color_for_element(&self, element: SyntaxElement) -> &'static str {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> src/bin/ifai/terminal.rs:31:18
+   |
+29 | impl TerminalSize {
+   | ----------------- associated function in this implementation
+30 |     /// 创建新的终端尺寸
+31 |     pub const fn new(rows: u16, cols: u16) -> Self {
+   |                  ^^^
+
+warning: method `size` is never used
+  --> src/bin/ifai/terminal.rs:84:12
+   |
+57 | impl Terminal {
+   | ------------- method in this implementation
+...
+84 |     pub fn size(&self) -> TerminalSize {
+   |            ^^^^
+
+warning: associated functions `clear_line`, `hide`, `show`, and `render_at_bottom_clear_line` are never used
+   --> src/bin/ifai/terminal.rs:223:12
+    |
+173 | impl Cursor {
+    | ----------- associated functions in this implementation
+...
+223 |     pub fn clear_line() -> String {
+    |            ^^^^^^^^^^
+...
+230 |     pub fn hide() -> String {
+    |            ^^^^
+...
+237 |     pub fn show() -> String {
+    |            ^^^^
+...
+263 |     pub fn render_at_bottom_clear_line(content: &str) -> String {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: variants `Paused` and `Idle` are never constructed
+   --> src/bin/ifai/thread.rs:141:5
+    |
+137 | pub enum ThreadStatus {
+    |          ------------ variants in this enum
+...
+141 |     Paused,
+    |     ^^^^^^
+142 |     /// 空闲（10 分钟无活动，用于未来的自动清理）
+143 |     Idle,
+    |     ^^^^
+    |
+    = note: `ThreadStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `StatusChange` and `Closed` are never constructed
+   --> src/bin/ifai/thread.rs:193:5
+    |
+184 | pub enum ThreadEvent {
+    |          ----------- variants in this enum
+...
+193 |     StatusChange {
+    |     ^^^^^^^^^^^^
+...
+200 |     Closed {
+    |     ^^^^^^
+    |
+    = note: `ThreadEvent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `created_at` is never read
+   --> src/bin/ifai/thread.rs:227:9
+    |
+215 | pub struct ThreadInfo {
+    |            ---------- field in this struct
+...
+227 |     pub created_at: Instant,
+    |         ^^^^^^^^^^
+    |
+    = note: `ThreadInfo` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `primary_thread`, `parent_thread`, and `is_empty` are never used
+   --> src/bin/ifai/thread.rs:338:12
+    |
+294 | impl ThreadStore {
+    | ---------------- methods in this implementation
+...
+338 |     pub fn primary_thread(&self) -> &ThreadInfo {
+    |            ^^^^^^^^^^^^^^
+...
+344 |     pub fn parent_thread(&self, thread_id: ThreadId) -> Option<&ThreadInfo> {
+    |            ^^^^^^^^^^^^^
+...
+431 |     pub fn is_empty(&self) -> bool {
+    |            ^^^^^^^^
+
+warning: field `timestamp` is never read
+   --> src/bin/ifai/thread.rs:491:9
+    |
+485 | pub struct Message {
+    |            ------- field in this struct
+...
+491 |     pub timestamp: Instant,
+    |         ^^^^^^^^^
+    |
+    = note: `Message` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `primary_context`, `get_mut`, and `thread_ids` are never used
+   --> src/bin/ifai/thread.rs:541:12
+    |
+514 | impl ThreadMessages {
+    | ------------------- methods in this implementation
+...
+541 |     pub fn primary_context(&self, primary_id: ThreadId) -> &[Message] {
+    |            ^^^^^^^^^^^^^^^
+...
+546 |     pub fn get_mut(&mut self, thread_id: ThreadId) -> Option<&mut Vec<Message>> {
+    |            ^^^^^^^
+...
+556 |     pub fn thread_ids(&self) -> impl Iterator<Item = &ThreadId> {
+    |            ^^^^^^^^^^
+
+warning: function `format_compaction_warning` is never used
+   --> src/bin/ifai/token/display.rs:225:8
+    |
+225 | pub fn format_compaction_warning(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `format_session_stats` is never used
+   --> src/bin/ifai/token/display.rs:248:8
+    |
+248 | pub fn format_session_stats(
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `start_time` and `estimated_input_tokens` are never read
+  --> src/bin/ifai/token/stream_status.rs:24:5
+   |
+23 | pub struct StreamStatus {
+   |            ------------ fields in this struct
+24 |     start_time: Instant,
+   |     ^^^^^^^^^^
+25 |     estimated_input_tokens: usize,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `estimate_output_tokens`, `render`, and `render_summary` are never used
+  --> src/bin/ifai/token/stream_status.rs:54:8
+   |
+30 | impl StreamStatus {
+   | ----------------- methods in this implementation
+...
+54 |     fn estimate_output_tokens(&self) -> usize {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+69 |     pub fn render(&self, model: &str, theme: &Theme) -> String {
+   |            ^^^^^^
+...
+94 |     pub fn render_summary(
+   |            ^^^^^^^^^^^^^^
+
+warning: constant `STATUS_REFRESH_INTERVAL` is never used
+   --> src/bin/ifai/token/stream_status.rs:154:11
+    |
+154 | pub const STATUS_REFRESH_INTERVAL: Duration = Duration::from_millis(100);
+    |           ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `render` is never used
+   --> src/bin/ifai/token/stream_status.rs:240:12
+    |
+193 | impl BottomStatusBar {
+    | -------------------- method in this implementation
+...
+240 |     pub fn render(&self) -> String {
+    |            ^^^^^^
+
+warning: fields `thread_id`, `stream_handle`, and `output_tx` are never read
+  --> src/bin/ifai/tui.rs:42:9
+   |
+41 | pub struct ActiveRequest {
+   |            ------------- fields in this struct
+42 |     pub thread_id: crate::thread::ThreadId,
+   |         ^^^^^^^^^
+43 |     pub stream_handle: tokio::task::JoinHandle<Result<String, String>>,
+   |         ^^^^^^^^^^^^^
+44 |     pub output_tx: tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
+   |         ^^^^^^^^^
+   |
+   = note: `ActiveRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `requests` is never read
+  --> src/bin/ifai/tui.rs:49:5
+   |
+48 | pub struct ActiveRequests {
+   |            -------------- field in this struct
+49 |     requests: std::collections::HashMap<crate::thread::ThreadId, ActiveRequest>,
+   |     ^^^^^^^^
+
+warning: methods `start_request`, `finish_request`, `is_thread_busy`, `get_thread_request`, `active_count`, and `is_empty` are never used
+  --> src/bin/ifai/tui.rs:59:12
+   |
+52 | impl ActiveRequests {
+   | ------------------- methods in this implementation
+...
+59 |     pub fn start_request(&mut self, thread_id: crate::thread::ThreadId, request: ActiveRequest) {
+   |            ^^^^^^^^^^^^^
+...
+63 |     pub fn finish_request(&mut self, thread_id: &crate::thread::ThreadId) -> Option<ActiveRequest> {
+   |            ^^^^^^^^^^^^^^
+...
+67 |     pub fn is_thread_busy(&self, thread_id: &crate::thread::ThreadId) -> bool {
+   |            ^^^^^^^^^^^^^^
+...
+71 |     pub fn get_thread_request(
+   |            ^^^^^^^^^^^^^^^^^^
+...
+78 |     pub fn active_count(&self) -> usize {
+   |            ^^^^^^^^^^^^
+...
+82 |     pub fn is_empty(&self) -> bool {
+   |            ^^^^^^^^
+
+warning: field `active_requests` is never read
+  --> src/bin/ifai/tui.rs:95:9
+   |
+93 | pub struct StreamSubsystem {
+   |            --------------- field in this struct
+94 |     pub thread_busy: std::collections::HashMap<crate::thread::ThreadId, bool>,
+95 |     pub active_requests: ActiveRequests,
+   |         ^^^^^^^^^^^^^^^
+
+warning: variant `CommandPopup` is never constructed
+   --> src/bin/ifai/tui.rs:241:5
+    |
+225 | pub enum Mode {
+    |          ---- variant in this enum
+...
+241 |     CommandPopup,
+    |     ^^^^^^^^^^^^
+    |
+    = note: `Mode` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `icon` is never read
+   --> src/bin/ifai/tui.rs:281:5
+    |
+280 | struct TaskStatusDisplay {
+    |        ----------------- field in this struct
+281 |     icon: &'static str,
+    |     ^^^^
+
+warning: methods `clear`, `contains`, and `get_selected_text` are never used
+   --> src/bin/ifai/tui.rs:427:12
+    |
+398 | impl Selection {
+    | -------------- methods in this implementation
+...
+427 |     pub fn clear(&mut self) {
+    |            ^^^^^
+...
+434 |     pub fn contains(&self, column: u16, row: u16) -> bool {
+    |            ^^^^^^^^
+...
+469 |     pub fn get_selected_text(&self, lines: &[Line<'_>]) -> String {
+    |            ^^^^^^^^^^^^^^^^^
+
+warning: struct `StreamGuard` is never constructed
+   --> src/bin/ifai/tui.rs:534:12
+    |
+534 | pub struct StreamGuard<'a> {
+    |            ^^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> src/bin/ifai/tui.rs:540:12
+    |
+539 | impl StreamGuard<'_> {
+    | -------------------- associated function in this implementation
+540 |     pub fn new(app: &mut App, thread_id: crate::thread::ThreadId) -> StreamGuard<'_> {
+    |            ^^^
+
+warning: field `running_workflow_id` is never read
+   --> src/bin/ifai/tui.rs:596:9
+    |
+552 | pub struct App {
+    |            --- field in this struct
+...
+596 |     pub running_workflow_id: Option<String>,
+    |         ^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+    --> src/bin/ifai/tui.rs:718:12
+     |
+ 599 | impl App {
+     | -------- methods in this implementation
+...
+ 718 |     pub fn set_task_store(&mut self, thread_id: crate::thread::ThreadId, store: task::TaskStore) {
+     |            ^^^^^^^^^^^^^^
+...
+ 780 |     pub fn copy_selection_to_clipboard(&mut self) -> Result<String, String> {
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 804 |     pub fn clear_selection(&mut self) {
+     |            ^^^^^^^^^^^^^^^
+...
+ 824 |     pub fn has_selection(&self) -> bool {
+     |            ^^^^^^^^^^^^^
+...
+1112 |     pub fn set_busy(&mut self, busy: bool) {
+     |            ^^^^^^^^
+...
+1160 |     pub fn queue_len(&self) -> usize {
+     |            ^^^^^^^^^
+...
+1256 |     pub fn take_pending_approval(&mut self) -> Option<ApprovalRequest> {
+     |            ^^^^^^^^^^^^^^^^^^^^^
+...
+1360 |     fn highlight_search_term(&self, line: &str, is_current: bool, is_other: bool) -> Line<'static> {
+     |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `content_height` is never read
+  --> src/bin/ifai/tui_layout.rs:16:9
+   |
+12 | pub struct TuiLayout {
+   |            --------- field in this struct
+...
+16 |     pub content_height: u16,
+   |         ^^^^^^^^^^^^^^
+   |
+   = note: `TuiLayout` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `title` and `subtitle` are never read
+  --> src/bin/ifai/welcome.rs:10:5
+   |
+ 8 | pub struct WelcomeWidget {
+   |            ------------- fields in this struct
+ 9 |     /// 标题
+10 |     title: String,
+   |     ^^^^^
+11 |     /// 副标题
+12 |     subtitle: String,
+   |     ^^^^^^^^
+
+warning: unused `Result` that must be used
+   --> src/bin/ifai/main.rs:963:9
+    |
+963 |         rl.add_history_entry(input);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+    = note: `#[warn(unused_must_use)]` on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+963 |         let _ = rl.add_history_entry(input);
+    |         +++++++
+
+warning: `ifainew` (bin "ifai") generated 233 warnings (run `cargo fix --bin "ifai"` to apply 50 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.77s
+     Running `target/debug/ifai`
