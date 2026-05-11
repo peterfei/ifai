@@ -636,78 +636,38 @@ fn create_quick_code_review_workflow(target_path: &str) -> Workflow {
 
 fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
     let mut workflow = Workflow::new("quick-exploration", "快速探索")
-        .with_description("全面探索代码结构并生成总结（PIVO 策略）");
+        .with_description("快速探索代码结构并生成分析报告");
 
-    // 🔥 FIX: 方案1 - 单次扫描 + 综合分析
-    // 符合 PIVO 策略：一次全景扫描，然后深入分析
     use crate::agent_system::workflow::types::AgentConfig;
 
     workflow
-        // 🔥 单一探索节点：全面探索项目
+        // 单一探索节点：预扫描目录 + 并行读取关键文件
         .add_node(
             WorkflowNode::new("explore", AgentType::Explore)
                 .with_label("探索项目")
                 .with_config(AgentConfig {
                     target: Some(target_path.to_string()),
                     task_description: Some(
-                        "全面探索项目，执行 PIVO 两阶段扫描：
+                        "快速探索项目结构并生成简洁分析报告。
 
-**Phase 1: 全景扫描**
-- 使用 agent_scan_project 获取项目全局拓扑
-- 扫描深度：3-5 层
-- 识别关键目录、文件类型、技术栈
+**严格限制**：只读取最多 3 个最关键文件，控制上下文大小。
+目录结构已在上下文中提供，无需调用 agent_scan_project。
 
-**Phase 2: 深入分析**
-使用多个 agent_read_file 并行读取关键文件：
-1. **项目结构**：目录组织、模块划分
-2. **依赖关系**：外部依赖、模块连接
-3. **关键文件**：
-   - 配置：package.json, tsconfig.json, vite.config.ts 等
-   - 入口：main.tsx, App.tsx, index.ts 等
-   - 核心：lib/, src/, components/ 等
+**读取策略**（在同一次响应中并行发起，仅选最关键的）：
+1. 项目配置文件（Cargo.toml / package.json / go.mod 等）— 判断技术栈和依赖
+2. 入口文件（main.rs / main.ts / index.ts 等）— 了解程序入口
+❌ 不要读取核心模块源码（内容太长），仅从目录结构推断架构。
 
-**输出要求**：
-- 使用结构化报告格式
-- 包含：项目概述、技术栈、目录结构、依赖关系、关键发现
-- 简洁明了，避免冗长"
+**输出要求**（简洁报告，每项 1-2 句）：
+- 项目概述
+- 技术栈
+- 关键目录（3-5个）
+- 架构特点（3-5点）"
                             .to_string(),
                     ),
                     ..Default::default()
                 }),
-        )
-        // 总结节点：生成最终报告
-        .add_node(
-            WorkflowNode::new("summarize", AgentType::Doc)
-                .with_label("生成总结")
-                .with_config(AgentConfig {
-                    task_description: Some(
-                        "基于探索结果，生成完整的代码结构总结报告：
-
-**报告格式**：
-## 📊 项目概述
-- 项目类型、主要功能、技术栈
-
-## 🏗️ 架构分析
-- 目录结构和组织方式
-- 模块划分和职责
-
-## 🔗 依赖关系
-- 外部依赖和版本
-- 模块间的连接和依赖
-
-## 🔑 关键发现
-- 架构亮点
-- 潜在问题
-- 改进建议
-
-使用 Markdown 格式，清晰易读。"
-                            .to_string(),
-                    ),
-                    ..Default::default()
-                }),
-        )
-        // 探索完成后执行总结
-        .add_edge(WorkflowEdge::new("explore", "summarize"));
+        );
 
     workflow
         .variables
@@ -806,27 +766,8 @@ fn generate_workflow_summary(
 
         // 添加输出内容（如果有）
         if let Some(output) = &node_result.output {
-            // 限制输出长度，避免过长
-            // 🔥 FIX: 使用安全的字符边界截取，避免 UTF-8 panic（中文字符占3字节）
-            let preview = if output.len() > 500 {
-                // 找到安全的字符边界
-                let safe_end = output
-                    .char_indices()
-                    .map(|(idx, _)| idx)
-                    .find(|&idx| idx >= 500)
-                    .unwrap_or_else(|| output.len());
-
-                // 确保 safe_end 不超过字符串长度
-                let safe_end = std::cmp::min(safe_end, output.len());
-
-                format!(
-                    "{}...\n\n_(输出过长，已截断，完整输出请查看日志)_",
-                    &output[..safe_end]
-                )
-            } else {
-                output.clone()
-            };
-            summary.push_str(&format!("**输出**:\n```\n{}\n```\n\n", preview));
+            summary.push_str(output);
+            summary.push_str("\n\n");
         }
 
         // 添加错误信息（如果有）
@@ -876,31 +817,19 @@ mod workflow_tests {
             println!("  边 {}: {} -> {}", i + 1, edge.from, edge.to);
         }
 
-        // ✅ 验证：应该有2个节点（explore + summarize）
-        assert_eq!(workflow.nodes.len(), 2, "探索工作流应该有2个节点");
+        // ✅ 验证：应该有1个节点（explore）
+        assert_eq!(workflow.nodes.len(), 1, "探索工作流应该有1个节点");
 
-        // ✅ 验证：应该有1条边（explore → summarize）
-        assert_eq!(workflow.edges.len(), 1, "探索工作流应该有1条边");
+        // ✅ 验证：无额外边
+        assert_eq!(workflow.edges.len(), 0, "探索工作流应该没有边");
 
         // ✅ 验证节点ID
         let node_ids: Vec<_> = workflow.nodes.iter().map(|n| n.id.as_str()).collect();
         assert!(node_ids.contains(&"explore"), "应该有 explore 节点");
-        assert!(node_ids.contains(&"summarize"), "应该有 summarize 节点");
-
-        // ✅ 验证边连接
-        let edges: Vec<_> = workflow
-            .edges
-            .iter()
-            .map(|e| (e.from.as_str(), e.to.as_str()))
-            .collect();
-        assert!(
-            edges.contains(&("explore", "summarize")),
-            "explore 应该指向 summarize"
-        );
 
         println!("\n✅ 探索工作流结构验证通过！");
-        println!("   - 2个节点：explore, summarize");
-        println!("   - 顺序执行：探索 → 总结");
+        println!("   - 1个节点：explore");
+        println!("   - 预扫描 + 并行读取，单轮完成");
     }
 
     #[test]

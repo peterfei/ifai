@@ -199,19 +199,8 @@ pub async fn execute_local_tool(
             }
         }
         "agent_batch_read" => {
-            use crate::commands::core_wrappers;
-            if let Some(paths_array) = args["paths"].as_array() {
-                let paths: Vec<String> = paths_array
-                    .iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .collect();
-                core_wrappers::agent_batch_read(project_root.to_string(), paths)
-                    .await
-                    .unwrap_or_else(|e| format!("错误: {}", e))
-            } else {
-                "错误: 缺少 paths 参数".to_string()
-            }
+            // 已废弃：引导使用多个 agent_read_file 并行调用
+            "agent_batch_read 已废弃，请使用多个 agent_read_file 并行读取".to_string()
         }
         "bash" | "agent_run_shell_command" | "agent_execute_command" => {
             let cmd_str = args["command"].as_str().unwrap_or("");

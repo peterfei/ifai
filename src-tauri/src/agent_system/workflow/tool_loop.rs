@@ -6,7 +6,7 @@ use super::cancellation::CancellationManager;
 use super::parallel::ParallelDispatcher;
 use super::runner::ToolCallDetails;
 use super::tools::{create_tool_definitions, ToolCall, ToolExecutor, ToolResult};
-use crate::core_traits::ai::{Content, Message};
+use crate::core_traits::ai::{Content, ContentPart, Message};
 use futures_util::StreamExt;
 use serde_json::json;
 use std::sync::Arc;
@@ -112,7 +112,23 @@ pub async fn execute_with_tools(
         let ai_duration = ai_start.elapsed();
         ai_time_total += ai_duration;
 
-        wf_log!("[ToolLoop] ⏱️ AI API 调用耗时: {:?}", ai_duration);
+        let context_chars: usize = messages
+            .iter()
+            .map(|m| match &m.content {
+                Content::Text(s) => s.len(),
+                Content::Parts(parts) => parts.iter().map(|p| match p {
+                    ContentPart::Text { text, .. } => text.len(),
+                    ContentPart::ImageUrl { .. } => 0,
+                }).sum(),
+            })
+            .sum();
+        wf_log!(
+            "[ToolLoop] ⏱️ 迭代 {} | AI 调用: {:.1}s | 上下文: {} chars | 消息数: {}",
+            iterations,
+            ai_duration.as_secs_f64(),
+            context_chars,
+            messages.len()
+        );
 
         // 检查是否有工具调用
         let tool_calls = extract_tool_calls(&response)?;

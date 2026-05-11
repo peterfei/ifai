@@ -166,6 +166,10 @@ pub fn inject_memories_into_system_prompt(system_prompt: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// 保护 HOME 环境变量的互斥锁（set_var 不是线程安全的）
+    static HOME_LOCK: Mutex<()> = Mutex::new(());
 
     /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
     fn setup_test_home(test_name: &str) -> std::path::PathBuf {
@@ -273,6 +277,7 @@ mod tests {
 
     #[test]
     fn test_load_memories_for_injection_no_file() {
+        let _lock = HOME_LOCK.lock().unwrap();
         let temp_dir = setup_test_home("injection_no_file");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
@@ -286,6 +291,7 @@ mod tests {
 
     #[test]
     fn test_load_memories_for_injection_with_file() {
+        let _lock = HOME_LOCK.lock().unwrap();
         let temp_dir = setup_test_home("injection_with_file");
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", temp_dir.to_str().unwrap());
@@ -317,6 +323,7 @@ mod tests {
 
     #[test]
     fn test_inject_memories_into_system_prompt() {
+        let _lock = HOME_LOCK.lock().unwrap();
         let system_prompt = "You are a helpful assistant.";
         let temp_dir = setup_test_home("inject");
         let original_home = std::env::var("HOME").ok();

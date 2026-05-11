@@ -501,8 +501,15 @@ impl AgentNodeExecutor {
         let loader = AgentPromptLoader::new(&ctx.project_root);
         let base_prompt = loader.load_for(&node.agent_type, &prompt_context);
 
-        // 🔥 对 Explore/Review agent 预注入项目目录结构，省掉 scan_project 往返
-        let project_tree = if matches!(node.agent_type, AgentType::Explore | AgentType::Review) {
+        // 🔥 对需要文件读取的 agent 预注入项目目录结构，省掉 scan_project 往返
+        let project_tree = if matches!(
+            node.agent_type,
+            AgentType::Explore
+                | AgentType::Review
+                | AgentType::Refactor
+                | AgentType::Doc
+                | AgentType::Test
+        ) {
             Self::quick_scan_tree(&ctx.project_root, 2)
         } else {
             String::new()

@@ -262,8 +262,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       }
     };
 
-    // 使用防抖避免频繁检查
-    const timeoutId = setTimeout(checkAndGenerateSummary, 1000);
+    // 使用防抖避免频繁检查（工作流执行期间消息变化频繁，加大防抖间隔）
+    const timeoutId = setTimeout(checkAndGenerateSummary, 5000);
     return () => clearTimeout(timeoutId);
   }, [rawMessages, isLoading, shouldSummarize, generateSummary, currentProviderId, providers, conversationSummary, isCheckingSummary]);
 

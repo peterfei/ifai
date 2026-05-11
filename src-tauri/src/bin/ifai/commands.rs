@@ -1164,8 +1164,8 @@ mod tests {
 
     #[test]
     fn test_command_registry_size() {
-        // 验证注册表包含所有 18 个命令
-        assert_eq!(COMMAND_SPECS.len(), 18);
+        // 验证注册表包含所有 21 个命令
+        assert_eq!(COMMAND_SPECS.len(), 21);
     }
 
     #[test]

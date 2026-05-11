@@ -13,6 +13,12 @@ pub async fn should_summarize(messages: &[Message]) -> bool {
         return false;
     }
 
+    // Guard: 消息数远低于阈值时跳过 token 计算（100k tokens ≈ 300+ 条长消息）
+    // 避免 BPE 编码开销（工作流执行期间可能被频繁调用）
+    if messages.len() < 50 {
+        return false;
+    }
+
     let token_count = token_counter::count_messages_tokens(messages);
     println!(
         "[Conversation] Check summary: {} messages, {} tokens",

@@ -60,60 +60,78 @@ impl AgentPromptLoader {
         Self { prompts_dir }
     }
 
-    /// 🎯 统一加载入口：50 行替代 500 行重复代码
+    /// 🎯 统一加载入口：语言回退链 + 文件加载 + 内置 fallback
+    ///
+    /// 加载优先级（与 TUI prompt_manager 一致）：
+    /// 1. `.ifai/prompts/zh-CN/agents/{file}`  （本地化文件）
+    /// 2. `.ifai/prompts/agents/{file}`          （默认文件）
+    /// 3. 内置 fallback 模板                       （hardcode）
     pub fn load_for(
         &self,
         agent_type: &crate::agent_system::workflow::types::AgentType,
         context: &PromptContext,
     ) -> String {
         let config = self.get_config_for_agent(agent_type);
-        let prompt_path = self.prompts_dir.join(config.prompt_file);
+        let agent_label = format!("{:?}", agent_type).to_lowercase();
 
-        wf_log!(
-            "[AgentPromptLoader] 🔍 Loading {} prompt from: {:?}",
-            format!("{:?}", agent_type).to_lowercase(),
-            prompt_path
-        );
+        // 检测项目语言设置（与 TUI prompt_manager 一致）
+        let lang = crate::project_config::load_project_config_sync(&context.project_root)
+            .and_then(|c| c.default_language)
+            .unwrap_or_else(|| "en".to_string());
+        let is_zh = lang.to_lowercase().starts_with("zh");
 
-        // 1. 尝试从文件加载
-        match std::fs::read_to_string(&prompt_path) {
-            Ok(content) => {
+        // 构建回退路径链
+        let prompts_base = self.prompts_dir.parent().unwrap(); // .ifai/prompts/
+        let candidates: Vec<PathBuf> = if is_zh {
+            vec![
+                prompts_base.join("zh-CN/agents").join(config.prompt_file),
+                self.prompts_dir.join(config.prompt_file),
+            ]
+        } else {
+            vec![
+                self.prompts_dir.join(config.prompt_file),
+            ]
+        };
+
+        // 按优先级尝试加载
+        for prompt_path in &candidates {
+            wf_log!(
+                "[AgentPromptLoader] 🔍 Trying {} prompt: {:?}",
+                agent_label,
+                prompt_path
+            );
+
+            if let Ok(content) = std::fs::read_to_string(prompt_path) {
                 let prompt_body = self.extract_markdown_body(&content);
                 let replaced = self.replace_variables(&prompt_body, config.variable_names, context);
 
                 wf_log!(
-                    "[AgentPromptLoader] ✅ Loaded {} from file ({} bytes)",
-                    format!("{:?}", agent_type).to_lowercase(),
+                    "[AgentPromptLoader] ✅ Loaded {} from file {:?} ({} bytes)",
+                    agent_label,
+                    prompt_path,
                     replaced.len()
                 );
 
-                replaced
-            }
-            Err(e) => {
-                wf_log!(
-                    "[AgentPromptLoader] ⚠️ Failed to load {} from {:?}: {}",
-                    format!("{:?}", agent_type).to_lowercase(),
-                    prompt_path,
-                    e
-                );
-                wf_log!(
-                    "[AgentPromptLoader] 🔄 Using fallback built-in {} prompt",
-                    format!("{:?}", agent_type).to_lowercase()
-                );
-
-                // 2. Fallback 到内置模板
-                let agent_ctx = AgentContext {
-                    project_root: context.project_root.clone(),
-                    task_description: context.task_description.clone(),
-                    initial_prompt: String::new(),
-                    variables: context.variables.clone(),
-                    provider_config: self.default_provider_config(),
-                    current_model: None,
-                };
-
-                (config.fallback_template)(&agent_ctx)
+                return replaced;
             }
         }
+
+        // 全部失败，fallback 到内置模板
+        wf_log!(
+            "[AgentPromptLoader] 🔄 No file found for {}, using fallback built-in prompt",
+            agent_label
+        );
+
+        let agent_ctx = AgentContext {
+            project_root: context.project_root.clone(),
+            task_description: context.task_description.clone(),
+            initial_prompt: String::new(),
+            variables: context.variables.clone(),
+            provider_config: self.default_provider_config(),
+            current_model: None,
+        };
+
+        (config.fallback_template)(&agent_ctx)
     }
 
     /// 提取 Markdown 正文（跳过 YAML front matter）
@@ -221,27 +239,25 @@ fn fallback_explore_prompt(ctx: &AgentContext) -> String {
 
 **项目根目录**：{}
 
-**严格限制：最多 2 次工具调用**
+**严格限制：最多 2 次工具调用，最多读取 3 个文件**
 目录结构已在上下文中提供，无需调用 agent_scan_project。
 
 **工具使用策略**：
 
-第 1 次调用：同时发起多个 `agent_read_file` — 并行读取所有关键文件。
+第 1 次调用：同时发起 2-3 个 `agent_read_file` — 仅读取最关键的文件。
 ⚠️ 在同一次响应中发起多个 tool_call，它们会并行执行！
-```json
-{{"rel_path": "Cargo.toml"}}
-{{"rel_path": "src/main.rs"}}
-{{"rel_path": "README.md"}}
-```
+- 项目配置文件（Cargo.toml / package.json / go.mod 等）
+- 入口文件（main.rs / main.ts / index.ts 等）
+❌ 禁止读取大型源码文件（控制上下文大小）！
 ❌ 禁止调用 agent_scan_project（目录结构已在上下文中）！
 
-第 2 次调用：不调用工具，直接输出分析结果。
+第 2 次调用：不调用工具，直接输出简洁分析结果。
 
 **可用工具**：
 - `agent_read_file(rel_path)` — 读取单个文件，可同时发起多个实现并行
 
-**输出格式**（简洁）：
-- 项目概述（1-2句）
+**输出格式**（简洁，每项 1-2 句）：
+- 项目概述
 - 技术栈
 - 关键目录（3-5个）
 - 架构特点（3-5点）
@@ -347,66 +363,102 @@ fn fallback_refactor_prompt(ctx: &AgentContext) -> String {
     format!(
         r#"你是一个专业的代码重构顾问。
 
-**项目信息**：
-- 项目根目录：{}
-- 重构目标：{}
+**项目根目录**：{}
+**重构目标**：{}
 
-你的任务是：
-1. **重构建议**：基于项目类型，提供针对性的重构建议和方向
-2. **架构优化**：建议如何改进代码组织和模块化
-3. **代码质量提升**：提供提高代码可读性和可维护性的具体建议
-4. **性能优化**：建议性能优化的机会和方法
-5. **技术债务**：提醒可能存在的技术债务及解决方案
+目录结构已在上下文中提供，无需调用 agent_scan_project。
 
-输出格式：
-- 🏗️ **架构优化建议**
-- 📦 **模块化改进方案**
-- ⚡ **性能优化机会**
-- 🧹 **代码清理建议**
-- 📋 **重构优先级清单**
+**严格限制：最多 2 次工具调用**
 
-注意：提供实用的重构指南和最佳实践，而不是"模拟"重构过程。
+**工具使用策略**：
+
+第 1 次调用：同时发起多个 `agent_read_file` — 并行读取需要重构的关键文件。
+⚠️ 在同一次响应中发起多个 tool_call，它们会并行执行！
+```json
+{{"rel_path": "src/main.rs"}}
+{{"rel_path": "src/lib.rs"}}
+```
+
+第 2 次调用：不调用工具，直接输出重构建议。
+
+**可用工具**：
+- `agent_read_file(rel_path)` — 读取单个文件，可同时发起多个实现并行
+- `agent_list_dir(rel_path)` — 列出单层目录
+
+**输出格式**（基于实际代码内容）：
+- 架构优化建议（附文件名和行号）
+- 模块化改进方案
+- 性能优化机会
+- 代码清理建议
+- 重构优先级清单
 "#,
         ctx.project_root, ctx.task_description
     )
 }
 
-fn fallback_doc_prompt(_ctx: &AgentContext) -> String {
-    r#"你是一个专业的文档生成智能体。你的任务是：
+fn fallback_doc_prompt(ctx: &AgentContext) -> String {
+    format!(
+        r#"你是一个专业的文档生成智能体。
 
-1. 分析代码并生成清晰的文档
-2. 编写 API 文档和使用说明
-3. 创建代码示例和教程
-4. 改善现有文档的质量
+**项目根目录**：{}
+**目标文件**：{}
 
-请确保文档：
-- 准确且完整
-- 易于理解
-- 包含实用示例
-- 遵循文档最佳实践
+目录结构已在上下文中提供，无需调用 agent_scan_project。
 
-请输出结构化的文档内容。
-"#
-    .to_string()
+**严格限制：最多 2 次工具调用**
+
+**工具使用策略**：
+
+第 1 次调用：同时发起多个 `agent_read_file` — 并行读取需要生成文档的文件。
+⚠️ 在同一次响应中发起多个 tool_call，它们会并行执行！
+
+第 2 次调用：不调用工具，直接输出文档。
+
+**可用工具**：
+- `agent_read_file(rel_path)` — 读取单个文件，可同时发起多个实现并行
+- `agent_list_dir(rel_path)` — 列出单层目录
+
+**输出格式**（结构化文档）：
+- 模块/函数概述
+- API 文档（参数、返回值、示例）
+- 使用说明
+"#,
+        ctx.project_root,
+        ctx.variables.get("target_files").cloned().unwrap_or_default()
+    )
 }
 
-fn fallback_test_prompt(_ctx: &AgentContext) -> String {
-    r#"你是一个专业的测试智能体。你的任务是：
+fn fallback_test_prompt(ctx: &AgentContext) -> String {
+    format!(
+        r#"你是一个专业的测试智能体。
 
-1. 分析测试覆盖率和测试策略
-2. 识别未测试的关键功能
-3. 提供测试用例建议
-4. 改进现有测试的质量
+**项目根目录**：{}
+**测试目标**：{}
 
-请关注：
-- 单元测试
-- 集成测试
-- 边界条件测试
-- 错误处理测试
+目录结构已在上下文中提供，无需调用 agent_scan_project。
 
-请输出测试建议和示例测试代码。
-"#
-    .to_string()
+**严格限制：最多 2 次工具调用**
+
+**工具使用策略**：
+
+第 1 次调用：同时发起多个 `agent_read_file` — 并行读取源码和现有测试文件。
+⚠️ 在同一次响应中发起多个 tool_call，它们会并行执行！
+
+第 2 次调用：不调用工具，直接输出测试建议。
+
+**可用工具**：
+- `agent_read_file(rel_path)` — 读取单个文件，可同时发起多个实现并行
+- `agent_list_dir(rel_path)` — 列出单层目录
+
+**输出格式**：
+- 测试覆盖率分析
+- 未测试的关键功能
+- 测试用例建议（含代码示例）
+- 边界条件和错误处理测试
+"#,
+        ctx.project_root,
+        ctx.variables.get("test_target").cloned().unwrap_or_default()
+    )
 }
 
 fn fallback_proposal_generator_prompt(_ctx: &AgentContext) -> String {

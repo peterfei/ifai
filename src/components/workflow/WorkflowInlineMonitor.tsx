@@ -1333,6 +1333,12 @@ export function WorkflowInlineMonitor({
         // ========================================
         // 4. 其他事件：创建新节点（兼容旧逻辑）
         // ========================================
+        // 🔥 FIX: 跳过没有 node_id 的事件（如 runner 发送的 workflow:completed 进度事件）
+        if (!nodeId) {
+          console.log('[WorkflowInlineMonitor] ⚠️ Skipping event without nodeId:', eventType);
+          return;
+        }
+
         console.log('[WorkflowInlineMonitor] 📝 Processing generic event:', eventType);
 
         // 🔥 解析节点信息
