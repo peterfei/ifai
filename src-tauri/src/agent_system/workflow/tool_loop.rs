@@ -1500,15 +1500,28 @@ async fn call_ai_with_tools_filtered(
         .await
         .map_err(|e| format!("解析 AI 响应失败: {}", e))?;
 
-    // 提取响应内容
-    if let Some(content) = response_json
+    // 🔥 提取响应内容或工具调用
+    let message = response_json
         .get("choices")
         .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_str())
-    {
-        Ok(content.to_string())
+        .and_then(|c| c.get("message"));
+
+    if let Some(msg) = message {
+        // 🔥 优先检查是否有工具调用
+        if let Some(tool_calls) = msg.get("tool_calls").and_then(|tc| tc.as_array()) {
+            if !tool_calls.is_empty() {
+                // 返回工具调用的 JSON 字符串
+                return Ok(serde_json::to_string(tool_calls).map_err(|e| format!("序列化工具调用失败: {}", e))?);
+            }
+        }
+
+        // 🔥 没有工具调用，返回 content
+        if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
+            Ok(content.to_string())
+        } else {
+            // content 为 null，返回空字符串
+            Ok(String::new())
+        }
     } else {
         Err("AI 响应格式错误".to_string())
     }
