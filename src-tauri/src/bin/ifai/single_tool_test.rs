@@ -35,8 +35,8 @@ mod tests {
         println!("{}", combined);
 
         // 验证输出包含预期内容
-        assert!(combined.contains("✔ agent_read_file"),
-            "期望看到 '✔ agent_read_file'，实际: {}", combined);
+        assert!(combined.contains("✔ agent_read_file src/main.rs"),
+            "期望看到 '✔ agent_read_file src/main.rs'，实际: {}", combined);
 
         assert!(combined.contains("(<1s)") || combined.contains("(0.02s)"),
             "期望看到时间信息，实际: {}", combined);

@@ -213,6 +213,64 @@ pub fn channel_progress_callback(
     }
 }
 
+/// 🔥 从工具输入 JSON 中提取目标信息（文件路径、搜索模式等）
+///
+/// 支持的工具：
+/// - agent_read_file: "rel_path": "src/main.rs" → "src/main.rs"
+/// - agent_search: "pattern": "test", "path": "." → "test in ."
+/// - agent_write_file: "rel_path": "test.txt" → "test.txt"
+/// - list_dir: "path": "src" → "src"
+/// - glob_search: "pattern": "*.rs", "path": "." → "*.rs in ."
+fn extract_tool_target(tool_name: &str, tool_input: &str) -> String {
+    // 尝试解析 JSON 输入
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(tool_input) {
+        if let Some(obj) = value.as_object() {
+            return match tool_name {
+                "agent_read_file" | "read_file" => {
+                    obj.get("rel_path")
+                        .or_else(|| obj.get("path"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| format!(" {}", s))
+                        .unwrap_or_default()
+                }
+                "agent_search" | "search" => {
+                    let pattern = obj.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
+                    let path = obj.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+                    if !pattern.is_empty() {
+                        format!(" \"{}\" in {}", pattern, path)
+                    } else {
+                        String::new()
+                    }
+                }
+                "agent_write_file" | "write_file" => {
+                    obj.get("rel_path")
+                        .or_else(|| obj.get("path"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| format!(" → {}", s))
+                        .unwrap_or_default()
+                }
+                "list_dir" | "agent_list_dir" => {
+                    obj.get("path")
+                        .and_then(|v| v.as_str())
+                        .map(|s| format!(" {}", s))
+                        .unwrap_or_default()
+                }
+                "glob_search" => {
+                    let pattern = obj.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
+                    let path = obj.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+                    if !pattern.is_empty() {
+                        format!(" \"{}\" in {}", pattern, path)
+                    } else {
+                        String::new()
+                    }
+                }
+                _ => String::new()
+            };
+        }
+    }
+    String::new()
+}
+
 /// 将 ProgressEvent 格式化为文本行向量（纯逻辑，不含 IO）
 pub fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
     let mut lines = Vec::new();
@@ -278,6 +336,10 @@ pub fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
                         .execution_time_ms
                         .map(|ms| format!(" ({})", parallel::format_duration(ms as u64)))
                         .unwrap_or_default();
+
+                    // 🔥 从 tool_input 中提取文件路径或目标信息
+                    let target_info = extract_tool_target(&details.tool_name, &details.tool_input);
+
                     let output_info = if details.output_length > 200 {
                         format!(" {} {} chars", sym::ARROW, details.output_length)
                     } else if !details.tool_output.is_empty() && !details.tool_output.starts_with("parallel:") {
@@ -289,7 +351,10 @@ pub fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
                     } else {
                         String::new()
                     };
-                    lines.push(format!("  {} {} {}{}{}", sym::BRANCH, icon, details.tool_name, time, output_info));
+
+                    // 格式：├─ ✔ tool_name target (time) → output
+                    lines.push(format!("  {} {} {}{}{}{}",
+                        sym::BRANCH, icon, details.tool_name, target_info, time, output_info));
                 }
             } else if let Some(msg) = &event.message {
                 lines.push(format!("  {} {}", sym::BRANCH, msg));
