@@ -72,9 +72,22 @@ pub fn build_agent_workflow(agent_type_name: &str, task: &str) -> Workflow {
     }
 }
 
-/// 执行 agent 命令
+/// 执行 agent 命令（CLI 模式，进度输出到 stdout）
 /// `provider_config_json`: 可选的 AIProviderConfig JSON，注入到 workflow.variables
 pub fn run_agent(agent_type_name: &str, task: &str, provider_config_json: Option<&str>) -> Result<(), String> {
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| {
+        handle.block_on(run_agent_with_channel(agent_type_name, task, provider_config_json, None))
+    })
+}
+
+/// 执行 agent 命令（TUI 模式，进度通过 channel 发送到内容区）
+pub async fn run_agent_with_channel(
+    agent_type_name: &str,
+    task: &str,
+    provider_config_json: Option<&str>,
+    progress_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+) -> Result<(), String> {
     let mut workflow = build_agent_workflow(agent_type_name, task);
 
     // 设置 task_description 到节点 config
@@ -90,14 +103,14 @@ pub fn run_agent(agent_type_name: &str, task: &str, provider_config_json: Option
     let config = ifainew_lib::agent_system::workflow::runner::RunnerConfig::default();
     let runner = ifainew_lib::agent_system::workflow::runner::WorkflowRunner::new(workflow, config)
         .map_err(|e| format!("工作流初始化失败: {}", e))?
-        .with_progress_callback(crate::workflow_cmd::tui_progress_callback());
+        .with_progress_callback(match progress_tx {
+            Some(tx) => Box::new(crate::workflow_cmd::channel_progress_callback(tx))
+                as Box<dyn Fn(ifainew_lib::agent_system::workflow::runner::ProgressEvent) + Send + Sync>,
+            None => Box::new(crate::workflow_cmd::tui_progress_callback())
+                as Box<dyn Fn(ifainew_lib::agent_system::workflow::runner::ProgressEvent) + Send + Sync>,
+        });
 
-    // TUI 已在 tokio runtime 内，用 block_in_place 避免嵌套 panic
-    let handle = tokio::runtime::Handle::current();
-    tokio::task::block_in_place(|| {
-        handle.block_on(runner.run())
-    })
-    .map_err(|e| format!("智能体执行失败: {}", e))?;
+    runner.run().await.map_err(|e| format!("智能体执行失败: {}", e))?;
 
     Ok(())
 }

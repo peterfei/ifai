@@ -2,12 +2,15 @@
 //!
 //! 参考 claw-code 的 ConversationRuntime 实现，支持 AI 工具调用的循环执行
 
+use super::cancellation::CancellationManager;
+use super::parallel::ParallelDispatcher;
 use super::runner::ToolCallDetails;
 use super::tools::{create_tool_definitions, ToolCall, ToolExecutor, ToolResult};
 use crate::core_traits::ai::{Content, Message};
 use futures_util::StreamExt;
 use serde_json::json;
-use std::sync::Arc; // 🔥 添加 StreamExt trait
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 
 /// 工具调用循环配置
 #[derive(Debug, Clone)]
@@ -49,11 +52,13 @@ pub async fn execute_with_tools(
     user_message: String,
     tool_executor: &dyn ToolExecutor,
     config: ToolLoopConfig,
-    progress_callback: Option<ToolProgressCallback>, // 🔥 添加进度回调参数
+    progress_callback: Option<ToolProgressCallback>,
+    cancellation_token: Option<CancellationToken>,
 ) -> Result<String, String> {
     let workflow_start = std::time::Instant::now();
     let mut ai_time_total = std::time::Duration::ZERO;
     let mut tool_time_total = std::time::Duration::ZERO;
+    let mut cancel_mgr = CancellationManager::new();
 
     wf_log!("[ToolLoop] 🚀 工具循环开始");
     wf_log!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
@@ -81,6 +86,14 @@ pub async fn execute_with_tools(
         iterations += 1;
         if iterations > config.max_iterations {
             return Err(format!("超过最大迭代次数: {}", config.max_iterations));
+        }
+
+        // 检查外部取消
+        if let Some(ref token) = cancellation_token {
+            if token.is_cancelled() {
+                wf_log!("[ToolLoop] 🛑 收到取消信号，中止工具循环");
+                return Err("操作已取消".to_string());
+            }
         }
 
         wf_log!(
@@ -128,84 +141,124 @@ pub async fn execute_with_tools(
         // 🔥 准备进度回调（克隆以在循环中使用）
         let progress_callback_clone = progress_callback.clone();
 
-        // 🔥 并行执行所有工具调用
+        // 🔥 并行执行所有工具调用（通过 ParallelDispatcher 进行读写锁调度）
         use futures::future::join_all;
 
         let tool_start = std::time::Instant::now();
+        let dispatcher = ParallelDispatcher::new();
+
+        // 为本批 tool_calls 创建子令牌
+        let child_tokens = cancel_mgr.create_child_tokens(tool_calls.len());
 
         let mut tool_tasks = Vec::new();
-        for tool_call in &tool_calls {
+        for (idx, tool_call) in tool_calls.iter().enumerate() {
             wf_log!("[ToolLoop] 🔧 启动工具: {}", tool_call.name);
 
             let tool_call = tool_call.clone();
-            let callback_for_task = progress_callback_clone.clone(); // 🔥 为每个任务克隆回调
+            let callback_for_task = progress_callback_clone.clone();
+            let dispatch_lock = dispatcher.lock.clone();
+            let child_token = child_tokens[idx].clone();
             tool_tasks.push(async move {
-                // 🔥 执行工具（在独立任务中）
+                // 🔥 通过 ParallelDispatcher 调度 + tokio::select! 取消竞争
                 let tool_start = std::time::Instant::now();
                 let input_json = serde_json::to_string_pretty(&tool_call.input).unwrap_or_default();
-                let result = match tool_executor
-                    .execute(&tool_call.name, &tool_call.input)
-                    .await
-                {
-                    Ok(output) => {
-                        let execution_time = tool_start.elapsed().as_millis() as i64;
-                        wf_log!(
-                            "[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符，耗时: {}ms",
-                            tool_call.name,
-                            output.len(),
-                            execution_time
-                        );
+                let tool_name = tool_call.name.clone();
 
-                        // 🔥 发送工具调用进度事件
+                let result = tokio::select! {
+                    // 取消路径
+                    _ = child_token.cancelled() => {
+                        wf_log!("[ToolLoop] 🛑 工具 {} 被取消", tool_call.name);
                         if let Some(ref cb) = callback_for_task {
-                            let details = ToolCallDetails {
+                            cb(ToolCallDetails {
                                 tool_name: tool_call.name.clone(),
                                 tool_input: input_json.clone(),
-                                tool_output: output.clone(),
-                                output_length: output.len(),
-                                execution_time_ms: Some(execution_time),
-                                is_error: false,
-                            };
-                            cb(details);
-                        }
-
-                        ToolResult {
-                            id: tool_call.id.clone(),
-                            name: tool_call.name.clone(),
-                            output,
-                            is_error: false,
-                            input: Some(input_json),
-                            execution_time_ms: Some(execution_time),
-                        }
-                    }
-                    Err(e) => {
-                        let execution_time = tool_start.elapsed().as_millis() as i64;
-                        let error_msg = format!("工具执行失败: {}", e);
-                        wf_log!(
-                            "[ToolLoop] ❌ 工具 {} 失败: {}，耗时: {}ms",
-                            tool_call.name, e, execution_time
-                        );
-
-                        // 🔥 发送工具调用进度事件（错误情况）
-                        if let Some(ref cb) = callback_for_task {
-                            let details = ToolCallDetails {
-                                tool_name: tool_call.name.clone(),
-                                tool_input: input_json.clone(),
-                                tool_output: error_msg.clone(),
-                                output_length: error_msg.len(),
-                                execution_time_ms: Some(execution_time),
+                                tool_output: "操作已取消".to_string(),
+                                output_length: 6,
+                                execution_time_ms: Some(tool_start.elapsed().as_millis() as i64),
                                 is_error: true,
-                            };
-                            cb(details);
+                            });
                         }
-
                         ToolResult {
                             id: tool_call.id.clone(),
                             name: tool_call.name.clone(),
-                            output: error_msg,
+                            output: "操作已取消".to_string(),
                             is_error: true,
                             input: Some(input_json),
-                            execution_time_ms: Some(execution_time),
+                            execution_time_ms: Some(tool_start.elapsed().as_millis() as i64),
+                        }
+                    }
+                    // 实际执行路径（带读写锁调度）
+                    result = async {
+                        let dispatcher_ref = ParallelDispatcher {
+                            lock: dispatch_lock,
+                        };
+                        dispatcher_ref.dispatch(&tool_name, || {
+                            let tool_call = tool_call.clone();
+                            async move {
+                                tool_executor.execute(&tool_call.name, &tool_call.input).await
+                            }
+                        }).await
+                    } => {
+                        match result {
+                            Ok(output) => {
+                                let execution_time = tool_start.elapsed().as_millis() as i64;
+                                wf_log!(
+                                    "[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符，耗时: {}ms",
+                                    tool_call.name,
+                                    output.len(),
+                                    execution_time
+                                );
+
+                                if let Some(ref cb) = callback_for_task {
+                                    let details = ToolCallDetails {
+                                        tool_name: tool_call.name.clone(),
+                                        tool_input: input_json.clone(),
+                                        tool_output: output.clone(),
+                                        output_length: output.len(),
+                                        execution_time_ms: Some(execution_time),
+                                        is_error: false,
+                                    };
+                                    cb(details);
+                                }
+
+                                ToolResult {
+                                    id: tool_call.id.clone(),
+                                    name: tool_call.name.clone(),
+                                    output,
+                                    is_error: false,
+                                    input: Some(input_json),
+                                    execution_time_ms: Some(execution_time),
+                                }
+                            }
+                            Err(e) => {
+                                let execution_time = tool_start.elapsed().as_millis() as i64;
+                                let error_msg = format!("工具执行失败: {}", e);
+                                wf_log!(
+                                    "[ToolLoop] ❌ 工具 {} 失败: {}，耗时: {}ms",
+                                    tool_call.name, e, execution_time
+                                );
+
+                                if let Some(ref cb) = callback_for_task {
+                                    let details = ToolCallDetails {
+                                        tool_name: tool_call.name.clone(),
+                                        tool_input: input_json.clone(),
+                                        tool_output: error_msg.clone(),
+                                        output_length: error_msg.len(),
+                                        execution_time_ms: Some(execution_time),
+                                        is_error: true,
+                                    };
+                                    cb(details);
+                                }
+
+                                ToolResult {
+                                    id: tool_call.id.clone(),
+                                    name: tool_call.name.clone(),
+                                    output: error_msg,
+                                    is_error: true,
+                                    input: Some(input_json),
+                                    execution_time_ms: Some(execution_time),
+                                }
+                            }
                         }
                     }
                 };
@@ -544,8 +597,14 @@ async fn call_ai_with_tools_stream(
 
         wf_log!("[ToolLoop] 📤 [STREAM] 发送流式请求到: {}", completions_url);
 
-        // 🔥 步骤2：发送流式请求
-        let client = Client::new();
+        // 🔥 步骤2：发送流式请求（配置超时，防止半开连接永久挂起）
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(600))
+            .pool_idle_timeout(Duration::from_secs(120))
+            .tcp_keepalive(Duration::from_secs(30))
+            .build()
+            .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
         let response = client
             .post(&completions_url)
             .header("Authorization", format!("Bearer {}", api_key))
@@ -571,8 +630,26 @@ async fn call_ai_with_tools_stream(
         let mut chunk_count = 0;
         let mut sent_tool_notifications = std::collections::HashSet::new();
 
-        // 🔥 步骤5：处理每个流式 chunk
-        while let Some(event_result) = stream.next().await {
+        // 🔥 步骤5：处理每个流式 chunk（带超时保护，防止 API 半开连接导致永久挂起）
+        let stream_timeout = Duration::from_secs(180);
+        loop {
+            let event_result = match timeout(stream_timeout, stream.next()).await {
+                Ok(Some(result)) => result,
+                Ok(None) => {
+                    wf_log!("[ToolLoop] 📤 [STREAM] 流正常结束");
+                    break;
+                }
+                Err(_) => {
+                    let err_msg = format!(
+                        "SSE 流读取超时（{}s），API 可能无响应。已处理 {} 个 chunks",
+                        stream_timeout.as_secs(),
+                        chunk_count
+                    );
+                    wf_log!("[ToolLoop] ❌ {}", err_msg);
+                    return Err(err_msg);
+                }
+            };
+
             match event_result {
                 Ok(event) => {
                     if event.data == "[DONE]" {
@@ -671,8 +748,9 @@ async fn call_ai_with_tools_stream(
                     }
                 }
                 Err(e) => {
-                    wf_log!("[ToolLoop] ⚠️ [STREAM] 流处理错误: {}", e);
-                    break;
+                    let err_msg = format!("SSE 流处理错误（已处理 {} 个 chunks）: {}", chunk_count, e);
+                    wf_log!("[ToolLoop] ❌ {}", err_msg);
+                    return Err(err_msg);
                 }
             }
         }

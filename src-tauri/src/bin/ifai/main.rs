@@ -1234,6 +1234,194 @@ fn handle_thread_command(app: &mut tui::App, arg: Option<&str>) {
     }
 }
 
+/// /agent 命令处理 — 异步执行 + 进度事件路由到 TUI 内容区
+///
+/// 核心机制：
+/// 1. 创建 mpsc channel 用于进度事件
+/// 2. spawn 异步任务执行 run_agent_with_channel
+/// 3. 在 mini-event-loop 中用 try_recv 消费进度事件并 push_line + render
+async fn handle_agent_command(
+    app: &mut tui::App,
+    session: &std::sync::Arc<tokio::sync::Mutex<session::Session>>,
+    arg: Option<&str>,
+) {
+    let arg_str = arg.unwrap_or("");
+    let (agent_type, task) = match crate::agent_cmd::parse_agent_args(arg_str) {
+        Ok(r) => r,
+        Err(e) => {
+            app.push_line(format!("Error: {}", e));
+            app.scroll_to_bottom();
+            app.render();
+            return;
+        }
+    };
+
+    let provider_json = {
+        let s = session.lock().await;
+        s.workflow_provider_config_json()
+    };
+
+    // 诊断：显示 provider config 状态
+    match &provider_json {
+        Some(json) => {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(json) {
+                let provider_name = v.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+                let base_url = v.get("baseUrl").and_then(|u| u.as_str()).unwrap_or("?");
+                let model = v.get("models").and_then(|m| m.as_array())
+                    .and_then(|a| a.first()).and_then(|m| m.as_str()).unwrap_or("?");
+                let has_key = v.get("apiKey").and_then(|k| k.as_str()).map(|k| k.len() > 0).unwrap_or(false);
+                app.push_line(format!("  provider: {}, model: {}, key: {}, url: {}",
+                    provider_name, model, has_key, base_url));
+            } else {
+                app.push_line(format!("  [WARN] provider config JSON 解析失败"));
+            }
+        }
+        None => {
+            app.push_line(format!("  [ERROR] 无 provider config — session 未配置 API key"));
+            let env_hint = {
+                let s = session.lock().await;
+                match s.provider.as_str() {
+                    "deepseek" | "deepseek-official" => "DEEPSEEK_API_KEY".to_string(),
+                    "zhipu" | "zhipu-official" => "ZHIPU_API_KEY".to_string(),
+                    "openai" | "openai-official" => "OPENAI_API_KEY".to_string(),
+                    other => format!("{}_API_KEY", other.to_uppercase()),
+                }
+            };
+            app.push_line(format!("  请设置 {} 环境变量或在 ~/.ifai/config.toml 中配置 api_key", env_hint));
+        }
+    }
+    app.scroll_to_bottom();
+    app.render();
+
+    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+    // spawn 异步任务执行 agent
+    let agent_type_owned = agent_type.to_string();
+    let task_owned = task.to_string();
+    let provider_owned = provider_json.map(|s| s.to_string());
+    let handle = tokio::spawn(async move {
+        crate::agent_cmd::run_agent_with_channel(
+            &agent_type_owned,
+            &task_owned,
+            provider_owned.as_deref(),
+            Some(progress_tx),
+        )
+        .await
+    });
+
+    // mini-event-loop：消费进度事件并渲染到内容区
+    loop {
+        // 尝试非阻塞接收进度事件
+        while let Ok(line) = progress_rx.try_recv() {
+            if !line.is_empty() {
+                app.push_line(line);
+            } else {
+                app.push_line(String::new());
+            }
+            app.scroll_to_bottom();
+        }
+        app.render();
+
+        // 检查 agent 任务是否完成
+        match handle.is_finished() {
+            true => {
+                // 消费剩余的进度事件
+                while let Ok(line) = progress_rx.try_recv() {
+                    if !line.is_empty() {
+                        app.push_line(line);
+                    } else {
+                        app.push_line(String::new());
+                    }
+                }
+                // 获取结果
+                match handle.await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => {
+                        app.push_line(format!("Error: {}", e));
+                    }
+                    Err(e) => {
+                        app.push_line(format!("Error: agent task panicked: {}", e));
+                    }
+                }
+                app.scroll_to_bottom();
+                app.render();
+                break;
+            }
+            false => {
+                // 短暂让出 CPU，避免 busy loop
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        }
+    }
+}
+
+/// /workflow 命令处理 — 异步执行 + 进度事件路由到 TUI 内容区
+async fn handle_workflow_command(
+    app: &mut tui::App,
+    session: &std::sync::Arc<tokio::sync::Mutex<session::Session>>,
+    arg: Option<&str>,
+) {
+    use crate::workflow_cmd;
+
+    let (sub, path) = workflow_cmd::parse_workflow_args(arg.unwrap_or(""));
+
+    match sub {
+        "templates" => {
+            let templates = workflow_cmd::list_templates();
+            for t in &templates {
+                app.push_line(format!("  {} - {}", t.name, t.description));
+            }
+            app.scroll_to_bottom();
+            app.render();
+            return;
+        }
+        "run" => {
+            let path_str = match path {
+                Some(p) => p.to_string(),
+                None => {
+                    app.push_line("Error: 用法: /workflow run <模板名或文件路径>".to_string());
+                    app.scroll_to_bottom();
+                    app.render();
+                    return;
+                }
+            };
+
+            let provider_json = {
+                let s = session.lock().await;
+                s.workflow_provider_config_json()
+            };
+
+            let path_owned = path_str.clone();
+            let provider_owned = provider_json.map(|s| s.to_string());
+            let handle = tokio::spawn(async move {
+                workflow_cmd::run_workflow(&path_owned, provider_owned.as_deref())
+            });
+
+            // TODO: run_workflow 内部仍使用 tui_progress_callback (println!)
+            // 后续可添加 channel 版本实现进度路由到内容区
+            match handle.await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    app.push_line(format!("Error: {}", e));
+                }
+                Err(e) => {
+                    app.push_line(format!("Error: workflow task panicked: {}", e));
+                }
+            }
+            app.scroll_to_bottom();
+            app.render();
+        }
+        _ => {
+            app.push_line(format!(
+                "Error: 未知子命令 '{}'。用法: /workflow [run <path>|templates]",
+                sub
+            ));
+            app.scroll_to_bottom();
+            app.render();
+        }
+    }
+}
+
 /// 每个 streaming 线程的完整句柄（属于线程，不属于循环）
 pub(crate) struct StreamState {
     pub(crate) handle: Option<tokio::task::JoinHandle<Result<String, String>>>,
@@ -2225,6 +2413,18 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         continue;
                     }
 
+                    // === /agent 系列命令拦截（进度事件需要路由到 TUI 内容区） ===
+                    if cmd == "agent" {
+                        handle_agent_command(&mut app, &session, arg.as_deref()).await;
+                        continue;
+                    }
+
+                    // === /workflow 系列命令拦截（进度事件需要路由到 TUI 内容区） ===
+                    if cmd == "workflow" {
+                        handle_workflow_command(&mut app, &session, arg.as_deref()).await;
+                        continue;
+                    }
+
                     let mut s = session.lock().await;
                     match commands::dispatch_command(&mut s, cmd, arg.as_deref()) {
                         Ok(Some(output)) => {
@@ -2408,12 +2608,14 @@ mod tests {
         include!("tests/e2e/deepseek_connection.rs");
         include!("tests/e2e/connection_timeout.rs");
         include!("tests/e2e/429_error_display.rs");
+        include!("tests/e2e/parallel_explore_real.rs");
     }
 
     // E2E Mock SSE Proxy 测试（模拟 LLM 多轮对话）
     mod e2e_mock {
         use crate::tests::common::*;
         include!("tests/e2e/empty_args_loop.rs");
+        include!("tests/e2e/parallel_explore_mock.rs");
     }
 
     // 注意：旧的 CLI 模式压缩测试已移除

@@ -143,8 +143,8 @@ impl DefaultToolExecutor {
 #[async_trait::async_trait]
 impl ToolExecutor for DefaultToolExecutor {
     async fn execute(&self, name: &str, input: &serde_json::Value) -> Result<String> {
-        println!("[ToolExecutor] 🔧 Executing tool: {}", name);
-        println!(
+        wf_log!("[ToolExecutor] 🔧 Executing tool: {}", name);
+        wf_log!(
             "[ToolExecutor] 📦 Input: {}",
             serde_json::to_string_pretty(input).unwrap_or_default()
         );

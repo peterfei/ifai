@@ -761,17 +761,26 @@ impl Session {
 
         // base_url：优先用 session 配置，否则根据 provider 选默认值
         // workflow tool_loop 直接 POST 到此 URL，需要完整的 /chat/completions 路径
-        let base_url = self.base_url.as_deref().unwrap_or_else(|| {
-            match self.provider.as_str() {
-                p if p.contains("deepseek") => "https://api.deepseek.com/chat/completions",
-                p if p.contains("openai") => "https://api.openai.com/v1/chat/completions",
-                p if p.contains("anthropic") => "https://api.anthropic.com/v1/messages",
-                p if p.contains("zhipu") => "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-                p if p.contains("kimi") => "https://api.moonshot.cn/v1/chat/completions",
-                p if p.contains("gemini") => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-                _ => "",
+        let base_url = match self.base_url.as_deref() {
+            Some(url) if url.contains("/chat/completions") || url.contains("/messages") => {
+                url.to_string()
             }
-        });
+            Some(url) => {
+                // 自动补全路径：config.toml 中通常只填域名（如 https://api.deepseek.com）
+                format!("{}/chat/completions", url.trim_end_matches('/'))
+            }
+            None => {
+                match self.provider.as_str() {
+                    p if p.contains("deepseek") => "https://api.deepseek.com/chat/completions".to_string(),
+                    p if p.contains("openai") => "https://api.openai.com/v1/chat/completions".to_string(),
+                    p if p.contains("anthropic") => "https://api.anthropic.com/v1/messages".to_string(),
+                    p if p.contains("zhipu") => "https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string(),
+                    p if p.contains("kimi") => "https://api.moonshot.cn/v1/chat/completions".to_string(),
+                    p if p.contains("gemini") => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string(),
+                    _ => String::new(),
+                }
+            }
+        };
 
         let config = serde_json::json!({
             "id": self.provider,

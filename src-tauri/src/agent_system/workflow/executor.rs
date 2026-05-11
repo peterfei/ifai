@@ -440,7 +440,8 @@ impl AgentNodeExecutor {
                     user_message,
                     &tool_executor,
                     tool_config,
-                    tool_progress_callback_clone, // 🔥 传递工具进度回调
+                    tool_progress_callback_clone,
+                    None, // cancellation_token: Phase 2 暂不传播，后续接入
                 )
                 .await
                 .map_err(|e| {

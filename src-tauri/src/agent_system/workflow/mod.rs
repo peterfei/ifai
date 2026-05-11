@@ -33,15 +33,17 @@ macro_rules! wf_log {
     };
 }
 
+pub mod cancellation;
 pub mod executor;
+pub mod parallel;
 pub mod parser;
-pub mod prompt_loader; // 🔥 添加提示词加载器模块
+pub mod prompt_loader;
 pub mod runner;
 pub mod scheduler;
 pub mod tool_loop;
-pub mod tools; // 🔥 添加工具模块
+pub mod tools;
 pub mod types;
-pub mod validator; // 🔥 添加工具调用循环模块
+pub mod validator;
 
 #[cfg(test)]
 pub mod integration_tests;

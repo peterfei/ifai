@@ -1,5 +1,6 @@
 use ifainew_lib::agent_system::workflow::{
     parser::WorkflowParser,
+    parallel::{self, progress_symbols as sym},
     runner::ProgressEvent,
     types::{AgentType, Workflow, WorkflowEdge, WorkflowNode},
 };
@@ -138,76 +139,104 @@ pub fn run_workflow(path: &str, provider_config_json: Option<&str>) -> Result<()
     Ok(())
 }
 
-/// TUI 进度 callback — 将 ProgressEvent 格式化输出到终端
+/// TUI 进度 callback — 将 ProgressEvent 格式化为文本行（用于 channel 发送到 TUI 内容区）
+///
+/// 返回的闭包将每个 ProgressEvent 转换为一行或多行 String，
+/// 通过 sender 发送到 TUI 主循环，由主循环调用 app.push_line() 渲染到内容区。
+pub fn channel_progress_callback(
+    sender: tokio::sync::mpsc::UnboundedSender<String>,
+) -> impl Fn(ProgressEvent) + Send + Sync + 'static {
+    move |event: ProgressEvent| {
+        let lines = format_progress_event(&event);
+        for line in lines {
+            let _ = sender.send(line);
+        }
+    }
+}
+
+/// 将 ProgressEvent 格式化为文本行向量（纯逻辑，不含 IO）
+fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
+    let mut lines = Vec::new();
+    match event.event_type.as_str() {
+        "workflow:started" => {
+            if let Some(msg) = &event.message {
+                lines.push(format!("{} {}", sym::RUNNING, msg));
+            }
+            if let Some(nodes) = &event.nodes {
+                for (i, node) in nodes.iter().enumerate() {
+                    let label = if node.label.is_empty() { &node.id } else { &node.label };
+                    let tree = if i == nodes.len() - 1 { sym::LEAF } else { sym::BRANCH };
+                    lines.push(format!("  {} {} [{}]", tree, label, node.agent_type));
+                }
+                lines.push(String::new());
+            }
+        }
+        "node_started" => {
+            if let Some(msg) = &event.message {
+                lines.push(format!("{} {}", sym::RUNNING, msg));
+            } else {
+                lines.push(format!("{} [{}]", sym::RUNNING, event.node_id.as_deref().unwrap_or("?")));
+            }
+        }
+        "node_completed" => {
+            lines.push(format!("{} Done", sym::DONE));
+        }
+        "tool_call" => {
+            if let Some(details) = &event.tool_details {
+                let icon = if details.is_error { sym::FAIL } else { sym::DONE };
+                let time = details
+                    .execution_time_ms
+                    .map(|ms| format!(" ({})", parallel::format_duration(ms as u64)))
+                    .unwrap_or_default();
+                let output_info = if details.output_length > 200 {
+                    format!(" {} {} chars", sym::ARROW, details.output_length)
+                } else if !details.tool_output.is_empty() {
+                    let preview = parallel::truncate_preview(
+                        details.tool_output.lines().next().unwrap_or(""), 80);
+                    format!(" {} {}", sym::ARROW, preview)
+                } else {
+                    String::new()
+                };
+                lines.push(format!("  {} {} {} {}{}", sym::BRANCH, icon, details.tool_name, time, output_info));
+            } else if let Some(msg) = &event.message {
+                lines.push(format!("  {} {}", sym::BRANCH, msg));
+            }
+        }
+        "content_delta" => {
+            if let Some(delta) = &event.content_delta {
+                // content_delta 直接作为单行追加
+                lines.push(delta.clone());
+            }
+        }
+        "content_finished" => {
+            lines.push(String::new());
+        }
+        "workflow:completed" => {
+            lines.push(format!("{} Workflow complete", sym::DONE));
+            lines.push(String::new());
+        }
+        "workflow:error" => {
+            if let Some(msg) = &event.message {
+                lines.push(format!("{} {}", sym::FAIL, msg));
+            }
+        }
+        _ => {}
+    }
+    lines
+}
+
+/// TUI 进度 callback — 将 ProgressEvent 格式化输出到终端（非 TUI 模式 / CLI 直接运行）
+///
+/// 使用统一的 Unicode 符号系统（▸ ✔ ✘ ⊘），替代 Emoji 混用风格
 pub fn tui_progress_callback() -> impl Fn(ProgressEvent) + Send + Sync + 'static {
     move |event: ProgressEvent| {
-        match event.event_type.as_str() {
-            "workflow:started" => {
-                if let Some(msg) = &event.message {
-                    println!("\n▶ {}", msg);
-                }
-                // 显示计划节点列表
-                if let Some(nodes) = &event.nodes {
-                    for (i, node) in nodes.iter().enumerate() {
-                        let label = if node.label.is_empty() { &node.id } else { &node.label };
-                        if i == nodes.len() - 1 {
-                            println!("  └─ {} [{}]", label, node.agent_type);
-                        } else {
-                            println!("  ├─ {} [{}]", label, node.agent_type);
-                        }
-                    }
-                    println!();
-                }
+        let lines = format_progress_event(&event);
+        for line in lines {
+            if event.event_type.as_str() == "workflow:error" {
+                eprintln!("{}", line);
+            } else {
+                println!("{}", line);
             }
-            "node_started" => {
-                let label = event.message.as_deref().unwrap_or("...");
-                println!("▶ [{}] {}", event.node_id.as_deref().unwrap_or("?"), label);
-            }
-            "node_completed" => {
-                println!("  └─ done");
-            }
-            "tool_call" => {
-                if let Some(details) = &event.tool_details {
-                    let icon = if details.is_error { "✗" } else { "✓" };
-                    let time = details
-                        .execution_time_ms
-                        .map(|ms| format!(" ({:.1}s)", ms as f64 / 1000.0))
-                        .unwrap_or_default();
-                    let output_info = if details.output_length > 200 {
-                        format!(" → {} chars", details.output_length)
-                    } else if !details.tool_output.is_empty() {
-                        // 截断显示前 120 字符
-                        let preview = &details.tool_output[..details.tool_output.len().min(120)];
-                        let preview = preview.lines().next().unwrap_or("");
-                        format!(" → {}", preview)
-                    } else {
-                        String::new()
-                    };
-                    println!("  ├─ {} {}{}{}", icon, details.tool_name, time, output_info);
-                } else if let Some(msg) = &event.message {
-                    println!("  ├─ 🔧 {}", msg);
-                }
-            }
-            "content_delta" => {
-                // AI 流式输出直接打印（不换行）
-                if let Some(delta) = &event.content_delta {
-                    print!("{}", delta);
-                    use std::io::Write;
-                    std::io::stdout().flush().ok();
-                }
-            }
-            "content_finished" => {
-                println!(); // 流式输出结束后换行
-            }
-            "workflow:completed" => {
-                println!("\n✅ 工作流完成\n");
-            }
-            "workflow:error" => {
-                if let Some(msg) = &event.message {
-                    eprintln!("\n❌ {}", msg);
-                }
-            }
-            _ => {}
         }
     }
 }
