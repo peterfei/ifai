@@ -2233,6 +2233,28 @@ fn handle_single_key_event(
     if app.is_approving() {
         if let crossterm::event::Event::Key(key) = event {
             use crossterm::event::KeyCode;
+            use crossterm::event::KeyModifiers;
+
+            // 🔥 FIX: Alt+Left/Alt+Right 在审批模式下也允许切换线程
+            if key.modifiers.contains(KeyModifiers::ALT) {
+                match key.code {
+                    KeyCode::Left => {
+                        if let Some(prev_id) = app.thread.store.previous_thread() {
+                            app.switch_thread(prev_id);
+                            app.render();
+                            return StreamingControl::ThreadSwitch;
+                        }
+                    }
+                    KeyCode::Right => {
+                        if let Some(next_id) = app.thread.store.next_thread() {
+                            app.switch_thread(next_id);
+                            app.render();
+                            return StreamingControl::ThreadSwitch;
+                        }
+                    }
+                    _ => {}
+                }
+            }
 
             let options_count = if let Some(ref req) = app.approval_state_ref() {
                 approval_overlay::build_approval_options(req).len()
