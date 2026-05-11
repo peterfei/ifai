@@ -268,6 +268,22 @@ pub async fn execute_with_tools(
 
         // 🔥 等待所有工具完成（并行执行）
         wf_log!("[ToolLoop] ⏳ 等待 {} 个工具完成...", tool_tasks.len());
+
+        // 🔥 发送并行派发通知（仅当工具数 >= 2 时才有意义）
+        if tool_calls.len() >= 2 {
+            if let Some(ref cb) = progress_callback {
+                let tool_names: Vec<String> = tool_calls.iter().map(|t| t.name.clone()).collect();
+                cb(ToolCallDetails {
+                    tool_name: String::new(),
+                    tool_input: String::new(),
+                    tool_output: format!("parallel:{}", tool_names.join(",")),
+                    output_length: 0,
+                    execution_time_ms: None,
+                    is_error: false,
+                });
+            }
+        }
+
         let results = join_all(tool_tasks).await;
 
         let tool_duration = tool_start.elapsed();

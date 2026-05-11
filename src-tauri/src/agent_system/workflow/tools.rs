@@ -43,6 +43,9 @@ impl DefaultToolExecutor {
         Self { project_root }
     }
 
+    /// 单文件最大行数，超过则截断（保留首尾）
+    const MAX_FILE_LINES: usize = 500;
+
     /// 执行 read_file 工具
     async fn read_file(&self, rel_path: &str) -> Result<String> {
         let full_path = std::path::Path::new(&self.project_root).join(rel_path);
@@ -58,7 +61,41 @@ impl DefaultToolExecutor {
         let content = std::fs::read_to_string(&full_path)
             .map_err(|e| anyhow::anyhow!("读取文件失败 {}: {}", rel_path, e))?;
 
-        Ok(content)
+        let (content, truncated) = Self::truncate_file(&content, Self::MAX_FILE_LINES);
+        if truncated {
+            Ok(format!(
+                "[TRUNCATED] {} 超过 {} 行，已截断显示首尾\n\n{}",
+                rel_path,
+                Self::MAX_FILE_LINES,
+                content
+            ))
+        } else {
+            Ok(content)
+        }
+    }
+
+    /// 截断大文件：保留 head 60% + tail 40%，中间省略
+    fn truncate_file(content: &str, max_lines: usize) -> (String, bool) {
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.len() <= max_lines {
+            return (content.to_string(), false);
+        }
+
+        let head = max_lines * 60 / 100;
+        let tail = max_lines - head;
+        let skipped = lines.len() - head - tail;
+
+        let mut out = String::new();
+        for line in &lines[..head] {
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push_str(&format!("\n[... 省略 {} 行 ...]\n\n", skipped));
+        for line in &lines[lines.len() - tail..] {
+            out.push_str(line);
+            out.push('\n');
+        }
+        (out, true)
     }
 
     /// 执行 list_dir 工具
@@ -139,98 +176,6 @@ impl DefaultToolExecutor {
         Ok(())
     }
 
-    /// 执行 batch_read 工具（批量读取多个文件，大文件自动截断）
-    ///
-    /// 截断策略：单文件超过 `MAX_FILE_LINES` 行时，保留 head + tail，
-    /// 中间用 `[... 省略 N 行 ...]` 标记。总输出不超过 `MAX_TOTAL_CHARS`。
-    const MAX_FILE_LINES: usize = 500;
-    const MAX_TOTAL_CHARS: usize = 60_000;
-
-    async fn batch_read(&self, paths: &[String]) -> Result<String> {
-        let mut results = Vec::new();
-        let mut total_chars = 0usize;
-
-        for rel_path in paths {
-            let full_path = std::path::Path::new(&self.project_root).join(rel_path);
-
-            // 安全检查
-            let canonical_path = match full_path.canonicalize() {
-                Ok(p) => p,
-                Err(e) => {
-                    results.push(format!("=== {} ===\n[ERROR] 路径无效: {}", rel_path, e));
-                    continue;
-                }
-            };
-            let canonical_root = match std::path::Path::new(&self.project_root).canonicalize() {
-                Ok(p) => p,
-                Err(e) => {
-                    results.push(format!("=== {} ===\n[ERROR] 项目根目录无效: {}", rel_path, e));
-                    continue;
-                }
-            };
-
-            if !canonical_path.starts_with(&canonical_root) {
-                results.push(format!("=== {} ===\n[ERROR] 路径访问被拒绝：在项目根目录之外", rel_path));
-                continue;
-            }
-
-            match std::fs::read_to_string(&full_path) {
-                Ok(content) => {
-                    let (content, truncated) =
-                        Self::truncate_file(&content, Self::MAX_FILE_LINES);
-
-                    let entry = if truncated {
-                        format!("=== {} === [TRUNCATED]\n{}", rel_path, content)
-                    } else {
-                        format!("=== {} ===", rel_path)
-                            + if content.is_empty() { "" } else { "\n" }
-                            + &content
-                    };
-
-                    total_chars += entry.len();
-                    results.push(entry);
-                }
-                Err(e) => {
-                    results.push(format!("=== {} ===\n[ERROR] 读取失败: {}", rel_path, e));
-                }
-            }
-
-            // 总输出超限检查
-            if total_chars > Self::MAX_TOTAL_CHARS {
-                results.push(format!(
-                    "\n[BATCH LIMIT] 总输出已达 {} chars，停止读取剩余文件",
-                    total_chars
-                ));
-                break;
-            }
-        }
-
-        Ok(results.join("\n\n"))
-    }
-
-    /// 截断大文件：保留 head + tail，中间省略
-    fn truncate_file(content: &str, max_lines: usize) -> (String, bool) {
-        let lines: Vec<&str> = content.lines().collect();
-        if lines.len() <= max_lines {
-            return (content.to_string(), false);
-        }
-
-        let head = max_lines * 60 / 100; // 前 60%
-        let tail = max_lines - head;     // 后 40%
-        let skipped = lines.len() - head - tail;
-
-        let mut out = String::new();
-        for line in &lines[..head] {
-            out.push_str(line);
-            out.push('\n');
-        }
-        out.push_str(&format!("\n[... 省略 {} 行 ...]\n\n", skipped));
-        for line in &lines[lines.len() - tail..] {
-            out.push_str(line);
-            out.push('\n');
-        }
-        (out, true)
-    }
 }
 
 #[async_trait::async_trait]
@@ -262,24 +207,8 @@ impl ToolExecutor for DefaultToolExecutor {
                 let max_depth = input["max_depth"].as_u64().map(|d| d as usize);
                 self.scan_project(rel_path, max_depth).await
             }
-            "agent_batch_read" => {
-                let paths = input["paths"]
-                    .as_array()
-                    .ok_or_else(|| anyhow::anyhow!("缺少 paths 参数（数组）。格式: {{\"paths\": [\"file1.rs\", \"file2.rs\"]}}"))?;
-                let path_strs: Vec<String> = paths
-                    .iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect();
-                if path_strs.is_empty() {
-                    return Err(anyhow::anyhow!("paths 数组为空，至少需要一个文件路径"));
-                }
-                if path_strs.len() > 10 {
-                    return Err(anyhow::anyhow!("单次最多读取 10 个文件，当前: {}", path_strs.len()));
-                }
-                self.batch_read(&path_strs).await
-            }
             _ => Err(anyhow::anyhow!(
-                "未知的工具: {}。可用工具: agent_read_file, agent_batch_read, agent_list_dir, agent_scan_project",
+                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project",
                 name
             )),
         }
@@ -336,31 +265,12 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
                 }
             }
         }),
-        // 🔥 优先级2：批量读取文件（推荐，减少调用次数）
-        serde_json::json!({
-            "type": "function",
-            "function": {
-                "name": "agent_batch_read",
-                "description": "批量读取多个文件内容（最多10个）。一次调用读取所有需要的文件，大幅减少交互轮次。单文件超过500行自动截断（保留首尾），总输出上限60K chars。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "paths": {
-                            "type": "array",
-                            "items": { "type": "string" },
-                            "description": "相对于项目根目录的文件路径数组，如 [\"Cargo.toml\", \"src/main.rs\", \"README.md\"]"
-                        }
-                    },
-                    "required": ["paths"]
-                }
-            }
-        }),
-        // 🔥 优先级3：读取单个文件（仅读取1个文件时使用）
+        // 🔥 优先级2：读取单个文件（可同时调用多个实现并行读取）
         serde_json::json!({
             "type": "function",
             "function": {
                 "name": "agent_read_file",
-                "description": "读取单个文件内容。仅在只需要读取1个文件时使用。多个文件请用 agent_batch_read。",
+                "description": "读取单个文件内容。需要读取多个文件时，请在同一次响应中发起多个 agent_read_file 调用，它们会并行执行。",
                 "parameters": {
                     "type": "object",
                     "properties": {

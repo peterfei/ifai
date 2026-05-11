@@ -67,7 +67,7 @@
         "glob",
         "list_files",
         "ls",
-        "agent_batch_read"
+        "agent_read_file"
       ],
       "category": "safe",
       "riskLevel": "low",

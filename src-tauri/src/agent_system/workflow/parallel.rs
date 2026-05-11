@@ -19,7 +19,6 @@ const TOOL_PARALLEL_SPECS: &[ToolParallelSpec] = &[
     ToolParallelSpec { name: "agent_read_file", supports_parallel: true },
     ToolParallelSpec { name: "agent_list_dir", supports_parallel: true },
     ToolParallelSpec { name: "agent_scan_project", supports_parallel: true },
-    ToolParallelSpec { name: "agent_batch_read", supports_parallel: true },
     // 独占工具（省略或 supports_parallel: false）
     // agent_write_file, agent_bash, bash, agent_run_shell_command, agent_execute_command 等
 ];
@@ -172,7 +171,6 @@ mod tests {
         assert!(tool_supports_parallel("agent_read_file"));
         assert!(tool_supports_parallel("agent_list_dir"));
         assert!(tool_supports_parallel("agent_scan_project"));
-        assert!(tool_supports_parallel("agent_batch_read"));
     }
 
     #[test]

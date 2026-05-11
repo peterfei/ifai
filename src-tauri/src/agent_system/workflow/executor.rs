@@ -501,13 +501,75 @@ impl AgentNodeExecutor {
         let loader = AgentPromptLoader::new(&ctx.project_root);
         let base_prompt = loader.load_for(&node.agent_type, &prompt_context);
 
+        // 🔥 对 Explore/Review agent 预注入项目目录结构，省掉 scan_project 往返
+        let project_tree = if matches!(node.agent_type, AgentType::Explore | AgentType::Review) {
+            Self::quick_scan_tree(&ctx.project_root, 2)
+        } else {
+            String::new()
+        };
+
         // 添加项目上下文
-        let full_prompt = format!(
-            "{}\n\n# 项目上下文\n\n项目根目录: {}\n\n请基于以上信息完成任务。",
-            base_prompt, ctx.project_root
-        );
+        let full_prompt = if project_tree.is_empty() {
+            format!(
+                "{}\n\n# 项目上下文\n\n项目根目录: {}\n\n请基于以上信息完成任务。",
+                base_prompt, ctx.project_root
+            )
+        } else {
+            format!(
+                "{}\n\n# 项目上下文\n\n项目根目录: {}\n\n## 目录结构（已预扫描）\n```\n{}\n```\n\n⚠️ 目录结构已提供，无需再调用 agent_scan_project。使用多个 agent_read_file 并行读取需要的文件。",
+                base_prompt, ctx.project_root, project_tree
+            )
+        };
 
         full_prompt
+    }
+
+    /// 快速扫描项目目录树（同步，用于预注入到 prompt）
+    fn quick_scan_tree(root: &str, max_depth: usize) -> String {
+        let mut result = String::new();
+        let _ = Self::scan_tree_recursive(
+            std::path::Path::new(root),
+            0,
+            max_depth,
+            &mut result,
+        );
+        result
+    }
+
+    fn scan_tree_recursive(
+        dir: &std::path::Path,
+        depth: usize,
+        max_depth: usize,
+        result: &mut String,
+    ) -> std::io::Result<()> {
+        if depth > max_depth {
+            return Ok(());
+        }
+        let entries: Vec<std::fs::DirEntry> = std::fs::read_dir(dir)?
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let name = e.file_name();
+                let s = name.to_string_lossy();
+                !s.starts_with('.') && s != "node_modules" && s != "target"
+            })
+            .collect();
+        let mut entries = entries;
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in entries {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            let indent = "  ".repeat(depth);
+            if is_dir {
+                result.push_str(&format!("{}[DIR] {}\n", indent, name));
+                if depth < max_depth {
+                    let _ = Self::scan_tree_recursive(&entry.path(), depth + 1, max_depth, result);
+                }
+            } else {
+                result.push_str(&format!("{}[FILE] {}\n", indent, name));
+            }
+        }
+        Ok(())
     }
 }
 

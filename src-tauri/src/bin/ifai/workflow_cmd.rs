@@ -191,21 +191,30 @@ fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
         }
         "tool_call" => {
             if let Some(details) = &event.tool_details {
-                let icon = if details.is_error { sym::FAIL } else { sym::DONE };
-                let time = details
-                    .execution_time_ms
-                    .map(|ms| format!(" ({})", parallel::format_duration(ms as u64)))
-                    .unwrap_or_default();
-                let output_info = if details.output_length > 200 {
-                    format!(" {} {} chars", sym::ARROW, details.output_length)
-                } else if !details.tool_output.is_empty() {
-                    let preview = parallel::truncate_preview(
-                        details.tool_output.lines().next().unwrap_or(""), 80);
-                    format!(" {} {}", sym::ARROW, preview)
+                // 并行派发通知（tool_name 为空，tool_output 以 "parallel:" 开头）
+                if details.tool_name.is_empty() && details.tool_output.starts_with("parallel:") {
+                    let names = &details.tool_output[9..]; // 去掉 "parallel:" 前缀
+                    let count = names.split(',').count();
+                    lines.push(format!("  {} {} 个工具并行执行...", sym::RUNNING, count));
                 } else {
-                    String::new()
-                };
-                lines.push(format!("  {} {} {} {}{}", sym::BRANCH, icon, details.tool_name, time, output_info));
+                    let icon = if details.is_error { sym::FAIL } else { sym::DONE };
+                    let time = details
+                        .execution_time_ms
+                        .map(|ms| format!(" ({})", parallel::format_duration(ms as u64)))
+                        .unwrap_or_default();
+                    let output_info = if details.output_length > 200 {
+                        format!(" {} {} chars", sym::ARROW, details.output_length)
+                    } else if !details.tool_output.is_empty() && !details.tool_output.starts_with("parallel:") {
+                        let preview = parallel::truncate_preview(
+                            details.tool_output.lines().next().unwrap_or(""), 80);
+                        format!(" {} {}", sym::ARROW, preview)
+                    } else if details.output_length > 0 {
+                        format!(" {} {} chars", sym::ARROW, details.output_length)
+                    } else {
+                        String::new()
+                    };
+                    lines.push(format!("  {} {} {}{}{}", sym::BRANCH, icon, details.tool_name, time, output_info));
+                }
             } else if let Some(msg) = &event.message {
                 lines.push(format!("  {} {}", sym::BRANCH, msg));
             }

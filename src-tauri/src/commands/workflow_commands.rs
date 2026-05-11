@@ -658,7 +658,7 @@ fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
 - 识别关键目录、文件类型、技术栈
 
 **Phase 2: 深入分析**
-使用 agent_batch_read 批量读取关键文件：
+使用多个 agent_read_file 并行读取关键文件：
 1. **项目结构**：目录组织、模块划分
 2. **依赖关系**：外部依赖、模块连接
 3. **关键文件**：
