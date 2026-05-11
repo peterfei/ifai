@@ -1076,3 +1076,439 @@ pub async fn call_ai_streaming_simple(
         Ok(content_str)
     }
 }
+
+// ============================================================================
+// 🔥 Explore Agent 分段执行器（强制 3 轮探索）
+// ============================================================================
+
+/// 🔥 Explore Agent 分段执行器
+///
+/// 问题：DeepSeek 模型即使明确指示，也会在第 3 轮继续使用 agent_read_file 而不是 agent_search
+/// 解决：通过代码级别的工具过滤，强制每轮只使用特定工具
+///
+/// 执行流程：
+/// - Round 1: 只提供 agent_read_file，读取初始文件
+/// - Round 2: 只提供 agent_read_file，读取核心模块
+/// - Round 3: 只提供 agent_search、agent_list_dir，搜索代码
+/// - Round 4: 不提供工具，生成最终报告
+pub async fn execute_explore_agent_staged(
+    provider_config: crate::core_traits::ai::AIProviderConfig,
+    system_prompt: String,
+    user_message: String,
+    tool_executor: &dyn ToolExecutor,
+    progress_callback: Option<ToolProgressCallback>,
+    cancellation_token: Option<CancellationToken>,
+) -> Result<String, String> {
+    wf_log!("[ExploreStaged] 🚀 开始分段执行 Explore Agent");
+
+    // Round 1: 读取初始文件
+    wf_log!("[ExploreStaged] 📍 Round 1: 读取初始文件");
+    let round1_tools = vec!["agent_read_file"];
+    let round1_prompt = format!(
+        "{}\n\n**当前阶段：第 1 轮**\n只读取这些文件：\n- Cargo.toml\n- src/main.rs\n- src/lib.rs\n- README.md\n\n读取后继续第 2 轮，不要输出总结。",
+        system_prompt
+    );
+    let (round1_response, round1_tools_used) = execute_single_stage(
+        provider_config.clone(),
+        round1_prompt,
+        user_message.clone(),
+        tool_executor,
+        round1_tools,
+        progress_callback.clone(),
+        cancellation_token.clone(),
+        "Round 1".to_string(),
+    ).await?;
+
+    wf_log!(
+        "[ExploreStaged] ✅ Round 1 完成，使用了 {} 个工具",
+        round1_tools_used
+    );
+
+    // Round 2: 读取核心模块
+    wf_log!("[ExploreStaged] 📍 Round 2: 读取核心模块文件");
+    let round2_tools = vec!["agent_read_file"];
+    let round2_prompt = format!(
+        "{}\n\n**当前阶段：第 2 轮**\n基于第 1 轮的结果，读取项目的核心模块文件（5-10 个）。\n读取后继续第 3 轮，不要输出总结。",
+        system_prompt
+    );
+    let round2_user_msg = format!(
+        "{}\n\n第 1 轮已完成，读取了 {} 个文件。现在读取核心模块文件。",
+        user_message, round1_tools_used
+    );
+    let (round2_response, round2_tools_used) = execute_single_stage(
+        provider_config.clone(),
+        round2_prompt,
+        round2_user_msg,
+        tool_executor,
+        round2_tools,
+        progress_callback.clone(),
+        cancellation_token.clone(),
+        "Round 2".to_string(),
+    ).await?;
+
+    wf_log!(
+        "[ExploreStaged] ✅ Round 2 完成，使用了 {} 个工具",
+        round2_tools_used
+    );
+
+    // Round 3: 搜索代码
+    wf_log!("[ExploreStaged] 📍 Round 3: 搜索代码");
+    let round3_tools = vec!["agent_search", "agent_list_dir"];
+    let round3_prompt = format!(
+        "{}\n\n**当前阶段：第 3 轮**\n使用搜索工具搜索代码模式。执行这些搜索：\n- agent_search(\"TODO|FIXME\", \".\")\n- agent_search(\"async\", \"src/\")\n- agent_search(\"test\", \".\")\n- agent_search(\"Result|Err\", \"src/\")\n- agent_search(\"get|post\", \"src/\")\n- agent_search(\"SELECT|INSERT\", \"src/\")\n- agent_search(\"unsafe\", \"src/\")\n\n搜索后继续第 4 轮，不要输出总结。",
+        system_prompt
+    );
+    let round3_user_msg = format!(
+        "{}\n\n第 2 轮已完成，读取了 {} 个文件。现在使用搜索工具。",
+        user_message, round2_tools_used
+    );
+    let (round3_response, round3_tools_used) = execute_single_stage(
+        provider_config.clone(),
+        round3_prompt,
+        round3_user_msg,
+        tool_executor,
+        round3_tools,
+        progress_callback.clone(),
+        cancellation_token.clone(),
+        "Round 3".to_string(),
+    ).await?;
+
+    wf_log!(
+        "[ExploreStaged] ✅ Round 3 完成，使用了 {} 个工具",
+        round3_tools_used
+    );
+
+    // Round 4: 生成最终报告（无工具）
+    wf_log!("[ExploreStaged] 📍 Round 4: 生成最终报告");
+    let round4_tools = vec![]; // 不提供任何工具
+    let round4_prompt = format!(
+        "{}\n\n**当前阶段：第 4 轮（最终报告）**\n基于以上 3 轮探索的结果，生成完整的项目分析报告。\n第 1 轮读取了 {} 个文件。\n第 2 轮读取了 {} 个文件。\n第 3 轮使用了 {} 个搜索。\n\n现在生成最终的项目分析报告。",
+        system_prompt, round1_tools_used, round2_tools_used, round3_tools_used
+    );
+    let round4_user_msg = format!(
+        "{}\n\n已完成 3 轮探索。现在生成最终的项目分析报告。",
+        user_message
+    );
+    let (final_report, _) = execute_single_stage(
+        provider_config,
+        round4_prompt,
+        round4_user_msg,
+        tool_executor,
+        round4_tools,
+        progress_callback,
+        cancellation_token,
+        "Round 4 (Final)".to_string(),
+    ).await?;
+
+    wf_log!("[ExploreStaged] ✅ 所有 4 轮完成，生成最终报告");
+    wf_log!(
+        "[ExploreStaged] 📊 总计：R1={} 个工具, R2={} 个工具, R3={} 个工具",
+        round1_tools_used, round2_tools_used, round3_tools_used
+    );
+
+    Ok(final_report)
+}
+
+/// 🔥 执行单个阶段（带工具过滤）
+///
+/// 只提供指定的工具列表，强制 AI 只使用这些工具
+async fn execute_single_stage(
+    provider_config: crate::core_traits::ai::AIProviderConfig,
+    system_prompt: String,
+    user_message: String,
+    tool_executor: &dyn ToolExecutor,
+    allowed_tools: Vec<&str>,
+    progress_callback: Option<ToolProgressCallback>,
+    cancellation_token: Option<CancellationToken>,
+    stage_name: String,
+) -> Result<(String, usize), String> {
+    wf_log!(
+        "[ExploreStaged] 📍 {} - 允许的工具: {:?}",
+        stage_name,
+        allowed_tools
+    );
+
+    // 创建过滤后的工具定义
+    let all_tools = super::tools::create_tool_definitions();
+    let filtered_tools: Vec<serde_json::Value> = all_tools
+        .into_iter()
+        .filter(|tool| {
+            let tool_name = tool
+                .get("function")
+                .and_then(|f| f.get("name"))
+                .and_then(|n| n.as_str())
+                .unwrap_or("");
+            allowed_tools.contains(&tool_name)
+        })
+        .collect();
+
+    wf_log!(
+        "[ExploreStaged] 🔧 {} - 过滤后工具数: {}",
+        stage_name,
+        filtered_tools.len()
+    );
+
+    // 使用过滤后的工具定义执行
+    execute_with_tools_filtered(
+        provider_config,
+        system_prompt,
+        user_message,
+        tool_executor,
+        ToolLoopConfig::default(),
+        progress_callback,
+        cancellation_token,
+        filtered_tools,
+        stage_name,
+    )
+    .await
+}
+
+/// 🔥 带工具过滤的工具循环执行
+async fn execute_with_tools_filtered(
+    provider_config: crate::core_traits::ai::AIProviderConfig,
+    system_prompt: String,
+    user_message: String,
+    tool_executor: &dyn ToolExecutor,
+    config: ToolLoopConfig,
+    progress_callback: Option<ToolProgressCallback>,
+    cancellation_token: Option<CancellationToken>,
+    tools: Vec<serde_json::Value>, // 🔥 使用过滤后的工具定义
+    stage_name: String,
+) -> Result<(String, usize), String> {
+    let mut messages = vec![
+        crate::core_traits::ai::Message {
+            role: "system".to_string(),
+            content: crate::core_traits::ai::Content::Text(system_prompt),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+        crate::core_traits::ai::Message {
+            role: "user".to_string(),
+            content: crate::core_traits::ai::Content::Text(user_message),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+    ];
+
+    let mut iterations = 0;
+    let mut total_tools_used = 0;
+
+    loop {
+        iterations += 1;
+        if iterations > config.max_iterations {
+            return Err(format!(
+                "[{}] 超过最大迭代次数: {}",
+                stage_name, config.max_iterations
+            ));
+        }
+
+        // 检查外部取消
+        if let Some(ref token) = cancellation_token {
+            if token.is_cancelled() {
+                wf_log!("[ExploreStaged] 🛑 {} - 收到取消信号", stage_name);
+                return Err("操作已取消".to_string());
+            }
+        }
+
+        wf_log!("[ExploreStaged] 🔄 {} - 迭代 {}", stage_name, iterations);
+
+        // 调用 AI（使用过滤后的工具定义）
+        let response = call_ai_with_tools_filtered(
+            provider_config.clone(),
+            &messages,
+            tools.clone(), // 🔥 使用过滤后的工具
+        )
+        .await?;
+
+        // 检查是否有工具调用
+        let tool_calls = extract_tool_calls(&response)?;
+
+        if tool_calls.is_empty() {
+            wf_log!(
+                "[ExploreStaged] ✅ {} - 完成，未检测到工具调用",
+                stage_name
+            );
+            return Ok((response, total_tools_used));
+        }
+
+        wf_log!(
+            "[ExploreStaged] 🔧 {} - 检测到 {} 个工具调用",
+            stage_name,
+            tool_calls.len()
+        );
+        total_tools_used += tool_calls.len();
+
+        // 并行执行工具
+        use futures::future::join_all;
+        let mut tool_tasks = Vec::new();
+        for tool_call in tool_calls.iter() {
+            let tool_call = tool_call.clone();
+            let callback_for_task = progress_callback.clone();
+            let tool_start = std::time::Instant::now();
+
+            tool_tasks.push(async move {
+                let result = tool_executor.execute(&tool_call.name, &tool_call.input).await;
+
+                match result {
+                    Ok(output) => {
+                        let execution_time = tool_start.elapsed().as_millis() as i64;
+                        wf_log!(
+                            "[ExploreStaged] ✅ 工具 {} 成功，耗时: {}ms",
+                            tool_call.name,
+                            execution_time
+                        );
+
+                        if let Some(ref cb) = callback_for_task {
+                            let input_json = serde_json::to_string_pretty(&tool_call.input)
+                                .unwrap_or_default();
+                            cb(super::runner::ToolCallDetails {
+                                tool_name: tool_call.name.clone(),
+                                tool_input: input_json,
+                                tool_output: output.clone(),
+                                output_length: output.len(),
+                                execution_time_ms: Some(execution_time),
+                                is_error: false,
+                            });
+                        }
+
+                        super::tools::ToolResult {
+                            id: tool_call.id.clone(),
+                            name: tool_call.name.clone(),
+                            output,
+                            is_error: false,
+                            input: None,
+                            execution_time_ms: Some(execution_time),
+                        }
+                    }
+                    Err(e) => {
+                        let execution_time = tool_start.elapsed().as_millis() as i64;
+                        let error_msg = format!("工具执行失败: {}", e);
+                        wf_log!(
+                            "[ExploreStaged] ❌ 工具 {} 失败: {}",
+                            tool_call.name, e
+                        );
+
+                        if let Some(ref cb) = callback_for_task {
+                            let input_json = serde_json::to_string_pretty(&tool_call.input)
+                                .unwrap_or_default();
+                            cb(super::runner::ToolCallDetails {
+                                tool_name: tool_call.name.clone(),
+                                tool_input: input_json,
+                                tool_output: error_msg.clone(),
+                                output_length: error_msg.len(),
+                                execution_time_ms: Some(execution_time),
+                                is_error: true,
+                            });
+                        }
+
+                        super::tools::ToolResult {
+                            id: tool_call.id.clone(),
+                            name: tool_call.name.clone(),
+                            output: error_msg,
+                            is_error: true,
+                            input: None,
+                            execution_time_ms: Some(execution_time),
+                        }
+                    }
+                }
+                (tool_call, result)
+            });
+        }
+
+        let results = join_all(tool_tasks).await;
+
+        // 将工具结果添加到消息历史
+        for (tool_call, result) in results {
+            messages.push(crate::core_traits::ai::Message {
+                role: "assistant".to_string(),
+                content: crate::core_traits::ai::Content::Text(format!(
+                    "tool_call:{}",
+                    tool_call.name
+                )),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+
+            messages.push(crate::core_traits::ai::Message {
+                role: "user".to_string(),
+                content: crate::core_traits::ai::Content::Text(result.output),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+    }
+}
+
+/// 🔥 调用 AI（支持自定义工具列表）
+async fn call_ai_with_tools_filtered(
+    provider_config: crate::core_traits::ai::AIProviderConfig,
+    messages: &[crate::core_traits::ai::Message],
+    tools: Vec<serde_json::Value>, // 🔥 自定义工具列表
+) -> Result<String, String> {
+    use reqwest::Client;
+    use tokio::time::{timeout, Duration};
+
+    let client = Client::new();
+
+    // 获取模型名称
+    let model = provider_config
+        .models
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "glm-4.7".to_string());
+
+    // 构建请求体
+    let request_body = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": false,
+        "temperature": 0.7,
+        "tools": tools, // 🔥 使用自定义工具列表
+        "tool_choice": "auto"
+    });
+
+    wf_log!(
+        "[ExploreStaged] 📤 发送请求到 AI，工具数量: {}",
+        tools.len()
+    );
+
+    let response = timeout(
+        Duration::from_secs(60),
+        client
+            .post(&provider_config.base_url)
+            .header(
+                "Authorization",
+                format!("Bearer {}", provider_config.api_key),
+            )
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send(),
+    )
+    .await
+    .map_err(|e| format!("AI 请求超时: {}", e))?
+    .await
+    .map_err(|e| format!("AI 请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("AI 返回错误: {} - {}", response.status(), error_text));
+    }
+
+    let response_json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("解析 AI 响应失败: {}", e))?;
+
+    // 提取响应内容
+    if let Some(content) = response_json
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+    {
+        Ok(content.to_string())
+    } else {
+        Err("AI 响应格式错误".to_string())
+    }
+}

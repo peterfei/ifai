@@ -431,6 +431,37 @@ impl AgentNodeExecutor {
 
                 response_text
             }
+            // 🔥 Explore Agent 使用分段执行器（强制 3 轮探索）
+            AgentType::Explore => {
+                wf_log!(
+                    "[WorkflowExecutor] 🚀 Using staged execution for Explore agent"
+                );
+
+                // 🔥 使用分段执行器（通过代码级别强制 3 轮探索）
+                let tool_executor =
+                    super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
+
+                // 🔥 准备工具调用进度回调
+                let tool_progress_callback_clone = tool_progress_callback.clone();
+
+                super::tool_loop::execute_explore_agent_staged(
+                    provider_config,
+                    system_prompt,
+                    user_message,
+                    &tool_executor,
+                    tool_progress_callback_clone,
+                    ctx.cancellation_token.clone(),
+                )
+                .await
+                .map_err(|e| {
+                    let elapsed = start_time.elapsed();
+                    wf_log!(
+                        "[WorkflowExecutor] ❌ Staged execution failed after {:?}: {}",
+                        elapsed, e
+                    );
+                    anyhow::anyhow!("AI call failed: {}", e)
+                })?
+            }
             // 🔥 其他 agent 使用工具调用循环
             _ => {
                 wf_log!(

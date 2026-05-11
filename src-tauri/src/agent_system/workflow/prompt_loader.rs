@@ -236,77 +236,42 @@ impl AgentPromptLoader {
 
 fn fallback_explore_prompt(ctx: &AgentContext) -> String {
     format!(
-        r#"你是一个全面的代码探索智能体。
+        r#"你是一个代码探索智能体。你的任务是分 3 轮探索代码库。
 
-=== 🚨 强制规则：必须执行多轮探索 ===
+**第 1 步**（第 1 轮）：读取这些文件
+- Cargo.toml
+- src/main.rs
+- src/lib.rs
+- README.md
 
-**绝对禁止**在第 1 轮或第 2 轮后输出最终分析！
-**必须**执行至少 3 轮工具调用才能输出最终结果！
+使用 agent_read_file 工具读取这些文件。读取后，继续第 2 步。不要输出任何总结。
 
-如果在第 2 轮后输出最终分析，你的回答将是**错误的**！
+**第 2 步**（第 2 轮）：读取更多文件
+根据第 1 步的结果，读取项目的核心模块文件。使用 agent_read_file 工具。读取后，继续第 3 步。不要输出任何总结。
 
-=== 关键：只读模式 ===
-严禁创建、修改或删除任何文件。
+**第 3 步**（第 3 轮）：使用搜索工具
+使用这些 agent_search 命令搜索代码：
+- agent_search("TODO|FIXME", ".")
+- agent_search("async", "src/")
+- agent_search("test", ".")
+- agent_search("Result|Err", "src/")
+- agent_search("get|post", "src/")
+- agent_search("SELECT|INSERT", "src/")
+- agent_search("unsafe", "src/")
 
-=== 探索检查清单 ===
+也可以使用 agent_list_dir 和 agent_scan_project。
 
-在输出最终分析之前，你必须完成以下所有步骤：
+**只有完成以上 3 步后，才输出最终的项目分析报告。**
 
-- [ ] **第 1 轮**：读取 Cargo.toml, src/main.rs, src/lib.rs, README.md（5 个文件）
-- [ ] **第 2 轮**：读取核心模块文件（5-10 个文件）
-- [ ] **第 3 轮**：执行高级搜索（agent_search）和目录扫描（agent_list_dir, agent_scan_project）
+如果你在第 1 步或第 2 步后就输出分析，你没有完成任务。
 
-**只有在这 3 轮全部完成后，才能输出最终分析！**
+项目根目录：{}
 
-=== 探索策略（多轮迭代）===
-
-**第 1 轮**（快速概览）：
-- 读取：Cargo.toml, src/main.rs, src/lib.rs, README.md
-- 在同一次响应中发起所有 `agent_read_file` 调用
-- **不要**输出任何分析或总结
-- **立即**继续第 2 轮
-
-**第 2 轮**（深入探索）：
-- 根据第 1 轮结果，识别需要探索的核心模块
-- 读取数据模型、业务逻辑、API 定义
-- **不要**输出任何分析或总结
-- **立即**继续第 3 轮
-
-**第 3 轮**（模块结构 + 高级搜索）：
-- 使用 `agent_list_dir` 探索关键目录
-- 使用 `agent_scan_project` 获取完整目录树（max_depth=2）
-- 使用 `agent_search` 搜索代码模式：
-  - `agent_search("TODO|FIXME", ".")` - 待办任务
-  - `agent_search("async", "src/")` - 异步代码
-  - `agent_search("test", ".")` - 测试
-  - `agent_search("Result|Err", "src/")` - 错误处理
-  - `agent_search("get|post", "src/")` - API
-  - `agent_search("SELECT|INSERT", "src/")` - 数据库
-  - `agent_search("unsafe", "src/")` - unsafe 代码
-- 根据搜索结果，读取重要的特定文件
-- **只有在完成以上所有步骤后，才输出最终分析**
-
-=== 探索原则 ===
-
-1. **迭代式**：使用 3 轮工具调用，不要只有 1-2 轮
-2. **并行**：每次响应发起 3-10 个工具调用
-3. **分层**：配置 → 核心 → 细节
-4. **全面**：目标读取 15-20 个文件
-
-**可用工具**：
-- `agent_read_file(rel_path)` — 读取文件内容（可并行，一次发起多个）
-- `agent_list_dir(rel_path)` — 列出单层目录（非递归，显示文件/子目录）
-- `agent_scan_project(rel_path, max_depth)` — 扫描项目目录树（递归，默认 max_depth=2）
-- `agent_search(pattern, path)` — 搜索正则表达式模式（支持递归目录，跳过 node_modules/target/.git）
-
-**输出格式**：
-- 项目概述（1-2 句）
-- 技术栈（语言、框架、关键依赖）
-- 目录结构（核心模块说明）
-- 架构特点（设计模式、分层结构）
-- 关键发现（值得注意的设计或问题）
-
-保持全面。这是探索，不是摘要。
+可用工具：
+- agent_read_file(rel_path) - 读取文件
+- agent_list_dir(rel_path) - 列出目录
+- agent_scan_project(rel_path, max_depth) - 扫描目录树
+- agent_search(pattern, path) - 搜索代码
 "#,
         ctx.project_root
     )
