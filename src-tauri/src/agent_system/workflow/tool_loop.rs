@@ -1416,6 +1416,21 @@ async fn execute_with_tools_filtered(
             });
         }
 
+        // 🔥 发送并行派发通知（仅当工具数 >= 2 时才有意义）
+        if tool_calls.len() >= 2 {
+            if let Some(ref cb) = progress_callback {
+                let tool_names: Vec<String> = tool_calls.iter().map(|t| t.name.clone()).collect();
+                cb(super::runner::ToolCallDetails {
+                    tool_name: String::new(),
+                    tool_input: String::new(),
+                    tool_output: format!("parallel:{}", tool_names.join(",")),
+                    output_length: 0,
+                    execution_time_ms: None,
+                    is_error: false,
+                });
+            }
+        }
+
         let results = join_all(tool_tasks).await;
 
         // 将工具结果添加到消息历史
