@@ -1162,7 +1162,7 @@ pub async fn execute_explore_agent_staged(
         "{}\n\n第 2 轮已完成，读取了 {} 个文件。现在使用搜索工具。",
         user_message, round2_tools_used
     );
-    let (round3_response, round3_tools_used) = execute_single_stage(
+    let (_round3_response, round3_tools_used) = execute_single_stage(
         provider_config.clone(),
         round3_prompt,
         round3_user_msg,
@@ -1347,9 +1347,9 @@ async fn execute_with_tools_filtered(
             let tool_start = std::time::Instant::now();
 
             tool_tasks.push(async move {
-                let result = tool_executor.execute(&tool_call.name, &tool_call.input).await;
+                let exec_result = tool_executor.execute(&tool_call.name, &tool_call.input).await;
 
-                match result {
+                let tool_result = match exec_result {
                     Ok(output) => {
                         let execution_time = tool_start.elapsed().as_millis() as i64;
                         wf_log!(
@@ -1410,8 +1410,9 @@ async fn execute_with_tools_filtered(
                             execution_time_ms: Some(execution_time),
                         }
                     }
-                }
-                (tool_call, result)
+                };
+
+                (tool_call, tool_result)
             });
         }
 
@@ -1486,12 +1487,12 @@ async fn call_ai_with_tools_filtered(
     )
     .await
     .map_err(|e| format!("AI 请求超时: {}", e))?
-    .await
     .map_err(|e| format!("AI 请求失败: {}", e))?;
 
     if !response.status().is_success() {
+        let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
-        return Err(format!("AI 返回错误: {} - {}", response.status(), error_text));
+        return Err(format!("AI 返回错误: {} - {}", status, error_text));
     }
 
     let response_json: serde_json::Value = response
