@@ -246,20 +246,26 @@ fn fallback_explore_prompt(ctx: &AgentContext) -> String {
 
 使用 agent_read_file 工具读取这些文件。读取后，继续第 2 步。不要输出任何总结。
 
-**第 2 步**（第 2 轮）：读取更多文件
-根据第 1 步的结果，读取项目的核心模块文件。使用 agent_read_file 工具。读取后，继续第 3 步。不要输出任何总结。
+**第 2 步**（第 2 轮）：读取核心模块
+🔴 **严格限制：最多读取 10 个文件**
+
+优先级顺序：
+1. 主要业务逻辑模块（如 agent_system/、commands/、ai/）
+2. 核心工具和实用模块
+3. 避免读取测试文件、示例代码、构建脚本
+
+使用 agent_read_file 工具。读取后，继续第 3 步。不要输出任何总结。
 
 **第 3 步**（第 3 轮）：使用搜索工具
-使用这些 agent_search 命令搜索代码：
-- agent_search("TODO|FIXME", ".")
-- agent_search("async", "src/")
-- agent_search("test", ".")
-- agent_search("Result|Err", "src/")
-- agent_search("get|post", "src/")
-- agent_search("SELECT|INSERT", "src/")
-- agent_search("unsafe", "src/")
+🔴 **严格限制：只在 src/ 目录内搜索**
 
-也可以使用 agent_list_dir 和 agent_scan_project。
+使用这些 agent_search 命令搜索代码：
+- agent_search("TODO|FIXME", "src/")
+- agent_search("async fn", "src/")
+- agent_search("pub fn", "src/")
+- agent_search("Result|Err", "src/")
+- agent_search("struct\w+", "src/")
+- agent_search("impl\w+", "src/")
 
 **只有完成以上 3 步后，才输出最终的项目分析报告。**
 

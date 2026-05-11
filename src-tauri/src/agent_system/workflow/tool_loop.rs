@@ -1124,15 +1124,15 @@ pub async fn execute_explore_agent_staged(
         round1_tools_used
     );
 
-    // Round 2: 读取核心模块
+    // Round 2: 读取核心模块（限制 10 个文件）
     wf_log!("[ExploreStaged] 📍 Round 2: 读取核心模块文件");
     let round2_tools = vec!["agent_read_file"];
     let round2_prompt = format!(
-        "{}\n\n**当前阶段：第 2 轮**\n基于第 1 轮的结果，读取项目的核心模块文件（5-10 个）。\n读取后继续第 3 轮，不要输出总结。",
+        "{}\n\n**当前阶段：第 2 轮**\n基于第 1 轮的结果，读取项目的核心模块文件。\n\n🔴 **严格限制：最多读取 10 个文件**\n\n优先级顺序：\n1. 主要业务逻辑模块（如 agent_system/、commands/、ai/）\n2. 核心工具和实用模块\n3. 避免读取测试文件、示例代码、构建脚本\n\n读取后继续第 3 轮，不要输出总结。如果已读取 10 个文件，立即进入第 3 轮。",
         system_prompt
     );
     let round2_user_msg = format!(
-        "{}\n\n第 1 轮已完成，读取了 {} 个文件。现在读取核心模块文件。",
+        "{}\n\n第 1 轮已完成，读取了 {} 个文件。现在读取核心模块文件，最多 10 个。",
         user_message, round1_tools_used
     );
     let (round2_response, round2_tools_used) = execute_single_stage(
@@ -1151,15 +1151,15 @@ pub async fn execute_explore_agent_staged(
         round2_tools_used
     );
 
-    // Round 3: 搜索代码
+    // Round 3: 搜索代码（限制范围到 src/）
     wf_log!("[ExploreStaged] 📍 Round 3: 搜索代码");
     let round3_tools = vec!["agent_search", "agent_list_dir"];
     let round3_prompt = format!(
-        "{}\n\n**当前阶段：第 3 轮**\n使用搜索工具搜索代码模式。执行这些搜索：\n- agent_search(\"TODO|FIXME\", \".\")\n- agent_search(\"async\", \"src/\")\n- agent_search(\"test\", \".\")\n- agent_search(\"Result|Err\", \"src/\")\n- agent_search(\"get|post\", \"src/\")\n- agent_search(\"SELECT|INSERT\", \"src/\")\n- agent_search(\"unsafe\", \"src/\")\n\n搜索后继续第 4 轮，不要输出总结。",
+        "{}\n\n**当前阶段：第 3 轮**\n使用搜索工具搜索代码模式。\n\n🔴 **严格限制：只在 src/ 目录内搜索**（避免搜索测试文件和示例代码）\n\n执行这些搜索：\n- agent_search(\"TODO|FIXME\", \"src/\")\n- agent_search(\"async fn\", \"src/\")\n- agent_search(\"pub fn\", \"src/\")\n- agent_search(\"Result|Err\", \"src/\")\n- agent_search(\"struct\\w+\", \"src/\")\n- agent_search(\"impl\\w+\", \"src/\")\n\n搜索后继续第 4 轮，不要输出总结。",
         system_prompt
     );
     let round3_user_msg = format!(
-        "{}\n\n第 2 轮已完成，读取了 {} 个文件。现在使用搜索工具。",
+        "{}\n\n第 2 轮已完成，读取了 {} 个文件。现在使用搜索工具搜索 src/ 目录。",
         user_message, round2_tools_used
     );
     let (_round3_response, round3_tools_used) = execute_single_stage(
