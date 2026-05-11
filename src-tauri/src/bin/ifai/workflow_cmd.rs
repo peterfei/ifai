@@ -214,7 +214,7 @@ pub fn channel_progress_callback(
 }
 
 /// 将 ProgressEvent 格式化为文本行向量（纯逻辑，不含 IO）
-fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
+pub fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
     let mut lines = Vec::new();
     match event.event_type.as_str() {
         "workflow:started" => {
@@ -239,12 +239,29 @@ fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
         }
         "node_completed" => {
             lines.push(String::new()); // 分隔线
+
+            // 🔥 总是显示 message（如果有的话）
             if let Some(msg) = &event.message {
                 // message 包含完整输出，按行推送
                 for line in msg.split('\n') {
                     lines.push(line.to_string());
                 }
+            }
+
+            // 🔥 显示统计信息或默认 Done
+            if let Some(stats) = &event.completion_stats {
+                let stats_str = parallel::format_stats(
+                    stats.duration_ms,
+                    stats.tool_count,
+                    stats.token_count,
+                );
+                if stats_str.is_empty() {
+                    lines.push(format!("{} Done", sym::DONE));
+                } else {
+                    lines.push(format!("{} Done                                {}", sym::DONE, stats_str));
+                }
             } else {
+                // 没有 stats 时显示默认 Done
                 lines.push(format!("{} Done", sym::DONE));
             }
         }
@@ -288,7 +305,21 @@ fn format_progress_event(event: &ProgressEvent) -> Vec<String> {
             lines.push(String::new());
         }
         "workflow:completed" => {
-            lines.push(format!("{} Workflow complete", sym::DONE));
+            // 🔥 使用 completion_stats 格式化输出
+            if let Some(stats) = &event.completion_stats {
+                let stats_str = parallel::format_stats(
+                    stats.duration_ms,
+                    stats.tool_count,
+                    stats.token_count,
+                );
+                if stats_str.is_empty() {
+                    lines.push(format!("{} Workflow complete", sym::DONE));
+                } else {
+                    lines.push(format!("{} Workflow complete                   {}", sym::DONE, stats_str));
+                }
+            } else {
+                lines.push(format!("{} Workflow complete", sym::DONE));
+            }
             lines.push(String::new());
         }
         "workflow:error" => {
@@ -516,6 +547,7 @@ edges: []
             nodes: None,
             content_delta: None,
             content_finished: None,
+            completion_stats: None,
         }
     }
 

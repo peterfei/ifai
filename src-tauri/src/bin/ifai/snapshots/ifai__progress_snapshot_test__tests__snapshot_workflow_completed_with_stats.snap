@@ -1,0 +1,5 @@
+---
+source: src/bin/ifai/progress_snapshot_test.rs
+expression: snapshot
+---
+✔ Workflow complete                   12.0s · 15 tools · 15.0k tokens

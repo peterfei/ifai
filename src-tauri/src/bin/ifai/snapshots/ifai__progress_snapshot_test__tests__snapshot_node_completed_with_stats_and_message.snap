@@ -1,0 +1,9 @@
+---
+source: src/bin/ifai/progress_snapshot_test.rs
+expression: snapshot
+---
+
+## 项目分析报告
+
+这是一个测试输出
+✔ Done                                3.3s · 3 tools · 2.4k tokens

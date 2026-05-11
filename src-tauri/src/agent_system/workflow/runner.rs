@@ -248,6 +248,17 @@ pub struct PlannedNode {
     pub agent_type: String,
 }
 
+/// 🔥 完成统计信息（用于 node_completed / workflow:completed 事件）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletionStats {
+    /// 执行时间（毫秒）
+    pub duration_ms: Option<u64>,
+    /// 工具调用次数
+    pub tool_count: Option<usize>,
+    /// Token 使用量（输入 + 输出）
+    pub token_count: Option<usize>,
+}
+
 /// 🔥 进度事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressEvent {
@@ -265,6 +276,8 @@ pub struct ProgressEvent {
     pub content_delta: Option<String>,
     /// 🆕 流式输出是否完成（仅当 event_type 为 "content_delta" 时存在）
     pub content_finished: Option<bool>,
+    /// 🆕 完成统计信息（仅当 event_type 为 "node_completed" 或 "workflow:completed" 时存在）
+    pub completion_stats: Option<CompletionStats>,
 }
 
 impl WorkflowRunner {
@@ -322,6 +335,7 @@ impl WorkflowRunner {
                 nodes: None,
                 content_delta: None, // 通用进度事件不包含内容增量
                 content_finished: None,
+                completion_stats: None,
             };
             callback(event);
         }
@@ -374,6 +388,7 @@ impl WorkflowRunner {
                 nodes: Some(planned_nodes), // 🔥 包含计划节点
                 content_delta: None,        // workflow:started 事件不包含内容增量
                 content_finished: None,
+                completion_stats: None,
             };
             wf_log!(
                 "[WorkflowRunner] 📤 Calling callback with workflow:started event (with {} nodes)",
@@ -630,6 +645,7 @@ impl WorkflowRunner {
                 nodes: None,         // node_started 事件不包含计划节点
                 content_delta: None, // node_started 事件不包含内容增量
                 content_finished: None,
+                completion_stats: None,
             };
             wf_log!(
                 "[WorkflowRunner] 📤 Calling callback with event: {:?}",
@@ -644,6 +660,41 @@ impl WorkflowRunner {
             );
         }
         drop(callback_guard); // 🔥 释放锁
+
+        // 🔥 统计信息收集：记录开始时间
+        let start_time = std::time::Instant::now();
+        let tool_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        // 🔥 包装 progress_callback 以统计工具调用次数
+        // 直接在闭包内部转发，不需要额外的 RwLock
+        let stats_callback: Arc<tokio::sync::RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>> = {
+            let progress_callback_inner = progress_callback.clone();
+            let tool_count_clone = tool_count.clone();
+
+            // 创建一个新的回调，先统计再转发
+            let wrapped_callback = Box::new(move |event: ProgressEvent| {
+                // 统计工具调用次数（不包括并行派发通知）
+                if event.event_type == "tool_call" {
+                    // 检查是否是并行派发通知（tool_name 为空且 output 以 "parallel:" 开头）
+                    let is_parallel_dispatch = event.tool_details.as_ref()
+                        .map(|d| d.tool_name.is_empty() && d.tool_output.starts_with("parallel:"))
+                        .unwrap_or(false);
+
+                    if !is_parallel_dispatch {
+                        // 只统计真实的工具调用，不包括并行派发通知
+                        tool_count_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+
+                // 转发到原始 callback
+                let cb = progress_callback_inner.blocking_read();
+                if let Some(callback) = cb.as_ref() {
+                    callback(event);
+                }
+            }) as Box<dyn Fn(ProgressEvent) + Send + Sync>;
+
+            Arc::new(tokio::sync::RwLock::new(Some(wrapped_callback)))
+        };
 
         // 更新状态为运行中
         {
@@ -666,7 +717,7 @@ impl WorkflowRunner {
         let result = match tokio::time::timeout(timeout_duration, async {
             let mut retry_count = 0;
             loop {
-                match Self::execute_node_once_static(&node, &workflow, progress_callback.clone(), cancellation_token.clone()).await
+                match Self::execute_node_once_static(&node, &workflow, stats_callback.clone(), cancellation_token.clone()).await
                 {
                     Ok(result) => break result,
                     Err(e) if retry_count < config.max_retries => {
@@ -721,11 +772,25 @@ impl WorkflowRunner {
             results.insert(node_id.clone(), result.clone());
         }
 
-        // 🔥 发送 node_completed 事件 + 输出内容
+        // 🔥 发送 node_completed 事件 + 输出内容 + 统计信息
         {
             let cb = progress_callback.read().await;
             if let Some(callback) = cb.as_ref() {
                 let is_success = result.status.is_success();
+
+                // 🔥 收集统计信息
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                let tools = tool_count.load(std::sync::atomic::Ordering::Relaxed);
+                let stats = if duration_ms > 0 || tools > 0 {
+                    Some(CompletionStats {
+                        duration_ms: Some(duration_ms),
+                        tool_count: if tools > 0 { Some(tools) } else { None },
+                        token_count: None, // TODO: 从 AI 响应中提取 token 使用量
+                    })
+                } else {
+                    None
+                };
+
                 let event = ProgressEvent {
                     event_type: "node_completed".to_string(),
                     workflow_id: Some(workflow.id.clone()),
@@ -740,6 +805,7 @@ impl WorkflowRunner {
                     nodes: None,
                     content_delta: None,
                     content_finished: None,
+                    completion_stats: stats,
                 };
                 callback(event);
             }
@@ -879,8 +945,10 @@ impl WorkflowRunner {
             let callback = progress_callback_for_tool.clone();
             let node_id_clone = node_id_for_callback.clone();
             let workflow_id_clone = workflow_id_for_callback.clone(); // 🔥 捕获 workflow_id
-            tokio::spawn(async move {
-                if let Some(cb) = callback.read().await.as_ref() {
+
+            // 🔥 使用 spawn_blocking 确保事件及时发送，避免阻塞异步上下文
+            tokio::task::spawn_blocking(move || {
+                if let Some(cb) = callback.blocking_read().as_ref() {
                     let event = ProgressEvent {
                         event_type: "tool_call".to_string(),
                         workflow_id: Some(workflow_id_clone), // 🔥 添加 workflow_id
@@ -891,6 +959,7 @@ impl WorkflowRunner {
                         nodes: None,         // tool_call 事件不包含计划节点
                         content_delta: None, // tool_call 事件不包含内容增量
                         content_finished: None,
+                        completion_stats: None,
                     };
                     cb(event);
                 }
@@ -909,8 +978,10 @@ impl WorkflowRunner {
                     let callback = progress_callback_for_content.clone();
                     let node_id_clone = node_id_for_content.clone();
                     let workflow_id_clone = workflow_id_for_content.clone(); // 🔥 捕获 workflow_id
-                    tokio::spawn(async move {
-                        if let Some(cb) = callback.read().await.as_ref() {
+
+                    // 🔥 使用 spawn_blocking 确保事件及时发送，避免阻塞异步上下文
+                    tokio::task::spawn_blocking(move || {
+                        if let Some(cb) = callback.blocking_read().as_ref() {
                             let event = ProgressEvent {
                                 event_type: "content_delta".to_string(),
                                 workflow_id: Some(workflow_id_clone), // 🔥 添加 workflow_id
@@ -921,6 +992,7 @@ impl WorkflowRunner {
                                 nodes: None,        // content_delta 事件不包含计划节点
                                 content_delta: if delta.is_empty() { None } else { Some(delta) },
                                 content_finished: Some(finished),
+                                completion_stats: None,
                             };
                             cb(event);
                         }

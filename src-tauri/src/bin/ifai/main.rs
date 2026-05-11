@@ -83,6 +83,12 @@ mod user_reported_cross_talk_test; // 🔥 用户报告的消息串台场景测�
 mod workflow_cancel_e2e_test; // 🧪 Workflow ESC 取消 E2E 测试
 #[cfg(test)]
 mod workflow_cancel_unit_test; // 🧪 Workflow 取消功能单元测试
+#[cfg(test)]
+mod progress_snapshot_test; // 🧪 进度显示快照测试（TDD）
+#[cfg(test)]
+mod parallel_dispatch_test; // 🧪 并行派发通知测试
+#[cfg(test)]
+mod single_tool_test; // 🧪 单个工具调用测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================

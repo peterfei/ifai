@@ -55,8 +55,10 @@ pub use executor::{
 };
 pub use parser::{ParseError, WorkflowParser};
 pub use runner::{
+    CompletionStats,
     NodeResult,
     NodeStatus,
+    PlannedNode,
     ProgressEvent, // 🔥 导出 ProgressEvent
     RunnerConfig,
     WorkflowResult,

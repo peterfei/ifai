@@ -1,0 +1,6 @@
+---
+source: src/bin/ifai/progress_snapshot_test.rs
+expression: snapshot
+---
+
+✔ Done                                1.2s · 2 tools
