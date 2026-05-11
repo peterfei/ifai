@@ -531,9 +531,11 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
 /**
  * Thread keyboard shortcuts:
  * - Ctrl+T: New thread
- * - Ctrl+Tab / Ctrl+Shift+Tab: Switch between threads
  * - Ctrl+W: Close current thread
+ * - Ctrl+Tab / Ctrl+Shift+Tab: Switch between threads
+ * - Alt+ArrowLeft / Alt+ArrowRight: Switch between threads (🔥 FIX)
  * - Ctrl+1-9: Switch to thread by index
+ * - F2: Rename active thread
  */
 export const useThreadKeyboardShortcuts = () => {
   const threads = useThreadStore(state => state.threads);
@@ -574,6 +576,14 @@ export const useThreadKeyboardShortcuts = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if user is typing in an input field
+      const isTyping =
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement ||
+        (document.activeElement as HTMLElement)?.isContentEditable;
+
+      if (isTyping) return;
+
       // Ctrl+T: New thread
       if (e.ctrlKey && e.key === 't') {
         e.preventDefault();
@@ -606,6 +616,30 @@ export const useThreadKeyboardShortcuts = () => {
         const prevIndex = currentIndex <= 0 ? filteredThreads.length - 1 : currentIndex - 1;
         if (filteredThreads[prevIndex]) {
           switchThread(filteredThreads[prevIndex].id);
+        }
+        return;
+      }
+
+      // 🔥 FIX: Alt+ArrowRight: Next thread (用户反馈的 bug)
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        const currentIndex = filteredThreads.findIndex(t => t.id === activeThreadId);
+        const nextIndex = (currentIndex + 1) % filteredThreads.length;
+        if (filteredThreads[nextIndex]) {
+          switchThread(filteredThreads[nextIndex].id);
+          console.log(`[ThreadShortcuts] Alt+→ 切换到线程 ${nextIndex + 1}/${filteredThreads.length}: ${filteredThreads[nextIndex].title}`);
+        }
+        return;
+      }
+
+      // 🔥 FIX: Alt+ArrowLeft: Previous thread (用户反馈的 bug)
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const currentIndex = filteredThreads.findIndex(t => t.id === activeThreadId);
+        const prevIndex = currentIndex <= 0 ? filteredThreads.length - 1 : currentIndex - 1;
+        if (filteredThreads[prevIndex]) {
+          switchThread(filteredThreads[prevIndex].id);
+          console.log(`[ThreadShortcuts] Alt+← 切换到线程 ${prevIndex + 1}/${filteredThreads.length}: ${filteredThreads[prevIndex].title}`);
         }
         return;
       }
