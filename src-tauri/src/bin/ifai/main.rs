@@ -1305,6 +1305,11 @@ async fn handle_agent_command(
 
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
+    // 记住 agent 启动时的线程 ID，后续输出定向到该线程（防止切换线程后串内容）
+    let agent_thread_id = app.thread.store.active_thread()
+        .map(|t| t.id)
+        .unwrap_or_else(|| app.thread.store.primary_id());
+
     // 设置状态栏：工作流执行中
     app.set_status(format!("Agent {} running...", agent_type));
     app.render();
@@ -1326,41 +1331,94 @@ async fn handle_agent_command(
     // mini-event-loop：消费进度事件并渲染到内容区
     let mut tick_count = 0u32;
     loop {
-        // 检查键盘事件：ESC 或 Ctrl+C 取消
+        // 检查键盘事件
         if crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
             if let Ok(event) = crossterm::event::read() {
                 if let crossterm::event::Event::Key(key) = event {
                     use crossterm::event::KeyCode;
                     use crossterm::event::KeyModifiers;
 
-                    // 检查 ESC 或 Ctrl+C
+                    // 忽略 Key Release 事件
+                    if key.kind == crossterm::event::KeyEventKind::Release {
+                        continue;
+                    }
+
+                    // ESC 或 Ctrl+C：取消
                     let is_cancel = key.code == KeyCode::Esc
                         || (key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c'));
 
                     if is_cancel {
-                        // 中断 agent 任务
                         handle.abort();
-
-                        app.push_line("⊘ Agent 已中断".to_string());
+                        app.push_line_to_thread(agent_thread_id, "⊘ Agent 已中断".to_string());
                         app.set_status(String::new());
-                        app.scroll_to_bottom();
+                        let cur_id = app.thread.store.active_thread().map(|t| t.id).unwrap_or_else(|| app.thread.store.primary_id());
+                        if cur_id == agent_thread_id {
+                            app.scroll_to_bottom();
+                        }
                         app.render();
                         break;
+                    }
+
+                    // Ctrl+T：创建新线程
+                    if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('t') {
+                        if app.thread.store.len() < 5 {
+                            let name = format!("Thread-{}", app.thread.store.len());
+                            app.create_side_thread(Some(name));
+                            app.render();
+                        }
+                        continue;
+                    }
+
+                    // Alt+Left：切换到上一个线程
+                    if key.modifiers.contains(KeyModifiers::ALT) && key.code == KeyCode::Left {
+                        if let Some(prev_id) = app.thread.store.previous_thread() {
+                            app.switch_thread(prev_id);
+                            app.render();
+                        }
+                        continue;
+                    }
+
+                    // Alt+Right：切换到下一个线程
+                    if key.modifiers.contains(KeyModifiers::ALT) && key.code == KeyCode::Right {
+                        if let Some(next_id) = app.thread.store.next_thread() {
+                            app.switch_thread(next_id);
+                            app.render();
+                        }
+                        continue;
+                    }
+
+                    // PageUp/PageDown：滚动
+                    match key.code {
+                        KeyCode::PageUp => {
+                            app.scroll_up(5);
+                            app.render();
+                            continue;
+                        }
+                        KeyCode::PageDown => {
+                            app.scroll_down(5);
+                            app.render();
+                            continue;
+                        }
+                        _ => {}
                     }
                 }
             }
         }
 
-        // 尝试非阻塞接收进度事件
+        // 尝试非阻塞接收进度事件（定向到 agent_thread_id）
         let mut got_events = false;
         while let Ok(line) = progress_rx.try_recv() {
             got_events = true;
             if !line.is_empty() {
-                app.push_line(line);
+                app.push_line_to_thread(agent_thread_id, line);
             } else {
-                app.push_line(String::new());
+                app.push_line_to_thread(agent_thread_id, String::new());
             }
-            app.scroll_to_bottom();
+            // 只在当前还在 agent 线程时滚动
+            let cur_id = app.thread.store.active_thread().map(|t| t.id).unwrap_or_else(|| app.thread.store.primary_id());
+            if cur_id == agent_thread_id {
+                app.scroll_to_bottom();
+            }
 
             // 根据进度事件内容更新状态栏
             let last_line = app.content_lines.last().map(|l| {
@@ -1383,12 +1441,12 @@ async fn handle_agent_command(
         // 检查 agent 任务是否完成
         match handle.is_finished() {
             true => {
-                // 消费剩余的进度事件
+                // 消费剩余的进度事件（定向到 agent 线程）
                 while let Ok(line) = progress_rx.try_recv() {
                     if !line.is_empty() {
-                        app.push_line(line);
+                        app.push_line_to_thread(agent_thread_id, line);
                     } else {
-                        app.push_line(String::new());
+                        app.push_line_to_thread(agent_thread_id, String::new());
                     }
                 }
                 // 清除状态栏
@@ -1397,13 +1455,16 @@ async fn handle_agent_command(
                 match handle.await {
                     Ok(Ok(())) => {}
                     Ok(Err(e)) => {
-                        app.push_line(format!("Error: {}", e));
+                        app.push_line_to_thread(agent_thread_id, format!("Error: {}", e));
                     }
                     Err(e) => {
-                        app.push_line(format!("Error: agent task panicked: {}", e));
+                        app.push_line_to_thread(agent_thread_id, format!("Error: agent task panicked: {}", e));
                     }
                 }
-                app.scroll_to_bottom();
+                let cur_id = app.thread.store.active_thread().map(|t| t.id).unwrap_or_else(|| app.thread.store.primary_id());
+                if cur_id == agent_thread_id {
+                    app.scroll_to_bottom();
+                }
                 app.render();
                 break;
             }
@@ -1510,7 +1571,7 @@ async fn handle_workflow_command(
 }
 
 /// 每个 streaming 线程的完整句柄（属于线程，不属于循环）
-pub(crate) struct StreamState {
+struct StreamState {
     pub(crate) handle: Option<tokio::task::JoinHandle<Result<String, String>>>,
     pub(crate) output_rx: Option<tokio::sync::mpsc::UnboundedReceiver<OutputMessage>>,
     pub(crate) status_rx: Option<tokio::sync::mpsc::UnboundedReceiver<String>>,
@@ -1521,7 +1582,7 @@ pub(crate) struct StreamState {
 }
 
 /// select! 返回的控制信号
-pub(crate) enum StreamingControl {
+enum StreamingControl {
     /// 继续监听
     Continue,
     /// 当前线程的 stream 完成
@@ -1779,9 +1840,8 @@ async fn run_streaming_loop(
                     if mouse_scrolled {
                         StreamingControl::Continue
                     } else {
-                        // 其他键盘事件：走正常路由处理
-                        handle_single_key_event(app, stream_states, &active_id, event);
-                        StreamingControl::Continue
+                        // 键盘事件：走路由处理，传播控制信号（ThreadSwitch/Interrupted 等）
+                        handle_single_key_event(app, stream_states, &active_id, event)
                     }
                 }
             }
@@ -2235,7 +2295,7 @@ fn handle_single_key_event(
             use crossterm::event::KeyCode;
             use crossterm::event::KeyModifiers;
 
-            // 🔥 FIX: Alt+Left/Alt+Right 在审批模式下也允许切换线程
+            // Alt+Left/Alt+Right 在审批模式下也允许切换线程
             if key.modifiers.contains(KeyModifiers::ALT) {
                 match key.code {
                     KeyCode::Left => {
@@ -2372,8 +2432,8 @@ fn handle_single_key_event(
         }
 
         // === 以下仅在 Mode::Normal 下生效（声明式路由表） ===
-        if let Some(control) = route_normal_key(app, stream_states, active_id, key) {
-            return control;
+        if let Some(_control) = route_normal_key(app, stream_states, active_id, key) {
+            return _control;
         }
 
         // === 输入框（fallthrough） ===

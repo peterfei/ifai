@@ -748,6 +748,35 @@ impl App {
         }
     }
 
+    /// 🔥 线程定向输出：将文本推送到指定线程
+    /// 如果当前活跃线程就是目标线程，直接写入 content_lines
+    /// 否则追加到该线程的 messages 缓冲区（下次切换回来时可见）
+    pub fn push_line_to_thread(
+        &mut self,
+        target_thread_id: crate::thread::ThreadId,
+        text: String,
+    ) {
+        let current_thread_id = self
+            .thread
+            .store
+            .active_thread()
+            .map(|t| t.id)
+            .unwrap_or_else(|| self.thread.store.primary_id());
+
+        if current_thread_id == target_thread_id {
+            self.push_line(text);
+        } else {
+            // 当前不在目标线程，追加到目标线程的 messages 缓冲区
+            let text = strip_ansi(&text);
+            if !text.trim().is_empty() {
+                self.thread.messages.push(
+                    target_thread_id,
+                    crate::thread::Message::assistant(text),
+                );
+            }
+        }
+    }
+
     /// 🔥 线程安全的 push_line：仅在当前活动线程匹配目标线程时才写入 content_lines
     /// 用于 streaming loop 中，防止消息写入到错误的线程显示区
     pub fn push_line_if_active_thread(
