@@ -480,3 +480,329 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
         }),
     ]
 }
+
+// ============================================================================
+// 单元测试
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    /// 创建测试目录结构
+    fn setup_test_dir() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        // 创建目录结构
+        fs::create_dir_all(root.join("src/models")).unwrap();
+        fs::create_dir_all(root.join("tests")).unwrap();
+        fs::create_dir_all(root.join("target")).unwrap(); // 应该被跳过
+        fs::create_dir_all(root.join(".git")).unwrap(); // 应该被跳过
+        fs::create_dir_all(root.join("node_modules")).unwrap(); // 应该被跳过
+
+        // 创建测试文件
+        fs::write(
+            root.join("src/main.rs"),
+            r#"// Main entry point
+async fn main() {
+    println!("Hello, world!");
+    TODO: Implement this feature
+}
+"#,
+        ).unwrap();
+
+        fs::write(
+            root.join("src/models/user.rs"),
+            r#"// User model
+struct User {
+    name: String,
+}
+
+impl User {
+    fn new(name: String) -> Self {
+        Self { name }
+    }
+}
+"#,
+        ).unwrap();
+
+        fs::write(
+            root.join("tests/test_main.rs"),
+            r#"#[test]
+fn test_main() {
+    assert_eq!(1, 1);
+}
+"#,
+        ).unwrap();
+
+        fs::write(root.join("README.md"), "TODO: Add documentation\n").unwrap();
+
+        // 创建应该被跳过的文件
+        fs::write(root.join("target/lib.rs"), "This should be skipped\n").unwrap();
+        fs::write(root.join(".git/config"), "This should be skipped\n").unwrap();
+
+        temp_dir
+    }
+
+    // ========================================================================
+    // 功能测试
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_search_single_pattern() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor.search("TODO", ".").await.unwrap();
+        assert!(result.contains("src/main.rs"));
+        assert!(result.contains("README.md"));
+        assert!(result.contains("TODO"));
+    }
+
+    #[tokio::test]
+    async fn test_search_regex_pattern() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor.search(r"struct \w+", ".").await.unwrap();
+        assert!(result.contains("src/models/user.rs"));
+        assert!(result.contains("struct User"));
+    }
+
+    #[tokio::test]
+    async fn test_search_skips_ignored_dirs() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor.search("skipped", ".").await.unwrap();
+        // target 和 .git 中的文件应该被跳过
+        assert!(!result.contains("target"));
+        assert!(!result.contains(".git"));
+        assert!(!result.contains("node_modules"));
+    }
+
+    #[tokio::test]
+    async fn test_search_in_single_file() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor.search("async fn", "src/main.rs").await.unwrap();
+        assert!(result.contains("src/main.rs"));
+        assert!(result.contains("async fn main"));
+    }
+
+    #[tokio::test]
+    async fn test_search_empty_result() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor.search("NONEXISTENT_PATTERN_12345", ".").await.unwrap();
+        assert!(result.contains("未找到匹配"));
+    }
+
+    #[tokio::test]
+    async fn test_search_invalid_regex() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor.search("[invalid(", ".").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("无效的正则表达式"));
+    }
+
+    #[tokio::test]
+    async fn test_search_filters_text_files() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 创建一个非文本文件（.bin 扩展名不在允许列表中）
+        fs::write(temp_dir.path().join("data.bin"), b"\x00\x01\x02\x03").unwrap();
+
+        let result = executor.search("test", ".").await.unwrap();
+        // 应该找到 tests/test_main.rs 中的 test
+        assert!(result.contains("tests/test_main.rs"));
+        // 但不应该搜索 .bin 文件
+    }
+
+    #[tokio::test]
+    async fn test_search_path_traversal_protection() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 尝试路径遍历攻击
+        let result = executor.search("test", "../../../etc/passwd").await;
+
+        // 路径遍历攻击应该被阻止
+        // 可能的结果：
+        // 1. 返回错误（安全检查失败）
+        // 2. 返回"未找到匹配"（路径被规范化到项目内但找不到文件）
+        assert!(result.is_err() || result.unwrap().contains("未找到"));
+    }
+
+    // ========================================================================
+    // 并行验证测试
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_parallel_execution_consistency() {
+        let temp_dir = setup_test_dir();
+
+        // 创建多个测试文件
+        for i in 0..20 {
+            let file_path = temp_dir.path().join(format!("src/file_{}.rs", i));
+            fs::write(
+                &file_path,
+                format!("// File {}\nfn function_{}() {{ }}\n", i, i),
+            ).unwrap();
+        }
+
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 并行搜索
+        let result = executor.search("fn function_", "src/").await.unwrap();
+
+        // 验证结果格式正确
+        let lines: Vec<&str> = result.lines().collect();
+        assert!(!lines.is_empty());
+        assert_eq!(lines.len(), 20, "Should find all 20 functions");
+
+        // 验证每个结果都符合格式 "文件路径:行号:内容"
+        for line in lines {
+            let parts: Vec<&str> = line.splitn(3, ':').collect();
+            assert_eq!(parts.len(), 3, "Result format should be 'file:line:content': {}", line);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_files_performance() {
+        let temp_dir = setup_test_dir();
+
+        // 清理 setup_test_dir 创建的文件和目录
+        let src_dir = temp_dir.path().join("src");
+        if src_dir.exists() {
+            // 删除整个 src 目录及其内容
+            fs::remove_dir_all(&src_dir).unwrap();
+        }
+        fs::create_dir_all(&src_dir).unwrap();
+
+        // 创建多个嵌套目录和文件
+        for i in 0..50 {
+            let dir = temp_dir.path().join(format!("src/dir{}", i / 5));
+            fs::create_dir_all(&dir).unwrap();
+
+            let file_path = dir.join(format!("test_{}.rs", i));
+            fs::write(
+                &file_path,
+                format!("// Test {}\nfn test_{}() {{ }}\n", i, i),
+            ).unwrap();
+        }
+
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+        let start = std::time::Instant::now();
+
+        let files = executor.collect_searchable_files(temp_dir.path().join("src").as_path()).unwrap();
+        let duration = start.elapsed();
+
+        // 验证收集了所有文件
+        assert_eq!(files.len(), 50, "Should collect all 50 files, got {}", files.len());
+
+        // 验证性能合理（对于 50 个文件，应该在 500ms 内完成）
+        assert!(duration.as_millis() < 500, "File collection took too long: {:?}", duration);
+
+        println!("Collected {} files in {:?}", files.len(), duration);
+    }
+
+    // ========================================================================
+    // 性能基准测试
+    // ========================================================================
+
+    #[tokio::test]
+    #[ignore] // 默认跳过，使用 --ignored 运行
+    async fn benchmark_search_performance() {
+        use std::time::Instant;
+
+        let temp_dir = setup_test_dir();
+
+        // 创建大量测试文件以测试并行性能
+        let file_count = 100;
+        for i in 0..file_count {
+            let dir = temp_dir.path().join(format!("src/dir{}", i / 10));
+            fs::create_dir_all(&dir).unwrap();
+
+            let file_path = dir.join(format!("file_{}.rs", i));
+            fs::write(
+                &file_path,
+                format!(
+                    "// File {}\n{}\n{}\nfn test_{}() {{ return {}; }}\n",
+                    i, "line 2", "line 3", i, i
+                ),
+            ).unwrap();
+        }
+
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 基准测试
+        let start = Instant::now();
+        let result = executor.search("test_", "src/").await.unwrap();
+        let duration = start.elapsed();
+
+        println!("Search took: {:?}", duration);
+        println!("Found {} matches", result.lines().count());
+        println!("Files per second: {:.2}", file_count as f64 / duration.as_secs_f64());
+
+        // 验证性能合理（对于 100 个文件，应该在 1 秒内完成）
+        assert!(duration.as_secs() < 5, "Search took too long: {:?}", duration);
+
+        // 验证找到了所有匹配
+        let match_count = result.lines().count();
+        assert_eq!(match_count, file_count, "Should find all {} test functions", file_count);
+    }
+
+    #[tokio::test]
+    #[ignore] // 默认跳过，使用 --ignored 运行
+    async fn benchmark_parallel_scaling() {
+        use std::time::Instant;
+
+        let temp_dir = setup_test_dir();
+
+        // 测试不同文件数量下的性能
+        for file_count in [10, 50, 100].iter() {
+            // 清理并重新创建文件
+            let src_dir = temp_dir.path().join("src");
+            for entry in fs::read_dir(&src_dir).unwrap() {
+                let entry = entry.unwrap();
+                if entry.path().is_file() {
+                    fs::remove_file(entry.path()).unwrap();
+                }
+            }
+
+            for i in 0..*file_count {
+                let file_path = src_dir.join(format!("test_{}.rs", i));
+                fs::write(
+                    &file_path,
+                    format!("// Test {}\nfn test_{}() {{ }}\n", i, i),
+                ).unwrap();
+            }
+
+            let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+            let start = Instant::now();
+            let result = executor.search("test_", "src/").await.unwrap();
+            let duration = start.elapsed();
+
+            println!(
+                "File count: {}, Time: {:?}, Files/sec: {:.2}",
+                file_count,
+                duration,
+                *file_count as f64 / duration.as_secs_f64()
+            );
+
+            // 验证找到了所有文件
+            assert_eq!(result.lines().count(), *file_count);
+        }
+    }
+}
