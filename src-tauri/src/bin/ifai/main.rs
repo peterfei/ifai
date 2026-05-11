@@ -1295,6 +1295,10 @@ async fn handle_agent_command(
 
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
+    // 设置状态栏：工作流执行中
+    app.set_status(format!("Agent {} running...", agent_type));
+    app.render();
+
     // spawn 异步任务执行 agent
     let agent_type_owned = agent_type.to_string();
     let task_owned = task.to_string();
@@ -1310,15 +1314,34 @@ async fn handle_agent_command(
     });
 
     // mini-event-loop：消费进度事件并渲染到内容区
+    let mut tick_count = 0u32;
     loop {
         // 尝试非阻塞接收进度事件
+        let mut got_events = false;
         while let Ok(line) = progress_rx.try_recv() {
+            got_events = true;
             if !line.is_empty() {
                 app.push_line(line);
             } else {
                 app.push_line(String::new());
             }
             app.scroll_to_bottom();
+
+            // 根据进度事件内容更新状态栏
+            let last_line = app.content_lines.last().map(|l| {
+                let s = l.to_string();
+                s
+            });
+            if let Some(text) = last_line {
+                if text.contains("tool_call") || text.contains("agent_") {
+                    if text.contains("✔") || text.contains("Done") {
+                        // 工具完成
+                    } else if text.contains("▸") {
+                        // 工具执行中
+                        app.set_status(format!("Agent {} (tool running...)", agent_type));
+                    }
+                }
+            }
         }
         app.render();
 
@@ -1333,6 +1356,8 @@ async fn handle_agent_command(
                         app.push_line(String::new());
                     }
                 }
+                // 清除状态栏
+                app.set_status(String::new());
                 // 获取结果
                 match handle.await {
                     Ok(Ok(())) => {}
@@ -1348,6 +1373,18 @@ async fn handle_agent_command(
                 break;
             }
             false => {
+                tick_count += 1;
+                // 每 1 秒（20 轮 * 50ms）更新脉冲状态
+                if tick_count % 20 == 0 {
+                    let dots = match (tick_count / 20) % 4 {
+                        0 => "   ",
+                        1 => ".  ",
+                        2 => ".. ",
+                        _ => "...",
+                    };
+                    app.set_status(format!("Agent {} running{}", agent_type, dots));
+                    app.render();
+                }
                 // 短暂让出 CPU，避免 busy loop
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             }
@@ -1393,12 +1430,13 @@ async fn handle_workflow_command(
 
             let path_owned = path_str.clone();
             let provider_owned = provider_json.map(|s| s.to_string());
+            app.set_status(format!("Workflow running: {}", path_str));
+            app.render();
+
             let handle = tokio::spawn(async move {
                 workflow_cmd::run_workflow(&path_owned, provider_owned.as_deref())
             });
 
-            // TODO: run_workflow 内部仍使用 tui_progress_callback (println!)
-            // 后续可添加 channel 版本实现进度路由到内容区
             match handle.await {
                 Ok(Ok(())) => {}
                 Ok(Err(e)) => {
@@ -1408,6 +1446,7 @@ async fn handle_workflow_command(
                     app.push_line(format!("Error: workflow task panicked: {}", e));
                 }
             }
+            app.set_status(String::new());
             app.scroll_to_bottom();
             app.render();
         }

@@ -219,31 +219,34 @@ fn fallback_explore_prompt(ctx: &AgentContext) -> String {
     format!(
         r#"你是一个高效的代码探索智能体。你可以访问实际文件系统。
 
-**项目信息**：
-- 项目根目录：{}
+**项目根目录**：{}
 
-**可用工具**（按优先级排序）：
-1. `agent_scan_project(rel_path, max_depth)` - 扫描目录结构（深度建议 2）
-2. `agent_batch_read(paths)` - 批量读取多个文件（最多10个，**强烈推荐**）
-3. `agent_read_file(rel_path)` - 读取单个文件
-4. `agent_list_dir(rel_path)` - 列出单层目录内容
+**严格限制：最多 3 次工具调用**
+你必须在 3 次工具调用内完成任务。每次工具调用都需要等待网络往返，调用越少越快。
 
-**工具使用策略**（关键：减少调用次数）：
-1. 第一步：`agent_scan_project(".", 2)` 快速获取项目骨架
-2. 第二步：用 `agent_batch_read` 一次读取所有关键文件（3-8个）
-3. 尽量用 batch_read 替代多次 read_file，减少交互轮次
+**工具使用策略（严格遵守）**：
 
-**两阶段工作流**：
-Phase 1: `agent_scan_project` 扫描结构
-Phase 2: `agent_batch_read` 批量读取关键文件 → 分析 → 输出结果
+第 1 次调用：`agent_scan_project(".", 2)` — 获取项目结构
 
-**输出格式**（简洁实用）：
-- 项目概述（1-2句话）
-- 技术栈（框架、语言、工具）
+第 2 次调用（也是最后一次文件读取）：`agent_batch_read` — 一次性读取所有需要的文件。
+⚠️ 关键：必须把所有文件路径放入同一个 paths 数组！
+```json
+{{"paths": ["Cargo.toml", "src/main.rs", "README.md"]}}
+```
+❌ 禁止分多次调用 batch_read！禁止调用 read_file！所有文件必须在一次调用中完成。
+
+第 3 次调用：不调用工具，直接输出分析结果。
+
+**可用工具**：
+- `agent_scan_project(rel_path, max_depth)` — 扫描目录（默认深度 2）
+- `agent_batch_read(paths)` — 批量读取文件，paths 是字符串数组，最多 10 个
+- `agent_read_file(rel_path)` — 仅当只需读 1 个文件时使用
+
+**输出格式**（简洁）：
+- 项目概述（1-2句）
+- 技术栈
 - 关键目录（3-5个）
 - 架构特点（3-5点）
-
-快速完成，输出简洁明了，避免冗长。
 "#,
         ctx.project_root
     )

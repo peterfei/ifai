@@ -139,9 +139,16 @@ impl DefaultToolExecutor {
         Ok(())
     }
 
-    /// 执行 batch_read 工具（并行读取多个文件）
+    /// 执行 batch_read 工具（批量读取多个文件，大文件自动截断）
+    ///
+    /// 截断策略：单文件超过 `MAX_FILE_LINES` 行时，保留 head + tail，
+    /// 中间用 `[... 省略 N 行 ...]` 标记。总输出不超过 `MAX_TOTAL_CHARS`。
+    const MAX_FILE_LINES: usize = 500;
+    const MAX_TOTAL_CHARS: usize = 60_000;
+
     async fn batch_read(&self, paths: &[String]) -> Result<String> {
         let mut results = Vec::new();
+        let mut total_chars = 0usize;
 
         for rel_path in paths {
             let full_path = std::path::Path::new(&self.project_root).join(rel_path);
@@ -169,15 +176,60 @@ impl DefaultToolExecutor {
 
             match std::fs::read_to_string(&full_path) {
                 Ok(content) => {
-                    results.push(format!("=== {} ===\n{}", rel_path, content));
+                    let (content, truncated) =
+                        Self::truncate_file(&content, Self::MAX_FILE_LINES);
+
+                    let entry = if truncated {
+                        format!("=== {} === [TRUNCATED]\n{}", rel_path, content)
+                    } else {
+                        format!("=== {} ===", rel_path)
+                            + if content.is_empty() { "" } else { "\n" }
+                            + &content
+                    };
+
+                    total_chars += entry.len();
+                    results.push(entry);
                 }
                 Err(e) => {
                     results.push(format!("=== {} ===\n[ERROR] 读取失败: {}", rel_path, e));
                 }
             }
+
+            // 总输出超限检查
+            if total_chars > Self::MAX_TOTAL_CHARS {
+                results.push(format!(
+                    "\n[BATCH LIMIT] 总输出已达 {} chars，停止读取剩余文件",
+                    total_chars
+                ));
+                break;
+            }
         }
 
         Ok(results.join("\n\n"))
+    }
+
+    /// 截断大文件：保留 head + tail，中间省略
+    fn truncate_file(content: &str, max_lines: usize) -> (String, bool) {
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.len() <= max_lines {
+            return (content.to_string(), false);
+        }
+
+        let head = max_lines * 60 / 100; // 前 60%
+        let tail = max_lines - head;     // 后 40%
+        let skipped = lines.len() - head - tail;
+
+        let mut out = String::new();
+        for line in &lines[..head] {
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push_str(&format!("\n[... 省略 {} 行 ...]\n\n", skipped));
+        for line in &lines[lines.len() - tail..] {
+            out.push_str(line);
+            out.push('\n');
+        }
+        (out, true)
     }
 }
 
@@ -289,7 +341,7 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
             "type": "function",
             "function": {
                 "name": "agent_batch_read",
-                "description": "批量读取多个文件内容（最多10个）。一次调用读取所有需要的文件，大幅减少交互轮次。每个文件用 === path === 分隔。",
+                "description": "批量读取多个文件内容（最多10个）。一次调用读取所有需要的文件，大幅减少交互轮次。单文件超过500行自动截断（保留首尾），总输出上限60K chars。",
                 "parameters": {
                     "type": "object",
                     "properties": {
