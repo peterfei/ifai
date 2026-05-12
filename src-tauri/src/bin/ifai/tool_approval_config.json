@@ -65,9 +65,24 @@
         "search",
         "search_semantic",
         "glob",
+        "glob_search",
         "list_files",
         "ls",
         "agent_read_file"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 100,
+      "pathRiskRules": []
+    },
+    {
+      "name": "explore_agent",
+      "aliases": [
+        "explore",
+        "review_agent"
       ],
       "category": "safe",
       "riskLevel": "low",
