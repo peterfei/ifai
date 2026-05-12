@@ -33,13 +33,6 @@ impl ShellToolsExecutor {
         // 🔥 FIX: 获取工作目录参数
         let working_dir = input.get("working_dir").and_then(|v| v.as_str());
 
-        // 🔥 DIAGNOSTIC: 打印工作目录信息
-        if let Some(dir) = working_dir {
-            println!("[Bash] Executing in working_dir: {}", dir);
-        } else {
-            println!("[Bash] No working_dir specified, using default");
-        }
-
         // 检测操作系统
         #[cfg(target_os = "windows")]
         let shell = "cmd";
