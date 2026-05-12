@@ -1304,35 +1304,48 @@ impl Session {
                 }
             }
 
-            // 流结束后检查是否有工具调用需要执行
-            if collected_tool_calls.is_empty() && !any_tool_done_received {
-                // 📋 AI 返回纯文本（无工具调用）→ 完成最后一个 in_progress 任务
-                complete_current_task(get_global_task_store());
+            // 🔥 完全信任模型：已移除"AI 返回纯文本 = 停止信号"检查（非 TUI 模式）
+            // 原代码：如果 AI 返回纯文本（无工具调用），则终止循环
+            // 现在策略：让模型自主决策，即使返回纯文本也继续循环
+            // 这样可以支持 explore_agent 等场景：模型可以先返回分析文本，再继续调用工具
+            //
+            // if collected_tool_calls.is_empty() && !any_tool_done_received {
+            //     // 📋 AI 返回纯文本（无工具调用）→ 完成最后一个 in_progress 任务
+            //     complete_current_task(get_global_task_store());
+            //
+            //     // 没有工具调用，正常结束
+            //     self.default_ctx.messages.push(Message {
+            //         role: MessageRole::Assistant,
+            //         content: MessageContent::Text(current_response.clone()),
+            //         tool_calls: None,
+            //         tool_call_id: None,
+            //     });
+            //
+            //     // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
+            //     // 无论任务列表是否全部完成，都不强制继续循环
+            //     let global_store = get_global_task_store();
+            //     let tasks = global_store.get_tasks();
+            //     if !tasks.is_empty() {
+            //         let elapsed_secs = start_time.elapsed().as_secs_f64();
+            //         let summary = self.render_pipeline.render_summary(
+            //             elapsed_secs,
+            //             self.default_ctx.cumulative_input_tokens,
+            //             self.default_ctx.cumulative_output_tokens,
+            //         );
+            //         println!("{}", summary);
+            //         global_store.clear();
+            //     }
+            //     break;
+            // }
 
-                // 没有工具调用，正常结束
-                self.default_ctx.messages.push(Message {
-                    role: MessageRole::Assistant,
-                    content: MessageContent::Text(current_response.clone()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                });
-
-                // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
-                // 无论任务列表是否全部完成，都不强制继续循环
-                let global_store = get_global_task_store();
-                let tasks = global_store.get_tasks();
-                if !tasks.is_empty() {
-                    let elapsed_secs = start_time.elapsed().as_secs_f64();
-                    let summary = self.render_pipeline.render_summary(
-                        elapsed_secs,
-                        self.default_ctx.cumulative_input_tokens,
-                        self.default_ctx.cumulative_output_tokens,
-                    );
-                    println!("{}", summary);
-                    global_store.clear();
-                }
-                break;
-            }
+            // 🔥 修复：即使没有工具调用，也要将响应添加到消息历史
+            // 否则模型会丢失上下文，无法继续对话
+            self.default_ctx.messages.push(Message {
+                role: MessageRole::Assistant,
+                content: MessageContent::Text(current_response.clone()),
+                tool_calls: None,
+                tool_call_id: None,
+            });
 
             // Execute 阶段：执行工具
             println!(); // 换行
@@ -2002,45 +2015,57 @@ impl Session {
                 }
             }
 
-            // ═══════════════════════════════════════════════════════════
-            // Phase 3: Post-Process — 短暂持双锁
-            // ═══════════════════════════════════════════════════════════
+            // 🔥 完全信任模型：已移除"AI 返回纯文本 = 停止信号"检查（TUI 模式）
+            // 原代码：如果 AI 返回纯文本（无工具调用），则终止循环
+            // 现在策略：让模型自主决策，即使返回纯文本也继续循环
+            //
+            // if collected_tool_calls.is_empty() && !any_tool_done_received {
+            //     // 纯文本响应（无工具调用）— 短暂持双锁完成收尾
+            //     {
+            //         let mut s = session.lock().await;
+            //         let mut ctx = thread_ctx.lock().await;
+            //
+            //         // 完成最后一个 in_progress 任务
+            //         complete_current_task(&task_store);
+            //
+            //         ctx.messages.push(Message {
+            //             role: MessageRole::Assistant,
+            //             content: MessageContent::Text(current_response.clone()),
+            //             tool_calls: None,
+            //             tool_call_id: None,
+            //         });
+            //     }
+            //
+            //     // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
+            //     // 无论任务列表是否全部完成，都不强制继续循环
+            //     let tasks = task_store.get_tasks();
+            //     if !tasks.is_empty() {
+            //         let mut s = session.lock().await;
+            //         let mut ctx = thread_ctx.lock().await;
+            //
+            //         let elapsed_secs = start_time.elapsed().as_secs_f64();
+            //         let summary = s.render_pipeline.render_summary(
+            //             elapsed_secs,
+            //             ctx.cumulative_input_tokens,
+            //             ctx.cumulative_output_tokens,
+            //         );
+            //         let _ = output_tx.send(summary.into());
+            //         task_store.clear();
+            //     }
+            //     break;
+            // }
 
-            // 流结束后检查是否有工具调用需要执行
-            if collected_tool_calls.is_empty() && !any_tool_done_received {
-                // 纯文本响应（无工具调用）— 短暂持双锁完成收尾
-                {
-                    let mut s = session.lock().await;
-                    let mut ctx = thread_ctx.lock().await;
+            // 🔥 修复：即使没有工具调用，也要将响应添加到消息历史（TUI 模式）
+            {
+                let mut s = session.lock().await;
+                let mut ctx = thread_ctx.lock().await;
 
-                    // 完成最后一个 in_progress 任务
-                    complete_current_task(&task_store);
-
-                    ctx.messages.push(Message {
-                        role: MessageRole::Assistant,
-                        content: MessageContent::Text(current_response.clone()),
-                        tool_calls: None,
-                        tool_call_id: None,
-                    });
-                }
-
-                // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
-                // 无论任务列表是否全部完成，都不强制继续循环
-                let tasks = task_store.get_tasks();
-                if !tasks.is_empty() {
-                    let mut s = session.lock().await;
-                    let mut ctx = thread_ctx.lock().await;
-
-                    let elapsed_secs = start_time.elapsed().as_secs_f64();
-                    let summary = s.render_pipeline.render_summary(
-                        elapsed_secs,
-                        ctx.cumulative_input_tokens,
-                        ctx.cumulative_output_tokens,
-                    );
-                    let _ = output_tx.send(summary.into());
-                    task_store.clear();
-                }
-                break;
+                ctx.messages.push(Message {
+                    role: MessageRole::Assistant,
+                    content: MessageContent::Text(current_response.clone()),
+                    tool_calls: None,
+                    tool_call_id: None,
+                });
             }
 
             // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
