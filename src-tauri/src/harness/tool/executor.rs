@@ -2,6 +2,7 @@
 //!
 //! 定义工具执行接口和错误类型。
 
+pub mod agentexecutors;
 pub mod aliastools;
 pub mod filetools;
 pub mod memorytools;
@@ -15,6 +16,7 @@ use std::collections::HashSet;
 use super::spec::ToolPermissionMode;
 
 // 重新导出执行器
+pub use agentexecutors::{ExploreAgentExecutor, ReviewAgentExecutor};
 pub use aliastools::AliasExecutor;
 pub use filetools::FileToolsExecutor;
 pub use memorytools::MemorySaveExecutor;

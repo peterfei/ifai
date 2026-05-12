@@ -241,6 +241,40 @@ impl ToolRegistry {
             input_schema: crate::memory::memory_save_schema(),
             required_permission: ToolPermissionMode::ReadOnly,  // 🔥 改为 ReadOnly 以自动执行
         });
+
+        // 🆕 专用 Agent 工具
+        self.register(ToolSpec {
+            name: "explore_agent",
+            description: "深度分析项目结构、模块依赖、设计模式。当用户请求分析项目架构、了解项目组织时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "分析任务描述"
+                    }
+                },
+                "required": ["task"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        self.register(ToolSpec {
+            name: "review_agent",
+            description: "审查代码质量、安全性、性能。当用户请求审查代码、检查问题时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "files": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "要审查的文件列表"
+                    }
+                },
+                "required": ["files"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
     }
 
     /// 获取工具白名单（用于子 Agent）
@@ -270,6 +304,10 @@ mod tests {
         assert!(registry.get("read_file").is_some());
         assert!(registry.get("bash").is_some());
         assert!(registry.get("TodoWrite").is_some());
+
+        // 🆕 检查专用 agent 工具已注册
+        assert!(registry.get("explore_agent").is_some());
+        assert!(registry.get("review_agent").is_some());
     }
 
     #[test]

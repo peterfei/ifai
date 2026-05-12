@@ -8,8 +8,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use super::{
     executor::{
-        AliasExecutor, FileToolsExecutor, MemorySaveExecutor, SearchToolsExecutor,
-        ShellToolsExecutor, TodoWriteExecutor, ToolExecutor,
+        AliasExecutor, ExploreAgentExecutor, FileToolsExecutor, MemorySaveExecutor,
+        ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
+        ToolExecutor,
     },
     ToolError,
 };
@@ -86,6 +87,16 @@ impl ToolRouter {
         executors.insert(
             "agent_scan_project".to_string(),
             Box::new(AliasExecutor::new()),
+        );
+
+        // 🆕 注册专用 agent 工具
+        executors.insert(
+            "explore_agent".to_string(),
+            Box::new(ExploreAgentExecutor::new()),
+        );
+        executors.insert(
+            "review_agent".to_string(),
+            Box::new(ReviewAgentExecutor::new()),
         );
 
         Self {
