@@ -318,6 +318,44 @@ impl AIService for HarnessAIService {
 
             // 🔥 FIX: 移除消息历史打印（占用大量内存）
 
+            // 🔥 消息压缩：当消息过多时，压缩历史以避免超过上下文限制
+            // 保留最近的 20 条消息（约 10 轮对话），压缩早期历史
+            const MAX_MESSAGES: usize = 20;
+            if stream_messages.len() > MAX_MESSAGES {
+                eprintln!(
+                    "[AI] 📦 Compressing messages: {} → {} (keeping recent)",
+                    stream_messages.len(),
+                    MAX_MESSAGES
+                );
+
+                // 保留最近的 MAX_MESSAGES 条消息
+                let keep_count = MAX_MESSAGES;
+                let total_count = stream_messages.len();
+
+                // 提取要保留的消息
+                let mut compressed_messages: Vec<HarnessMessage> = stream_messages
+                    .into_iter()
+                    .skip(total_count.saturating_sub(keep_count))
+                    .collect();
+
+                // 如果第一条不是系统消息，添加压缩提示
+                if compressed_messages.first().map(|m| m.role != MessageRole::System).unwrap_or(true) {
+                    compressed_messages.insert(
+                        0,
+                        HarnessMessage {
+                            role: MessageRole::System,
+                            content: crate::harness::api::types::MessageContent::Text(
+                                "[早期对话历史已压缩，保留最近 20 条消息]".to_string()
+                            ),
+                            tool_calls: None,
+                            tool_call_id: None,
+                        },
+                    );
+                }
+
+                stream_messages = compressed_messages;
+            }
+
             // 构建请求
             // 🔥 FIX: 根据 DeepSeek API 文档，deepseek-chat 最大支持 8K 输出 tokens
             // 之前设置的 4096 对于复杂多工具任务可能不足，导致 AI 提前结束
