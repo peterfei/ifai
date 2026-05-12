@@ -1338,25 +1338,22 @@ impl Session {
             println!(); // 换行
             let tool_results = match self.execute_tools(&collected_tool_calls) {
                 Ok(results) => results,
-                Err(e) if e == "GLOBAL_EMPTY_ARGS_TRIPPED" => {
-                    println!("\n全局空参数熔断触发，终止执行");
-                    complete_current_task(get_global_task_store());
-                    break;
-                }
+                // 🔥 已移除空参数熔断，不再有 GLOBAL_EMPTY_ARGS_TRIPPED 错误
                 Err(e) => return Err(e),
             };
 
-            // 如果所有工具调用都被熔断跳过（PerToolTripped）或循环检测阻止，终止循环
-            // 注意：FirstOffense 返回 "empty arguments" 是给 AI 学习的，不触发终止
-            if !tool_results.is_empty()
-                && tool_results.iter().all(|(_, _, result, _)| {
-                    result.contains("Skipped") || result.contains("循环检测阻止")
-                })
-            {
-                println!("\n所有工具调用均被阻止（空参数熔断或循环检测），终止执行");
-                complete_current_task(get_global_task_store());
-                break;
-            }
+            // 🔥 完全信任模型：已移除熔断/循环检测的终止检查
+            // 原代码：如果所有工具都被熔断或循环检测阻止，则终止执行
+            // 现在策略：让模型自主决策，不人为干预
+            // if !tool_results.is_empty()
+            //     && tool_results.iter().all(|(_, _, result, _)| {
+            //         result.contains("Skipped") || result.contains("循环检测阻止")
+            //     })
+            // {
+            //     println!("\n所有工具调用均被阻止（空参数熔断或循环检测），终止执行");
+            //     complete_current_task(get_global_task_store());
+            //     break;
+            // }
 
             // 构建 tool_calls
             let tool_calls_value: Vec<ToolCall> = tool_results
@@ -2067,27 +2064,26 @@ impl Session {
 
             let tool_results = match tool_results {
                 Ok(results) => results,
-                Err(e) if e == "GLOBAL_EMPTY_ARGS_TRIPPED" => {
-                    let _ = output_tx.send("全局空参数熔断触发，终止执行".to_string().into());
-                    break;
-                }
+                // 🔥 已移除空参数熔断，不再有 GLOBAL_EMPTY_ARGS_TRIPPED 错误（TUI 模式）
                 Err(e) => return Err(e),
             };
 
-            // 如果所有工具调用都被熔断跳过（PerToolTripped）或循环检测阻止，终止循环
-            if !tool_results.is_empty()
-                && tool_results.iter().all(|(_, _, result, _)| {
-                    result.contains("Skipped") || result.contains("循环检测阻止")
-                })
-            {
-                let _ = output_tx.send(
-                    "所有工具调用均被阻止（空参数熔断或循环检测），终止执行"
-                        .to_string()
-                        .into(),
-                );
-                complete_current_task(&task_store);
-                break;
-            }
+            // 🔥 完全信任模型：已移除熔断/循环检测的终止检查（TUI 模式）
+            // 原代码：如果所有工具都被熔断或循环检测阻止，则终止执行
+            // 现在策略：让模型自主决策，不人为干预
+            // if !tool_results.is_empty()
+            //     && tool_results.iter().all(|(_, _, result, _)| {
+            //         result.contains("Skipped") || result.contains("循环检测阻止")
+            //     })
+            // {
+            //     let _ = output_tx.send(
+            //         "所有工具调用均被阻止（空参数熔断或循环检测），终止执行"
+            //             .to_string()
+            //             .into(),
+            //     );
+            //     complete_current_task(&task_store);
+            //     break;
+            // }
 
             // 构建 tool_calls + 更新 thread_ctx — 短暂持 thread_ctx 锁
             {
@@ -2283,77 +2279,34 @@ impl Session {
         // PipelineStep 已在事件循环的 ToolDone 中创建（使用完整参数）
 
         for tool in tools {
-            // 空参数/无效参数前置拦截（在审批对话框之前）
+            // 🔥 完全信任模型：已移除空参数熔断
+            // 原代码：检测空参数调用次数，超过阈值会熔断或终止
+            // 现在策略：让模型自主决策，不人为干预
+            // 保留基本的空参数错误返回（这是工具调用错误，不是保护机制）
             if is_empty_args(&tool.args) {
-                let breaker_result = approval::check_empty_args_breaker(&tool.name, &tool.args);
+                // 空参数仍然是错误，但不再有熔断机制
+                let required_hint = self
+                    .tool_registry
+                    .get(&tool.name)
+                    .and_then(|t| t.input_schema.get("required").cloned())
+                    .and_then(|r| serde_json::to_string(&r).ok())
+                    .unwrap_or_else(|| "check tool schema".to_string());
 
-                match breaker_result {
-                    EmptyArgsResult::GlobalTripped => {
-                        // 全局空参数超过阈值：立即终止，不继续循环
-                        let _ = output_tx.send(
-                            "🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行"
-                                .to_string()
-                                .into(),
-                        );
-                        thread_ctx
-                            .pipeline_tracker
-                            .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
-                        return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
-                    }
-                    EmptyArgsResult::PerToolTripped => {
-                        // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
-                        let _ = output_tx
-                            .send(format!("⚡ 熔断跳过: {}({})", tool.name, tool.args).into());
-                        thread_ctx
-                            .pipeline_tracker
-                            .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
-                        // push "Skipped" 结果（匹配终止条件，防止 AI 无限重试空参数）
-                        results.push((
-                            tool.tool_id.clone(),
-                            tool.name.clone(),
-                            "Skipped: empty arguments, tool not executed.".to_string(),
-                            Duration::ZERO,
-                        ));
-                        continue;
-                    }
-                    EmptyArgsResult::FirstOffense => {
-                        // 首次空参数：返回错误给 AI（给学习机会）
-                        let required_hint = self
-                            .tool_registry
-                            .get(&tool.name)
-                            .and_then(|t| t.input_schema.get("required").cloned())
-                            .and_then(|r| serde_json::to_string(&r).ok())
-                            .unwrap_or_else(|| "check tool schema".to_string());
+                let error_msg = format!(
+                    "Error: Tool '{}' called with empty arguments {{}}. \
+                     Required parameters: {}. \
+                     You MUST include required parameters. Do NOT retry with empty arguments.",
+                    tool.name, required_hint
+                );
 
-                        let error_msg = format!(
-                            "Error: Tool '{}' called with empty arguments {{}}. \
-                             Required parameters: {}. \
-                             You MUST include required parameters. Do NOT retry with empty arguments.",
-                            tool.name, required_hint
-                        );
-
-                        let _ = output_tx
-                            .send(format!("⚠️ 空参数阻止: {}({})", tool.name, tool.args).into());
-                        thread_ctx
-                            .pipeline_tracker
-                            .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
-                        results.push((
-                            tool.tool_id.clone(),
-                            tool.name.clone(),
-                            error_msg,
-                            Duration::ZERO,
-                        ));
-                        continue;
-                    }
-                    EmptyArgsResult::ValidArgs => {
-                        // 不应该到这里（is_empty_args 为 true）
-                        unreachable!()
-                    }
-                }
+                results.push((
+                    tool.tool_id.clone(),
+                    tool.name.clone(),
+                    error_msg,
+                    Duration::ZERO,
+                ));
+                continue;
             }
-
-            // 非空参数：重置熔断计数
-            approval::check_empty_args_breaker(&tool.name, &tool.args);
 
             // 🔥 首先检查用户白名单（持久化 + 会话级）
             let args_json: serde_json::Value = match serde_json::from_str(&tool.args) {
@@ -2498,24 +2451,26 @@ impl Session {
                 }
             }
 
-            // 循环检测
-            let loop_status = approval::check_loop(&tool.name, &tool.args);
-            if loop_status.should_stop() {
-                if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
-                    let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason).into());
-                    thread_ctx
-                        .pipeline_tracker
-                        .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
-                    let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
-                    results.push((
-                        tool.tool_id.clone(),
-                        tool.name.clone(),
-                        error_msg,
-                        Duration::ZERO,
-                    ));
-                    continue;
-                }
-            }
+            // 🔥 完全信任模型：已移除循环检测（TUI 模式）
+            // 原代码：检测 3 次完全相同调用或 10 次连续相同工具时会阻断
+            // 现在策略：让模型自主决策，不人为干预
+            // let loop_status = approval::check_loop(&tool.name, &tool.args);
+            // if loop_status.should_stop() {
+            //     if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
+            //         let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason).into());
+            //         thread_ctx
+            //             .pipeline_tracker
+            //             .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
+            //         let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
+            //         results.push((
+            //             tool.tool_id.clone(),
+            //             tool.name.clone(),
+            //             error_msg,
+            //             Duration::ZERO,
+            //         ));
+            //         continue;
+            //     }
+            // }
 
             // 🎨 Diff 预处理：对于 edit_file，在执行前保存旧内容
             let old_content_backup = if tool.name == "edit_file" {
@@ -2712,85 +2667,44 @@ impl Session {
         // PipelineStep 已在事件循环的 ToolDone 中创建（使用完整参数）
 
         for tool in tools {
-            // 空参数/无效参数前置拦截（在审批对话框之前）
+            // 🔥 完全信任模型：已移除空参数熔断（非 TUI 模式）
+            // 原代码：检测空参数调用次数，超过阈值会熔断或终止
+            // 现在策略：让模型自主决策，不人为干预
+            // 保留基本的空参数错误返回（这是工具调用错误，不是保护机制）
             if is_empty_args(&tool.args) {
-                let breaker_result = approval::check_empty_args_breaker(&tool.name, &tool.args);
+                // 空参数仍然是错误，但不再有熔断机制
+                let required_hint = self
+                    .tool_registry
+                    .get(&tool.name)
+                    .and_then(|t| t.input_schema.get("required").cloned())
+                    .and_then(|r| serde_json::to_string(&r).ok())
+                    .unwrap_or_else(|| "check tool schema".to_string());
 
-                match breaker_result {
-                    EmptyArgsResult::GlobalTripped => {
-                        // 全局空参数超过阈值：立即终止，不继续循环
-                        eprintln!(
-                            "\n{}🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行{}",
-                            theme.warning,
-                            render::RESET
-                        );
-                        self.default_ctx
-                            .pipeline_tracker
-                            .skip_step(&tool.tool_id, "全局空参数熔断".to_string());
-                        return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
-                    }
-                    EmptyArgsResult::PerToolTripped => {
-                        // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
-                        eprintln!(
-                            "\n{}⚡ 熔断跳过: {}({}){}",
-                            theme.warning,
-                            tool.name,
-                            tool.args,
-                            render::RESET
-                        );
-                        self.default_ctx
-                            .pipeline_tracker
-                            .skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
-                        results.push((
-                            tool.tool_id.clone(),
-                            tool.name.clone(),
-                            "Skipped: empty arguments, tool not executed.".to_string(),
-                            Duration::ZERO,
-                        ));
-                        continue;
-                    }
-                    EmptyArgsResult::FirstOffense => {
-                        // 首次空参数：返回错误给 AI（给学习机会）
-                        let required_hint = self
-                            .tool_registry
-                            .get(&tool.name)
-                            .and_then(|t| t.input_schema.get("required").cloned())
-                            .and_then(|r| serde_json::to_string(&r).ok())
-                            .unwrap_or_else(|| "check tool schema".to_string());
+                let error_msg = format!(
+                    "Error: Tool '{}' called with empty arguments {{}}. \
+                     Required parameters: {}. \
+                     You MUST include required parameters. Do NOT retry with empty arguments.",
+                    tool.name, required_hint
+                );
 
-                        let error_msg = format!(
-                            "Error: Tool '{}' called with empty arguments {{}}. \
-                             Required parameters: {}. \
-                             You MUST include required parameters. Do NOT retry with empty arguments.",
-                            tool.name, required_hint
-                        );
-
-                        eprintln!(
-                            "\n{}⚠️  空参数阻止: {}({}){}",
-                            theme.warning,
-                            tool.name,
-                            tool.args,
-                            render::RESET
-                        );
-                        self.default_ctx
-                            .pipeline_tracker
-                            .skip_step(&tool.tool_id, "空参数直接阻止".to_string());
-                        results.push((
-                            tool.tool_id.clone(),
-                            tool.name.clone(),
-                            error_msg,
-                            Duration::ZERO,
-                        ));
-                        continue;
-                    }
-                    EmptyArgsResult::ValidArgs => {
-                        unreachable!()
-                    }
-                }
+                eprintln!(
+                    "\n{}⚠️  空参数错误: {}({}){}",
+                    theme.warning,
+                    tool.name,
+                    tool.args,
+                    render::RESET
+                );
+                self.default_ctx
+                    .pipeline_tracker
+                    .skip_step(&tool.tool_id, "空参数错误".to_string());
+                results.push((
+                    tool.tool_id.clone(),
+                    tool.name.clone(),
+                    error_msg,
+                    Duration::ZERO,
+                ));
+                continue;
             }
-
-            // 非空参数：重置熔断计数
-            approval::check_empty_args_breaker(&tool.name, &tool.args);
 
             // 🔥 元编程：使用配置驱动的权限判断
             let category = approval::categorize_tool(&tool.name);
@@ -2858,45 +2772,42 @@ impl Session {
                 }
             }
 
-            // 🎬 元编程：循环检测（执行前检测，预防性阻止）
-            let loop_status = approval::check_loop(&tool.name, &tool.args);
-            if loop_status.should_stop() {
-                if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
-                    eprintln!(
-                        "\n{}⚠️  循环检测触发: {}{}",
-                        theme.warning,
-                        reason,
-                        render::RESET
-                    );
-
-                    // 🎨 元编程：标记步骤为跳过（循环阻止）
-                    self.default_ctx
-                        .pipeline_tracker
-                        .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
-
-                    // 返回错误给 AI，让 AI 知道这个工具调用被阻止了
-                    let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
-                    results.push((
-                        tool.tool_id.clone(),
-                        tool.name.clone(),
-                        error_msg,
-                        Duration::ZERO,
-                    ));
-
-                    continue; // 跳过当前工具，继续处理下一个
-                }
-            } else if loop_status.should_warn() {
-                if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status
-                {
-                    eprintln!(
-                        "\n{}⚠️  循环检测警告: {} (已执行 {} 次){}",
-                        theme.warning,
-                        pattern,
-                        count,
-                        render::RESET
-                    );
-                }
-            }
+            // 🔥 完全信任模型：已移除循环检测
+            // 原代码：检测 3 次完全相同调用或 10 次连续相同工具时会阻断
+            // 现在策略：让模型自主决策，不人为干预
+            // let loop_status = approval::check_loop(&tool.name, &tool.args);
+            // if loop_status.should_stop() {
+            //     if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
+            //         eprintln!(
+            //             "\n{}⚠️  循环检测触发: {}{}",
+            //             theme.warning,
+            //             reason,
+            //             render::RESET
+            //         );
+            //         self.default_ctx
+            //             .pipeline_tracker
+            //             .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
+            //         let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
+            //         results.push((
+            //             tool.tool_id.clone(),
+            //             tool.name.clone(),
+            //             error_msg,
+            //             Duration::ZERO,
+            //         ));
+            //         continue;
+            //     }
+            // } else if loop_status.should_warn() {
+            //     if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status
+            //     {
+            //         eprintln!(
+            //             "\n{}⚠️  循环检测警告: {} (已执行 {} 次){}",
+            //             theme.warning,
+            //             pattern,
+            //             count,
+            //             render::RESET
+            //         );
+            //     }
+            // }
 
             // 🎯 更新底部状态栏状态（但不显示，避免干扰对话）
             use token::StatusBarState;
