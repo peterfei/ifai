@@ -242,13 +242,19 @@ impl ToolApprovalEngine {
         false // 默认：需要手动审批
     }
 
-    /// 🔥 元编程 API：最大迭代次数（统一策略）
+    /// 🔥 元编程 API：最大迭代次数（完全信任模型）
     ///
-    /// **策略**: 与 harness_ai_service 中的 MAX_ITERATIONS 保持一致
-    /// - 1000 次足够支持复杂任务（如 explore_agent 分析大型项目）
-    /// - 依赖循环检测机制提供额外保护（空参数熔断、重复工具检测）
+    /// **策略**: 移除硬性限制，完全信任模型自主决策
+    /// - 使用 `usize::MAX` 表示几乎无限（实际受内存限制）
+    /// - 依赖循环检测器提供安全网：
+    ///   - 10 次连续相同工具 → 警告
+    ///   - 3 次完全相同调用 → 阻断
+    /// - 依赖其他保护机制：
+    ///   - 空参数熔断（连续 2 次跳过）
+    ///   - 节点超时（5 分钟）
+    ///   - AI 服务的循环检测（连续相同工具签名）
     pub fn max_iterations(&self, _category: ToolCategory) -> usize {
-        1000 // 与 AI 服务的 MAX_ITERATIONS 保持一致
+        usize::MAX // 完全信任模型，无硬性限制
     }
 
     /// 获取工具完整配置
@@ -379,9 +385,19 @@ mod tests {
 
     #[test]
     fn test_max_iterations() {
-        // 统一策略：所有类别都是 1000 次（与 AI 服务的 MAX_ITERATIONS 一致）
-        assert_eq!(max_iterations(ToolCategory::Safe), 1000);
-        assert_eq!(max_iterations(ToolCategory::Destructive), 1000);
-        assert_eq!(max_iterations(ToolCategory::Dangerous), 1000);
+        // 完全信任模型：无硬性限制（usize::MAX）
+        let safe_max = max_iterations(ToolCategory::Safe);
+        let destructive_max = max_iterations(ToolCategory::Destructive);
+        let dangerous_max = max_iterations(ToolCategory::Dangerous);
+
+        // 验证返回的是 usize::MAX（或至少是一个非常大的值）
+        assert!(safe_max > 1_000_000);
+        assert!(destructive_max > 1_000_000);
+        assert!(dangerous_max > 1_000_000);
+
+        // 验证所有类别返回相同的值
+        assert_eq!(safe_max, usize::MAX);
+        assert_eq!(destructive_max, usize::MAX);
+        assert_eq!(dangerous_max, usize::MAX);
     }
 }

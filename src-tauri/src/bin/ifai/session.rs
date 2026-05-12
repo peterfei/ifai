@@ -1460,10 +1460,15 @@ impl Session {
                 break;
             }
 
-            // 继续续播
+            // 🔥 继续续播（如果 max_iterations 是 usize::MAX，则不显示总数）
+            let progress_msg = if dynamic_max == usize::MAX {
+                format!("Continuing... ({})", continuation_count)
+            } else {
+                format!("Continuing... ({}/{})", continuation_count, dynamic_max)
+            };
             println!(
-                "\n{}Continuing... ({}/{}){}",
-                theme.dim, continuation_count, dynamic_max, RESET
+                "\n{}{}{}",
+                theme.dim, progress_msg, RESET
             );
         }
 
@@ -2241,8 +2246,13 @@ impl Session {
                 break;
             }
 
-            let _ = output_tx
-                .send(format!("Continuing... ({}/{})", continuation_count, dynamic_max).into());
+            // 🔥 显示续播计数（如果 max_iterations 是 usize::MAX，则不显示总数）
+            let progress_msg = if dynamic_max == usize::MAX {
+                format!("Continuing... ({})", continuation_count)
+            } else {
+                format!("Continuing... ({}/{})", continuation_count, dynamic_max)
+            };
+            let _ = output_tx.send(progress_msg.into());
         }
 
         // 🎯 循环结束时清空任务列表，避免遮挡视窗
