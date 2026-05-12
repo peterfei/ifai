@@ -23,12 +23,10 @@ fn uuid_simple() -> String {
 fn load_provider_config() -> Option<String> {
     // 优先从全局配置读取（由 Session 设置）
     if let Some(config) = crate::harness::tool::get_global_provider_config() {
-        println!("[ExploreAgentExecutor] ✅ 从全局配置加载 provider_config");
         return serde_json::to_string(&config).ok();
     }
 
     // 回退到环境变量
-    println!("[ExploreAgentExecutor] ⚠️  全局配置为空，尝试从环境变量加载");
     load_provider_config_from_env()
 }
 
@@ -116,9 +114,6 @@ fn build_agent_workflow(agent_type: AgentType, task: &str) -> Workflow {
     // 🔥 关键修复：添加 provider_config 到 workflow.variables
     if let Some(provider_config) = load_provider_config() {
         variables.insert("provider_config".to_string(), provider_config);
-        println!("[ExploreAgentExecutor] ✅ 已加载 provider_config");
-    } else {
-        println!("[ExploreAgentExecutor] ⚠️  未能加载 provider_config（可能缺少 API key）");
     }
 
     Workflow {
@@ -138,8 +133,6 @@ fn build_agent_workflow(agent_type: AgentType, task: &str) -> Workflow {
 
 /// 执行 agent 并返回结果
 fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolError> {
-    println!("[ExploreAgentExecutor] 🔥 开始执行 agent: {:?}, task: {}", agent_type, task);
-
     // 设置 task_description 到节点 config 和 workflow variables
     let mut workflow = build_agent_workflow(agent_type, task);
     if let Some(node) = workflow.nodes.first_mut() {
@@ -149,10 +142,6 @@ fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolE
     // 🔥 关键修复：将用户的任务也传递到 workflow.variables
     // 这样 runner 就会使用我们的任务而不是重新构建
     workflow.variables.insert("task_override".to_string(), task.to_string());
-
-    println!("[ExploreAgentExecutor] 📋 Workflow ID: {}", workflow.id);
-    println!("[ExploreAgentExecutor] 📂 Project root: {:?}", workflow.variables.get("project_root"));
-    println!("[ExploreAgentExecutor] 📝 Task override: {:?}", workflow.variables.get("task_override"));
 
     let config = RunnerConfig::default();
     let mut runner = WorkflowRunner::new(workflow, config)
@@ -176,31 +165,9 @@ fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolE
 
     match result {
         Ok(wf_result) => {
-            println!("[ExploreAgentExecutor] ✅ Workflow 执行完成");
-            println!("[ExploreAgentExecutor] 📊 Workflow 状态: {:?}", wf_result.status);
-            println!("[ExploreAgentExecutor] 📊 节点结果数量: {}", wf_result.node_results.len());
-
-            // 🔥 详细检查每个节点的结果
-            for (node_id, node_result) in &wf_result.node_results {
-                println!("[ExploreAgentExecutor] 🔍 节点 {} 详情:", node_id);
-                println!("[ExploreAgentExecutor]   - 状态: {:?}", node_result.status);
-                println!("[ExploreAgentExecutor]   - 输出: {:?}", node_result.output.as_ref().map(|o| o.len()));
-                println!("[ExploreAgentExecutor]   - 错误: {:?}", node_result.error);
-
-                // 如果有输出，打印前100个字符
-                if let Some(ref output) = node_result.output {
-                    if !output.is_empty() {
-                        let preview = output.chars().take(100).collect::<String>();
-                        println!("[ExploreAgentExecutor]   - 输出预览: {}...", preview);
-                    }
-                }
-            }
-
             // 🔥 检查是否有失败节点
             let has_failure = wf_result.node_results.values().any(|r| r.status.is_failure());
             if has_failure {
-                println!("[ExploreAgentExecutor] ❌ 检测到失败节点");
-
                 // 收集所有错误信息
                 let errors: Vec<_> = wf_result.node_results.values()
                     .filter_map(|r| {
@@ -217,7 +184,6 @@ fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolE
                     .collect();
 
                 let error_msg = format!("❌ Agent 执行失败\n{}", errors.join("\n"));
-                println!("[ExploreAgentExecutor] {}", error_msg);
                 return Err(ToolError::Execution(error_msg));
             }
 
@@ -230,19 +196,16 @@ fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolE
             let output = outputs.join("\n\n");
 
             if output.is_empty() {
-                println!("[ExploreAgentExecutor] ⚠️ 最终输出为空");
                 Err(ToolError::Execution(format!(
                     "✅ Agent 执行完成，但无输出\n节点状态: {:?}\n节点数量: {}",
                     wf_result.status,
                     wf_result.node_results.len()
                 )))
             } else {
-                println!("[ExploreAgentExecutor] ✅ 最终输出长度: {}", output.len());
                 Ok(output)
             }
         }
         Err(e) => {
-            println!("[ExploreAgentExecutor] ❌ Agent 执行失败: {}", e);
             Err(ToolError::Execution(format!("Agent 执行失败: {}", e)))
         }
     }

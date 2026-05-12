@@ -2526,35 +2526,42 @@ impl Session {
                 let output_tx_clone = output_tx.clone();
                 set_global_progress_callback(
                     move |event: ifainew_lib::agent_system::workflow::ProgressEvent| {
-                        // 将 ProgressEvent 转换为 TUI 可显示的文本
+                        // 将 ProgressEvent 转换为 TUI 可显示的文本（格式与 /agent explore 一致）
                         let message = match event.event_type.as_str() {
-                            "workflow:started" => "🚀 Agent 工作流启动...".to_string(),
+                            "workflow:started" => "▸ 工作流开始执行".to_string(),
                             "node_started" => {
-                                format!("⏳ 开始执行: {}", event.message.unwrap_or_default())
+                                format!("▸ 开始执行节点: {}", event.message.unwrap_or_default())
                             }
                             "tool_call" => {
                                 if let Some(ref details) = event.tool_details {
-                                    format!(
-                                        "  ✓ {} ({}ms)",
-                                        details.tool_name,
-                                        details.execution_time_ms.unwrap_or(0)
-                                    )
+                                    // 提取工具调用参数（文件路径或搜索内容）
+                                    let input_summary = extract_tool_input_summary(&details.tool_name, &details.tool_input);
+                                    let time_str = format_execution_time(details.execution_time_ms);
+                                    let output_info = if details.is_error {
+                                        format!("✗ 错误")
+                                    } else if details.output_length > 0 {
+                                        format!("→ {} chars", details.output_length)
+                                    } else {
+                                        String::new()
+                                    };
+
+                                    format!("  ├─ ✔ {} {} {}", details.tool_name, input_summary, time_str)
+                                        + &if !output_info.is_empty() { format!(" {}", output_info) } else { String::new() }
                                 } else {
-                                    format!("  🔧 {}", event.message.unwrap_or_default())
+                                    format!("  ├─ 🔧 {}", event.message.unwrap_or_default())
                                 }
                             }
                             "node_completed" => {
                                 if let Some(ref stats) = event.completion_stats {
-                                    format!(
-                                        "✔ 节点完成 [{}s, {} tools]",
+                                    format!("▸ 节点完成 [{}s, {} tools]",
                                         stats.duration_ms.unwrap_or(0) as f64 / 1000.0,
                                         stats.tool_count.unwrap_or(0)
                                     )
                                 } else {
-                                    "✔ 节点完成".to_string()
+                                    "▸ 节点完成".to_string()
                                 }
                             }
-                            "workflow:completed" => "✔ 工作流完成".to_string(),
+                            "workflow:completed" => "▸ 工作流完成".to_string(),
                             "content_delta" => {
                                 // 流式文本直接追加
                                 event.content_delta.unwrap_or_default()
@@ -3012,6 +3019,74 @@ fn build_cli_system_prompt(
     // 5. 🆕 Phase 3: 注入持久化记忆（热记忆）
     memory::inject_memories_into_system_prompt(&rendered)
 }
+
+// ============================================================================
+// 辅助函数：Agent 工具进度格式化（Phase 1.5.3）
+// ============================================================================
+
+/// 提取工具输入的摘要信息（文件路径、搜索内容等）
+fn extract_tool_input_summary(tool_name: &str, tool_input: &str) -> String {
+    // 尝试解析 JSON 输入
+    if let Ok(input_json) = serde_json::from_str::<serde_json::Value>(tool_input) {
+        match tool_name {
+            "agent_read_file" | "read_file" => {
+                if let Some(path) = input_json.get("path").and_then(|p| p.as_str()) {
+                    // 只显示文件名，不显示完整路径
+                    let filename = std::path::Path::new(path)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(path);
+                    filename.to_string()
+                } else {
+                    "?".to_string()
+                }
+            }
+            "grep_search" | "agent_search" | "agent_search_in_file" => {
+                if let Some(pattern) = input_json.get("pattern").and_then(|p| p.as_str()) {
+                    // 截断过长的搜索模式
+                    if pattern.len() > 40 {
+                        format!("\"{}...\"", &pattern[..37])
+                    } else {
+                        format!("\"{}\"", pattern)
+                    }
+                } else if let Some(query) = input_json.get("query").and_then(|q| q.as_str()) {
+                    if query.len() > 40 {
+                        format!("\"{}...\"", &query[..37])
+                    } else {
+                        format!("\"{}\"", query)
+                    }
+                } else {
+                    "?".to_string()
+                }
+            }
+            "bash" => {
+                if let Some(command) = input_json.get("command").and_then(|c| c.as_str()) {
+                    // 截断过长的命令
+                    if command.len() > 50 {
+                        format!("\"{}...\"", &command[..47])
+                    } else {
+                        format!("\"{}\"", command)
+                    }
+                } else {
+                    "?".to_string()
+                }
+            }
+            _ => "?".to_string(),
+        }
+    } else {
+        "?".to_string()
+    }
+}
+
+/// 格式化执行时间（显示为 <1s 或具体时间）
+fn format_execution_time(time_ms: Option<i64>) -> String {
+    match time_ms {
+        Some(t) if t < 1000 => format!("(<1s)"),
+        Some(t) => format!("({}.{}s)", t / 1000, t % 1000 / 100),
+        None => String::new(),
+    }
+}
+
 // ============================================================================
 
 #[cfg(test)]
