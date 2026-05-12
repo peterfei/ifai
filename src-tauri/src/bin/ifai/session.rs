@@ -2530,7 +2530,12 @@ impl Session {
                         let message = match event.event_type.as_str() {
                             "workflow:started" => "▸ 工作流开始执行".to_string(),
                             "node_started" => {
-                                format!("▸ 开始执行节点: {}", event.message.unwrap_or_default())
+                                // 直接使用 node_id，不使用 message（message 已包含 "开始执行节点:"）
+                                if let Some(node_id) = event.node_id {
+                                    format!("▸ 节点: {}", node_id)
+                                } else {
+                                    "▸ 开始执行节点".to_string()
+                                }
                             }
                             "tool_call" => {
                                 if let Some(ref details) = event.tool_details {
@@ -3030,12 +3035,17 @@ fn extract_tool_input_summary(tool_name: &str, tool_input: &str) -> String {
     if let Ok(input_json) = serde_json::from_str::<serde_json::Value>(tool_input) {
         match tool_name {
             "agent_read_file" | "read_file" => {
-                if let Some(path) = input_json.get("path").and_then(|p| p.as_str()) {
+                // 🔥 支持两种字段名：path 和 rel_path
+                let path = input_json.get("path")
+                    .or_else(|| input_json.get("rel_path"))
+                    .and_then(|p| p.as_str());
+
+                if let Some(path_str) = path {
                     // 只显示文件名，不显示完整路径
-                    let filename = std::path::Path::new(path)
+                    let filename = std::path::Path::new(path_str)
                         .file_name()
                         .and_then(|n| n.to_str())
-                        .unwrap_or(path);
+                        .unwrap_or(path_str);
                     filename.to_string()
                 } else {
                     "?".to_string()
@@ -3084,6 +3094,81 @@ fn format_execution_time(time_ms: Option<i64>) -> String {
         Some(t) if t < 1000 => format!("(<1s)"),
         Some(t) => format!("({}.{}s)", t / 1000, t % 1000 / 100),
         None => String::new(),
+    }
+}
+
+// ============================================================================
+// 单元测试：Agent 工具进度格式化（Phase 1.5.3）
+// ============================================================================
+
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_tool_input_summary_read_file() {
+        // 测试 agent_read_file 工具的文件名提取（path 字段）
+        let tool_input = r#"{"path": "src-tauri/src/bin/ifai/session.rs"}"#;
+        let result = extract_tool_input_summary("agent_read_file", tool_input);
+        assert_eq!(result, "session.rs");
+    }
+
+    #[test]
+    fn test_extract_tool_input_summary_read_file_rel_path() {
+        // 测试 agent_read_file 工具的文件名提取（rel_path 字段）
+        let tool_input = r#"{"rel_path": "Cargo.toml"}"#;
+        let result = extract_tool_input_summary("agent_read_file", tool_input);
+        assert_eq!(result, "Cargo.toml");
+    }
+
+    #[test]
+    fn test_extract_tool_input_summary_grep_search() {
+        // 测试 grep_search 工具的搜索模式提取
+        let tool_input = r#"{"pattern": "ProgressEvent"}"#;
+        let result = extract_tool_input_summary("grep_search", tool_input);
+        assert_eq!(result, "\"ProgressEvent\"");
+    }
+
+    #[test]
+    fn test_extract_tool_input_summary_bash() {
+        // 测试 bash 工具的命令提取
+        let tool_input = r#"{"command": "cargo test"}"#;
+        let result = extract_tool_input_summary("bash", tool_input);
+        assert_eq!(result, "\"cargo test\"");
+    }
+
+    #[test]
+    fn test_extract_tool_input_summary_pretty_json() {
+        // 测试格式化 JSON（使用 to_string_pretty）
+        let tool_input = r#"{
+  "path": "src-tauri/src/agent_system/workflow/runner.rs"
+}"#;
+        let result = extract_tool_input_summary("agent_read_file", tool_input);
+        assert_eq!(result, "runner.rs");
+    }
+
+    #[test]
+    fn test_format_execution_time() {
+        assert_eq!(format_execution_time(Some(500)), "(<1s)");
+        assert_eq!(format_execution_time(Some(1500)), "(1.5s)");
+        assert_eq!(format_execution_time(Some(100)), "(<1s)");
+        assert_eq!(format_execution_time(Some(3420)), "(3.4s)");
+        assert_eq!(format_execution_time(None), "");
+    }
+
+    #[test]
+    fn test_extract_tool_input_summary_invalid_json() {
+        // 测试无效 JSON
+        let result = extract_tool_input_summary("agent_read_file", "invalid json");
+        assert_eq!(result, "?");
+    }
+
+    #[test]
+    fn test_extract_tool_input_summary_missing_path() {
+        // 测试缺少 path 字段
+        let tool_input = r#"{"other": "value"}"#;
+        let result = extract_tool_input_summary("agent_read_file", tool_input);
+        assert_eq!(result, "?");
     }
 }
 
