@@ -552,6 +552,11 @@ impl ThreadMessages {
         self.messages.remove(&thread_id).is_some()
     }
 
+    /// 替换线程的所有消息（用于线程切换时保存最新内容）
+    pub fn replace(&mut self, thread_id: ThreadId, messages: Vec<Message>) {
+        self.messages.insert(thread_id, messages);
+    }
+
     /// 获取所有线程 ID
     pub fn thread_ids(&self) -> impl Iterator<Item = &ThreadId> {
         self.messages.keys()

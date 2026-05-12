@@ -2417,15 +2417,11 @@ impl App {
 
     /// 切换线程
     pub fn switch_thread(&mut self, thread_id: ThreadId) -> bool {
-        // 🔥 Bug 修复：在切换前保存当前线程的 content_lines 到 thread.messages
-        // 这样可以防止在 workflow 执行期间切换线程导致消息丢失
+        // 切换前：将当前 content_lines 保存为当前线程的消息（替换旧的）
         if let Some(current_thread_id) = self.thread.store.active_thread().map(|t| t.id) {
-            // 只在有内容且不是目标线程时才保存（避免覆盖已有消息）
             if current_thread_id != thread_id && !self.content_lines.is_empty() {
-                // 将当前 content_lines 转换为单个消息保存
                 let current_content: String = self.content_lines.iter()
                     .map(|line| {
-                        // Line 的 spans 包含实际的文本内容
                         line.spans.iter()
                             .map(|span| span.content.as_ref())
                             .collect::<String>()
@@ -2434,33 +2430,29 @@ impl App {
                     .join("\n");
 
                 if !current_content.trim().is_empty() {
-                    // 检查该线程是否已有消息，如果没有则创建新的
-                    let has_existing_messages = self.thread.messages.get(current_thread_id)
-                        .map_or(false, |msgs| !msgs.is_empty());
-
-                    // 只在当前没有消息时才保存（避免重复保存）
-                    if !has_existing_messages {
-                        self.thread.messages.push(
-                            current_thread_id,
-                            crate::thread::Message::assistant(current_content)
-                        );
-                    }
+                    // 始终替换，确保内容是最新的
+                    self.thread.messages.replace(
+                        current_thread_id,
+                        vec![crate::thread::Message::assistant(current_content)]
+                    );
                 }
             }
         }
 
         if self.thread.store.switch_to(thread_id) {
-            // 🔥 Bug 修复：清空终端并加载目标线程的历史消息
             self.content_lines.clear();
             self.scroll_offset = 0;
 
-            // 加载目标线程的历史消息（先收集到 Vec 以避免借用问题）
+            // 加载目标线程的历史消息
             let messages_to_load: Vec<String> = self
                 .thread
                 .messages
                 .get(thread_id)
                 .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
                 .unwrap_or_default();
+
+            // 加载后清空目标线程的 messages，下次切换走时会从 content_lines 重新保存
+            self.thread.messages.replace(thread_id, vec![]);
 
             for msg in messages_to_load {
                 self.push_line(msg);
