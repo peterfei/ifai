@@ -202,6 +202,8 @@ pub enum StreamEvent {
     MessageDone {
         input_tokens: u32,
         output_tokens: u32,
+        /// finish_reason: "stop" = 模型结束, "tool_calls" = 模型还要继续调用工具
+        finish_reason: Option<String>,
     },
     Error {
         code: String,

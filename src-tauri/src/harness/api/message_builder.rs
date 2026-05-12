@@ -12,12 +12,16 @@ use crate::harness::api::types::{Message, MessageContent, MessageRole, StreamReq
 /// - deepseek.rs:62-76
 pub trait MessageBuilder {
     /// 从StreamRequest构建完整的消息列表（包含system prompt）
+    ///
+    /// 同时执行 validate：
+    /// 1. 空 tool_calls 数组 → None（DeepSeek 等不允许空数组）
+    /// 2. 连续 assistant 消息合并（API 不允许连续两条 assistant）
     fn build_messages_with_system(&self) -> Vec<Message> {
-        let mut messages = Vec::new();
+        let mut raw = Vec::new();
 
         // 添加system消息（如果存在）
         if let Some(system) = &self.system() {
-            messages.push(Message {
+            raw.push(Message {
                 role: MessageRole::System,
                 content: system.clone().into(),
                 tool_calls: None,
@@ -25,8 +29,48 @@ pub trait MessageBuilder {
             });
         }
 
-        // 扩展用户消息
-        messages.extend(self.messages().iter().cloned());
+        // 收集原始消息
+        raw.extend(self.messages().iter().cloned());
+
+        // === Validate: 清洗 + 合并 ===
+        let mut messages: Vec<Message> = Vec::with_capacity(raw.len());
+
+        for msg in raw {
+            let cleaned = Message {
+                // FIX 1: 空 tool_calls 数组 → None
+                tool_calls: match &msg.tool_calls {
+                    Some(calls) if calls.is_empty() => None,
+                    other => other.clone(),
+                },
+                ..msg
+            };
+
+            // FIX 2: 连续 assistant 消息合并
+            // 场景：[assistant(纯文本)] + [assistant(tool_calls)] → 合并为一条
+            // API 不允许连续两条 assistant 消息
+            if cleaned.role == MessageRole::Assistant {
+                if let Some(last) = messages.last_mut() {
+                    if last.role == MessageRole::Assistant {
+                        // 合并：后者的 tool_calls 优先（非空的话）
+                        if let Some(tc) = &cleaned.tool_calls {
+                            if !tc.is_empty() {
+                                last.tool_calls = Some(tc.clone());
+                            }
+                        }
+                        // 合并：后者的 content 追加（如果前者为空）
+                        match &last.content {
+                            MessageContent::Text(t) if t.is_empty() => {
+                                last.content = cleaned.content.clone();
+                            }
+                            _ => {}
+                        }
+                        continue; // 跳过这条，已合并到上一条
+                    }
+                }
+            }
+
+            messages.push(cleaned);
+        }
 
         messages
     }

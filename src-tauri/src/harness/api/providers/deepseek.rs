@@ -99,6 +99,8 @@ impl ApiClient for DeepSeekClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
+            // 🔍 详细日志：记录 400 等错误时的完整请求信息
+            super::log_http_error_detail("DeepSeek", &deepseek_request, status.as_u16(), &message);
             return Err(ApiError::HttpError { status, message });
         }
 
@@ -188,12 +190,19 @@ impl ApiClient for DeepSeekClient {
                                     if let Some(reason) = &choice.finish_reason {
                                         last_finish_reason = Some(reason.clone());
 
-                                        // 🔥 FIX: 移除高频日志
-                                        // println!("[DeepSeek] 🏁 Finish reason: {}, pending_tools={}, tool_args_buffer_keys={:?}",
-                                        //     reason,
-                                        //     tool_started.len(),
-                                        //     tool_args_buffer.keys().collect::<Vec<_>>()
-                                        // );
+                                        // 🔍 Debug: 记录 finish_reason 到 .ifai/debug.log
+                                        {
+                                            let msg = format!(
+                                                "[DeepSeek] finish_reason={}, tool_calls={}, text_len={}",
+                                                reason,
+                                                tool_args_buffer.len(),
+                                                data.choices.first()
+                                                    .and_then(|c| c.delta.content.as_ref())
+                                                    .map(|s| s.len())
+                                                    .unwrap_or(0)
+                                            );
+                                            super::log_debug_to_file(&msg);
+                                        }
 
                                         // 发送所有累积的工具参数
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
@@ -320,6 +329,7 @@ fn convert_deepseek_data(data: &super::openai_format::OpenAiSseData) -> Option<S
             return Some(StreamEvent::MessageDone {
                 input_tokens,
                 output_tokens,
+                finish_reason: choice.finish_reason.clone(),
             });
         }
     }

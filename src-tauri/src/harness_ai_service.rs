@@ -1257,6 +1257,7 @@ impl AIService for HarnessAIService {
                                 crate::harness::api::StreamEvent::MessageDone {
                                     input_tokens: _,
                                     output_tokens: _,
+                                    finish_reason: _,
                                 } => {
                                     if !batch_buffer.is_empty() {
                                         for batched_chunk in batch_buffer.drain(..) {
@@ -1391,10 +1392,18 @@ impl AIService for HarnessAIService {
                 })
                 .collect();
 
+            // 🔍 FIX: 空数组设为 None，防止 API 400 错误
+            // DeepSeek 等不允许 assistant 消息的 tool_calls 为空数组 []
+            let tool_calls_opt = if tool_calls_for_msg.is_empty() {
+                None
+            } else {
+                Some(tool_calls_for_msg)
+            };
+
             stream_messages.push(HarnessMessage {
                 role: MessageRole::Assistant,
                 content: crate::harness::api::types::MessageContent::Text(loop_text.clone()),
-                tool_calls: Some(tool_calls_for_msg),
+                tool_calls: tool_calls_opt,
                 tool_call_id: None,
             });
 

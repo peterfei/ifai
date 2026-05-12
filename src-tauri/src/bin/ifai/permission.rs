@@ -254,7 +254,7 @@ impl ToolApprovalEngine {
     ///   - 节点超时（5 分钟）
     ///   - AI 服务的循环检测（连续相同工具签名）
     pub fn max_iterations(&self, _category: ToolCategory) -> usize {
-        usize::MAX // 完全信任模型，无硬性限制
+        50 // 安全上限，防止无限循环
     }
 
     /// 获取工具完整配置

@@ -1237,6 +1237,7 @@ impl Session {
             // 工具调用直接收集：ToolDone 时构建 PendingToolCall
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<PendingToolCall> = Vec::new();
+            let mut last_finish_reason: Option<String> = None; // 🔍 记录本轮 finish_reason
             let mut any_tool_done_received = false; // 区分"无工具调用"和"全部被过滤"
 
             // 🔥 元编程：估算输入 tokens（复用 token::estimate_tokens）
@@ -1357,7 +1358,10 @@ impl Session {
                                         }
                                         eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
                                     }
-                                    StreamEvent::MessageDone { input_tokens, output_tokens } => {
+                                    StreamEvent::MessageDone { input_tokens, output_tokens, finish_reason } => {
+                                        // 🔍 记录 finish_reason（用于精确判断退出）
+                                        last_finish_reason = finish_reason.clone();
+
                                         // 🔥 记录 token 使用量
                                         self.default_ctx.cumulative_input_tokens += *input_tokens;
                                         self.default_ctx.cumulative_output_tokens += *output_tokens;
@@ -1415,103 +1419,111 @@ impl Session {
                 }
             }
 
-            // 🔥 完全信任模型：已移除"AI 返回纯文本 = 停止信号"检查（非 TUI 模式）
-            // 原代码：如果 AI 返回纯文本（无工具调用），则终止循环
-            // 现在策略：让模型自主决策，即使返回纯文本也继续循环
-            // 这样可以支持 explore_agent 等场景：模型可以先返回分析文本，再继续调用工具
+            // 🔥 FIX: 纯文本响应处理
+            // 场景A: AI 在两轮工具调用之间返回纯文本分析（DeepSeek 常见）→ 不应断链
+            // 场景B: AI 真正完成任务返回纯文本 → 应退出
             //
-            // if collected_tool_calls.is_empty() && !any_tool_done_received {
-            //     // 📋 AI 返回纯文本（无工具调用）→ 完成最后一个 in_progress 任务
-            //     complete_current_task(get_global_task_store());
+            // 参考 Codex 的 needs_follow_up，但不完全照搬：
+            // - Codex 用 OpenAI API，模型行为：文本+工具调用同时返回，纯文本=结束
+            // - DeepSeek/GLM 行为不同：可能单独返回一轮纯文本，下一轮再调用工具
             //
-            //     // 没有工具调用，正常结束
-            //     self.default_ctx.messages.push(Message {
-            //         role: MessageRole::Assistant,
-            //         content: MessageContent::Text(current_response.clone()),
-            //         tool_calls: None,
-            //         tool_call_id: None,
-            //     });
-            //
-            //     // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
-            //     // 无论任务列表是否全部完成，都不强制继续循环
-            //     let global_store = get_global_task_store();
-            //     let tasks = global_store.get_tasks();
-            //     if !tasks.is_empty() {
-            //         let elapsed_secs = start_time.elapsed().as_secs_f64();
-            //         let summary = self.render_pipeline.render_summary(
-            //             elapsed_secs,
-            //             self.default_ctx.cumulative_input_tokens,
-            //             self.default_ctx.cumulative_output_tokens,
-            //         );
-            //         println!("{}", summary);
-            //         global_store.clear();
-            //     }
-            //     break;
-            // }
+            // 当前策略：记录日志 + 只 push 一条 assistant 消息 + 继续循环
+            // 退出依赖 dynamic_max 上限（而非纯文本检测）
 
-            // 🔥 修复：即使没有工具调用，也要将响应添加到消息历史
-            // 否则模型会丢失上下文，无法继续对话
-            self.default_ctx.messages.push(Message {
-                role: MessageRole::Assistant,
-                content: MessageContent::Text(current_response.clone()),
-                tool_calls: None,
-                tool_call_id: None,
-            });
+            // 🔥 元编程：根据工具类别动态获取最大迭代次数（提前计算，纯文本和工具分支都需要）
+            let current_category = collected_tool_calls
+                .first()
+                .map(|t| approval::categorize_tool(&t.name))
+                .unwrap_or(approval::ToolCategory::Safe);
+            let dynamic_max = approval::max_iterations(current_category);
 
-            // Execute 阶段：执行工具
-            println!(); // 换行
-            let tool_results = match self.execute_tools(&collected_tool_calls) {
-                Ok(results) => results,
-                // 🔥 已移除空参数熔断，不再有 GLOBAL_EMPTY_ARGS_TRIPPED 错误
-                Err(e) => return Err(e),
+            // 🔥 FIX: 精确退出判断 — 基于 finish_reason 而非 collected_tool_calls
+            // finish_reason=stop → 模型结束，应该 break
+            // finish_reason=tool_calls → 模型还要继续，不应 break（即使 tool_calls 被过滤掉）
+            // finish_reason=None → 未知（兼容旧 provider），fallback 到 is_empty()
+            let should_stop = match &last_finish_reason {
+                Some(reason) => reason == "stop",
+                None => collected_tool_calls.is_empty(), // fallback
             };
 
-            // 🔥 完全信任模型：已移除熔断/循环检测的终止检查
-            // 原代码：如果所有工具都被熔断或循环检测阻止，则终止执行
-            // 现在策略：让模型自主决策，不人为干预
-            // if !tool_results.is_empty()
-            //     && tool_results.iter().all(|(_, _, result, _)| {
-            //         result.contains("Skipped") || result.contains("循环检测阻止")
-            //     })
-            // {
-            //     println!("\n所有工具调用均被阻止（空参数熔断或循环检测），终止执行");
-            //     complete_current_task(get_global_task_store());
-            //     break;
-            // }
+            if should_stop {
+                log_debug(format!(
+                    "[LOOP-{}] 退出循环: finish_reason={:?}, tool_calls={}",
+                    continuation_count, last_finish_reason, collected_tool_calls.len()
+                ));
 
-            // 构建 tool_calls
-            let tool_calls_value: Vec<ToolCall> = tool_results
-                .iter()
-                .map(|(id, name, _, _)| ToolCall {
-                    id: id.clone(),
-                    call_type: "function".to_string(),
-                    function: ToolCallFunction {
-                        name: name.clone(),
-                        arguments: String::new(),
-                    },
-                })
-                .collect();
+                complete_current_task(get_global_task_store());
 
-            // 添加 assistant 消息（带 tool_calls）
-            self.default_ctx.messages.push(Message {
-                role: MessageRole::Assistant,
-                content: MessageContent::Text(current_response.clone()),
-                tool_calls: Some(tool_calls_value),
-                tool_call_id: None,
-            });
-
-            // 添加工具结果消息
-            for (tool_id, _name, result, _) in &tool_results {
+                // 只 push 一条 assistant 消息（无 tool_calls）
                 self.default_ctx.messages.push(Message {
-                    role: MessageRole::Tool,
-                    content: MessageContent::Text(token::display::truncate_tool_result(result)),
+                    role: MessageRole::Assistant,
+                    content: MessageContent::Text(current_response.clone()),
                     tool_calls: None,
-                    tool_call_id: Some(tool_id.clone()),
+                    tool_call_id: None,
                 });
-            }
 
-            // 🎨 元编程：渲染工具结果（使用 PipelineStep）
-            for (tool_id, name, _result, _duration) in &tool_results {
+                // 输出摘要
+                let global_store = get_global_task_store();
+                let tasks = global_store.get_tasks();
+                if !tasks.is_empty() {
+                    let elapsed_secs = start_time.elapsed().as_secs_f64();
+                    let summary = self.render_pipeline.render_summary(
+                        elapsed_secs,
+                        self.default_ctx.cumulative_input_tokens,
+                        self.default_ctx.cumulative_output_tokens,
+                    );
+                    println!("{}", summary);
+                    global_store.clear();
+                }
+                break;
+            } else {
+                // Execute 阶段：执行工具
+                println!(); // 换行
+                let tool_results = match self.execute_tools(&collected_tool_calls) {
+                    Ok(results) => results,
+                    Err(e) => return Err(e),
+                };
+
+                // 构建 tool_calls
+                let tool_calls_value: Vec<ToolCall> = tool_results
+                    .iter()
+                    .map(|(id, name, _, _)| ToolCall {
+                        id: id.clone(),
+                        call_type: "function".to_string(),
+                        function: ToolCallFunction {
+                            name: name.clone(),
+                            arguments: String::new(),
+                        },
+                    })
+                    .collect();
+
+                // 🔍 FIX: 空 tool_calls → None，防止 API 400
+                let tool_calls_opt = if tool_calls_value.is_empty() {
+                    None
+                } else {
+                    Some(tool_calls_value)
+                };
+
+                // 添加 assistant 消息（带 tool_calls）— 仅一条
+                self.default_ctx.messages.push(Message {
+                    role: MessageRole::Assistant,
+                    content: MessageContent::Text(current_response.clone()),
+                    tool_calls: tool_calls_opt,
+                    tool_call_id: None,
+                });
+
+                // 添加工具结果消息
+                for (tool_id, _name, result, _) in &tool_results {
+                    self.default_ctx.messages.push(Message {
+                        role: MessageRole::Tool,
+                        content: MessageContent::Text(token::display::truncate_tool_result(result)),
+                        tool_calls: None,
+                        tool_call_id: Some(tool_id.clone()),
+                    });
+                }
+
+                // 🎨 元编程：渲染工具结果（使用 PipelineStep）
+                for (tool_id, name, _result, _duration) in &tool_results {
                 // 从 pipeline_tracker 获取完成后的步骤
                 let completed_steps = self.default_ctx.pipeline_tracker.completed_steps();
                 // 从最新到最旧查找，避免匹配到之前同名的旧步骤
@@ -1559,13 +1571,7 @@ impl Session {
                     }
                 }
             }
-
-            // 🔥 元编程：根据工具类别动态获取最大迭代次数
-            let current_category = collected_tool_calls
-                .first()
-                .map(|t| approval::categorize_tool(&t.name))
-                .unwrap_or(approval::ToolCategory::Safe);
-            let dynamic_max = approval::max_iterations(current_category);
+            } // end else (有工具调用)
 
             // R3: 重置 chunk 重试计数器（每轮 continuation 独立计数）
             stream_retry_count = 0;
@@ -1893,6 +1899,7 @@ impl Session {
             // 工具调用直接收集：ToolDone 时构建 PendingToolCall
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<PendingToolCall> = Vec::new();
+            let mut last_finish_reason: Option<String> = None; // 🔍 记录本轮 finish_reason
             let mut any_tool_done_received = false; // 区分"无工具调用"和"全部被过滤"
 
             use token::StatusBarState;
@@ -1995,7 +2002,11 @@ impl Session {
                             StreamEvent::MessageDone {
                                 input_tokens,
                                 output_tokens,
+                                finish_reason,
                             } => {
+                                // 🔍 记录 finish_reason（TUI 模式）
+                                last_finish_reason = finish_reason.clone();
+
                                 // 短暂获取 thread_ctx 锁来累加 tokens
                                 {
                                     let mut ctx = thread_ctx.lock().await;
@@ -2126,121 +2137,97 @@ impl Session {
                 }
             }
 
-            // 🔥 完全信任模型：已移除"AI 返回纯文本 = 停止信号"检查（TUI 模式）
-            // 原代码：如果 AI 返回纯文本（无工具调用），则终止循环
-            // 现在策略：让模型自主决策，即使返回纯文本也继续循环
-            //
-            // if collected_tool_calls.is_empty() && !any_tool_done_received {
-            //     // 纯文本响应（无工具调用）— 短暂持双锁完成收尾
-            //     {
-            //         let mut s = session.lock().await;
-            //         let mut ctx = thread_ctx.lock().await;
-            //
-            //         // 完成最后一个 in_progress 任务
-            //         complete_current_task(&task_store);
-            //
-            //         ctx.messages.push(Message {
-            //             role: MessageRole::Assistant,
-            //             content: MessageContent::Text(current_response.clone()),
-            //             tool_calls: None,
-            //             tool_call_id: None,
-            //         });
-            //     }
-            //
-            //     // 🎯 信任模型：AI 返回纯文本 = 停止信号（参考 codex needs_follow_up 设计）
-            //     // 无论任务列表是否全部完成，都不强制继续循环
-            //     let tasks = task_store.get_tasks();
-            //     if !tasks.is_empty() {
-            //         let mut s = session.lock().await;
-            //         let mut ctx = thread_ctx.lock().await;
-            //
-            //         let elapsed_secs = start_time.elapsed().as_secs_f64();
-            //         let summary = s.render_pipeline.render_summary(
-            //             elapsed_secs,
-            //             ctx.cumulative_input_tokens,
-            //             ctx.cumulative_output_tokens,
-            //         );
-            //         let _ = output_tx.send(summary.into());
-            //         task_store.clear();
-            //     }
-            //     break;
-            // }
+            // 🔥 FIX: 精确退出判断（TUI 模式）— 基于 finish_reason
+            let should_stop_tui = match &last_finish_reason {
+                Some(reason) => reason == "stop",
+                None => collected_tool_calls.is_empty(),
+            };
 
-            // 🔥 修复：即使没有工具调用，也要将响应添加到消息历史（TUI 模式）
-            {
-                let mut s = session.lock().await;
-                let mut ctx = thread_ctx.lock().await;
+            if should_stop_tui {
+                log_debug(format!(
+                    "[TUI-LOOP-{}] 退出循环: finish_reason={:?}, tool_calls={}",
+                    continuation_count, last_finish_reason, collected_tool_calls.len()
+                ));
 
+                {
+                    let mut s = session.lock().await;
+                    let mut ctx = thread_ctx.lock().await;
+
+                    complete_current_task(&task_store);
+
+                    ctx.messages.push(Message {
+                        role: MessageRole::Assistant,
+                        content: MessageContent::Text(current_response.clone()),
+                        tool_calls: None,
+                        tool_call_id: None,
+                    });
+
+                    let tasks = task_store.get_tasks();
+                    if !tasks.is_empty() {
+                        let elapsed_secs = start_time.elapsed().as_secs_f64();
+                        let summary = s.render_pipeline.render_summary(
+                            elapsed_secs,
+                            ctx.cumulative_input_tokens,
+                            ctx.cumulative_output_tokens,
+                        );
+                        let _ = output_tx.send(summary.into());
+                        task_store.clear();
+                    }
+                }
+                break;
+            } else {
+                // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
+                // 需要持 Session 锁（execute_tools_tui 需要 &mut self）和 thread_ctx 锁
+                let _ = output_tx.send(String::new().into());
+                let tool_results = {
+                    let mut s = session.lock().await;
+                    let mut ctx = thread_ctx.lock().await;
+                    // 🔥 Phase 4: 传递 thread_id 用于工具审批
+                    s.execute_tools_tui(
+                        &mut ctx,
+                        &mut bottom_status_bar,
+                        &collected_tool_calls,
+                        &output_tx,
+                        &approval_tx,
+                        thread_id,
+                        &task_store,
+                    )
+                    .await
+                };
+
+                let tool_results = match tool_results {
+                    Ok(results) => results,
+                    Err(e) => return Err(e),
+                };
+
+                // 构建 tool_calls + 更新 thread_ctx — 短暂持 thread_ctx 锁
+                {
+                    let mut ctx = thread_ctx.lock().await;
+
+                    let tool_calls_value: Vec<ToolCall> = tool_results
+                        .iter()
+                        .map(|(id, name, _, _)| ToolCall {
+                            id: id.clone(),
+                            call_type: "function".to_string(),
+                            function: ToolCallFunction {
+                                name: name.clone(),
+                                arguments: String::new(),
+                            },
+                        })
+                        .collect();
+
+                    // 🔍 FIX: 空 tool_calls → None，防止 API 400
+                    let tool_calls_opt = if tool_calls_value.is_empty() {
+                        None
+                    } else {
+                    Some(tool_calls_value)
+                };
+
+                // 添加 assistant 消息（带 tool_calls）— 仅一条
                 ctx.messages.push(Message {
                     role: MessageRole::Assistant,
                     content: MessageContent::Text(current_response.clone()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                });
-            }
-
-            // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
-            // 需要持 Session 锁（execute_tools_tui 需要 &mut self）和 thread_ctx 锁
-            let _ = output_tx.send(String::new().into());
-            let tool_results = {
-                let mut s = session.lock().await;
-                let mut ctx = thread_ctx.lock().await;
-                // 🔥 Phase 4: 传递 thread_id 用于工具审批
-                s.execute_tools_tui(
-                    &mut ctx,
-                    &mut bottom_status_bar,
-                    &collected_tool_calls,
-                    &output_tx,
-                    &approval_tx,
-                    thread_id,
-                    &task_store,
-                )
-                .await
-            };
-
-            let tool_results = match tool_results {
-                Ok(results) => results,
-                // 🔥 已移除空参数熔断，不再有 GLOBAL_EMPTY_ARGS_TRIPPED 错误（TUI 模式）
-                Err(e) => return Err(e),
-            };
-
-            // 🔥 完全信任模型：已移除熔断/循环检测的终止检查（TUI 模式）
-            // 原代码：如果所有工具都被熔断或循环检测阻止，则终止执行
-            // 现在策略：让模型自主决策，不人为干预
-            // if !tool_results.is_empty()
-            //     && tool_results.iter().all(|(_, _, result, _)| {
-            //         result.contains("Skipped") || result.contains("循环检测阻止")
-            //     })
-            // {
-            //     let _ = output_tx.send(
-            //         "所有工具调用均被阻止（空参数熔断或循环检测），终止执行"
-            //             .to_string()
-            //             .into(),
-            //     );
-            //     complete_current_task(&task_store);
-            //     break;
-            // }
-
-            // 构建 tool_calls + 更新 thread_ctx — 短暂持 thread_ctx 锁
-            {
-                let mut ctx = thread_ctx.lock().await;
-
-                let tool_calls_value: Vec<ToolCall> = tool_results
-                    .iter()
-                    .map(|(id, name, _, _)| ToolCall {
-                        id: id.clone(),
-                        call_type: "function".to_string(),
-                        function: ToolCallFunction {
-                            name: name.clone(),
-                            arguments: String::new(),
-                        },
-                    })
-                    .collect();
-
-                ctx.messages.push(Message {
-                    role: MessageRole::Assistant,
-                    content: MessageContent::Text(current_response.clone()),
-                    tool_calls: Some(tool_calls_value),
+                    tool_calls: tool_calls_opt,
                     tool_call_id: None,
                 });
 
@@ -2372,6 +2359,7 @@ impl Session {
                     log_debug_sync(format!("[MID-TURN] {}", success_msg));
                 }
             } // thread_ctx 锁释放
+            } // end else (有工具调用)
 
             let current_category = collected_tool_calls
                 .first()
@@ -3381,6 +3369,7 @@ mod tests {
         collector.dispatch(&StreamEvent::MessageDone {
             input_tokens: 100,
             output_tokens: 50,
+            finish_reason: None,
         });
         assert!(collector.is_done());
     }
@@ -3403,6 +3392,7 @@ mod tests {
         collector.dispatch(&StreamEvent::MessageDone {
             input_tokens: 10,
             output_tokens: 5,
+            finish_reason: None,
         });
 
         assert!(!collector.response_text().is_empty());
@@ -3531,6 +3521,7 @@ mod tests {
         collector.dispatch(&StreamEvent::MessageDone {
             input_tokens: 100,
             output_tokens: 50,
+            finish_reason: None,
         });
 
         // Error - 显式处理（虽然不操作）

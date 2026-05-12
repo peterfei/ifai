@@ -110,6 +110,8 @@ impl ApiClient for KimiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
+            // 🔍 详细日志：记录 400 等错误时的完整请求信息
+            super::log_http_error_detail("Kimi", &kimi_request, status.as_u16(), &message);
             return Err(ApiError::HttpError { status, message });
         }
 
@@ -331,6 +333,7 @@ fn convert_kimi_data(data: &super::openai_format::OpenAiSseData) -> Option<Strea
             return Some(StreamEvent::MessageDone {
                 input_tokens,
                 output_tokens,
+                finish_reason: None,
             });
         }
     }
