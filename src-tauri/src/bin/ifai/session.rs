@@ -22,7 +22,7 @@ use ifainew_lib::harness::api::types::{
     Message, MessageContent, MessageRole, StreamEvent, ToolCall, ToolCallFunction,
 };
 use ifainew_lib::harness::task::{get_global_task_store, TaskStatus, TaskStore};
-use ifainew_lib::harness::tool::{ToolRegistry, ToolRouter};
+use ifainew_lib::harness::tool::{clear_global_progress_callback, set_global_progress_callback, ToolRegistry, ToolRouter};
 use ifainew_lib::memory;
 use ifainew_lib::prompt_manager;
 use serde_json::json;
@@ -774,7 +774,7 @@ impl Session {
                     p if p.contains("deepseek") => "https://api.deepseek.com/chat/completions".to_string(),
                     p if p.contains("openai") => "https://api.openai.com/v1/chat/completions".to_string(),
                     p if p.contains("anthropic") => "https://api.anthropic.com/v1/messages".to_string(),
-                    p if p.contains("zhipu") => "https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string(),
+                    p if p.contains("zhipu") => "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions".to_string(),  // 🔥 智谱 coding endpoint
                     p if p.contains("kimi") => "https://api.moonshot.cn/v1/chat/completions".to_string(),
                     p if p.contains("gemini") => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string(),
                     _ => String::new(),
@@ -793,6 +793,56 @@ impl Session {
         });
 
         serde_json::to_string(&config).ok()
+    }
+
+    /// 🔥 构造 AIProviderConfig（用于设置全局配置）
+    /// 这使 Agent 工具（explore_agent、review_agent）能够访问 Session 的 provider 配置
+    fn build_ai_provider_config(&self) -> Option<ifainew_lib::core_traits::ai::AIProviderConfig> {
+        let env_key = match self.provider.as_str() {
+            "anthropic-official" | "anthropic" => "ANTHROPIC_API_KEY",
+            "deepseek-official" | "deepseek" => "DEEPSEEK_API_KEY",
+            "openai-official" | "openai" => "OPENAI_API_KEY",
+            "zhipu-official" | "zhipu" => "ZHIPU_API_KEY",
+            "kimi-official" | "kimi" => "KIMI_API_KEY",
+            "gemini-official" | "gemini" => "GEMINI_API_KEY",
+            _ => "API_KEY",
+        };
+
+        let api_key = match self.get_api_key(env_key) {
+            Ok(k) => k,
+            Err(_) => return None,
+        };
+
+        // base_url：优先用 session 配置，否则根据 provider 选默认值
+        let base_url = match self.base_url.as_deref() {
+            Some(url) if url.contains("/chat/completions") || url.contains("/messages") => {
+                url.to_string()
+            }
+            Some(url) => {
+                format!("{}/chat/completions", url.trim_end_matches('/'))
+            }
+            None => {
+                match self.provider.as_str() {
+                    p if p.contains("deepseek") => "https://api.deepseek.com/chat/completions".to_string(),
+                    p if p.contains("openai") => "https://api.openai.com/v1/chat/completions".to_string(),
+                    p if p.contains("anthropic") => "https://api.anthropic.com/v1/messages".to_string(),
+                    p if p.contains("zhipu") => "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions".to_string(),  // 🔥 智谱 coding endpoint
+                    p if p.contains("kimi") => "https://api.moonshot.cn/v1/chat/completions".to_string(),
+                    p if p.contains("gemini") => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".to_string(),
+                    _ => String::new(),
+                }
+            }
+        };
+
+        Some(ifainew_lib::core_traits::ai::AIProviderConfig {
+            id: self.provider.clone(),
+            name: self.provider.clone(),
+            api_key,
+            base_url,
+            models: vec![self.model.clone()],
+            protocol: ifainew_lib::core_traits::ai::AIProtocol::OpenAI,
+            enabled: true,
+        })
     }
 
     pub fn add_message(&mut self, msg: String) {
@@ -890,6 +940,20 @@ impl Session {
             base_url: self.base_url.clone(), // 使用配置的 base_url
             organization: None,
         };
+
+        // 🔥 设置全局 provider_config（使 Agent 工具能够访问）
+        match self.build_ai_provider_config() {
+            Some(ai_config) => {
+                use ifainew_lib::harness::tool::set_global_provider_config;
+                set_global_provider_config(ai_config.clone());
+                println!("[Session] ✅ 已设置全局 provider_config（供 Agent 工具使用）");
+                println!("[Session] 📋 Config: id={}, base_url={}, model={:?}", ai_config.id, ai_config.base_url, ai_config.models.first());
+            }
+            None => {
+                println!("[Session] ⚠️  build_ai_provider_config() 返回 None，Agent 工具可能无法使用");
+                println!("[Session] 📋 Debug: provider={}, base_url={:?}", self.provider, self.base_url);
+            }
+        }
 
         let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(
             provider,
@@ -1496,6 +1560,20 @@ impl Session {
                     })
                 })
                 .collect();
+
+            // 🔥 设置全局 provider_config（使 Agent 工具能够访问）
+            // 注意：这里我们在 Session 锁释放前设置，确保线程安全
+            if let Some(ai_config) = s.build_ai_provider_config() {
+                use ifainew_lib::harness::tool::set_global_provider_config;
+                set_global_provider_config(ai_config.clone());
+                // TUI 模式下减少日志输出，避免干扰界面
+                // println!("[Session-TUI] ✅ 已设置全局 provider_config");
+            } else {
+                // 只在调试模式输出
+                if std::env::var("IFAI_DEBUG").is_ok() {
+                    println!("[Session-TUI] ⚠️ build_ai_provider_config() 返回 None");
+                }
+            }
 
             // drop(s) 在此处自动发生 — Session 锁释放
 
@@ -2441,7 +2519,63 @@ impl Session {
 
             let start = Instant::now();
 
-            match self.tool_router.execute(&tool.name, &args_json) {
+            // 🔥 对 explore_agent/review_agent 设置进度回调
+            // 关键：不设置回调时（非 TUI 路径），等同于现有行为
+            let needs_progress = tool.name == "explore_agent" || tool.name == "review_agent";
+            if needs_progress {
+                let output_tx_clone = output_tx.clone();
+                set_global_progress_callback(
+                    move |event: ifainew_lib::agent_system::workflow::ProgressEvent| {
+                        // 将 ProgressEvent 转换为 TUI 可显示的文本
+                        let message = match event.event_type.as_str() {
+                            "workflow:started" => "🚀 Agent 工作流启动...".to_string(),
+                            "node_started" => {
+                                format!("⏳ 开始执行: {}", event.message.unwrap_or_default())
+                            }
+                            "tool_call" => {
+                                if let Some(ref details) = event.tool_details {
+                                    format!(
+                                        "  ✓ {} ({}ms)",
+                                        details.tool_name,
+                                        details.execution_time_ms.unwrap_or(0)
+                                    )
+                                } else {
+                                    format!("  🔧 {}", event.message.unwrap_or_default())
+                                }
+                            }
+                            "node_completed" => {
+                                if let Some(ref stats) = event.completion_stats {
+                                    format!(
+                                        "✔ 节点完成 [{}s, {} tools]",
+                                        stats.duration_ms.unwrap_or(0) as f64 / 1000.0,
+                                        stats.tool_count.unwrap_or(0)
+                                    )
+                                } else {
+                                    "✔ 节点完成".to_string()
+                                }
+                            }
+                            "workflow:completed" => "✔ 工作流完成".to_string(),
+                            "content_delta" => {
+                                // 流式文本直接追加
+                                event.content_delta.unwrap_or_default()
+                            }
+                            _ => String::new(),
+                        };
+                        if !message.is_empty() {
+                            let _ = output_tx_clone.send(message.into());
+                        }
+                    }
+                );
+            }
+
+            let execution_result = self.tool_router.execute(&tool.name, &args_json);
+
+            // 🔥 清理全局进度回调（确保在 finally 块中执行）
+            if needs_progress {
+                clear_global_progress_callback();
+            }
+
+            match execution_result {
                 Ok(result) => {
                     let duration = start.elapsed();
                     thread_ctx.pipeline_tracker.finish_step_success(
@@ -2843,9 +2977,10 @@ fn build_cli_system_prompt(
             .unwrap_or("You are IfAI CLI.")
             .to_string()
     } else {
-        // Fallback: 使用旧模板（过渡期）
+        // Fallback: 使用简化模板（过渡期）
+        // 注意：完整模板见 .ifai/prompts/system/cli.md
         return format!(
-            "你是 IfAI CLI，一个专业的 AI 代码助手，由 {} 模型驱动。\n\n## 你的身份\n- 名字：IfAI CLI\n- 角色：AI 代码助手和开发伙伴\n\n## 注意事项\n- 你是 IfAI CLI，不是 {}",
+            "你是 IfAI CLI，一个专业的 AI 代码助手，由 {} 模型驱动。\\n\\n## 你的身份\\n- 名字：IfAI CLI\\n- 角色：AI 代码助手和开发伙伴\\n\\n## 核心能力\\n- 代码编写、分析和优化\\n- 多语言支持（Rust, Python, JavaScript, Go 等）\\n- 问题诊断和调试\\n- **工具调用**：文件操作、代码搜索、任务管理\\n- **自主工具使用**：主动使用工具解决用户问题\\n\\n## 工具使用指南（核心原则）\\n\\n### 核心原则\\n- **自主优先**：用户请求操作（列文件、分析代码、运行测试）时，直接使用工具而非建议命令\\n- **禁止手动分析**：分析项目架构时，必须直接使用 `agent_scan_project` 工具，禁止手动创建任务列表或逐个读取文件\\n\\n### 何时使用工具\\n| 用户请求 | 使用工具 |\\n|---------|---------|\\n| \"列出文件\" | agent_list_dir, glob_search |\\n| \"分析项目\" | explore_agent |\\n| \"深度分析项目\" | explore_agent |\\n| \"审查代码\" | review_agent |\\n| \"搜索代码\" | grep_search |\\n| \"读取文件\" | read_file, agent_read_file |\\n| \"运行测试\" | bash cargo test |\\n| \"修改配置\" | write_file, edit_file |\\n\\n**重要**：上表为强制性映射，用户请求后必须立即调用对应工具，不要创建任务计划或分步执行。\\n\\n### 工具选择策略\\n1. **强制使用专用工具**：分析项目时必须使用 `agent_scan_project`，搜索代码时必须使用 `grep_search`，不得使用替代方案\\n2. **精确编辑**：使用 sed -i '42s/old/new/' file（第 42 行）\\n3. **备份机制**：始终使用 sed -i.bak 确保安全\\n\\n### 搜索最佳实践\\n- 优先 rg 而非 grep：使用 ripgrep 进行更快的文本搜索\\n- 上下文窗口：使用 -C 3 显示匹配前后各 3 行\\n- 目录排除：始终排除 .git、node_modules、target、dist\\n\\n### Git 安全\\n- 禁止：git reset --hard、git checkout --（除非明确要求）\\n- 推荐：git status、git diff、git log --oneline -10\\n- 非交互式：始终使用 -m 标志：git commit -m \\\"message\\\"\\n\\n### 完整协议\\n完整 Agent 协议见：prompts/protocols/AGENT_PROTOCOL_V1_ZH.md\\n\\n## 注意事项\\n- 你是 IfAI CLI，不是 {}",
             spec.metadata.name, spec.metadata.name
         );
     };
