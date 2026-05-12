@@ -414,7 +414,12 @@ fn format_tool_args_preview(tool_name: &str, args: &serde_json::Value) -> String
         _ => {
             let json_str = serde_json::to_string_pretty(args).unwrap_or_default();
             if json_str.len() > 200 {
-                format!("{}...", &json_str[..197])
+                // 🔥 安全截断 UTF-8 字符串（避免在多字节字符中间切断）
+                let mut end = 197;
+                while end > 0 && !json_str.is_char_boundary(end) {
+                    end -= 1;
+                }
+                format!("{}...", &json_str[..end])
             } else {
                 json_str
             }
