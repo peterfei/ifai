@@ -2539,19 +2539,26 @@ impl Session {
                             }
                             "tool_call" => {
                                 if let Some(ref details) = event.tool_details {
-                                    // 提取工具调用参数（文件路径或搜索内容）
-                                    let input_summary = extract_tool_input_summary(&details.tool_name, &details.tool_input);
-                                    let time_str = format_execution_time(details.execution_time_ms);
-                                    let output_info = if details.is_error {
-                                        format!("✗ 错误")
-                                    } else if details.output_length > 0 {
-                                        format!("→ {} chars", details.output_length)
+                                    // 🔥 特殊处理：并行派发通知
+                                    if details.tool_output.starts_with("parallel:") {
+                                        let tools_str = details.tool_output.strip_prefix("parallel:").unwrap_or_default();
+                                        let tool_names: Vec<&str> = tools_str.split(',').filter(|s| !s.is_empty()).collect();
+                                        format!("▸ {} 个工具并行执行", tool_names.len())
                                     } else {
-                                        String::new()
-                                    };
+                                        // 提取工具调用参数（文件路径或搜索内容）
+                                        let input_summary = extract_tool_input_summary(&details.tool_name, &details.tool_input);
+                                        let time_str = format_execution_time(details.execution_time_ms);
+                                        let output_info = if details.is_error {
+                                            format!("✗ 错误")
+                                        } else if details.output_length > 0 {
+                                            format!("→ {} chars", details.output_length)
+                                        } else {
+                                            String::new()
+                                        };
 
-                                    format!("  ├─ ✔ {} {} {}", details.tool_name, input_summary, time_str)
-                                        + &if !output_info.is_empty() { format!(" {}", output_info) } else { String::new() }
+                                        format!("  ├─ ✔ {} {} {}", details.tool_name, input_summary, time_str)
+                                            + &if !output_info.is_empty() { format!(" {}", output_info) } else { String::new() }
+                                    }
                                 } else {
                                     format!("  ├─ 🔧 {}", event.message.unwrap_or_default())
                                 }
@@ -3051,6 +3058,23 @@ fn extract_tool_input_summary(tool_name: &str, tool_input: &str) -> String {
                     "?".to_string()
                 }
             }
+            "agent_list_dir" | "list_dir" => {
+                // 🔥 支持两种字段名：path 和 rel_path
+                let path = input_json.get("path")
+                    .or_else(|| input_json.get("rel_path"))
+                    .and_then(|p| p.as_str());
+
+                if let Some(path_str) = path {
+                    // 显示目录名（最后一层）
+                    let dirname = std::path::Path::new(path_str)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(path_str);
+                    format!("{}/", dirname)
+                } else {
+                    "?".to_string()
+                }
+            }
             "grep_search" | "agent_search" | "agent_search_in_file" => {
                 if let Some(pattern) = input_json.get("pattern").and_then(|p| p.as_str()) {
                     // 截断过长的搜索模式
@@ -3119,6 +3143,14 @@ mod format_tests {
         let tool_input = r#"{"rel_path": "Cargo.toml"}"#;
         let result = extract_tool_input_summary("agent_read_file", tool_input);
         assert_eq!(result, "Cargo.toml");
+    }
+
+    #[test]
+    fn test_extract_tool_input_summary_list_dir() {
+        // 测试 agent_list_dir 工具的目录名提取
+        let tool_input = r#"{"rel_path": "src/bin"}"#;
+        let result = extract_tool_input_summary("agent_list_dir", tool_input);
+        assert_eq!(result, "bin/");
     }
 
     #[test]
