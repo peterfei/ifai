@@ -555,9 +555,9 @@ impl AIService for HarnessAIService {
 
             // 🔥 智能压缩：使用 MidTurn 模式（轻量压缩，不调 AI，避免阻塞工具循环）
             // 参考 session.rs 的压缩系统，但在工具循环中使用 fallback 模式
-            const MAX_MESSAGES_THRESHOLD: usize = 30;
+            const MAX_MESSAGES_THRESHOLD: usize = 20; // 🔥 降低阈值：30 → 20（更激进地压缩）
             if stream_messages.len() > MAX_MESSAGES_THRESHOLD {
-                eprintln!("[AI] 📦 Intelligent compression triggered: {} messages", stream_messages.len());
+                eprintln!("[AI] 📦 Intelligent compression triggered: {} messages (threshold: {})", stream_messages.len(), MAX_MESSAGES_THRESHOLD);
 
                 // 获取系统提示词（如果有）
                 let system_prompt = stream_messages
@@ -575,15 +575,20 @@ impl AIService for HarnessAIService {
                     .unwrap_or_default();
 
                 // 使用 MidTurn 模式：轻量压缩（不调 AI，避免阻塞工具循环）
-                // 如果需要 AI 摘要，可以在循环开始前使用 PreTurn 模式
+                // 保留最近 15 条消息（更激进）
                 let compressed = perform_compaction_fallback_harness(
                     &stream_messages,
                     &system_prompt,
-                    20, // 保留最近 20 条消息
+                    15, // 🔥 降低保留数量：20 → 15
                 );
 
                 eprintln!("[AI] ✅ Compression complete: {} → {} messages", stream_messages.len(), compressed.len());
                 stream_messages = compressed;
+            } else {
+                // 🔥 添加日志，方便调试
+                if loop_count % 5 == 0 {
+                    eprintln!("[AI] 📊 Message count: {} (threshold: {})", stream_messages.len(), MAX_MESSAGES_THRESHOLD);
+                }
             }
 
             // 构建请求

@@ -18,6 +18,7 @@ use crate::render::{self, Spinner, RESET};
 use crate::token; // 🔥 元编程：Token 状态栏
 use crate::token::format_number; // 🔥 格式化数字（用于压缩统计）
 use futures_util::stream::StreamExt;
+use std::path::PathBuf; // 🔥 用于日志文件路径
 use ifainew_lib::harness::api::types::{
     Message, MessageContent, MessageRole, StreamEvent, ToolCall, ToolCallFunction,
 };
@@ -439,6 +440,59 @@ pub struct Session {
 }
 
 // ============================================================================
+// Debug Logging (异步日志，用于 tail -f 监控)
+// ============================================================================
+
+/// 获取调试日志文件路径
+fn get_debug_log_path() -> PathBuf {
+    std::env::var("IFAI_DEBUG_LOG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            path.push(".ifai");
+            path.push("debug.log");
+            path
+        })
+}
+
+/// 异步写入调试日志（非阻塞）
+async fn log_debug(message: String) {
+    let log_path = get_debug_log_path();
+    tokio::spawn(async move {
+        if let Some(parent) = log_path.parent() {
+            let _ = tokio::fs::create_dir_all(parent).await;
+        }
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+        let log_line = format!("[{}] {}\n", timestamp, message);
+
+        use tokio::io::AsyncWriteExt;
+        if let Ok(mut file) = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .await
+        {
+            let _ = file.write_all(log_line.as_bytes()).await;
+        }
+    });
+}
+
+/// 同步写入调试日志（用于非异步上下文）
+fn log_debug_sync(message: String) {
+    let log_path = get_debug_log_path();
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+    let log_line = format!("[{}] {}\n", timestamp, message);
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .and_then(|mut file| std::io::Write::write_all(&mut file, log_line.as_bytes()));
+}
+
+// ============================================================================
 // Compaction Functions (clone-out-of-lock pattern)
 // ============================================================================
 
@@ -623,8 +677,8 @@ async fn perform_compaction(
     }
 
     let keep_last = match mode {
-        CompactionMode::PreTurn | CompactionMode::Manual => 30,
-        CompactionMode::MidTurn => 20,
+        CompactionMode::PreTurn | CompactionMode::Manual => 20, // 🔥 降低：30 → 20
+        CompactionMode::MidTurn => 15, // 🔥 降低：20 → 15（工具循环中更激进）
     };
 
     if messages.len() <= keep_last {
@@ -1006,18 +1060,29 @@ impl Session {
         let threshold = token::display::compute_compress_threshold(&self.model);
         let need_compress = estimated_input > threshold;
 
+        // 🔥 DEBUG: 记录 Pre-turn 检查
+        log_debug_sync(format!(
+            "[PRE-TURN CHECK] Tokens: {} / {} ({}%), Messages: {}",
+            format_number(estimated_input),
+            format_number(threshold),
+            (estimated_input * 100 / threshold.max(1)),
+            self.default_ctx.messages.len()
+        ));
+
         if need_compress {
             let theme = render::default_theme();
-            eprintln!(
-                "{}⚠️  对话过长 ({} tokens / {} 阈值)，正在自动压缩...{}",
-                theme.warning,
-                estimated_input,
+            let warning_msg = format!(
+                "⚠️ 对话过长 ({} tokens / {} 阈值，{}%)，正在自动压缩...",
+                format_number(estimated_input),
                 format_number(threshold),
-                render::RESET
+                (estimated_input * 100 / threshold.max(1))
             );
+            eprintln!("{}{}{}{}", theme.warning, warning_msg, render::RESET, render::RESET);
+            log_debug_sync(format!("[PRE-TURN] {}", warning_msg));
 
             // 使用统一压缩入口（pre-turn 模式）
             let old_len = self.default_ctx.messages.len();
+            let old_tokens = estimated_input;
             self.default_ctx.messages = perform_compaction(
                 &self.default_ctx.messages,
                 &self.model,
@@ -1029,20 +1094,66 @@ impl Session {
             let new_len = self.default_ctx.messages.len();
 
             let new_tokens = token::estimate_tokens(&self.default_ctx.messages);
-            eprintln!(
-                "{}✓ 压缩完成：{} → {} tokens, {} → {} messages (减少 {:.1}%){}",
-                theme.success,
-                format_number(estimated_input),
+            let success_msg = format!(
+                "✓ 压缩完成：{} → {} tokens, {} → {} messages (减少 {:.1}%)",
+                format_number(old_tokens),
                 format_number(new_tokens),
                 old_len,
                 new_len,
-                ((estimated_input.saturating_sub(new_tokens)) as f64 / estimated_input as f64)
-                    * 100.0,
-                render::RESET
+                ((old_tokens.saturating_sub(new_tokens)) as f64 / old_tokens as f64) * 100.0
             );
+            eprintln!("{}{}{}{}", theme.success, success_msg, render::RESET, render::RESET);
+            log_debug_sync(format!("[PRE-TURN] {}", success_msg));
         }
 
         loop {
+            // 🔥 CRITICAL: 发送 API 请求前的最后一次 token 检查
+            // 如果此时仍然超过阈值，强制压缩（防止 HTTP 400 错误）
+            let final_tokens = token::estimate_tokens(&self.default_ctx.messages);
+            let final_threshold = token::display::compute_compress_threshold(&self.model);
+
+            // 🔥 DEBUG: 记录每次循环的 token 检查
+            log_debug_sync(format!(
+                "[LOOP #{:02}] FINAL CHECK - Tokens: {} / {} ({}%), Messages: {}",
+                continuation_count,
+                format_number(final_tokens),
+                format_number(final_threshold),
+                (final_tokens * 100 / final_threshold.max(1)),
+                self.default_ctx.messages.len()
+            ));
+
+            if final_tokens > final_threshold {
+                let error_msg = format!(
+                    "⚠️ [LOOP #{:02}] 超过 token 限制: {} / {} ({}%), 强制压缩",
+                    continuation_count,
+                    format_number(final_tokens),
+                    format_number(final_threshold),
+                    (final_tokens * 100 / final_threshold.max(1))
+                );
+                eprintln!("{}", error_msg);
+                log_debug_sync(format!("[FINAL CHECK] {}", error_msg));
+
+                let old_tokens = final_tokens;
+                self.default_ctx.messages = perform_compaction(
+                    &self.default_ctx.messages,
+                    &self.model,
+                    &provider_config,
+                    &system_prompt,
+                    CompactionMode::MidTurn, // 使用快速压缩
+                )
+                .await;
+                let new_tokens = token::estimate_tokens(&self.default_ctx.messages);
+                let success_msg = format!(
+                    "✓ [LOOP #{:02}] 压缩完成: {} → {} tokens (减少 {})",
+                    continuation_count,
+                    format_number(old_tokens),
+                    format_number(new_tokens),
+                    format_number(old_tokens.saturating_sub(new_tokens))
+                );
+                eprintln!("{}", success_msg);
+                log_debug_sync(format!("[FINAL CHECK] {}", success_msg));
+            }
+
             // 构建请求
             let request = ifainew_lib::harness::api::StreamRequest {
                 model: self.model.clone(),
@@ -2203,25 +2314,37 @@ impl Session {
                 }
 
                 // 🔥 Mid-turn 压缩检查点（工具循环中）
-                // 在 85% 阈值时触发轻量压缩（不调 AI，保留 20 条）
+                // 在 50% 阈值时触发轻量压缩（不调 AI，保留 15 条）
+                // 注意：使用更保守的 50%，因为工具循环会快速增加消息
                 let current_tokens = token::estimate_tokens(&ctx.messages);
                 let mid_turn_threshold =
-                    (token::display::compute_compress_threshold(&model) as f64 * 1.0625) as usize; // 85%
+                    (token::display::compute_compress_threshold(&model) as f64 * 0.833) as usize; // 50% = 60% * 0.833
+
+                // 🔥 DEBUG: 记录 Mid-turn 检查
+                log_debug_sync(format!(
+                    "[MID-TURN CHECK] Tokens: {} / {} ({}%), Messages: {}",
+                    format_number(current_tokens),
+                    format_number(mid_turn_threshold),
+                    (current_tokens * 100 / mid_turn_threshold.max(1)),
+                    ctx.messages.len()
+                ));
+
                 if current_tokens > mid_turn_threshold {
-                    let _ = output_tx.send(
-                        format!(
-                            "⚠️ Mid-turn 压缩触发：{} tokens / {} 阈值，正在压缩...",
-                            current_tokens,
-                            format_number(mid_turn_threshold)
-                        )
-                        .into(),
+                    let warn_msg = format!(
+                        "⚠️ Mid-turn 压缩触发：{} tokens / {} 阈值 ({}%)，正在压缩...",
+                        format_number(current_tokens),
+                        format_number(mid_turn_threshold),
+                        (current_tokens * 100 / mid_turn_threshold.max(1))
                     );
+                    let _ = output_tx.send(warn_msg.clone().into());
+                    log_debug_sync(format!("[MID-TURN] {}", warn_msg));
 
                     // clone-out-of-lock 模式
                     let snapshot = ctx.messages.clone();
                     drop(ctx); // 释放 thread_ctx 锁
 
                     let old_len = snapshot.len();
+                    let old_tokens = current_tokens;
                     let compacted = perform_compaction(
                         &snapshot,
                         &model,
@@ -2237,16 +2360,16 @@ impl Session {
                     let new_len = ctx.messages.len();
 
                     let new_tokens = token::estimate_tokens(&ctx.messages);
-                    let _ = output_tx.send(
-                        format!(
-                            "✓ Mid-turn 压缩完成：{} → {} tokens, {} → {} messages",
-                            format_number(current_tokens),
-                            format_number(new_tokens),
-                            old_len,
-                            new_len
-                        )
-                        .into(),
+                    let success_msg = format!(
+                        "✓ Mid-turn 压缩完成：{} → {} tokens, {} → {} messages (减少 {})",
+                        format_number(old_tokens),
+                        format_number(new_tokens),
+                        old_len,
+                        new_len,
+                        format_number(old_tokens.saturating_sub(new_tokens))
                     );
+                    let _ = output_tx.send(success_msg.clone().into());
+                    log_debug_sync(format!("[MID-TURN] {}", success_msg));
                 }
             } // thread_ctx 锁释放
 

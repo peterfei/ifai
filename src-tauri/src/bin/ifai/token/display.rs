@@ -54,7 +54,9 @@ pub fn estimate_tokens(messages: &[Message]) -> usize {
             MessageContent::Text(text) => {
                 let chinese_chars = text.chars().filter(|c| is_chinese(*c)).count();
                 let other_chars = text.len().saturating_sub(chinese_chars);
-                total += chinese_chars / 2 + other_chars / 4;
+                // 🔥 FIX: 添加 1.3x 安全系数，因为估算往往偏保守
+                // 实际 tokenization 可能比简单估算更复杂
+                total += ((chinese_chars / 2 + other_chars / 4) as f64 * 1.3) as usize;
             }
             MessageContent::MultiModal(parts) => {
                 for part in parts {
@@ -62,7 +64,7 @@ pub fn estimate_tokens(messages: &[Message]) -> usize {
                         if let Some(text) = &part.text {
                             let chinese_chars = text.chars().filter(|c| is_chinese(*c)).count();
                             let other_chars = text.len().saturating_sub(chinese_chars);
-                            total += chinese_chars / 2 + other_chars / 4;
+                            total += ((chinese_chars / 2 + other_chars / 4) as f64 * 1.3) as usize;
                         }
                     } else if part.part_type == "image_url" {
                         total += 85; // image token approximation
@@ -211,10 +213,11 @@ pub fn find_char_boundary(s: &str, mut pos: usize) -> usize {
 // Model-Aware Compaction Threshold
 // ============================================================================
 
-/// 根据模型上下文窗口计算压缩触发阈值（80%）
+/// 根据模型上下文窗口计算压缩触发阈值（60%，更保守）
+/// 🔥 FIX: 降低到 60%，因为 token 估算可能不准确，且工具调用会快速增加消息
 pub fn compute_compress_threshold(model: &str) -> usize {
     let max = get_model_max_tokens(model);
-    ((max as f64) * 0.8) as usize
+    ((max as f64) * 0.6) as usize
 }
 
 // ============================================================================

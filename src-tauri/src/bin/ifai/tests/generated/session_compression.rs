@@ -33,10 +33,10 @@ async fn test_ya_suochu_fa() {
         let _ = session.stream_prompt(&long_message(&format!("message {}", i))).await;
     }
 
-    // 验证压缩被触发：消息数应该 <= 35（系统+摘要/说明+30最近）
+    // 验证压缩被触发：消息数应该 <= 25（系统+摘要/说明+20最近）
     assert!(
-        session.default_ctx.messages.len() <= 35,
-        "压缩后应该保留最近 35 条消息以内，实际: {}",
+        session.default_ctx.messages.len() <= 25,
+        "压缩后应该保留最近 25 条消息以内，实际: {}",
         session.default_ctx.messages.len()
     );
 }
@@ -120,7 +120,7 @@ async fn test_ya_suozhong_gong_judiao_yong() {
 
     // 验证压缩触发
     assert!(
-        session.default_ctx.messages.len() <= 35,
+        session.default_ctx.messages.len() <= 25,
         "包含工具调用的会话应该也能正确压缩，实际: {}",
         session.default_ctx.messages.len()
     );

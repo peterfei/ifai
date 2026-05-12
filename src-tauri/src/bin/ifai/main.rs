@@ -2414,7 +2414,7 @@ fn handle_single_key_event(
         // === Diff 模式：仅由 DiffModeHandler 处理 ===
         if app.is_diff_mode() {
             use crate::event::handlers::DiffModeHandler;
-            use crate::event::{ControlFlow, EventHandler};
+            use crate::event::EventHandler;
             let mut handler = DiffModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
             app.render();
@@ -2424,7 +2424,7 @@ fn handle_single_key_event(
         // === Overlay 模式：仅由 DetailModeHandler 处理 ===
         if app.is_overlay_mode() {
             use crate::event::handlers::DetailModeHandler;
-            use crate::event::{ControlFlow, EventHandler};
+            use crate::event::EventHandler;
             let mut handler = DetailModeHandler;
             let _ = handler.handle(&crossterm::event::Event::Key(key), app);
             app.render();
