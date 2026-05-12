@@ -24,6 +24,241 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::oneshot;
 
+// ═══════════════════════════════════════════════════════════
+// 智能压缩系统（参考 session.rs）
+// ═══════════════════════════════════════════════════════════
+
+/// 压缩模式
+enum CompactionMode {
+    PreTurn, // 循环开始前，完整压缩（AI 摘要 + 保留最近 N 条）
+    MidTurn, // 工具循环中，轻量压缩（不调 AI）
+    Manual,  // 手动触发，完整压缩
+}
+
+/// 摘要生成 prompt（参照 codex compact/prompt.md）
+const COMPACTION_PROMPT: &str = "\
+You are performing a CONTEXT CHECKPOINT COMPACTION. \
+Create a handoff summary for another LLM that will resume the task.\n\n\
+Include:\n\
+- Current progress and key decisions made\n\
+- Important context, constraints, or user preferences\n\
+- What remains to be done (clear next steps)\n\
+- Any critical data, examples, or references needed to continue\n\n\
+Be concise, structured, and focused on helping the next LLM seamlessly continue the work.";
+
+/// 构建压缩后的消息历史（使用 HarnessMessage）
+fn build_compacted_messages_harness(
+    system_prompt: &str,
+    summary: Option<&str>,
+    recent: &[HarnessMessage],
+) -> Vec<HarnessMessage> {
+    let mut result = Vec::new();
+
+    // 1. 系统提示词
+    if !system_prompt.is_empty() {
+        result.push(HarnessMessage {
+            role: MessageRole::System,
+            content: crate::harness::api::types::MessageContent::Text(system_prompt.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+    }
+
+    // 2. AI 摘要（如有）
+    if let Some(text) = summary {
+        result.push(HarnessMessage {
+            role: MessageRole::System,
+            content: crate::harness::api::types::MessageContent::Text(format!(
+                "[Conversation Summary]\n{}\n[End of Summary]",
+                text
+            )),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+    }
+
+    // 3. 最近消息
+    result.extend(recent.iter().cloned());
+
+    result
+}
+
+/// Fallback 压缩（不调 AI，当前行为）
+fn perform_compaction_fallback_harness(
+    messages: &[HarnessMessage],
+    system_prompt: &str,
+    keep_last: usize,
+) -> Vec<HarnessMessage> {
+    if messages.len() <= keep_last {
+        return messages.to_vec();
+    }
+
+    let mut result = Vec::new();
+
+    // 系统提示词
+    if let Some(first) = messages.first() {
+        if matches!(first.role, MessageRole::System) {
+            result.push(first.clone());
+        }
+    }
+    if !system_prompt.is_empty() && result.is_empty() {
+        result.push(HarnessMessage {
+            role: MessageRole::System,
+            content: crate::harness::api::types::MessageContent::Text(system_prompt.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+    }
+
+    // 压缩说明
+    result.push(HarnessMessage {
+        role: MessageRole::System,
+        content: crate::harness::api::types::MessageContent::Text(format!(
+            "(对话历史已压缩，保留最近 {} 条消息)",
+            keep_last
+        )),
+        tool_calls: None,
+        tool_call_id: None,
+    });
+
+    // 最近消息
+    let start = messages.len().saturating_sub(keep_last);
+    result.extend(messages[start..].iter().cloned());
+
+    result
+}
+
+/// 异步生成对话摘要（使用 HarnessMessage）
+async fn generate_compaction_summary_harness(
+    trimmed_messages: &[HarnessMessage],
+    model: &str,
+    provider_config: &crate::harness::api::ProviderConfig,
+) -> Option<String> {
+    if trimmed_messages.is_empty() {
+        return None;
+    }
+
+    // 将消息简化为文本
+    let mut text_parts = Vec::new();
+    for msg in trimmed_messages {
+        let role = match msg.role {
+            MessageRole::System => "system",
+            MessageRole::User => "user",
+            MessageRole::Assistant => "assistant",
+            MessageRole::Tool => "tool",
+        };
+
+        let content_text = match &msg.content {
+            crate::harness::api::types::MessageContent::Text(text) => text.clone(),
+            crate::harness::api::types::MessageContent::MultiModal(parts) => {
+                // 多模态内容：提取文本部分
+                parts
+                    .iter()
+                    .filter_map(|p| p.text.as_ref())
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+        };
+
+        let display = if content_text.len() > 500 {
+            format!(
+                "{}... ({} chars truncated)",
+                &content_text[..500],
+                content_text.len() - 500
+            )
+        } else {
+            content_text
+        };
+        text_parts.push(format!("[{}] {}", role, display));
+    }
+
+    let summary_input = text_parts.join("\n");
+
+    // 直接用 reqwest 发 OpenAI 兼容请求
+    let base_url = provider_config.base_url.clone().unwrap_or_default();
+    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": COMPACTION_PROMPT},
+            {"role": "user", "content": summary_input}
+        ],
+        "stream": false,
+        "temperature": 0.0
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header(
+            "Authorization",
+            format!("Bearer {}", provider_config.api_key),
+        )
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .timeout(Duration::from_secs(30))
+        .send()
+        .await
+        .ok()?;
+
+    if !response.status().is_success() {
+        eprintln!("[AI] ⚠️ Compaction summary request failed: {}", response.status());
+        return None;
+    }
+
+    let json: serde_json::Value = response.json().await.ok()?;
+    json["choices"][0]["message"]["content"]
+        .as_str()
+        .map(|s| s.to_string())
+}
+
+/// 统一压缩入口（使用 HarnessMessage）
+async fn perform_compaction_harness(
+    messages: &[HarnessMessage],
+    model: &str,
+    provider_config: &crate::harness::api::ProviderConfig,
+    system_prompt: &str,
+    mode: CompactionMode,
+) -> Vec<HarnessMessage> {
+    // 🔥 简化版本：使用固定阈值（避免依赖 token 模块）
+    const MAX_MESSAGES_THRESHOLD: usize = 30;
+    let current = messages.len();
+
+    if current <= MAX_MESSAGES_THRESHOLD {
+        return messages.to_vec();
+    }
+
+    let keep_last = match mode {
+        CompactionMode::PreTurn | CompactionMode::Manual => 30,
+        CompactionMode::MidTurn => 20,
+    };
+
+    if messages.len() <= keep_last {
+        return messages.to_vec();
+    }
+
+    let recent = &messages[messages.len() - keep_last..];
+    let trimmed = &messages[..messages.len() - keep_last];
+
+    // 尝试 AI 摘要（pre-turn / manual）
+    let summary = if matches!(mode, CompactionMode::PreTurn | CompactionMode::Manual) {
+        eprintln!("[AI] 📦 Attempting AI summary compression ({} messages)...", trimmed.len());
+        generate_compaction_summary_harness(trimmed, model, provider_config).await
+    } else {
+        None
+    };
+
+    if summary.is_some() {
+        eprintln!("[AI] ✅ AI summary generated successfully");
+        build_compacted_messages_harness(system_prompt, summary.as_deref(), recent)
+    } else {
+        eprintln!("[AI] ⚠️ AI summary failed, using fallback compression");
+        perform_compaction_fallback_harness(messages, system_prompt, keep_last)
+    }
+}
+
 /// 全局 ToolRegistry (P1)
 static GLOBAL_TOOL_REGISTRY: OnceLock<ToolRegistry> = OnceLock::new();
 
@@ -318,42 +553,37 @@ impl AIService for HarnessAIService {
 
             // 🔥 FIX: 移除消息历史打印（占用大量内存）
 
-            // 🔥 消息压缩：当消息过多时，压缩历史以避免超过上下文限制
-            // 保留最近的 20 条消息（约 10 轮对话），压缩早期历史
-            const MAX_MESSAGES: usize = 20;
-            if stream_messages.len() > MAX_MESSAGES {
-                eprintln!(
-                    "[AI] 📦 Compressing messages: {} → {} (keeping recent)",
-                    stream_messages.len(),
-                    MAX_MESSAGES
+            // 🔥 智能压缩：使用 MidTurn 模式（轻量压缩，不调 AI，避免阻塞工具循环）
+            // 参考 session.rs 的压缩系统，但在工具循环中使用 fallback 模式
+            const MAX_MESSAGES_THRESHOLD: usize = 30;
+            if stream_messages.len() > MAX_MESSAGES_THRESHOLD {
+                eprintln!("[AI] 📦 Intelligent compression triggered: {} messages", stream_messages.len());
+
+                // 获取系统提示词（如果有）
+                let system_prompt = stream_messages
+                    .first()
+                    .and_then(|m| {
+                        if matches!(m.role, MessageRole::System) {
+                            match &m.content {
+                                crate::harness::api::types::MessageContent::Text(text) => Some(text.clone()),
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default();
+
+                // 使用 MidTurn 模式：轻量压缩（不调 AI，避免阻塞工具循环）
+                // 如果需要 AI 摘要，可以在循环开始前使用 PreTurn 模式
+                let compressed = perform_compaction_fallback_harness(
+                    &stream_messages,
+                    &system_prompt,
+                    20, // 保留最近 20 条消息
                 );
 
-                // 保留最近的 MAX_MESSAGES 条消息
-                let keep_count = MAX_MESSAGES;
-                let total_count = stream_messages.len();
-
-                // 提取要保留的消息
-                let mut compressed_messages: Vec<HarnessMessage> = stream_messages
-                    .into_iter()
-                    .skip(total_count.saturating_sub(keep_count))
-                    .collect();
-
-                // 如果第一条不是系统消息，添加压缩提示
-                if compressed_messages.first().map(|m| m.role != MessageRole::System).unwrap_or(true) {
-                    compressed_messages.insert(
-                        0,
-                        HarnessMessage {
-                            role: MessageRole::System,
-                            content: crate::harness::api::types::MessageContent::Text(
-                                "[早期对话历史已压缩，保留最近 20 条消息]".to_string()
-                            ),
-                            tool_calls: None,
-                            tool_call_id: None,
-                        },
-                    );
-                }
-
-                stream_messages = compressed_messages;
+                eprintln!("[AI] ✅ Compression complete: {} → {} messages", stream_messages.len(), compressed.len());
+                stream_messages = compressed;
             }
 
             // 构建请求
