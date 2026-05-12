@@ -244,12 +244,11 @@ impl ToolApprovalEngine {
 
     /// 🔥 元编程 API：最大迭代次数（统一策略）
     ///
-    /// **策略变更**: 参考 claw-code 和 GUI，统一限制为 100 次
-    /// - 不再区分 Safe/Destructive 类别
-    /// - 依赖循环检测机制提供额外保护（参考 GUI）
-    /// - 100 次足够支持复杂任务（如创建多文件、完整功能开发）
+    /// **策略**: 与 harness_ai_service 中的 MAX_ITERATIONS 保持一致
+    /// - 1000 次足够支持复杂任务（如 explore_agent 分析大型项目）
+    /// - 依赖循环检测机制提供额外保护（空参数熔断、重复工具检测）
     pub fn max_iterations(&self, _category: ToolCategory) -> usize {
-        100 // 统一限制：100 次（参考 GUI 的 1000 次，CLI 保守设为 100）
+        1000 // 与 AI 服务的 MAX_ITERATIONS 保持一致
     }
 
     /// 获取工具完整配置
@@ -380,9 +379,9 @@ mod tests {
 
     #[test]
     fn test_max_iterations() {
-        // 统一策略：所有类别都是 100 次
-        assert_eq!(max_iterations(ToolCategory::Safe), 100);
-        assert_eq!(max_iterations(ToolCategory::Destructive), 100);
-        assert_eq!(max_iterations(ToolCategory::Dangerous), 100);
+        // 统一策略：所有类别都是 1000 次（与 AI 服务的 MAX_ITERATIONS 一致）
+        assert_eq!(max_iterations(ToolCategory::Safe), 1000);
+        assert_eq!(max_iterations(ToolCategory::Destructive), 1000);
+        assert_eq!(max_iterations(ToolCategory::Dangerous), 1000);
     }
 }
