@@ -296,6 +296,7 @@ async fn test_e2e_workflow_run_explore() {
         nodes: None,
         content_delta: None,
         content_finished: None,
+        completion_stats: None,
     });
 
     // 模拟 node_completed 事件
@@ -309,6 +310,7 @@ async fn test_e2e_workflow_run_explore() {
         nodes: None,
         content_delta: None,
         content_finished: None,
+        completion_stats: None,
     });
 
     // 模拟 workflow:completed 事件
@@ -322,6 +324,7 @@ async fn test_e2e_workflow_run_explore() {
         nodes: None,
         content_delta: None,
         content_finished: None,
+        completion_stats: None,
     });
 
     println!("  ✔ 进度 callback 符号输出（人工检查 stderr）");

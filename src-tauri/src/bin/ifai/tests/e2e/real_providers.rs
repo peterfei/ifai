@@ -15,14 +15,14 @@ use crate::tests::common::*;
 // 声明式 Provider 注册表 —— 数据即配置
 // ============================================================================
 
-struct ProviderSpec {
-    name: &'static str,
-    flag: &'static str,
-    model: &'static str,
-    env_key: &'static str,
+pub struct ProviderSpec {
+    pub name: &'static str,
+    pub flag: &'static str,
+    pub model: &'static str,
+    pub env_key: &'static str,
 }
 
-const PROVIDERS: &[ProviderSpec] = &[
+pub const PROVIDERS: &[ProviderSpec] = &[
     ProviderSpec { name: "DeepSeek", flag: "deepseek", model: "deepseek-chat", env_key: "DEEPSEEK_API_KEY" },
     ProviderSpec { name: "OpenAI",   flag: "openai",   model: "gpt-4o-mini",   env_key: "OPENAI_API_KEY" },
     ProviderSpec { name: "Zhipu",    flag: "zhipu",    model: "glm-4-flash",   env_key: "ZHIPU_API_KEY" },
@@ -33,7 +33,7 @@ const PROVIDERS: &[ProviderSpec] = &[
 // ============================================================================
 
 /// 用户实际使用的智谱配置
-const ZHIPU_HF_SPEC: ProviderSpec = ProviderSpec {
+pub const ZHIPU_HF_SPEC: ProviderSpec = ProviderSpec {
     name: "Zhipu-HF",
     flag: "zhipu",
     model: "glm-4.6",           // 用户实际模型
@@ -41,10 +41,10 @@ const ZHIPU_HF_SPEC: ProviderSpec = ProviderSpec {
 };
 
 /// 用户实际使用的 base_url（coding endpoint）
-const ZHIPU_HF_BASE_URL: &str = "https://open.bigmodel.cn/api/coding/paas/v4";
+pub const ZHIPU_HF_BASE_URL: &str = "https://open.bigmodel.cn/api/coding/paas/v4";
 
 /// 创建高保真智谱测试环境（proxy + base_url + glm-4.6）
-async fn make_zhipu_hf_env() -> Option<TestEnv> {
+pub async fn make_zhipu_hf_env() -> Option<TestEnv> {
     let ksrc = check_provider(&ZHIPU_HF_SPEC)?;
     let mut tenv = make_test_env(&ZHIPU_HF_SPEC, ksrc).await;
 
@@ -62,7 +62,7 @@ async fn make_zhipu_hf_env() -> Option<TestEnv> {
 }
 
 /// 创建 OpenAI 测试环境
-async fn make_openai_env() -> Option<TestEnv> {
+pub async fn make_openai_env() -> Option<TestEnv> {
     const OPENAI_SPEC: ProviderSpec = ProviderSpec {
         name: "OpenAI",
         flag: "openai",
@@ -75,7 +75,7 @@ async fn make_openai_env() -> Option<TestEnv> {
 }
 
 /// 检查 provider 是否可用：env var > config.toml
-fn check_provider(spec: &ProviderSpec) -> Option<&'static str> {
+pub fn check_provider(spec: &ProviderSpec) -> Option<&'static str> {
     if let Ok(key) = std::env::var(spec.env_key) {
         if !key.is_empty() {
             return Some("env");
@@ -94,20 +94,63 @@ fn check_provider(spec: &ProviderSpec) -> Option<&'static str> {
 }
 
 /// 构建 TestEnv（变量名避免与 Rust 内置 env! 冲突）
-async fn make_test_env(spec: &ProviderSpec, key_source: &str) -> TestEnv {
+pub async fn make_test_env(spec: &ProviderSpec, key_source: &str) -> TestEnv {
     let mut tenv = TestEnv::new().await.unwrap();
     tenv.set_env("IFAI_PROVIDER", spec.flag);
     tenv.set_env("IFAI_MODEL", spec.model);
-    if key_source == "env" {
-        if let Ok(key) = std::env::var(spec.env_key) {
-            tenv.set_env(spec.env_key, &key);
+
+    // 🔥 修复：总是尝试读取 API key，无论来源是 env 还是 config.toml
+    // 优先从环境变量读取
+    let api_key = if let Ok(key) = std::env::var(spec.env_key) {
+        key
+    } else if key_source == "config.toml" {
+        // 从 config.toml 读取（根据 provider section）
+        let home = std::env::var("HOME").unwrap_or_default();
+        let config_path = std::path::Path::new(&home).join(".ifai/config.toml");
+        if let Ok(content) = std::fs::read_to_string(&config_path) {
+            // 🔥 关键修复：根据 provider flag 查找对应的 section
+            // 例如：deepseek → [providers.deepseek-official]
+            let section_name = format!("[providers.{}-official]", spec.flag);
+            let lines: Vec<&str> = content.lines().collect();
+
+            let mut in_correct_section = false;
+            let mut found_api_key = String::new();
+
+            for (i, line) in lines.iter().enumerate() {
+                // 检查是否进入了正确的 section
+                if line.starts_with('[') && line.ends_with(']') {
+                    in_correct_section = *line == section_name
+                        || *line == format!("[providers.{}]", spec.flag)
+                        || line.contains(&format!("-{}]", spec.flag));
+                    continue;
+                }
+
+                // 在正确的 section 中查找 api_key
+                if in_correct_section && line.trim().starts_with("api_key") {
+                    if let Some(key) = line.split('=').nth(1) {
+                        found_api_key = key.trim().trim_matches('"').trim_matches('\'').to_string();
+                        break;
+                    }
+                }
+            }
+
+            found_api_key
+        } else {
+            String::new()
         }
+    } else {
+        String::new()
+    };
+
+    if !api_key.is_empty() {
+        tenv.set_env(spec.env_key, &api_key);
     }
+
     tenv
 }
 
 /// 安全截断 UTF-8 字符串到指定字节长度（不切断多字节字符）
-fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+pub fn safe_truncate(s: &str, max_bytes: usize) -> &str {
     if s.len() <= max_bytes {
         return s;
     }
