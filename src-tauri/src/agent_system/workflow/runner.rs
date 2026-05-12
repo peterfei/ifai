@@ -901,22 +901,29 @@ impl WorkflowRunner {
             provider_config.models.len()
         );
 
-        // 构建任务描述（包含实际的文件列表）
-        let task_description = format!(
-            "请对以下路径进行代码{}: {}\n\n{}",
-            match node.agent_type {
-                AgentType::Explore => "探索",
-                AgentType::Review => "审查",
-                AgentType::Refactor => "重构分析",
-                AgentType::Test => "测试分析",
-                AgentType::Doc => "文档生成",
-                AgentType::TaskBreakdown => "任务分解",
-                AgentType::ProposalGenerator => "提案生成",
-                AgentType::GeneralPurpose => "处理",
-            },
-            target_path,
-            file_list_info // 🔥 添加实际的文件列表信息
-        );
+        // 🔥 优先使用 workflow.variables 中的 task_override（来自直接 agent 工具调用）
+        // 否则使用默认的任务描述构建逻辑
+        let task_description = if let Some(override_task) = workflow.variables.get("task_override") {
+            wf_log!("[WorkflowRunner] ✅ Using task override: {}", override_task);
+            override_task.clone()
+        } else {
+            // 构建任务描述（包含实际的文件列表）
+            format!(
+                "请对以下路径进行代码{}: {}\n\n{}",
+                match node.agent_type {
+                    AgentType::Explore => "探索",
+                    AgentType::Review => "审查",
+                    AgentType::Refactor => "重构分析",
+                    AgentType::Test => "测试分析",
+                    AgentType::Doc => "文档生成",
+                    AgentType::TaskBreakdown => "任务分解",
+                    AgentType::ProposalGenerator => "提案生成",
+                    AgentType::GeneralPurpose => "处理",
+                },
+                target_path,
+                file_list_info // 🔥 添加实际的文件列表信息
+            )
+        };
 
         // 创建执行上下文
         let mut ctx = NodeExecutionContext::new(node.id.clone(), project_root, task_description)
