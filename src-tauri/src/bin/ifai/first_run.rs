@@ -64,11 +64,13 @@ impl FirstRunDetector {
 
 /// 部署内置资源到 ~/.ifai/
 ///
-/// 非破坏性：只部署缺失的文件，不覆盖已有文件
-/// 使用 ifainew_lib::prompt_manager::BuiltinPrompts 拷贝所有内置文件
+/// **最小化部署**：只部署必要的文件，其他文件由用户按需自定义
+///
+/// **优先级加载机制**：
+/// 1. `~/.ifai/prompts/{name}` - 用户自定义（优先）
+/// 2. `BuiltinPrompts::{name}` - 编译时嵌入（回退）
 pub fn deploy_builtin_resources() -> Result<(), String> {
     use ifainew_lib::prompt_manager::BuiltinPrompts;
-    use rust_embed::RustEmbed;
 
     let ifai_dir = dirs::home_dir()
         .map(|home| home.join(".ifai"))
@@ -78,90 +80,53 @@ pub fn deploy_builtin_resources() -> Result<(), String> {
     fs::create_dir_all(&ifai_dir)
         .map_err(|e| format!("Failed to create .ifai directory: {}", e))?;
 
-    let prompts_dir = ifai_dir.join("prompts");
-    fs::create_dir_all(&prompts_dir)
-        .map_err(|e| format!("Failed to create prompts directory: {}", e))?;
+    // 最小化部署：只部署 memory/extract.md（被 memory/extractor.rs 使用）
+    let memory_dir = ifai_dir.join("prompts/memory");
+    fs::create_dir_all(&memory_dir)
+        .map_err(|e| format!("Failed to create prompts/memory directory: {}", e))?;
 
-    // 使用 BuiltinPrompts 拷贝所有内置文件（45+ 个文件）
-    for file_path in BuiltinPrompts::iter() {
-        let path_str = file_path.as_ref();
-
-        // 跳过 .DS_Store 等系统文件
-        if path_str.contains(".DS_Store") || path_str.contains("__MACOSX") {
-            continue;
+    let extract_md = memory_dir.join("extract.md");
+    if !extract_md.exists() {
+        if let Some(content_file) = BuiltinPrompts::get("memory/extract.md") {
+            fs::write(&extract_md, content_file.data)
+                .map_err(|e| format!("Failed to write memory/extract.md: {}", e))?;
         }
+    }
 
-        let target_path = prompts_dir.join(path_str);
+    Ok(())
+}
 
-        // 只部署缺失的文件（非破坏性）
-        if !target_path.exists() {
-            if let Some(content_file) = BuiltinPrompts::get(path_str) {
-                // 确保父目录存在
-                if let Some(parent) = target_path.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
-                }
+/// 从 ~/.ifai/prompts/ 加载用户自定义提示词（如果存在）
+///
+/// **优先级**：
+/// 1. `~/.ifai/prompts/{name}` - 用户自定义
+/// 2. `BuiltinPrompts::{name}` - 编译时嵌入
+pub fn load_user_prompt(name: &str) -> Option<String> {
+    use ifainew_lib::prompt_manager::BuiltinPrompts;
 
-                fs::write(&target_path, content_file.data)
-                    .map_err(|e| format!("Failed to write {}: {}", path_str, e))?;
+    // 1. 尝试从 ~/.ifai/prompts/ 读取用户自定义
+    // 优先使用 HOME 环境变量（支持测试），否则使用 dirs::home_dir()
+    let home_dir = std::env::var("HOME")
+        .ok()
+        .or_else(|| dirs::home_dir().map(|p| p.to_string_lossy().to_string()));
+
+    if let Some(home) = home_dir {
+        let user_path = PathBuf::from(home).join(".ifai/prompts").join(name);
+        if user_path.exists() {
+            if let Ok(content) = fs::read_to_string(&user_path) {
+                return Some(content);
             }
         }
     }
 
-    // 2. 部署 skills 目录结构和 PIVO 核心技能
-    let skills_dir = ifai_dir.join("skills");
-    fs::create_dir_all(&skills_dir)
-        .map_err(|e| format!("Failed to create skills directory: {}", e))?;
-
-    let skills_readme = skills_dir.join("README.md");
-    if !skills_readme.exists() {
-        let content = r#"# IfAI 技能插件中心
-
-这里存放所有的 AI 增强技能。每个子文件夹代表一个独立的技能。
-
-## 目录结构
-```
-.ifai/skills/
-├── README.md
-└── example-skill/
-    └── skill.json
-```
-
-## 开发者指南
-每个技能需要一个 `skill.json` 配置文件：
-\`\`\`json
-{
-  "id": "skill-id",
-  "name": "技能名称",
-  "description": "技能描述",
-  "version": "1.0.0",
-  "system_prompt": "注入到系统提示词中的内容"
-}
-\`\`\`
-"#;
-        fs::write(&skills_readme, content)
-            .map_err(|e| format!("Failed to write skills README: {}", e))?;
+    // 2. 回退到 BuiltinPrompts（编译时嵌入）
+    if let Some(content_file) = BuiltinPrompts::get(name) {
+        std::str::from_utf8(content_file.data.as_ref())
+            .ok()
+            .map(|s| s.to_string())
+    } else {
+        None
     }
-
-    // 部署 PIVO 核心技能
-    let pivo_skills = vec![
-        ("pivo-implement.skill.md", "# 技能: PIVO 实施 (Implement)\n\n使用 agent_write_file 或 agent_replace 执行实际的代码修改。"),
-        ("pivo-verify.skill.md", "# 技能: PIVO 校验 (Verify)\n\n使用 agent_run_shell 运行测试或编译检查，验证修改的正确性。"),
-        ("pivo-heal.skill.md", "# 技能: PIVO 自愈 (Heal)\n\n分析校验失败的日志，自动执行修复逻辑并重新验证。"),
-    ];
-
-    for (name, content) in pivo_skills {
-        let skill_path = skills_dir.join(name);
-        if !skill_path.exists() {
-            fs::write(&skill_path, content)
-                .map_err(|e| format!("Failed to write PIVO skill {}: {}", name, e))?;
-        }
-    }
-
-    // 3. 确保 agents 目录存在（agents/ 已通过 BuiltinPrompts 部署）
-    let _agents_dir = prompts_dir.join("agents");
-
-    Ok(())
 }
 
 
@@ -227,5 +192,64 @@ mod tests {
         detector.mark_completed().unwrap();
         detector.mark_completed().unwrap(); // 第二次调用不报错
         assert!(!detector.is_first_run());
+    }
+
+    #[test]
+    fn test_load_user_prompt_priority() {
+        // 测试优先级：用户自定义 > BuiltinPrompts
+        use std::fs;
+        use std::path::PathBuf;
+
+        // 创建临时目录模拟 ~/.ifai/prompts/
+        let dir = test_dir("load_priority");
+        let _ = fs::remove_dir_all(&dir);
+
+        // load_user_prompt() 期望的路径是 $HOME/.ifai/prompts/{name}
+        let prompts_dir = dir.join(".ifai/prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+
+        // 创建用户自定义文件
+        let test_file = prompts_dir.join("test.txt");
+        let custom_content = "USER_CUSTOM_CONTENT";
+        fs::write(&test_file, custom_content).unwrap();
+
+        // 临时设置 HOME 环境变量指向测试目录
+        let original_home = std::env::var("HOME");
+        std::env::set_var("HOME", dir.as_os_str());
+
+        // 测试：应读取用户自定义文件
+        let result = load_user_prompt("test.txt");
+        assert_eq!(result.as_deref(), Some(custom_content));
+
+        // 恢复 HOME
+        match original_home {
+            Ok(home) => std::env::set_var("HOME", home),
+            Err(_) => std::env::remove_var("HOME"),
+        }
+    }
+
+    #[test]
+    fn test_load_user_prompt_fallback_to_builtin() {
+        // 测试回退：用户文件不存在时使用 BuiltinPrompts
+        use std::env;
+
+        // 临时设置 HOME 到空目录（没有用户自定义文件）
+        let dir = test_dir("fallback");
+        let _ = fs::remove_dir_all(&dir);
+
+        let original_home = env::var("HOME");
+        env::set_var("HOME", dir.as_os_str());
+
+        // 测试：应回退到 BuiltinPrompts
+        // memory/extract.md 应该在 BuiltinPrompts 中存在
+        let result = load_user_prompt("memory/extract.md");
+        assert!(result.is_some(), "应从 BuiltinPrompts 加载");
+        assert!(result.unwrap().contains("提取"), "应包含中文内容");
+
+        // 恢复 HOME
+        match original_home {
+            Ok(home) => env::set_var("HOME", home),
+            Err(_) => env::remove_var("HOME"),
+        }
     }
 }
