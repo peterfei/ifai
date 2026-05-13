@@ -19,16 +19,18 @@ mod tests {
 
     /// 设置测试环境
     fn setup() {
+        let thread_id = format!("{:?}", std::thread::current().id());
         let test_dir =
-            std::env::temp_dir().join(format!("ifai_snapshot_test_{}", std::process::id()));
+            std::env::temp_dir().join(format!("ifai_snapshot_test_{}", thread_id));
         fs::create_dir_all(&test_dir).ok();
         std::env::set_var("HOME", test_dir.to_str().unwrap());
     }
 
     /// 清理测试环境
     fn teardown() {
+        let thread_id = format!("{:?}", std::thread::current().id());
         let test_dir =
-            std::env::temp_dir().join(format!("ifai_snapshot_test_{}", std::process::id()));
+            std::env::temp_dir().join(format!("ifai_snapshot_test_{}", thread_id));
         fs::remove_dir_all(test_dir).ok();
     }
 
