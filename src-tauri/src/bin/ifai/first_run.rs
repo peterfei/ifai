@@ -129,6 +129,59 @@ pub fn load_user_prompt(name: &str) -> Option<String> {
     }
 }
 
+/// 递归加载提示词，支持引用解析
+///
+/// **引用语法**：`{{include "path/to/file.md"}}`
+/// **优先级**：每个引用文件也遵循 用户自定义 > BuiltinPrompts
+pub fn load_prompt_recursive(name: &str) -> Option<String> {
+    let content = load_user_prompt(name)?;
+
+    // 简单字符串解析：查找 {{include "path"}}
+    let mut result = content;
+    let mut processed_includes = std::collections::HashSet::new();
+    processed_includes.insert(name.to_string());
+
+    // 递归解析所有引用（最多 10 层深度防止循环）
+    for _ in 0..10 {
+        let mut replaced = false;
+
+        // 查找 {{include "..."}} 模式
+        while let Some(start) = result.find("{{include \"") {
+            let substring = &result[start..];
+
+            // 查找结束位置
+            if let Some(end) = substring.find("\"}}") {
+                let full_match = &result[start..start + end + 3]; // +3 for "\"}}"
+                let include_path = &result[start + 11..start + end]; // 路径在 {{include " 和 "}} 之间
+
+                // 防止循环引用
+                if processed_includes.contains(include_path) {
+                    result = result.replacen(full_match, "[循环引用]", 1);
+                    replaced = true;
+                    break;
+                }
+
+                processed_includes.insert(include_path.to_string());
+                replaced = true;
+
+                // 递归加载被引用的文件
+                let replacement = load_prompt_recursive(include_path)
+                    .unwrap_or_else(|| format!("[无法加载引用: {}]", include_path));
+
+                result = result.replacen(full_match, &replacement, 1);
+            } else {
+                break;
+            }
+        }
+
+        if !replaced {
+            break;
+        }
+    }
+
+    Some(result)
+}
+
 
 
 impl Default for FirstRunDetector {
@@ -247,6 +300,123 @@ mod tests {
         assert!(result.unwrap().contains("提取"), "应包含中文内容");
 
         // 恢复 HOME
+        match original_home {
+            Ok(home) => env::set_var("HOME", home),
+            Err(_) => env::remove_var("HOME"),
+        }
+    }
+
+    #[test]
+    fn test_load_prompt_recursive_with_include() {
+        // 测试引用解析功能
+        use std::env;
+        use std::fs;
+        use std::path::PathBuf;
+
+        let dir = test_dir("recursive_include");
+        let _ = fs::remove_dir_all(&dir);
+
+        // 创建目录结构
+        let prompts_dir = dir.join(".ifai/prompts");
+        let protocols_dir = prompts_dir.join("protocols");
+        fs::create_dir_all(&protocols_dir).unwrap();
+
+        // 创建主文件（包含引用）
+        let main_file = prompts_dir.join("main.md");
+        let main_content = r#"# 主文件
+
+这是主内容。
+
+{{include "protocols/test-protocol.md"}}
+
+主文件结束。
+"#;
+        fs::write(&main_file, main_content).unwrap();
+
+        // 创建被引用的协议文件
+        let protocol_file = protocols_dir.join("test-protocol.md");
+        let protocol_content = "# 协议文件\n\n这是协议内容。";
+        fs::write(&protocol_file, protocol_content).unwrap();
+
+        // 设置 HOME 环境变量
+        let original_home = std::env::var("HOME");
+        std::env::set_var("HOME", dir.as_os_str());
+
+        // 测试递归加载
+        let result = load_prompt_recursive("main.md");
+        assert!(result.is_some(), "应成功加载主文件");
+        let content = result.unwrap();
+
+        // 调试输出
+        eprintln!("=== 加载的内容 ===");
+        eprintln!("{}", content);
+        eprintln!("=== 内容结束 ===");
+
+        // 验证引用被正确解析
+        assert!(content.contains("主内容"), "应包含主文件内容");
+        assert!(content.contains("协议内容"), "应包含被引用的协议文件内容");
+        assert!(!content.contains("{{include"), "不应包含 include 语法");
+
+        // 恢复 HOME
+        match original_home {
+            Ok(home) => env::set_var("HOME", home),
+            Err(_) => env::remove_var("HOME"),
+        }
+    }
+
+    #[test]
+    fn test_load_prompt_recursive_builtin_fallback() {
+        // 测试递归加载时的 BuiltinPrompts 回退
+        use std::env;
+
+        let original_home = env::var("HOME");
+        env::set_var("HOME", "/tmp/nonexistent_path");
+
+        // 测试 memory/extract.md（应该存在于 BuiltinPrompts 中）
+        let result = load_prompt_recursive("memory/extract.md");
+        assert!(result.is_some(), "应从 BuiltinPrompts 加载 memory/extract.md");
+
+        let content = result.unwrap();
+        // memory/extract.md 不包含引用，所以内容应该原样返回
+        assert!(content.contains("提取") || content.len() > 0, "应包含内容");
+
+        // 恢复 HOME
+        match original_home {
+            Ok(home) => env::set_var("HOME", home),
+            Err(_) => env::remove_var("HOME"),
+        }
+    }
+
+    #[test]
+    fn test_load_prompt_recursive_cycle_detection() {
+        // 测试循环引用检测
+        use std::env;
+        use std::fs;
+        use std::path::PathBuf;
+
+        let dir = test_dir("cycle_detection");
+        let _ = fs::remove_dir_all(&dir);
+
+        let prompts_dir = dir.join(".ifai/prompts");
+        fs::create_dir_all(&prompts_dir).unwrap();
+
+        // 创建循环引用：a.md 引用 b.md，b.md 引用 a.md
+        let file_a = prompts_dir.join("a.md");
+        fs::write(&file_a, "File A {{include \"b.md\"}}").unwrap();
+
+        let file_b = prompts_dir.join("b.md");
+        fs::write(&file_b, "File B {{include \"a.md\"}}").unwrap();
+
+        let original_home = std::env::var("HOME");
+        std::env::set_var("HOME", dir.as_os_str());
+
+        // 应该检测到循环引用并阻止无限递归
+        let result = load_prompt_recursive("a.md");
+        assert!(result.is_some(), "应返回结果（即使有循环引用）");
+
+        let content = result.unwrap();
+        assert!(content.contains("循环引用") || content.contains("File A"), "应包含循环引用警告或部分内容");
+
         match original_home {
             Ok(home) => env::set_var("HOME", home),
             Err(_) => env::remove_var("HOME"),

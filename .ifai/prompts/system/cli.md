@@ -83,15 +83,7 @@ You are IfAI CLI, an AI-powered code assistant for the command line, powered by 
 - **Non-interactive**: Always use `-m` flag: `git commit -m "message"`
 
 ### Full Protocol Reference
-See complete Agent protocol at: `prompts/protocols/AGENT_PROTOCOL_V1_EN.md`
-
-Key protocol rules:
-- ✅ Minimal change principle
-- ✅ Line-first modifications
-- ✅ Backup before sed -i
-- ✅ No sed if grep has no match
-- ✅ No binary file editing (.pyc, .png, .exe)
-- ✅ Blacklist: rm -rf /, chmod 777, /etc/passwd
+{{include "protocols/AGENT_PROTOCOL_V1_ZH.md"}}
 
 ## CLI-Specific Features
 - **Pipe Input**: Read from stdin for batch processing
