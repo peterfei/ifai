@@ -1808,9 +1808,9 @@ impl App {
                 };
 
                 let status_text = if match_count == 0 {
-                    format!("🔍 Search: {} [0/0] No matches", search_query)
+                    format!("Search: {} [0/0] No matches", search_query)
                 } else {
-                    format!("🔍 Search: {} [{}/{}]", search_query, current, match_count)
+                    format!("Search: {} [{}/{}]", search_query, current, match_count)
                 };
 
                 let status_color = if match_count == 0 && !search_query.is_empty() {
@@ -1832,7 +1832,7 @@ impl App {
 
                 // === 搜索输入框 ===
                 let prompt = Span::styled(
-                    "🔍 ",
+                    "> ",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                 );
                 let input_text = Span::raw(search_input_value);
@@ -1840,7 +1840,7 @@ impl App {
                 let input = Paragraph::new(input_line);
                 f.render_widget(input, input_area);
 
-                // 设置终端光标位置（🔍 占 2 个字符宽度）
+                // 设置终端光标位置
                 let cursor_x = input_area.x
                     + 2
                     + (search_input_cursor_col as u16).min(input_area.width.saturating_sub(2));
@@ -2450,10 +2450,10 @@ impl App {
                                         // 保存配置到 config.toml
                                         if let Some(ref wizard) = self.setup_wizard {
                                             if let Err(e) = wizard.save_config() {
-                                                self.push_line(format!("⚠️  保存配置失败: {}", e));
+                                                self.push_line(format!("配置保存失败: {}", e));
                                             } else {
-                                                self.push_line("✅ 配置已保存到 ~/.ifai/config.toml".to_string());
-                                                self.push_line("🔄 正在应用新配置...".to_string());
+                                                self.push_line("配置已保存到 ~/.ifai/config.toml".to_string());
+                                                self.push_line("正在应用新配置...".to_string());
                                                 self.config_updated = true; // 标记配置已更新
                                             }
                                         }

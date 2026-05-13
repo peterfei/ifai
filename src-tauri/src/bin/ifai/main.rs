@@ -2819,7 +2819,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     // 提示用户
                     let theme = render::default_theme();
                     app.push_line(format!(
-                        "{}✅ 新配置已生效：{} / {}{}",
+                        "{}新配置已生效：{} / {}{}",
                         theme.success,
                         new_config.provider(),
                         new_config.model(),
@@ -2831,7 +2831,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 Err(e) => {
                     let theme = render::default_theme();
                     app.push_line(format!(
-                        "{}⚠️ 配置加载失败：{}{}",
+                        "{}配置加载失败：{}{}",
                         theme.warning,
                         e,
                         render::RESET
