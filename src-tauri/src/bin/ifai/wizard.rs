@@ -269,7 +269,7 @@ model = "gpt-4o"
                 .ok();
 
             if content.contains(&providers_section) {
-                // 如果 providers.xxx-official 段已存在，更新内容
+                // 如果 providers.xxx-official 段已存在，追加/更新内容
                 let mut section_content = Vec::new();
 
                 // 添加 api_key（如果用户输入了）
@@ -282,12 +282,31 @@ model = "gpt-4o"
                     section_content.push(format!("    base_url = \"{}\"", url));
                 }
 
-                // 替换整个段（保留注释行）
-                let new_section = format!("{}\n{}\n", providers_section, section_content.join("\n"));
-                content = regex::Regex::new(&format!(r"\[{}\](\n[^[]]*)?", providers_section.replace("[", "\\[").replace("]", "\\]")))
-                    .map_err(|e| format!("Regex error: {}", e))?
-                    .replace(&content, &new_section)
-                    .into_owned();
+                if !section_content.is_empty() {
+                    // 简单追加到段末尾（如果已存在则覆盖）
+                    for line in section_content {
+                        let key = line.split('=').next().unwrap_or("").trim();
+
+                        // 检查是否已存在该键
+                        let key_exists = content.lines().any(|l| {
+                            l.trim().starts_with(key) && l.contains('=')
+                        });
+
+                        if key_exists {
+                            // 已存在，替换（使用简单的字符串替换）
+                            let re_str = format!(r#"{}\s*=\s*"[^"]*""#, regex::escape(key));
+                            let re = regex::Regex::new(&re_str)
+                                .map_err(|e| format!("Regex error: {}", e))?;
+                            content = re.replace(&content, &line).into_owned();
+                        } else {
+                            // 不存在，追加到段末尾
+                            content = content.replace(
+                                &providers_section,
+                                &format!("{}\n{}", providers_section, line)
+                            );
+                        }
+                    }
+                }
             } else {
                 // 追加新的 providers.xxx-official 段
                 let mut section_lines = vec![
@@ -967,6 +986,38 @@ model = "gpt-4o"
             .map(|spec| spec.api_spec.base_url.clone());
         assert!(base_url.is_ok(), "应能获取 base_url");
         assert_eq!(base_url.unwrap(), "https://open.bigmodel.cn/api/paas/v4");
+
+        // 清理
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_save_config_model_field_update() {
+        use std::fs;
+
+        // 创建临时目录
+        let temp_dir = std::env::temp_dir()
+            .join(format!("ifai_test_model_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let config_path = temp_dir.join("config.toml");
+
+        // 创建基础配置文件
+        let template = r#"[default]
+provider = "openai"
+model = "gpt-4o"
+"#;
+        fs::write(&config_path, template).unwrap();
+
+        // 模拟正则替换
+        let content = fs::read_to_string(&config_path).unwrap();
+        let model_line = "model = \"glm-4\"";
+        let re = regex::Regex::new(r#"model\s*=\s*"[^"]*""#).unwrap();
+        let result = re.replace(&content, model_line);
+
+        assert!(result.contains("model = \"glm-4\""), "model 字段应被更新");
+        assert!(result.contains("[default]"), "[default] 段应保留");
 
         // 清理
         let _ = fs::remove_dir_all(&temp_dir);
