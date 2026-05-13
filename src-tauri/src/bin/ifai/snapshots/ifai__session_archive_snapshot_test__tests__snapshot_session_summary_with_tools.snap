@@ -1,10 +1,10 @@
 ---
 source: src/bin/ifai/session_archive_snapshot_test.rs
-expression: content
+expression: filtered_content
 ---
 # Session Summary
 
-**Date**: 2026-05-13 15:42:12 UTC
+**Date**: [DYNAMIC_TIMESTAMP]
 **Model**: openai-official/gpt-4
 **Tokens**: 300 input + 200 output = 500 total
 

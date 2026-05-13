@@ -79,8 +79,12 @@ mod tests {
 
         let content = fs::read_to_string(&filepath).expect("无法读取文件");
 
-        // 使用 insta 进行快照测试
-        insta::assert_snapshot!(content);
+        // 使用 insta 进行快照测试，过滤动态时间戳
+        let filtered_content = regex::Regex::new(r"\*\*Date\*\*:.*")
+            .unwrap()
+            .replace(&content, "**Date**: [DYNAMIC_TIMESTAMP]")
+            .to_string();
+        insta::assert_snapshot!(filtered_content);
 
         teardown();
     }
@@ -103,7 +107,12 @@ mod tests {
 
         let content = fs::read_to_string(&filepath).expect("无法读取文件");
 
-        insta::assert_snapshot!(content);
+        // 使用 insta 进行快照测试，过滤动态时间戳
+        let filtered_content = regex::Regex::new(r"\*\*Date\*\*:.*")
+            .unwrap()
+            .replace(&content, "**Date**: [DYNAMIC_TIMESTAMP]")
+            .to_string();
+        insta::assert_snapshot!(filtered_content);
 
         teardown();
     }
@@ -133,7 +142,12 @@ mod tests {
 
         let content = fs::read_to_string(&filepath).expect("无法读取文件");
 
-        insta::assert_snapshot!(content);
+        // 使用 insta 进行快照测试，过滤动态时间戳
+        let filtered_content = regex::Regex::new(r"\*\*Date\*\*:.*")
+            .unwrap()
+            .replace(&content, "**Date**: [DYNAMIC_TIMESTAMP]")
+            .to_string();
+        insta::assert_snapshot!(filtered_content);
 
         teardown();
     }
@@ -176,7 +190,12 @@ mod tests {
 
         let content = fs::read_to_string(&filepath).expect("无法读取文件");
 
-        insta::assert_snapshot!(content);
+        // 使用 insta 进行快照测试，过滤动态时间戳
+        let filtered_content = regex::Regex::new(r"\*\*Date\*\*:.*")
+            .unwrap()
+            .replace(&content, "**Date**: [DYNAMIC_TIMESTAMP]")
+            .to_string();
+        insta::assert_snapshot!(filtered_content);
 
         teardown();
     }

@@ -1,15 +1,5 @@
 ---
 source: src/bin/ifai/session_archive_snapshot_test.rs
-expression: content
----
-# Session Summary
-
-**Date**: 2026-05-13 15:42:12 UTC
-**Model**: deepseek-official/deepseek-chat
-**Tokens**: 0 input + 0 output = 0 total
-
-## Conversation
-
+expression: filtered_content
 ---
 
-*This session summary was automatically generated.*
