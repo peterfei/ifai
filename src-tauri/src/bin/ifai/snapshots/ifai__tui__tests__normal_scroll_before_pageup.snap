@@ -1,6 +1,5 @@
 ---
 source: src/bin/ifai/tui.rs
-assertion_line: 4451
 expression: "crate::tui_test::buffer_to_string(&buf_before)"
 ---
 Content line 09 - some text here                                                
@@ -24,6 +23,6 @@ Content line 26 - some text here
 Content line 27 - some text here                                                
 Content line 28 - some text here                                                
 Content line 29 - some text here                                                
- [Ready]                                                                        
+○ [Ready]                                                                       
 ────────────────────────────────────────────────────────────────────────────────
 ⟩

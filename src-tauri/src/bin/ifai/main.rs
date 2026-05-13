@@ -53,6 +53,7 @@ mod session_archive_e2e_test; // 🧪 会话归档 E2E 测试
 #[cfg(test)]
 mod session_archive_snapshot_test; // 🧪 会话归档快照测试
 mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版）
+mod status_bar; // 🏛️ 声明式 TUI 状态栏动画系统
 mod stream_render; // 🔥 声明式流式渲染管道
 #[cfg(test)]
 mod streaming_thread_leak_test; // 🧪 流式输出线程泄漏 E2E 测试
@@ -1319,7 +1320,7 @@ async fn handle_agent_command(
         .unwrap_or_else(|| app.thread.store.primary_id());
 
     // 设置状态栏：工作流执行中
-    app.set_status(format!("Agent {} running...", agent_type));
+    app.set_status(status_bar::StatusKind::Requesting, format!("Agent {} running...", agent_type));
     app.render();
 
     // spawn 异步任务执行 agent
@@ -1358,7 +1359,7 @@ async fn handle_agent_command(
                     if is_cancel {
                         handle.abort();
                         app.push_line_to_thread(agent_thread_id, "⊘ Agent 已中断".to_string());
-                        app.set_status(String::new());
+                        app.set_status(status_bar::StatusKind::Idle, String::new());
                         let cur_id = app.thread.store.active_thread().map(|t| t.id).unwrap_or_else(|| app.thread.store.primary_id());
                         if cur_id == agent_thread_id {
                             app.scroll_to_bottom();
@@ -1439,7 +1440,7 @@ async fn handle_agent_command(
                         // 工具完成
                     } else if text.contains("▸") {
                         // 工具执行中
-                        app.set_status(format!("Agent {} (tool running...)", agent_type));
+                        app.set_status(status_bar::StatusKind::Requesting, format!("Agent {} (tool running...)", agent_type));
                     }
                 }
             }
@@ -1458,7 +1459,7 @@ async fn handle_agent_command(
                     }
                 }
                 // 清除状态栏
-                app.set_status(String::new());
+                app.set_status(status_bar::StatusKind::Done, String::new());
                 // 获取结果
                 match handle.await {
                     Ok(Ok(())) => {}
@@ -1486,7 +1487,7 @@ async fn handle_agent_command(
                         2 => ".. ",
                         _ => "...",
                     };
-                    app.set_status(format!("Agent {} running{}", agent_type, dots));
+                    app.set_status(status_bar::StatusKind::Requesting, format!("Agent {} running{}", agent_type, dots));
                     app.render();
                 }
                 // 短暂让出 CPU，避免 busy loop
@@ -1534,7 +1535,7 @@ async fn handle_workflow_command(
 
             let path_owned = path_str.clone();
             let provider_owned = provider_json.map(|s| s.to_string());
-            app.set_status(format!("Workflow running: {} (按 ESC 取消)", path_str));
+            app.set_status(status_bar::StatusKind::Requesting, format!("Workflow running: {} (按 ESC 取消)", path_str));
             app.render();
 
             // 异步启动 workflow，立即返回不阻塞
@@ -1741,7 +1742,7 @@ async fn run_streaming_loop(
                 }
             }, if has_active_stream => {
                 if let Some(status) = status {
-                    app.set_status(status);
+                    app.set_status(status_bar::StatusKind::Streaming, status);
                     app.render();
                 }
                 StreamingControl::Continue
@@ -1945,7 +1946,7 @@ fn spawn_stream_request(
 
     // 设置 busy
     app.set_thread_busy(thread_id, true);
-    app.set_status("Thinking...".to_string());
+    app.set_status(status_bar::StatusKind::Requesting, "Thinking...".to_string());
     app.begin_streaming(thread_id);
     app.render();
 
@@ -2228,7 +2229,7 @@ fn execute_route_action(
                     });
 
                     app.push_line("⊘ 工作流已取消".to_string());
-                    app.set_status(String::new());
+                    app.set_status(status_bar::StatusKind::Idle, String::new());
                     app.scroll_to_bottom();
                     app.render();
 

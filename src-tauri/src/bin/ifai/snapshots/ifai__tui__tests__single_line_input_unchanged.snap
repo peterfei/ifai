@@ -1,6 +1,5 @@
 ---
 source: src/bin/ifai/tui.rs
-assertion_line: 3685
 expression: text
 ---
                                                                                 
@@ -24,6 +23,6 @@ expression: text
                                                                                 
                                                                                 
                                                                                 
- [Ready]                                                                        
+○ [Ready]                                                                       
 ────────────────────────────────────────────────────────────────────────────────
 ⟩ hi

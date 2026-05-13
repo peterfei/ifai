@@ -593,7 +593,7 @@ mod tests {
         app.switch_thread(main_id);
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
-        app.set_status("Thinking...".to_string());
+        app.set_status(crate::status_bar::StatusKind::Requesting, "Thinking...".to_string());
 
         let mut session_main = create_real_session();
         let main_handle =
@@ -649,7 +649,7 @@ mod tests {
         // ---- 步骤 4: thread1 调用真实 LLM '你了解ruby语言吗' ----
         println!("\n步骤 4: thread1 调用真实 LLM '你了解ruby语言吗'");
         app.set_thread_busy(thread1_id, true);
-        app.set_status("Thinking...".to_string());
+        app.set_status(crate::status_bar::StatusKind::Requesting, "Thinking...".to_string());
 
         let mut session_t1 = create_real_session();
         let t1_handle =
@@ -719,7 +719,7 @@ mod tests {
         app.switch_thread(main_id);
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
-        app.set_status("Streaming (zhipu/glm-4.6)...".to_string());
+        app.set_status(crate::status_bar::StatusKind::Streaming, "Streaming (zhipu/glm-4.6)...".to_string());
 
         let mut session_main = create_real_session();
         let main_handle = tokio::spawn(async move {
@@ -2195,7 +2195,7 @@ mod tests {
         // ==================== 步骤 7: thread1 发起真实 AI 请求 ====================
         println!("\n步骤 7: thread1 发起真实 AI 请求 '你了解ruby语言吗'");
         app.set_thread_busy(thread1_id, true);
-        app.set_status("Thinking...".to_string());
+        app.set_status(crate::status_bar::StatusKind::Requesting, "Thinking...".to_string());
 
         let (t1_output_tx, mut t1_output_rx) =
             tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
@@ -3018,7 +3018,7 @@ mod tests {
 
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
-        app.set_status("Thinking...".to_string());
+        app.set_status(crate::status_bar::StatusKind::Requesting, "Thinking...".to_string());
 
         let handle = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
@@ -3279,7 +3279,7 @@ mod tests {
 
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
-        app.set_status("Thinking...".to_string());
+        app.set_status(crate::status_bar::StatusKind::Requesting, "Thinking...".to_string());
 
         let handle = tokio::spawn(async move {
             crate::session::Session::stream_prompt_tui(
@@ -3496,7 +3496,7 @@ mod tests {
 
         app.set_thread_busy(main_id, true);
         app.begin_streaming(main_id);
-        app.set_status("Thinking...".to_string());
+        app.set_status(crate::status_bar::StatusKind::Requesting, "Thinking...".to_string());
 
         // 注意：stream_prompt_tui 内部的 approval channel 需要转发到全局 channel
         // 实际上 run_streaming_loop 中每个线程有独立 approval_tx，但全局只有一个 approval_rx

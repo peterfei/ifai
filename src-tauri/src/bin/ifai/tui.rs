@@ -25,6 +25,7 @@ use crate::event::{
 };
 use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::render;
+use crate::status_bar::{self, StatusKind};
 use crate::AppResult;
 use ifainew_lib::harness::task::{self, TaskStatus};
 
@@ -562,6 +563,8 @@ pub struct App {
     pub input: InputComposer,
     /// 状态栏文本
     status_text: String,
+    /// 状态栏图标状态（用于动画）
+    status_kind: StatusKind,
     /// StreamSubsystem
     pub stream: StreamSubsystem,
     /// ApprovalSubsystem
@@ -619,6 +622,7 @@ impl App {
             scroll_offset: 0,
             input: InputComposer::new(""),
             status_text: String::new(),
+            status_kind: StatusKind::default(),
             stream: StreamSubsystem::new(),
             approval: ApprovalSubsystem::new(),
             search: SearchSubsystem::new(),
@@ -651,6 +655,7 @@ impl App {
             scroll_offset: 0,
             input: InputComposer::new(""),
             status_text: String::new(),
+            status_kind: StatusKind::default(),
             stream: StreamSubsystem::new(),
             approval: ApprovalSubsystem::new(),
             search: SearchSubsystem::new(),
@@ -909,7 +914,7 @@ impl App {
     pub fn cleanup_after_stream(&mut self, thread_id: crate::thread::ThreadId) {
         self.end_streaming(thread_id);
         self.set_thread_busy(thread_id, false);
-        self.set_status(String::new());
+        self.set_status(StatusKind::Idle, String::new());
     }
 
     /// 获取当前活动线程的 streaming buffer（用于 overlay 在 streaming 期间显示）
@@ -1107,9 +1112,13 @@ impl App {
         }
     }
 
-    /// 设置状态栏文本（自动剥离 ANSI 转义码）
-    pub fn set_status(&mut self, text: String) {
+    /// 设置状态栏文本（自动剥离 ANSI 转义码）和状态图标
+    ///
+    /// 调用后立即触发 UI 刷新，确保状态即时可见
+    pub fn set_status(&mut self, kind: StatusKind, text: String) {
+        self.status_kind = kind;
         self.status_text = strip_ansi(&text);
+        self.render();
     }
 
     /// 🔥 Phase 6: 检查指定线程是否 busy
@@ -1826,6 +1835,10 @@ impl App {
                 // 构建线程模式状态栏
                 let mut spans: Vec<Span<'static>> = Vec::new();
 
+                // 首字符：动画状态图标
+                spans.push(status_bar::render_animated_status(self.status_kind));
+                spans.push(Span::raw(" "));
+
                 // 线程图标 (分支符号，工业级风格)
                 spans.push(Span::styled(
                     "» ",
@@ -1991,13 +2004,17 @@ impl App {
                 // === 正常模式 ===
                 // === 状态栏 ===
                 let status_line = if !tasks.is_empty() {
-                    // 任务模式：显示当前任务 + 进度
+                    // 任务模式：显示状态图标 + 当前任务 + 进度
                     let total = tasks.len();
                     let completed = tasks
                         .iter()
                         .filter(|t| t.status == TaskStatus::Completed)
                         .count();
                     let mut spans: Vec<Span<'static>> = Vec::new();
+
+                    // 首字符：动画状态图标
+                    spans.push(status_bar::render_animated_status(self.status_kind));
+                    spans.push(Span::raw(" "));
 
                     // 当前 InProgress 任务的 activeForm
                     let current_task = tasks.iter().find(|t| t.status == TaskStatus::InProgress);
@@ -2050,8 +2067,12 @@ impl App {
 
                     Line::from(spans)
                 } else {
-                    // 无任务：显示原有状态文本或 Ready
+                    // 无任务：显示状态图标 + 原有状态文本或 Ready
                     let mut spans: Vec<Span<'static>> = Vec::new();
+
+                    // 首字符：动画状态图标
+                    spans.push(status_bar::render_animated_status(self.status_kind));
+
                     if !status_text.is_empty() {
                         spans.push(Span::raw(" "));
                         spans.push(Span::styled(
@@ -2939,7 +2960,7 @@ mod tests {
     fn test_status_streaming_initial() {
         // 验证流开始时状态栏显示 Streaming
         let mut app = App::new_for_test();
-        app.set_status(format!("Streaming ({})", "zhipu"));
+        app.set_status(StatusKind::Streaming, format!("Streaming ({})", "zhipu"));
         let buf = render_to_buffer(&mut app, 80, 24);
         let output = buffer_to_string(&buf);
         assert!(
@@ -2954,7 +2975,7 @@ mod tests {
         // 验证 ToolStart 时状态栏显示 "Tool: xxx [running]"
         let mut app = App::new_for_test();
         app.push_line("AI 正在分析代码...".to_string());
-        app.set_status("Tool: read_file [running]".to_string());
+        app.set_status(StatusKind::Requesting, "Tool: read_file [running]".to_string());
         let buf = render_to_buffer(&mut app, 80, 24);
         let output = buffer_to_string(&buf);
         assert!(
@@ -2968,7 +2989,7 @@ mod tests {
         // 验证 MessageDone 后状态栏显示 "Done"
         let mut app = App::new_for_test();
         app.push_line("AI 回复内容".to_string());
-        app.set_status("Done".to_string());
+        app.set_status(StatusKind::Done, "Done".to_string());
         let buf = render_to_buffer(&mut app, 80, 24);
         let output = buffer_to_string(&buf);
         assert!(output.contains("Done"), "消息完成后状态栏应显示 Done");
@@ -2981,9 +3002,9 @@ mod tests {
         // 验证整个请求完成后状态栏清空（回到 Ready）
         let mut app = App::new_for_test();
         app.push_line("最终回复".to_string());
-        app.set_status("Done".to_string());
+        app.set_status(StatusKind::Done, "Done".to_string());
         // main.rs 第 1054 行: app.set_status(String::new())
-        app.set_status(String::new());
+        app.set_status(StatusKind::Idle, String::new());
         let buf = render_to_buffer(&mut app, 80, 24);
         let output = buffer_to_string(&buf);
         assert!(output.contains("Ready"), "请求完成后状态栏应显示 Ready");
@@ -3001,13 +3022,13 @@ mod tests {
         app.push_line("正在读取文件...".to_string());
 
         // ToolStart 阶段
-        app.set_status("Tool: read_file [running]".to_string());
+        app.set_status(StatusKind::Requesting, "Tool: read_file [running]".to_string());
         let buf_running = render_to_buffer(&mut app, 80, 24);
         let output_running = buffer_to_string(&buf_running);
         assert!(output_running.contains("[running]"));
 
         // ToolDone 阶段：状态栏更新为 [done]
-        app.set_status("Tool: read_file [done]".to_string());
+        app.set_status(StatusKind::Done, "Tool: read_file [done]".to_string());
         let buf_after_done = render_to_buffer(&mut app, 80, 24);
         let output_after_done = buffer_to_string(&buf_after_done);
         assert!(
@@ -3032,14 +3053,14 @@ mod tests {
         app.push_line("Continuing... (1/10)".to_string());
 
         // 第1轮 MessageDone → "Done"
-        app.set_status("Done".to_string());
+        app.set_status(StatusKind::Done, "Done".to_string());
         let buf_done = render_to_buffer(&mut app, 80, 24);
         let output_done = buffer_to_string(&buf_done);
         assert!(output_done.contains("Done"));
 
         // 第2轮开始：状态栏重置为 Streaming
         app.push_line("第2轮 AI 回复中...".to_string());
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
 
         let buf_2nd = render_to_buffer(&mut app, 80, 24);
         let output_2nd = buffer_to_string(&buf_2nd);
@@ -3070,7 +3091,7 @@ mod tests {
         app.set_busy(true);
         // 注意：busy 是私有字段，通过 set_busy/get 接口操作
         // 这里验证 set_busy 不 panic 且状态一致
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
         let buf = render_to_buffer(&mut app, 80, 24);
         let output = buffer_to_string(&buf);
         assert!(
@@ -3079,7 +3100,7 @@ mod tests {
         );
 
         app.set_busy(false);
-        app.set_status(String::new());
+        app.set_status(StatusKind::Idle, String::new());
         let buf = render_to_buffer(&mut app, 80, 24);
         let output = buffer_to_string(&buf);
         assert!(output.contains("Ready"), "busy 解除后应显示 Ready");
@@ -3097,7 +3118,7 @@ mod tests {
 
         // 进入 streaming 状态
         app.set_busy(true);
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
         app.push_line("AI 正在回复...".to_string());
 
         let buf = render_to_buffer(&mut app, 80, 24);
@@ -3135,7 +3156,7 @@ mod tests {
 
         // 进入 busy 状态
         app.set_busy(true);
-        app.set_status("Streaming (deepseek)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (deepseek)".to_string());
 
         // 模拟在 busy 期间渲染多次（main.rs 的 select! 循环会频繁 render）
         for _ in 0..5 {
@@ -3170,7 +3191,7 @@ mod tests {
         app.push_line("我可以帮你分析代码、编写测试等。".to_string());
         // Streaming 状态
         app.set_busy(true);
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
 
         let buf = render_to_buffer(&mut app, 80, 24);
         let text = buffer_to_string(&buf);
@@ -3241,7 +3262,7 @@ mod tests {
 
         // === 模拟 main.rs 第 921 行：进入 AI 调用 ===
         app.set_busy(true);
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
         app.push_line("AI 正在回复...".to_string());
 
         // === 模拟 main.rs 修复后的行为：streaming 期间可以输入 ===
@@ -3274,7 +3295,7 @@ mod tests {
 
         // 设置为 busy 状态
         app.set_busy(true);
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
 
         // 直接调用 handle_key（模拟 run_loop 被调用的情况）
         app.input
@@ -3319,7 +3340,7 @@ mod tests {
         // 进入 streaming（模拟 main.rs 调用路径）
         app.set_busy(true);
         app.push_line("User: hello".to_string());
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
 
         // 模拟 AI 流式输出
         app.push_line("AI: 我来帮你分析这段代码...".to_string());
@@ -3339,22 +3360,22 @@ mod tests {
         app.push_line("AI 正在处理请求...".to_string());
 
         // 阶段1：初始 Streaming
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
         let buf = render_to_buffer(&mut app, 80, 24);
         assert_tui_snapshot!("status_streaming", &buf);
 
         // 阶段2：工具执行中
-        app.set_status("Tool: read_file [running]".to_string());
+        app.set_status(StatusKind::Requesting, "Tool: read_file [running]".to_string());
         let buf = render_to_buffer(&mut app, 80, 24);
         assert_tui_snapshot!("status_tool_running", &buf);
 
         // 阶段3：Done
-        app.set_status("Done".to_string());
+        app.set_status(StatusKind::Done, "Done".to_string());
         let buf = render_to_buffer(&mut app, 80, 24);
         assert_tui_snapshot!("status_done", &buf);
 
         // 阶段4：清空回到 Ready
-        app.set_status(String::new());
+        app.set_status(StatusKind::Idle, String::new());
         let buf = render_to_buffer(&mut app, 80, 24);
         assert_tui_snapshot!("status_ready", &buf);
     }
@@ -3423,7 +3444,7 @@ mod tests {
     #[test]
     fn test_queue_count_rendered_in_status_bar() {
         let mut app = App::new_for_test();
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
         app.enqueue("next question".to_string());
         app.enqueue("another one".to_string());
 
@@ -3435,7 +3456,7 @@ mod tests {
     #[test]
     fn test_queue_not_rendered_when_empty() {
         let mut app = App::new_for_test();
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
 
         let buf = render_to_buffer(&mut app, 80, 24);
         assert_buffer_not_contains!(&buf, "Queue:");
@@ -3444,7 +3465,7 @@ mod tests {
     #[test]
     fn test_queue_count_decreases_on_dequeue() {
         let mut app = App::new_for_test();
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
         app.enqueue("msg1".to_string());
         app.enqueue("msg2".to_string());
 
@@ -3482,7 +3503,7 @@ mod tests {
             .handle_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
 
         app.set_busy(true);
-        app.set_status("Streaming (zhipu)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (zhipu)".to_string());
         app.push_line("AI 正在回复第一条消息...".to_string());
 
         // 两条消息入队
@@ -4298,7 +4319,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.begin_streaming(thread_id);
         app.append_streaming_output(thread_id, "partial response".to_string());
         app.set_thread_busy(thread_id, true);
-        app.set_status("Streaming...".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming...".to_string());
     }
 
     #[test]
@@ -4848,7 +4869,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // main 线程 streaming：push_line 模拟已渲染的 AI 回复 + streaming buffer
         app.switch_thread(main_id);
         app.set_thread_busy(main_id, true);
-        app.set_status("Streaming (gpt)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (gpt)".to_string());
         app.begin_streaming(main_id);
         app.append_streaming_output(main_id, "Main thread AI response line 1\n".to_string());
         app.append_streaming_output(main_id, "Main thread AI response line 2\n".to_string());
@@ -4903,7 +4924,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // main 线程正在 streaming
         app.switch_thread(main_id);
         app.set_thread_busy(main_id, true);
-        app.set_status("Streaming (gpt)".to_string());
+        app.set_status(StatusKind::Streaming, "Streaming (gpt)".to_string());
         app.begin_streaming(main_id);
         app.append_streaming_output(main_id, "Secret data from main thread\n".to_string());
         app.append_streaming_output(main_id, "More secret output\n".to_string());
