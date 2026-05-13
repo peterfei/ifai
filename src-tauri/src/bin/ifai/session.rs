@@ -497,7 +497,7 @@ fn log_debug_sync(message: String) {
 // ============================================================================
 
 /// 压缩模式
-enum CompactionMode {
+pub enum CompactionMode {
     PreTurn, // 循环开始前，完整压缩（AI 摘要 + 保留最近 N 条）
     MidTurn, // 工具循环中，轻量压缩（不调 AI）
     Manual,  // /compact 命令，完整压缩
@@ -557,7 +557,10 @@ pub fn perform_compaction_fallback(
     system_prompt: &str,
     keep_last: usize,
 ) -> Vec<Message> {
+    log_debug_sync(format!("[COMPRESSION-FALLBACK] 输入: {} 条消息, keep_last={}", messages.len(), keep_last));
+
     if messages.len() <= keep_last {
+        log_debug_sync(format!("[COMPRESSION-FALLBACK] 消息数 {} <= keep_last {}，直接返回原消息", messages.len(), keep_last));
         return messages.to_vec();
     }
 
@@ -590,6 +593,7 @@ pub fn perform_compaction_fallback(
     let start = messages.len().saturating_sub(keep_last);
     result.extend(messages[start..].iter().cloned());
 
+    log_debug_sync(format!("[COMPRESSION-FALLBACK] 输出: {} 条消息 (系统+压缩说明+最近{})", result.len(), keep_last));
     result
 }
 
@@ -663,16 +667,33 @@ async fn generate_compaction_summary(
 }
 
 /// 统一压缩入口（纯函数，不持有任何锁）
-async fn perform_compaction(
+pub async fn perform_compaction(
     messages: &[Message],
     model: &str,
     provider_config: &ifainew_lib::harness::api::ProviderConfig,
     system_prompt: &str,
     mode: CompactionMode,
 ) -> Vec<Message> {
-    let threshold = token::display::compute_compress_threshold(model);
+    // 🔥 FIX: 根据模式使用不同的阈值
+    // MidTurn 模式使用 50% 阈值，其他使用 60% 阈值
+    let base_threshold = token::display::compute_compress_threshold(model);
+    let threshold = match mode {
+        CompactionMode::MidTurn => (base_threshold as f64 * 0.833) as usize, // 50%
+        CompactionMode::PreTurn | CompactionMode::Manual => base_threshold, // 60%
+    };
+
     let current = token::estimate_tokens(messages);
+
+    let mode_str = match mode {
+        CompactionMode::PreTurn => "PreTurn",
+        CompactionMode::MidTurn => "MidTurn",
+        CompactionMode::Manual => "Manual",
+    };
+    log_debug_sync(format!("[COMPRESSION] 模式={}, 当前tokens={}, 阈值={}, 消息数={}",
+        mode_str, current, threshold, messages.len()));
+
     if current <= threshold {
+        log_debug_sync(format!("[COMPRESSION] Token {} <= 阈值 {}，不压缩", current, threshold));
         return messages.to_vec();
     }
 
@@ -680,8 +701,10 @@ async fn perform_compaction(
         CompactionMode::PreTurn | CompactionMode::Manual => 20, // 🔥 降低：30 → 20
         CompactionMode::MidTurn => 15, // 🔥 降低：20 → 15（工具循环中更激进）
     };
+    log_debug_sync(format!("[COMPRESSION] keep_last={}", keep_last));
 
     if messages.len() <= keep_last {
+        log_debug_sync(format!("[COMPRESSION] 消息数 {} <= keep_last {}，不压缩", messages.len(), keep_last));
         return messages.to_vec();
     }
 
@@ -690,16 +713,23 @@ async fn perform_compaction(
 
     // 尝试 AI 摘要（pre-turn / manual）
     let summary = if matches!(mode, CompactionMode::PreTurn | CompactionMode::Manual) {
+        log_debug_sync(format!("[COMPRESSION] 尝试 AI 摘要..."));
         generate_compaction_summary(trimmed, model, provider_config).await
     } else {
+        log_debug_sync(format!("[COMPRESSION] 跳过 AI 摘要 (MidTurn模式)"));
         None
     };
 
-    if summary.is_some() {
+    let result = if summary.is_some() {
+        log_debug_sync(format!("[COMPRESSION] 使用 AI 摘要构建消息"));
         build_compacted_messages(system_prompt, summary.as_deref(), recent)
     } else {
+        log_debug_sync(format!("[COMPRESSION] 使用 fallback 压缩"));
         perform_compaction_fallback(messages, system_prompt, keep_last)
-    }
+    };
+
+    log_debug_sync(format!("[COMPRESSION] 最终结果: {} 条消息", result.len()));
+    result
 }
 
 impl Session {
@@ -1484,16 +1514,26 @@ impl Session {
                     Err(e) => return Err(e),
                 };
 
-                // 构建 tool_calls
+                // 🔥 FIX: 构建 args_map，用于恢复 tool_calls 的原始参数
+                // DeepSeek API 要求 Assistant 消息携带完整的 tool_calls 参数
+                let args_map: std::collections::HashMap<&str, &str> = collected_tool_calls
+                    .iter()
+                    .map(|tc| (tc.tool_id.as_str(), tc.args.as_str()))
+                    .collect();
+
+                // 构建 tool_calls（携带原始参数）
                 let tool_calls_value: Vec<ToolCall> = tool_results
                     .iter()
-                    .map(|(id, name, _, _)| ToolCall {
-                        id: id.clone(),
-                        call_type: "function".to_string(),
-                        function: ToolCallFunction {
-                            name: name.clone(),
-                            arguments: String::new(),
-                        },
+                    .map(|(id, name, _, _)| {
+                        let args = args_map.get(id.as_str()).copied().unwrap_or("");
+                        ToolCall {
+                            id: id.clone(),
+                            call_type: "function".to_string(),
+                            function: ToolCallFunction {
+                                name: name.clone(),
+                                arguments: args.to_string(),
+                            },
+                        }
                     })
                     .collect();
 
@@ -1570,6 +1610,66 @@ impl Session {
                         }
                     }
                 }
+            }
+
+            // 🔥 Mid-turn 压缩检查点（CLI 模式）
+            // 在 50% 阈值时触发轻量压缩（不调 AI，保留 15 条）
+            // 注意：使用更保守的 50%，因为工具循环会快速增加消息
+            let current_tokens = token::estimate_tokens(&self.default_ctx.messages);
+            let mid_turn_threshold =
+                (token::display::compute_compress_threshold(&self.model) as f64 * 0.833) as usize; // 50% = 60% * 0.833
+
+            // 🔥 DEBUG: 记录 Mid-turn 检查
+            log_debug_sync(format!(
+                "[CLI-MID-TURN CHECK] Tokens: {} / {} ({}%), Messages: {}",
+                format_number(current_tokens),
+                format_number(mid_turn_threshold),
+                (current_tokens * 100 / mid_turn_threshold.max(1)),
+                self.default_ctx.messages.len()
+            ));
+
+            if current_tokens > mid_turn_threshold {
+                let warn_msg = format!(
+                    "⚠️ Mid-turn 压缩触发：{} tokens / {} 阈值 ({}%)，正在压缩...",
+                    format_number(current_tokens),
+                    format_number(mid_turn_threshold),
+                    (current_tokens * 100 / mid_turn_threshold.max(1))
+                );
+                println!("{}", warn_msg);
+                log_debug_sync(format!("[CLI-MID-TURN] {}", warn_msg));
+
+                let old_len = self.default_ctx.messages.len();
+                let old_tokens = current_tokens;
+
+                // 构建 provider_config（从 Session 的 api_key 和 base_url）
+                let provider_config = ifainew_lib::harness::api::ProviderConfig {
+                    base_url: self.base_url.clone(),
+                    api_key: self.api_key.clone().unwrap_or_default(),
+                    organization: None,
+                };
+
+                let compacted = perform_compaction(
+                    &self.default_ctx.messages.clone(),
+                    &self.model,
+                    &provider_config,
+                    &self.custom_system_prompt.as_deref().unwrap_or(""),
+                    CompactionMode::MidTurn,
+                ).await;
+
+                self.default_ctx.messages = compacted;
+                let new_len = self.default_ctx.messages.len();
+
+                let new_tokens = token::estimate_tokens(&self.default_ctx.messages);
+                let success_msg = format!(
+                    "✓ Mid-turn 压缩完成：{} → {} tokens, {} → {} messages (减少 {})",
+                    format_number(old_tokens),
+                    format_number(new_tokens),
+                    old_len,
+                    new_len,
+                    format_number(old_tokens.saturating_sub(new_tokens))
+                );
+                println!("{}", success_msg);
+                log_debug_sync(format!("[CLI-MID-TURN] {}", success_msg));
             }
             } // end else (有工具调用)
 
@@ -2200,19 +2300,29 @@ impl Session {
                     Err(e) => return Err(e),
                 };
 
+                // 🔥 FIX: 构建 args_map，用于恢复 tool_calls 的原始参数
+                // DeepSeek API 要求 Assistant 消息携带完整的 tool_calls 参数
+                let args_map: std::collections::HashMap<&str, &str> = collected_tool_calls
+                    .iter()
+                    .map(|tc| (tc.tool_id.as_str(), tc.args.as_str()))
+                    .collect();
+
                 // 构建 tool_calls + 更新 thread_ctx — 短暂持 thread_ctx 锁
                 {
                     let mut ctx = thread_ctx.lock().await;
 
                     let tool_calls_value: Vec<ToolCall> = tool_results
                         .iter()
-                        .map(|(id, name, _, _)| ToolCall {
-                            id: id.clone(),
-                            call_type: "function".to_string(),
-                            function: ToolCallFunction {
-                                name: name.clone(),
-                                arguments: String::new(),
-                            },
+                        .map(|(id, name, _, _)| {
+                            let args = args_map.get(id.as_str()).copied().unwrap_or("");
+                            ToolCall {
+                                id: id.clone(),
+                                call_type: "function".to_string(),
+                                function: ToolCallFunction {
+                                    name: name.clone(),
+                                    arguments: args.to_string(),
+                                },
+                            }
                         })
                         .collect();
 
@@ -2587,26 +2697,24 @@ impl Session {
                 }
             }
 
-            // 🔥 完全信任模型：已移除循环检测（TUI 模式）
-            // 原代码：检测 3 次完全相同调用或 10 次连续相同工具时会阻断
-            // 现在策略：让模型自主决策，不人为干预
-            // let loop_status = approval::check_loop(&tool.name, &tool.args);
-            // if loop_status.should_stop() {
-            //     if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
-            //         let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason).into());
-            //         thread_ctx
-            //             .pipeline_tracker
-            //             .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
-            //         let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
-            //         results.push((
-            //             tool.tool_id.clone(),
-            //             tool.name.clone(),
-            //             error_msg,
-            //             Duration::ZERO,
-            //         ));
-            //         continue;
-            //     }
-            // }
+            // 🔥 循环检测（TUI 模式）
+            let loop_status = approval::check_loop(&tool.name, &tool.args);
+            if loop_status.should_stop() {
+                if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
+                    let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason).into());
+                    thread_ctx
+                        .pipeline_tracker
+                        .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
+                    let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
+                    results.push((
+                        tool.tool_id.clone(),
+                        tool.name.clone(),
+                        error_msg,
+                        Duration::ZERO,
+                    ));
+                    continue;
+                }
+            }
 
             // 🎨 Diff 预处理：对于 edit_file，在执行前保存旧内容
             let old_content_backup = if tool.name == "edit_file" {
@@ -2908,42 +3016,29 @@ impl Session {
                 }
             }
 
-            // 🔥 完全信任模型：已移除循环检测
-            // 原代码：检测 3 次完全相同调用或 10 次连续相同工具时会阻断
-            // 现在策略：让模型自主决策，不人为干预
-            // let loop_status = approval::check_loop(&tool.name, &tool.args);
-            // if loop_status.should_stop() {
-            //     if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
-            //         eprintln!(
-            //             "\n{}⚠️  循环检测触发: {}{}",
-            //             theme.warning,
-            //             reason,
-            //             render::RESET
-            //         );
-            //         self.default_ctx
-            //             .pipeline_tracker
-            //             .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
-            //         let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
-            //         results.push((
-            //             tool.tool_id.clone(),
-            //             tool.name.clone(),
-            //             error_msg,
-            //             Duration::ZERO,
-            //         ));
-            //         continue;
-            //     }
-            // } else if loop_status.should_warn() {
-            //     if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status
-            //     {
-            //         eprintln!(
-            //             "\n{}⚠️  循环检测警告: {} (已执行 {} 次){}",
-            //             theme.warning,
-            //             pattern,
-            //             count,
-            //             render::RESET
-            //         );
-            //     }
-            // }
+            // 🔥 循环检测（CLI 模式）
+            let loop_status = approval::check_loop(&tool.name, &tool.args);
+            if loop_status.should_stop() {
+                if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
+                    eprintln!(
+                        "\n{}⚠️  循环检测触发: {}{}",
+                        theme.warning,
+                        reason,
+                        render::RESET
+                    );
+                    self.default_ctx
+                        .pipeline_tracker
+                        .skip_step(&tool.tool_id, format!("循环检测阻止: {}", reason));
+                    let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
+                    results.push((
+                        tool.tool_id.clone(),
+                        tool.name.clone(),
+                        error_msg,
+                        Duration::ZERO,
+                    ));
+                    continue;
+                }
+            }
 
             // 🎯 更新底部状态栏状态（但不显示，避免干扰对话）
             use token::StatusBarState;

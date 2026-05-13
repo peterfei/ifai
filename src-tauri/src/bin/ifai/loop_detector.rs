@@ -226,24 +226,45 @@ impl LoopDetector {
     }
 
     /// 规则 2：检测连续相同工具
+    ///
+    /// 关键改进：区分"相同工具不同参数"和"相同工具相同参数"
+    /// - AI 用 bash 探索 10 个不同目录 → 不报警（正常探索）
+    /// - AI 用 read_file 读取 10 个不同文件 → 不报警（正常阅读）
+    /// - AI 用 bash 重复执行同一命令 → 报警（参数重复）
     fn check_consecutive_same_tool(
         &self,
         signature: &ToolCallSignature,
     ) -> Option<LoopDetectionStatus> {
-        // 计算历史末尾连续相同工具的数量
-        // 由于先更新了历史，当前调用已在历史中，所以直接计数即可
-        let consecutive_count = self
+        // 收集历史末尾连续相同工具的签名
+        let consecutive: Vec<&ToolCallSignature> = self
             .history
             .iter()
             .rev()
             .take_while(|s| s.is_same_tool(signature))
-            .count();
+            .collect();
+
+        let consecutive_count = consecutive.len();
 
         if consecutive_count >= self.config.max_consecutive_same_tool {
+            // 🔍 关键检查：参数是否真的在重复？
+            // 统计唯一参数数量
+            let unique_args: std::collections::HashSet<u64> = consecutive
+                .iter()
+                .map(|s| s.args_hash)
+                .collect();
+
+            // 如果大部分参数都不同（唯一参数 > 80%），说明 AI 在探索，完全不报警
+            let unique_ratio = unique_args.len() as f64 / consecutive_count as f64;
+            if unique_ratio > 0.8 {
+                // 参数各不相同，正常探索行为，不报警
+                return None;
+            }
+
             return Some(LoopDetectionStatus::Blocked {
                 reason: format!(
-                    "连续调用相同工具 '{}' {} 次（上限：{}）",
-                    signature.tool_name, consecutive_count, self.config.max_consecutive_same_tool
+                    "连续调用相同工具 '{}' {} 次，且参数大量重复（唯一 {} 个）（上限：{}）",
+                    signature.tool_name, consecutive_count,
+                    unique_args.len(), self.config.max_consecutive_same_tool
                 ),
             });
         }
@@ -251,6 +272,18 @@ impl LoopDetector {
         // 警告阈值：达到上限的 50%（使用 ceil 确保合理边界）
         let warn_threshold = (self.config.max_consecutive_same_tool + 1) / 2;
         if consecutive_count >= warn_threshold {
+            // 在警告级别也检查参数唯一性
+            let unique_args: std::collections::HashSet<u64> = consecutive
+                .iter()
+                .map(|s| s.args_hash)
+                .collect();
+            let unique_ratio = unique_args.len() as f64 / consecutive_count as f64;
+
+            // 参数各不相同，不报警
+            if unique_ratio > 0.8 {
+                return None;
+            }
+
             return Some(LoopDetectionStatus::Warning {
                 count: consecutive_count,
                 pattern: format!("连续调用 '{}'", signature.tool_name),
@@ -336,6 +369,26 @@ impl LoopDetector {
     /// 获取当前全局空参数计数（用于日志和调试）
     pub fn global_empty_args_count(&self) -> u32 {
         self.global_empty_args_count
+    }
+
+    /// 获取当前工具的连续调用次数（用于日志）
+    pub fn get_consecutive_count(&self, tool_name: &str) -> usize {
+        self.history
+            .iter()
+            .rev()
+            .take_while(|s| s.tool_name == tool_name)
+            .count()
+    }
+
+    /// 获取窗口内唯一参数的数量（用于日志）
+    pub fn get_unique_args_in_window(&self, tool_name: &str, limit: usize) -> std::collections::HashSet<u64> {
+        self.history
+            .iter()
+            .rev()
+            .filter(|s| s.tool_name == tool_name)
+            .take(limit)
+            .map(|s| s.args_hash)
+            .collect()
     }
 
     /// 获取统计信息（用于调试）
@@ -432,17 +485,42 @@ mod tests {
         };
         let mut detector = LoopDetector::from_config(config);
 
-        // 连续调用相同工具 3 次（达到警告阈值）
-        for i in 1..=3 {
-            let status = detector.check("read_file", &format!(r#"{{"path": "file{}.rs"}}"#, i));
-            if i == 3 {
-                // 第 3 次应该触发警告
-                assert!(status.should_warn());
-                if let LoopDetectionStatus::Warning { count, .. } = status {
-                    assert_eq!(count, 3);
-                }
+        // 场景 1：连续调用相同工具，但参数各不相同（100% 唯一）
+        // 不应该触发警告（因为 unique_ratio = 1.0 > 0.8）
+        for i in 1..=5 {
+            let status = detector.check("read_file", &format!(r#"{{"path": "unique{}.rs"}}"#, i));
+            // 所有调用都应该正常，不报警
+            assert_eq!(
+                status,
+                LoopDetectionStatus::Normal,
+                "{}th call with unique args should be Normal",
+                i
+            );
+        }
+
+        // 重置
+        detector.reset();
+
+        // 场景 2：连续调用相同工具，参数大量重复
+        // 应该触发警告（unique_ratio < 0.8）
+        let mut warned = false;
+        for i in 1..=5 {
+            // 调用 read_file，但只有 2 个不同参数（重复率 = 60%）
+            let args = if i % 2 == 0 {
+                r#"{"path": "file_a.rs"}"#
+            } else {
+                r#"{"path": "file_b.rs"}"#
+            };
+
+            let status = detector.check("read_file", args);
+            // 第 3 次调用后可能触发警告（达到 warn_threshold = 3）
+            if i >= 3 && status.should_warn() {
+                warned = true;
+                break;
             }
         }
+
+        assert!(warned, "Should warn when consecutive same tool with repeated args");
     }
 
     #[test]
@@ -564,20 +642,27 @@ mod tests {
         };
         let mut detector = LoopDetector::from_config(config);
 
-        // 连续调用刚好达到警告阈值（max_consecutive_same_tool / 2 = 1）
-        // 这里我们测试第 2 次调用（因为 max_consecutive_same_tool / 2 = 1）
-        // 第 1 次：normal
-        // 第 2 次：warning（因为 2 >= 3/2 = 1）
-        // 第 3 次：blocked（因为 3 >= 3）
-
+        // 场景 1：参数各不相同 → 不报警
         let status1 = detector.check("bash", r#"{"cmd": "ls1"}"#);
         assert_eq!(status1, LoopDetectionStatus::Normal);
 
         let status2 = detector.check("bash", r#"{"cmd": "ls2"}"#);
-        assert!(status2.should_warn());
+        assert_eq!(status2, LoopDetectionStatus::Normal, "Unique args should not warn");
 
         let status3 = detector.check("bash", r#"{"cmd": "ls3"}"#);
-        assert!(status3.should_stop());
+        // 达到上限，但参数 100% 唯一，不报警
+        assert_eq!(status3, LoopDetectionStatus::Normal, "3 unique args should not warn");
+
+        // 重置
+        detector.reset();
+
+        // 场景 2：参数重复 → 应该被阻断（因为 max_identical_calls = 2）
+        let status1 = detector.check("bash", r#"{"cmd": "ls"}"#);
+        assert_eq!(status1, LoopDetectionStatus::Normal);
+
+        let status2 = detector.check("bash", r#"{"cmd": "ls"}"#);
+        // 第 2 次调用相同参数，达到 max_identical_calls，直接被 Blocked
+        assert!(status2.should_stop(), "2 identical calls should be blocked");
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1068,6 +1153,234 @@ mod tests {
                 EmptyArgsResult::GlobalTripped,
                 "{}th empty args after reset should NOT trigger",
                 i + 1
+            );
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 新增测试：参数各不相同的连续相同工具调用
+    // ═══════════════════════════════════════════════════════════
+
+    /// 连续调用 read_file 读取不同文件 → 不应报警
+    ///
+    /// 真实场景：AI 在探索代码库时，连续读取多个不同文件
+    /// 这是正常的探索行为，不应该触发循环检测警告
+    #[test]
+    fn test_consecutive_same_tool_unique_args_no_warning() {
+        let config = LoopDetectionConfig {
+            enabled: true,
+            max_consecutive_same_tool: 10,
+            max_identical_calls: 3,
+            window_size: 20,
+        };
+        let mut detector = LoopDetector::from_config(config);
+
+        // 连续读取 10 个不同文件
+        let files = vec![
+            "src/main.rs",
+            "src/lib.rs",
+            "src/config.rs",
+            "src/utils.rs",
+            "src/api.rs",
+            "src/models.rs",
+            "src/handlers.rs",
+            "src/middleware.rs",
+            "src/database.rs",
+            "src/routes.rs",
+        ];
+
+        for (i, file) in files.iter().enumerate() {
+            let args = serde_json::json!({"path": file}).to_string();
+            let status = detector.check("read_file", &args);
+
+            // 所有调用都应该返回 Normal，不应报警
+            assert_eq!(
+                status,
+                LoopDetectionStatus::Normal,
+                "{}th read_file({}) should be Normal (unique args), got {:?}",
+                i + 1,
+                file,
+                status
+            );
+        }
+
+        // 验证 stats：应该有 10 条历史记录
+        let stats = detector.stats();
+        assert_eq!(stats.history_size, 10);
+        assert_eq!(stats.consecutive_same_tool_count, 10);
+    }
+
+    /// 连续调用 bash 执行不同命令 → 不应报警
+    ///
+    /// 真实场景：AI 用 bash 探索不同目录或执行不同命令
+    /// 这是正常的探索行为
+    #[test]
+    fn test_consecutive_bash_unique_commands_no_warning() {
+        let config = LoopDetectionConfig {
+            enabled: true,
+            max_consecutive_same_tool: 10,
+            max_identical_calls: 3,
+            window_size: 20,
+        };
+        let mut detector = LoopDetector::from_config(config);
+
+        // 连续执行 10 个不同命令
+        let commands = vec![
+            "ls -la",
+            "pwd",
+            "whoami",
+            "ls /tmp",
+            "cat README.md",
+            "find . -name '*.rs'",
+            "git status",
+            "git log --oneline -5",
+            "ps aux | grep rust",
+            "cargo test",
+        ];
+
+        for (i, cmd) in commands.iter().enumerate() {
+            let args = serde_json::json!({"command": cmd}).to_string();
+            let status = detector.check("bash", &args);
+
+            assert_eq!(
+                status,
+                LoopDetectionStatus::Normal,
+                "{}th bash({}) should be Normal (unique args), got {:?}",
+                i + 1,
+                cmd,
+                status
+            );
+        }
+
+        let stats = detector.stats();
+        assert_eq!(stats.history_size, 10);
+    }
+
+    /// 连续调用相同工具，但参数部分重复 → 应报警
+    ///
+    /// 真实场景：AI 在某个参数上卡住，只有少量变化
+    /// 这种情况下应该触发警告
+    #[test]
+    fn test_consecutive_same_tool_repeated_args_should_warn() {
+        let config = LoopDetectionConfig {
+            enabled: true,
+            max_consecutive_same_tool: 10,
+            max_identical_calls: 3,
+            window_size: 20,
+        };
+        let mut detector = LoopDetector::from_config(config);
+
+        // 调用 6 次，但只有 3 个不同参数（50% 重复率）
+        let args_list = vec![
+            r#"{"path": "a.rs"}"#,   // 唯一 1
+            r#"{"path": "b.rs"}"#,   // 唯一 2
+            r#"{"path": "a.rs"}"#,   // 重复 1
+            r#"{"path": "c.rs"}"#,   // 唯一 3
+            r#"{"path": "b.rs"}"#,   // 重复 2
+            r#"{"path": "a.rs"}"#,   // 重复 3
+        ];
+
+        for (i, args) in args_list.iter().enumerate() {
+            let status = detector.check("read_file", args);
+
+            // 前 2 次正常，第 3 次起可能触发警告
+            if i < 2 {
+                assert_eq!(
+                    status,
+                    LoopDetectionStatus::Normal,
+                    "{}th call should be Normal",
+                    i + 1
+                );
+            }
+            // 第 3 次后可能触发警告（取决于重复率）
+        }
+
+        // 最终应该触发警告（因为重复率 > 20%）
+        let final_status = detector.check("read_file", r#"{"path": "a.rs"}"#);
+        assert!(
+            final_status.should_warn() || final_status.should_stop(),
+            "Should warn or stop when args repeat significantly, got {:?}",
+            final_status
+        );
+    }
+
+    /// 边界情况：正好 80% 唯一参数 → 不报警
+    ///
+    /// 测试 unique_ratio > 0.8 的边界
+    #[test]
+    fn test_consecutive_same_tool_exact_80_percent_unique() {
+        let config = LoopDetectionConfig {
+            enabled: true,
+            max_consecutive_same_tool: 10,
+            max_identical_calls: 3,
+            window_size: 20,
+        };
+        let mut detector = LoopDetector::from_config(config);
+
+        // 10 次调用，8 个不同参数（正好 80%）
+        let args_list = vec![
+            r#"{"path": "1.rs"}"#,  // 唯一 1
+            r#"{"path": "2.rs"}"#,  // 唯一 2
+            r#"{"path": "3.rs"}"#,  // 唯一 3
+            r#"{"path": "4.rs"}"#,  // 唯一 4
+            r#"{"path": "5.rs"}"#,  // 唯一 5
+            r#"{"path": "6.rs"}"#,  // 唯一 6
+            r#"{"path": "7.rs"}"#,  // 唯一 7
+            r#"{"path": "8.rs"}"#,  // 唯一 8
+            r#"{"path": "1.rs"}"#,  // 重复 1
+            r#"{"path": "2.rs"}"#,  // 重复 2
+        ];
+
+        for args in args_list.iter() {
+            let status = detector.check("read_file", args);
+            // unique_ratio = 8/10 = 0.8，不满足 > 0.8
+            // 达到 max_consecutive_same_tool 后应该 Blocked（因为 0.8 不 > 0.8）
+        }
+
+        // 达到上限后，unique_ratio = 0.8，应该被 Blocked（不满足 > 0.8）
+        let final_status = detector.check("read_file", r#"{"path": "3.rs"}"#);
+        assert!(
+            final_status.should_stop(),
+            "Should be blocked when unique_ratio <= 0.8, got {:?}",
+            final_status
+        );
+    }
+
+    /// 边界情况：81% 唯一参数 → 不报警
+    ///
+    /// 测试 unique_ratio > 0.8 的边界（向上取整）
+    #[test]
+    fn test_consecutive_same_tool_81_percent_unique_no_warning() {
+        let config = LoopDetectionConfig {
+            enabled: true,
+            max_consecutive_same_tool: 10,
+            max_identical_calls: 3,
+            window_size: 20,
+        };
+        let mut detector = LoopDetector::from_config(config);
+
+        // 11 次调用，9 个不同参数（约 82%）
+        let args_list = vec![
+            r#"{"path": "1.rs"}"#,
+            r#"{"path": "2.rs"}"#,
+            r#"{"path": "3.rs"}"#,
+            r#"{"path": "4.rs"}"#,
+            r#"{"path": "5.rs"}"#,
+            r#"{"path": "6.rs"}"#,
+            r#"{"path": "7.rs"}"#,
+            r#"{"path": "8.rs"}"#,
+            r#"{"path": "9.rs"}"#,
+            r#"{"path": "1.rs"}"#,  // 重复
+            r#"{"path": "2.rs"}"#,  // 重复
+        ];
+
+        for args in args_list.iter() {
+            let status = detector.check("read_file", args);
+            // unique_ratio = 9/11 ≈ 0.818 > 0.8，不应该触发警告
+            assert_eq!(
+                status,
+                LoopDetectionStatus::Normal,
+                "Should not warn when unique_ratio > 0.8"
             );
         }
     }

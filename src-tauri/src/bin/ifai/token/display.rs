@@ -72,6 +72,27 @@ pub fn estimate_tokens(messages: &[Message]) -> usize {
                 }
             }
         }
+
+        // 🔥 FIX: 计算 tool_calls JSON 的 token 数
+        // tool_calls 包含工具名称和参数，对 deepseek-chat 等模型很重要
+        if let Some(tool_calls) = &msg.tool_calls {
+            for tc in tool_calls {
+                // tool_call id: 约 10 tokens
+                total += 10;
+                // function.name: 约 5-10 tokens
+                total += tc.function.name.chars().count() / 4 + 5;
+                // function.arguments (JSON): 根据字符串长度估算
+                let args_len = tc.function.arguments.len();
+                if args_len > 0 {
+                    let chinese_args = tc.function.arguments.chars().filter(|c| is_chinese(*c)).count();
+                    let other_args = args_len.saturating_sub(chinese_args);
+                    total += ((chinese_args / 2 + other_args / 4) as f64 * 1.3) as usize;
+                } else {
+                    // 空对象 "{}": 约 2 tokens
+                    total += 2;
+                }
+            }
+        }
     }
     total
 }

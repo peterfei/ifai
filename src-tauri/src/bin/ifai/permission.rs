@@ -4,11 +4,42 @@
 //! 零重复代码，配置驱动。
 
 use crate::loop_detector::{
-    EmptyArgsResult, LoopDetectionConfig, LoopDetectionStatus, LoopDetector,
+    EmptyArgsResult, LoopDetectionConfig, LoopDetector,
 };
+
+// 🔍 重新导出 LoopDetectionStatus，供 session.rs 的循环检测使用
+pub use crate::loop_detector::LoopDetectionStatus;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
+
+/// 🔥 调试日志路径（与 session.rs 保持一致）
+fn get_debug_log_path() -> PathBuf {
+    std::env::var("IFAI_DEBUG_LOG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            path.push(".ifai");
+            path.push("debug.log");
+            path
+        })
+}
+
+/// 同步写入调试日志（用于非异步上下文）
+fn log_debug_sync(message: String) {
+    let log_path = get_debug_log_path();
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+    let log_line = format!("[{}] {}\n", timestamp, message);
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .and_then(|mut file| std::io::Write::write_all(&mut file, log_line.as_bytes()));
+}
 
 // ═══════════════════════════════════════════════════════════
 // 类型定义（与 UI 对齐）
@@ -325,7 +356,49 @@ pub fn check_loop(tool_name: &str, args: &str) -> LoopDetectionStatus {
 
     if let Some(detector) = LOOP_DETECTOR.get() {
         if let Ok(mut detector) = detector.write() {
-            return detector.check(tool_name, args);
+            let status = detector.check(tool_name, args);
+
+            // 🔥 打印循环检测日志
+            match &status {
+                LoopDetectionStatus::Normal => {}
+                LoopDetectionStatus::Warning { count, pattern } => {
+                    // 检查参数唯一比例
+                    let consecutive_count = detector.get_consecutive_count(tool_name);
+                    let unique_args = detector.get_unique_args_in_window(tool_name, consecutive_count);
+                    let unique_ratio = if consecutive_count > 0 {
+                        unique_args.len() as f64 / consecutive_count as f64
+                    } else {
+                        1.0
+                    };
+
+                    if unique_ratio > 0.8 {
+                        // 参数各不相同，允许继续
+                        log_debug_sync(format!(
+                            "[LOOP-DETECT] INFO: {} x{} (连续调用 '{}' {} 次（但参数各不相同，允许继续）) | unique_ratio={:.1}% | args: {}",
+                            tool_name, count, tool_name, consecutive_count,
+                            unique_ratio * 100.0,
+                            args.chars().take(100).collect::<String>()
+                        ));
+                    } else {
+                        // 参数大量重复，警告
+                        log_debug_sync(format!(
+                            "[LOOP-DETECT] WARNING: {} x{} (连续调用 '{}' {} 次，唯一参数 {}/{} ({:.1}%)) | args: {}",
+                            tool_name, count, tool_name, consecutive_count,
+                            unique_args.len(), consecutive_count, unique_ratio * 100.0,
+                            args.chars().take(100).collect::<String>()
+                        ));
+                    }
+                }
+                LoopDetectionStatus::Blocked { reason } => {
+                    log_debug_sync(format!(
+                        "[LOOP-DETECT] BLOCKED: {} | args: {}",
+                        reason,
+                        args.chars().take(100).collect::<String>()
+                    ));
+                }
+            }
+
+            return status;
         }
     }
 

@@ -89,6 +89,12 @@ mod progress_snapshot_test; // 🧪 进度显示快照测试（TDD）
 mod parallel_dispatch_test; // 🧪 并行派发通知测试
 #[cfg(test)]
 mod single_tool_test; // 🧪 单个工具调用测试
+#[cfg(test)]
+mod continuation_break_test; // 🧪 续接循环 Break 条件单元测试（空参数死循环 bug）
+#[cfg(test)]
+mod tool_args_e2e_test; // 🧪 Tool Calls 参数非空 E2E 测试
+#[cfg(test)]
+mod compression_trigger_test; // 🧪 Mid-turn 压缩触发测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
