@@ -599,6 +599,8 @@ pub struct App {
     pub running_workflow_id: Option<String>,
     /// 🔥 首次运行设置向导
     pub setup_wizard: Option<super::wizard::SetupWizard>,
+    /// 🔥 配置已更新标志（向导完成后设置，通知主循环更新 session）
+    pub config_updated: bool,
 }
 
 impl App {
@@ -641,6 +643,7 @@ impl App {
             test_size: None,
             running_workflow_id: None,
             setup_wizard: None,
+            config_updated: false,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -675,6 +678,7 @@ impl App {
             test_size: None,
             running_workflow_id: None,
             setup_wizard: None,
+            config_updated: false,
         }
     }
 
@@ -2443,6 +2447,8 @@ impl App {
                                                 self.push_line(format!("⚠️  保存配置失败: {}", e));
                                             } else {
                                                 self.push_line("✅ 配置已保存到 ~/.ifai/config.toml".to_string());
+                                                self.push_line("🔄 正在应用新配置...".to_string());
+                                                self.config_updated = true; // 标记配置已更新
                                             }
                                         }
 

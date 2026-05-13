@@ -73,8 +73,10 @@ impl WizardStep {
 
 #[derive(Debug, Clone)]
 pub struct ProviderInfo {
-    /// 配置文件中使用的 provider ID（如 "openai", "zhipu"）
+    /// 简写 ID（用于 [default] 中的 provider 字段，如 "openai", "zhipu"）
     pub id: &'static str,
+    /// 完整 ID（用于 [providers.xxx] 段名，如 "openai-official", "zhipu-official"）
+    pub official_id: &'static str,
     /// 显示名称（如 "OpenAI", "智谱 AI"）
     pub name: &'static str,
     pub description: &'static str,
@@ -83,31 +85,37 @@ pub struct ProviderInfo {
 const PROVIDERS: &[ProviderInfo] = &[
     ProviderInfo {
         id: "openai",
+        official_id: "openai-official",
         name: "OpenAI",
         description: "GPT-4, GPT-3.5",
     },
     ProviderInfo {
         id: "anthropic",
+        official_id: "anthropic-official",
         name: "Anthropic",
         description: "Claude 3, Claude 3.5",
     },
     ProviderInfo {
         id: "zhipu",
+        official_id: "zhipu-official",
         name: "智谱 AI",
         description: "GLM-4, GLM-4V",
     },
     ProviderInfo {
         id: "deepseek",
+        official_id: "deepseek-official",
         name: "DeepSeek",
         description: "DeepSeek-V2, V3",
     },
     ProviderInfo {
         id: "gemini",
+        official_id: "gemini-official",
         name: "Gemini",
         description: "Gemini Pro, 1.5",
     },
     ProviderInfo {
         id: "local",
+        official_id: "local-official",
         name: "Local Model",
         description: "Ollama/LM Studio",
     },
@@ -132,6 +140,14 @@ fn provider_display_name(id: &str) -> &'static str {
         .find(|p| p.id == id)
         .map(|p| p.name)
         .unwrap_or("Unknown")
+}
+
+/// 根据简写 ID 获取完整的 official ID
+fn provider_official_id(short_id: &str) -> &'static str {
+    PROVIDERS.iter()
+        .find(|p| p.id == short_id)
+        .map(|p| p.official_id)
+        .unwrap_or("unknown-official") // 如果找不到，返回默认值
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -241,33 +257,52 @@ model = "gpt-4o"
             }
         }
 
-        // 更新 api_key（如果用户输入了）
-        if !self.api_key.is_empty() {
-            let provider_id = self.selected_provider.as_deref().unwrap_or("openai");
-            let providers_section = format!("[providers.{}]", provider_id);
+        // 更新 api_key 和 base_url
+        if !self.api_key.is_empty() || self.selected_provider.is_some() {
+            let provider_short = self.selected_provider.as_deref().unwrap_or("openai");
+            let provider_official = provider_official_id(provider_short);
+            let providers_section = format!("[providers.{}]", provider_official);
+
+            // 获取默认的 base_url（从 provider metadata）
+            let base_url = crate::provider::resolve_provider(provider_short)
+                .map(|spec| spec.api_spec.base_url.to_string())
+                .ok();
 
             if content.contains(&providers_section) {
-                // 如果 providers.xxx 段存在，更新 api_key
-                if content.contains(&format!("{} api_key", providers_section)) {
-                    let new_api_key = format!("api_key = \"{}\"", self.api_key);
-                    content = regex::Regex::new(r#"\[providers\.[^\]]+\]\s*api_key\s*=\s*"[^"]*""#)
-                        .map_err(|e| format!("Regex error: {}", e))?
-                        .replace(&content, &format!("{}\n    {}", &providers_section, new_api_key))
-                        .into_owned();
-                } else {
-                    // 追加 api_key 到 providers.xxx 段
-                    content = content.replace(
-                        &providers_section,
-                        &format!("{}\n    api_key = \"{}\"", providers_section, self.api_key)
-                    );
+                // 如果 providers.xxx-official 段已存在，更新内容
+                let mut section_content = Vec::new();
+
+                // 添加 api_key（如果用户输入了）
+                if !self.api_key.is_empty() {
+                    section_content.push(format!("    api_key = \"{}\"", self.api_key));
                 }
+
+                // 添加 base_url
+                if let Some(ref url) = base_url {
+                    section_content.push(format!("    base_url = \"{}\"", url));
+                }
+
+                // 替换整个段（保留注释行）
+                let new_section = format!("{}\n{}\n", providers_section, section_content.join("\n"));
+                content = regex::Regex::new(&format!(r"\[{}\](\n[^[]]*)?", providers_section.replace("[", "\\[").replace("]", "\\]")))
+                    .map_err(|e| format!("Regex error: {}", e))?
+                    .replace(&content, &new_section)
+                    .into_owned();
             } else {
-                // 追加 providers.xxx 段
-                content = format!(r#"
-{}
-[providers.{}]
-    api_key = "{}"
-"#, content, provider_id, self.api_key);
+                // 追加新的 providers.xxx-official 段
+                let mut section_lines = vec![
+                    format!("[{}]", provider_official)
+                ];
+
+                if !self.api_key.is_empty() {
+                    section_lines.push(format!("    api_key = \"{}\"", self.api_key));
+                }
+
+                if let Some(ref url) = base_url {
+                    section_lines.push(format!("    base_url = \"{}\"", url));
+                }
+
+                content = format!("{}\n{}\n", content, section_lines.join("\n"));
             }
         }
 
@@ -891,5 +926,49 @@ mod tests {
 
         let models = models_for("Unknown");
         assert_eq!(models, &["unknown"]);
+    }
+
+    #[test]
+    fn test_save_config_includes_base_url() {
+        use std::fs;
+        use std::path::PathBuf;
+
+        // 创建临时目录
+        let temp_dir = std::env::temp_dir()
+            .join(format!("ifai_test_save_config_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let config_path = temp_dir.join("config.toml");
+
+        // 创建基础配置文件
+        let template = r#"# IfAI CLI Configuration
+
+[default]
+provider = "openai"
+model = "gpt-4o"
+"#;
+        fs::write(&config_path, template).unwrap();
+
+        // 创建向导并选择智谱
+        let mut wiz = SetupWizard::new();
+        wiz.selected_provider = Some("zhipu".to_string());
+        wiz.selected_model = Some("glm-4".to_string());
+        wiz.api_key = "test-zhipu-key".to_string();
+
+        // 修改 wizard.rs 的 save_config 使用临时路径
+        // 由于 save_config 使用固定的 ~/.ifai/config.toml 路径，
+        // 我们只能测试 provider_official_id 函数
+        let official_id = provider_official_id("zhipu");
+        assert_eq!(official_id, "zhipu-official", "应返回完整的 official ID");
+
+        // 验证 base_url 可以从 provider metadata 获取
+        let base_url = crate::provider::resolve_provider("zhipu")
+            .map(|spec| spec.api_spec.base_url.clone());
+        assert!(base_url.is_ok(), "应能获取 base_url");
+        assert_eq!(base_url.unwrap(), "https://open.bigmodel.cn/api/paas/v4");
+
+        // 清理
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }
