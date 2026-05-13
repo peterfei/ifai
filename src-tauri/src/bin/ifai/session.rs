@@ -589,12 +589,42 @@ pub fn perform_compaction_fallback(
         tool_call_id: None,
     });
 
-    // 最近消息
-    let start = messages.len().saturating_sub(keep_last);
-    result.extend(messages[start..].iter().cloned());
+    // 🔥 FIX: 确保保留的消息序列是完整的（每个 tool 都有对应的 assistant）
+    // 从后往前扫描，找到一个完整的对话段（从 user 或 assistant[无tool_calls] 开始）
+    let start_index = find_complete_conversation_start(messages, keep_last);
+    result.extend(messages[start_index..].iter().cloned());
 
-    log_debug_sync(format!("[COMPRESSION-FALLBACK] 输出: {} 条消息 (系统+压缩说明+最近{})", result.len(), keep_last));
+    log_debug_sync(format!("[COMPRESSION-FALLBACK] 输出: {} 条消息 (系统+压缩说明+从索引{}开始的{}条)",
+        result.len(), start_index, messages.len() - start_index));
     result
+}
+
+/// 🔥 找到完整对话的起始索引
+/// 确保从该索引开始的消息序列中，每个 tool 都有对应的 assistant[tool_calls]
+pub fn find_complete_conversation_start(messages: &[Message], target_count: usize) -> usize {
+    let mut start = messages.len().saturating_sub(target_count);
+
+    // 从 start 往前找，确保第一条不是 tool（tool 需要前面有 assistant[tool_calls]）
+    while start > 0 {
+        let first_msg = &messages[start];
+
+        // 如果第一条是 tool，需要继续往前找
+        if first_msg.role == MessageRole::Tool {
+            start -= 1;
+            continue;
+        }
+
+        // 如果第一条是 user 或 assistant（无 tool_calls），这是一个好的起点
+        if matches!(first_msg.role, MessageRole::User | MessageRole::System)
+            || (first_msg.role == MessageRole::Assistant && first_msg.tool_calls.is_none()) {
+            break;
+        }
+
+        // 如果第一条是 assistant[tool_calls]，也可以（表示新的一轮工具调用开始）
+        break;
+    }
+
+    start
 }
 
 /// 异步生成对话摘要（直接 reqwest 调用，避免 Message 类型不兼容）
