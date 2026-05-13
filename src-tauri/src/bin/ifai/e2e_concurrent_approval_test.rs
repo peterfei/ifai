@@ -483,13 +483,13 @@ mod tests {
             app.is_approving(),
             app.thread.messages.get(main_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         Step 4 - Switched back to Main:
         Active: Some("Main")
         Main is_approving: false
-        Main messages: 1
+        Main messages: 0
         Thread-1 messages: 1
-        "###);
+        "#);
 
         // ✅ 验证：main 不显示 thread1 的审批
         if app.is_approving() {

@@ -458,19 +458,18 @@ mod tests {
 
     #[test]
     fn test_max_iterations() {
-        // 完全信任模型：无硬性限制（usize::MAX）
+        // 安全上限：所有类别统一限制为 50 次
         let safe_max = max_iterations(ToolCategory::Safe);
         let destructive_max = max_iterations(ToolCategory::Destructive);
         let dangerous_max = max_iterations(ToolCategory::Dangerous);
 
-        // 验证返回的是 usize::MAX（或至少是一个非常大的值）
-        assert!(safe_max > 1_000_000);
-        assert!(destructive_max > 1_000_000);
-        assert!(dangerous_max > 1_000_000);
+        // 验证返回的是安全上限 50
+        assert_eq!(safe_max, 50);
+        assert_eq!(destructive_max, 50);
+        assert_eq!(dangerous_max, 50);
 
         // 验证所有类别返回相同的值
-        assert_eq!(safe_max, usize::MAX);
-        assert_eq!(destructive_max, usize::MAX);
-        assert_eq!(dangerous_max, usize::MAX);
+        assert_eq!(safe_max, destructive_max);
+        assert_eq!(destructive_max, dangerous_max);
     }
 }

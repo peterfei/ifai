@@ -581,7 +581,8 @@ mod tests {
 
         let lines = render_overlay_panel_lines(&overlay);
         assert!(lines.len() >= 3); // title + blank + 2 sections
-        assert!(lines[0].to_string().contains("F I L E"));
+        // 标题格式: "/ 文件: /tmp/test.rs"
+        assert!(lines[0].to_string().contains("文件"));
     }
 
     #[test]
@@ -591,7 +592,8 @@ mod tests {
 
         let lines = render_overlay_panel_lines(&overlay);
         assert!(lines.len() >= 3); // title + blank + 2 sections
-        assert!(lines[0].to_string().contains("T R A N S C R I P T"));
+        // 标题格式: "/ 对话记录"
+        assert!(lines[0].to_string().contains("对话记录"));
     }
 
     #[test]
@@ -603,6 +605,7 @@ mod tests {
 
         let lines = render_overlay_panel_lines(&overlay);
         assert!(lines.len() >= 4); // title + blank + 3 sections
-        assert!(lines[0].to_string().contains("D I F F"));
+        // 标题格式: "/ 文件差异: /tmp/test.rs 新版本"
+        assert!(lines[0].to_string().contains("文件差异"));
     }
 }

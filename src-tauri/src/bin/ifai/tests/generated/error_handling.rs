@@ -24,8 +24,11 @@ async fn test_gong_juzhi_xingshi_bai() {
 #[serial_test::serial]
 async fn test_hui_fushi_bai() {
     // 验证会话恢复失败时的处理
-    let mut env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
     env.set_env("IFAI_SESSION_FILE", "/nonexistent/session.json");
+    if let Some(mock) = env.mock_server() {
+        mock.setup_streaming_response(vec!["Hello"]).await.unwrap();
+    }
     let output = env.run_cli(&["hello"]).await.unwrap();
     // CLI 应该正常启动，只是没有历史会话
     output.assert_success();
@@ -61,8 +64,11 @@ async fn test_kong() {
 #[serial_test::serial]
 async fn test_stdin_cuo_wu() {
     // 验证 stdin 读取错误
-    let mut env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
     env.set_stdin("test input");
+    if let Some(mock) = env.mock_server() {
+        mock.setup_streaming_response(vec!["OK"]).await.unwrap();
+    }
     let output = env.run_cli(&["hello"]).await.unwrap();
     // 在非 REPL 模式下，stdin 被忽略
     output.assert_success();

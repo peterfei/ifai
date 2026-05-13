@@ -4,34 +4,11 @@ expression: content
 ---
 # Session Summary
 
-**Date**: 2026-05-11 07:26:39 UTC
-**Model**: openai-official/gpt-4
-**Tokens**: 500 input + 800 output = 1300 total
+**Date**: 2026-05-13 15:42:12 UTC
+**Model**: deepseek-official/deepseek-chat
+**Tokens**: 0 input + 0 output = 0 total
 
 ## Conversation
-
-### 👤 User
-
-你好，请帮我写一个函数
-
-### 🤖 Assistant
-
-好的，我可以帮你写函数。你想要什么功能的函数？
-
-### 👤 User
-
-一个加法函数，使用 Python
-
-### 🤖 Assistant
-
-这是一个 Python 加法函数的示例：
-
-def add(a, b):
-    return a + b
-
-# 使用示例
-result = add(3, 5)
-print(result)  # 输出: 8
 
 ---
 

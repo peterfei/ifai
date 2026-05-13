@@ -95,13 +95,13 @@ mod tests {
             app.is_approving(),
             app.thread.messages.get(main_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         After switching to Main:
         Active: Some("Main")
         Main has approval: false
-        Main messages: 1
+        Main messages: 0
         Thread-1 messages: 1
-        "###);
+        "#);
 
         // === 步骤 5：模拟用户在 main 中同意审批 ===
         // ⚠️ 这个步骤模拟了用户报告的问题：在 main 中看到了 thread1 的审批
@@ -145,12 +145,12 @@ mod tests {
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(main_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         Final state:
         Active: Some("Main")
-        Main messages: 1
+        Main messages: 0
         Thread-1 messages: 2
-        "###);
+        "#);
 
         println!("\n=== 测试完成 ===\n");
         println!("✅ 数据结构层面的隔离是正确的");

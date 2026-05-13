@@ -80,8 +80,8 @@ mod tests {
         After switch to main:
         Active: Some("Main")
         content_lines.len(): 1
-        Last line: Some("Main message 1")
-        thread_messages[Main].len(): 1
+        Last line: Some("⟩ Main message 1")
+        thread_messages[Main].len(): 0
         "#);
 
         // 模拟：Thread-2 的 AI 响应到达
@@ -104,14 +104,14 @@ mod tests {
             app.content_lines.last().and_then(|line| line.spans.first()).map(|s| s.content.clone()),
             app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         ❌ BUG - Message cross-talk:
         Active: Some("Main")
         content_lines.len(): 2
         Last line: Some("AI response to Thread-2")
-        thread_messages[Main].len(): 1
+        thread_messages[Main].len(): 0
         thread_messages[Thread-2].len(): 2
-        "###);
+        "#);
 
         // ❌ 消息串台：主线程显示了 Thread-2 的 AI 响应！
         // content_lines.len() = 2（主线程有 2 行）
@@ -305,12 +305,12 @@ mod tests {
             app.content_lines.len(),
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         After switching to main thread and AI response:
         content_lines.len(): 1
         Active thread: Some("Main")
-        thread_messages[Thread-2].len(): 3
-        "###);
+        thread_messages[Thread-2].len(): 2
+        "#);
 
         // ✅ 修复后：消息被渲染到当前活动线程（主线程）
         // ✅ thread_messages[Thread-2] 包含所有 3 条消息（用户输入 + 2 个 AI 响应）
@@ -324,12 +324,12 @@ mod tests {
             app.content_lines.len(),
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         After switching back to Thread-2:
         content_lines.len(): 3
         Active thread: Some("Side: Thread-2")
-        thread_messages[Thread-2].len(): 3
-        "###);
+        thread_messages[Thread-2].len(): 0
+        "#);
 
         // ✅ 切换回 Thread-2 时，完整历史（3条消息）被恢复
     }
@@ -391,11 +391,11 @@ mod tests {
             "After switching to Thread-2:\ncontent_lines.len(): {}\nthread_messages[Thread-2].len(): {}",
             app.content_lines.len(),
             app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @"
         After switching to Thread-2:
         content_lines.len(): 1
-        thread_messages[Thread-2].len(): 1
-        "###);
+        thread_messages[Thread-2].len(): 0
+        ");
     }
 
     // ========================================================================

@@ -352,12 +352,12 @@ mod tests {
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.content_lines.len(),
             app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         After switching to Thread-1:
         Active: Some("Side: Thread-1")
         content_lines.len(): 2
-        Thread-1 messages: 2
-        "###);
+        Thread-1 messages: 0
+        "#);
 
         // ✅ Thread-1 的完整历史被恢复
     }

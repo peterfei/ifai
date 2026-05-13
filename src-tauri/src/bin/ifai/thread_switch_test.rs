@@ -79,11 +79,12 @@ mod tests {
         app.switch_thread(primary_id);
 
         // ✅ 修复后：主线程消息应该被加载到 content_lines
+        // 注意：switch_thread 会清空目标线程的 messages（内容已加载到 content_lines）
         assert_eq!(app.content_lines.len(), 2, "主线程应该有 2 条消息");
         assert_eq!(
             app.thread.messages.get(primary_id).unwrap().len(),
-            2,
-            "主线程 thread_messages 应该有 2 条"
+            0,
+            "主线程 thread_messages 应该被清空（已加载到 content_lines）"
         );
     }
 

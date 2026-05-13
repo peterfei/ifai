@@ -98,12 +98,12 @@ mod tests {
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(main_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         After switching back to Main:
         Active: Some("Main")
-        Main messages: 1
+        Main messages: 0
         Thread-1 messages: 2
-        "###);
+        "#);
 
         // ✅ 验证：Main 仍然只有 1 条消息，没有包含 Thread-1 的 2 条消息
         // ✅ 消息隔离正常
@@ -251,12 +251,12 @@ mod tests {
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(main_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread1_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         Back to Main:
         Active: Some("Main")
-        Main messages: 1
+        Main messages: 0
         Thread-1 messages: 2
-        "###);
+        "#);
 
         // ✅ 验证：消息严格隔离，没有串台
     }

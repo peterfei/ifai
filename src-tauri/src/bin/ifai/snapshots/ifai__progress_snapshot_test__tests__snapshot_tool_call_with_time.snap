@@ -2,4 +2,4 @@
 source: src/bin/ifai/progress_snapshot_test.rs
 expression: snapshot
 ---
-  ├─ ✔ agent_read_file (<1s) → fn main() { println!("Hello"); }
+  ├─ ✔ agent_read_file src/main.rs (<1s) → fn main() { println!("Hello"); }

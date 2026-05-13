@@ -479,16 +479,16 @@ mod tests {
 
     #[test]
     fn test_compress_threshold_gpt4() {
-        // gpt-4o: 128k → 80% = 102400
+        // gpt-4o: 128k → 60% = 76800
         let threshold = compute_compress_threshold("gpt-4o");
-        assert_eq!(threshold, 102_400);
+        assert_eq!(threshold, 76_800);
     }
 
     #[test]
     fn test_compress_threshold_unknown_model() {
-        // 未知模型默认 128k → 80% = 102400
+        // 未知模型默认 128k → 60% = 76800
         let threshold = compute_compress_threshold("nonexistent-model");
-        assert_eq!(threshold, 102_400);
+        assert_eq!(threshold, 76_800);
     }
 
     #[test]

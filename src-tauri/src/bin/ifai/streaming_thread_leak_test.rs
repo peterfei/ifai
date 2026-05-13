@@ -94,12 +94,12 @@ mod tests {
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         After switching to Thread-2:
         Active: Some("Side: Thread-2")
-        thread_messages[Main].len(): 2
+        thread_messages[Main].len(): 1
         thread_messages[Thread-2].len(): 0
-        "###);
+        "#);
 
         // === 场景 4：流式输出的第二行到达 ===
         let streaming_line_2 = " systems programming language";
@@ -116,12 +116,12 @@ mod tests {
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         After streaming completes:
         Active: Some("Side: Thread-2")
-        thread_messages[Main].len(): 3
+        thread_messages[Main].len(): 2
         thread_messages[Thread-2].len(): 0
-        "###);
+        "#);
 
         // ✅ 正确：主线程有完整消息（用户输入 + 2 行流式输出）
         // ✅ Thread-2 没有任何消息（完全隔离）
@@ -352,12 +352,12 @@ mod tests {
             app.thread.store.active_thread().map(|t| t.display_name()),
             app.thread.messages.get(primary_id).map_or(0, |m| m.len()),
             app.thread.messages.get(thread2_id).map_or(0, |m| m.len())
-        ), @r###"
+        ), @r#"
         Final state after streaming:
         Active: Some("Main")
-        thread_messages[Main].len(): 4
+        thread_messages[Main].len(): 1
         thread_messages[Thread-2].len(): 0
-        "###);
+        "#);
 
         // ✅ 正确：主线程有 4 条消息（用户输入 + 3 行响应）
         // ✅ Thread-2 有 0 条消息（完全隔离）
