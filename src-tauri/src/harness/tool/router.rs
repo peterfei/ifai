@@ -8,10 +8,11 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use super::{
     executor::{
-        AliasExecutor, ExploreAgentExecutor, FileToolsExecutor, MemorySaveExecutor,
+        AliasExecutor, ExploreAgentExecutor, MemorySaveExecutor,
         ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
         ToolExecutor,
     },
+    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter},
     ToolError,
 };
 
@@ -51,11 +52,6 @@ impl ToolRouter {
             "MemorySave".to_string(),
             Box::new(MemorySaveExecutor::new()),
         );
-
-        // 注册文件工具执行器（每个工具一个实例）
-        executors.insert("read_file".to_string(), Box::new(FileToolsExecutor::new()));
-        executors.insert("write_file".to_string(), Box::new(FileToolsExecutor::new()));
-        executors.insert("edit_file".to_string(), Box::new(FileToolsExecutor::new()));
 
         // 注册搜索工具执行器（每个工具一个实例）
         executors.insert(
@@ -98,6 +94,26 @@ impl ToolRouter {
             "review_agent".to_string(),
             Box::new(ReviewAgentExecutor::new()),
         );
+
+        // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool
+        let ping_tool = PingTool::new(5000, 0);
+        let ping_adapter = PingToolAdapter::new(ping_tool, "ping".to_string());
+        executors.insert("ping".to_string(), Box::new(ping_adapter));
+
+        // 🆕 使用 #[derive(Tool)] 宏的 ReadFileTool（替换旧实现）
+        let read_file_tool = ReadFileTool::new();
+        let read_file_adapter = ReadFileAdapter::new(read_file_tool, "read_file".to_string());
+        executors.insert("read_file".to_string(), Box::new(read_file_adapter));
+
+        // 🆕 使用 #[derive(Tool)] 宏的 WriteFileTool（替换旧实现）
+        let write_file_tool = WriteFileTool::new();
+        let write_file_adapter = WriteFileAdapter::new(write_file_tool, "write_file".to_string());
+        executors.insert("write_file".to_string(), Box::new(write_file_adapter));
+
+        // 🆕 使用 #[derive(Tool)] 宏的 EditFileTool（替换旧实现）
+        let edit_file_tool = EditFileTool::new();
+        let edit_file_adapter = EditFileAdapter::new(edit_file_tool, "edit_file".to_string());
+        executors.insert("edit_file".to_string(), Box::new(edit_file_adapter));
 
         Self {
             executors: Mutex::new(executors),

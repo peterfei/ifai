@@ -7,6 +7,7 @@ pub mod global_config;  // 🔥 新增：全局配置共享
 pub mod registry;
 pub mod router;
 pub mod spec;
+pub mod new_tools;     // 🆕 使用 #[derive(Tool)] 宏的新工具
 
 #[cfg(test)]
 mod integration_tests;
@@ -21,6 +22,7 @@ pub use global_config::{
 pub use registry::ToolRegistry;
 pub use router::ToolRouter;
 pub use spec::{ToolCategory, ToolPermissionMode, ToolSpec};
+pub use new_tools::{PingTool, PingResult, PingError};  // 🆕 导出新工具
 
 /// 工具执行结果
 pub type ToolResult<T> = Result<T, ToolError>;

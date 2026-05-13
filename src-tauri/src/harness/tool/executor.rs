@@ -4,7 +4,7 @@
 
 pub mod agentexecutors;
 pub mod aliastools;
-pub mod filetools;
+// pub mod filetools;  // 已删除，被宏工具替代
 pub mod memorytools;
 pub mod searchtools;
 pub mod shelltools;
@@ -18,7 +18,7 @@ use super::spec::ToolPermissionMode;
 // 重新导出执行器
 pub use agentexecutors::{ExploreAgentExecutor, ReviewAgentExecutor};
 pub use aliastools::AliasExecutor;
-pub use filetools::FileToolsExecutor;
+// pub use filetools::FileToolsExecutor;  // 已删除，被宏工具替代
 pub use memorytools::MemorySaveExecutor;
 pub use searchtools::SearchToolsExecutor;
 pub use shelltools::ShellToolsExecutor;
