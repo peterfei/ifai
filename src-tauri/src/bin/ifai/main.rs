@@ -2545,56 +2545,6 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
     // 主循环
     loop {
-        // 🔥 检查配置是否需要更新（向导完成后）
-        if app.config_updated {
-            app.config_updated = false; // 重置标志位
-
-            // 重新加载配置
-            match config::EffectiveConfig::resolve(None, None, None, None) {
-                Ok(new_config) => {
-                    // 更新 session
-                    let mut s = session.lock().await;
-                    s.provider = new_config.provider().to_string();
-                    s.model = new_config.model().to_string();
-
-                    // 更新 API Key（如果有）
-                    if let Some(api_key) = new_config.api_key() {
-                        s.set_api_key(api_key.to_string());
-                    }
-
-                    // 更新 base_url（如果有）
-                    if let Some(base_url) = new_config.base_url() {
-                        s.set_base_url(base_url.to_string());
-                    }
-
-                    drop(s);
-
-                    // 提示用户
-                    let theme = render::default_theme();
-                    app.push_line(format!(
-                        "{}✅ 新配置已生效：{} / {}{}",
-                        theme.success,
-                        new_config.provider(),
-                        new_config.model(),
-                        render::RESET
-                    ));
-                    app.scroll_to_bottom();
-                    app.render();
-                }
-                Err(e) => {
-                    let theme = render::default_theme();
-                    app.push_line(format!(
-                        "{}⚠️ 配置加载失败：{}{}",
-                        theme.warning,
-                        e,
-                        render::RESET
-                    ));
-                    app.scroll_to_bottom();
-                    app.render();
-                }
-            }
-        }
-
         match app.run_loop() {
             AppResult::Submit(text) => {
                 // 添加历史
@@ -2839,6 +2789,57 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 break;
             }
             AppResult::Handled => {}
+        }
+
+        // 🔥 检查配置是否需要更新（向导完成后）
+        // 注意：必须在 run_loop() 之后检查，因为向导完成在 run_loop 内部处理
+        if app.config_updated {
+            app.config_updated = false; // 重置标志位
+
+            // 重新加载配置
+            match config::EffectiveConfig::resolve(None, None, None, None) {
+                Ok(new_config) => {
+                    // 更新 session
+                    let mut s = session.lock().await;
+                    s.provider = new_config.provider().to_string();
+                    s.model = new_config.model().to_string();
+
+                    // 更新 API Key（如果有）
+                    if let Some(api_key) = new_config.api_key() {
+                        s.set_api_key(api_key.to_string());
+                    }
+
+                    // 更新 base_url（如果有）
+                    if let Some(base_url) = new_config.base_url() {
+                        s.set_base_url(base_url.to_string());
+                    }
+
+                    drop(s);
+
+                    // 提示用户
+                    let theme = render::default_theme();
+                    app.push_line(format!(
+                        "{}✅ 新配置已生效：{} / {}{}",
+                        theme.success,
+                        new_config.provider(),
+                        new_config.model(),
+                        render::RESET
+                    ));
+                    app.scroll_to_bottom();
+                    app.render();
+                }
+                Err(e) => {
+                    let theme = render::default_theme();
+                    app.push_line(format!(
+                        "{}⚠️ 配置加载失败：{}{}",
+                        theme.warning,
+                        e,
+                        render::RESET
+                    ));
+                    app.scroll_to_bottom();
+                    app.render();
+                }
+            }
         }
     }
 

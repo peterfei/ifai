@@ -2322,6 +2322,12 @@ impl App {
         loop {
             self.render();
 
+            // 🔥 检查配置是否需要更新（向导完成后立即返回）
+            // 这样主循环可以立即处理配置更新，无需等待下一个事件
+            if self.config_updated {
+                return AppResult::Handled;
+            }
+
             // 🔥 审批模式拦截：如果当前线程有挂起的审批，优先处理审批键盘输入
             // 场景：用户在 streaming 期间切换线程后切回，审批状态仍存在但审批循环已退出
             if self.is_approving() {
@@ -2457,6 +2463,10 @@ impl App {
                                             .mark_completed();
 
                                         self.setup_wizard = None; // 向导完成
+
+                                        // 🔥 立即渲染，让用户看到提示（否则需要再按一个键）
+                                        self.scroll_to_bottom();
+                                        self.render();
                                     }
                                     super::wizard::WizardAction::Dismiss => {
                                         self.setup_wizard = None; // 关闭完成提示

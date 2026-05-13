@@ -226,6 +226,13 @@ model = "gpt-4o"
         // 更新 provider 和 model
         if let Some(ref provider) = self.selected_provider {
             let provider_line = format!("provider = \"{}\"", provider);
+
+            // 先删除注释的 provider 行
+            content = regex::Regex::new(r#"#\s*provider\s*=\s*"[^"]*""#)
+                .map_err(|e| format!("Regex error: {}", e))?
+                .replace(&content, "")
+                .into_owned();
+
             if content.contains("provider = ") {
                 content = regex::Regex::new(r#"provider\s*=\s*"[^"]*""#)
                     .map_err(|e| format!("Regex error: {}", e))?
@@ -241,6 +248,13 @@ model = "gpt-4o"
 
         if let Some(ref model) = self.selected_model {
             let model_line = format!("model = \"{}\"", model);
+
+            // 🔥 关键修复：先删除注释的 model 行（如 # model = "xxx"）
+            content = regex::Regex::new(r#"#\s*model\s*=\s*"[^"]*""#)
+                .map_err(|e| format!("Regex error: {}", e))?
+                .replace(&content, "")
+                .into_owned();
+
             if content.contains("model = ") {
                 content = regex::Regex::new(r#"model\s*=\s*"[^"]*""#)
                     .map_err(|e| format!("Regex error: {}", e))?
@@ -1027,21 +1041,35 @@ model = "gpt-4o"
 
         let config_path = temp_dir.join("config.toml");
 
-        // 创建基础配置文件
-        let template = r#"[default]
+        // 测试1: model 被注释的情况
+        let template_commented = r#"[default]
+provider = "openai"
+# model = "gpt-4o"
+"#;
+        fs::write(&config_path, template_commented).unwrap();
+
+        // 模拟删除注释行
+        let content = fs::read_to_string(&config_path).unwrap();
+        let re_comment = regex::Regex::new(r#"#\s*model\s*=\s*"[^"]*""#).unwrap();
+        let result1 = re_comment.replace(&content, "");
+
+        assert!(!result1.contains("# model"), "注释的 model 行应被删除");
+        assert!(result1.contains("[default]"), "[default] 段应保留");
+
+        // 测试2: 正常替换
+        let template_normal = r#"[default]
 provider = "openai"
 model = "gpt-4o"
 "#;
-        fs::write(&config_path, template).unwrap();
+        fs::write(&config_path, template_normal).unwrap();
 
-        // 模拟正则替换
         let content = fs::read_to_string(&config_path).unwrap();
         let model_line = "model = \"glm-4\"";
         let re = regex::Regex::new(r#"model\s*=\s*"[^"]*""#).unwrap();
-        let result = re.replace(&content, model_line);
+        let result2 = re.replace(&content, model_line);
 
-        assert!(result.contains("model = \"glm-4\""), "model 字段应被更新");
-        assert!(result.contains("[default]"), "[default] 段应保留");
+        assert!(result2.contains("model = \"glm-4\""), "model 字段应被更新");
+        assert!(result2.contains("[default]"), "[default] 段应保留");
 
         // 清理
         let _ = fs::remove_dir_all(&temp_dir);
