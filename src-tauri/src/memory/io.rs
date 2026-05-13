@@ -56,6 +56,35 @@ pub fn format_initial_memories(section_title: &str, entry: &str) -> String {
     )
 }
 
+/// 🔥 确保 memories.md 文件存在（首次运行自动创建骨架文件）
+pub fn ensure_memories_file() -> Result<PathBuf, String> {
+    let path = memories_file();
+    if path.exists() {
+        return Ok(path);
+    }
+    let content = "\
+# User Memories
+# 首次初始化自动创建
+
+## Preferences
+# 在这里记录用户的偏好设置，例如：- [YYYY-MM-DD] 偏好使用 TypeScript
+
+## Decisions
+# 在这里记录技术决策，例如：- [YYYY-MM-DD] 采用 PostgreSQL 作为主数据库
+
+## Knowledge
+# 在这里记录项目知识点，例如：- [YYYY-MM-DD] Rust 的所有权系统...
+"
+    .to_string();
+    // 确保.ifai 目录存在
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+    fs::write(&path, content).map_err(|e| format!("Failed to write memories.md: {}", e))?;
+    Ok(path)
+}
+
 /// 提取条目内容（去除日期部分）
 ///
 /// 例如："- [2025-05-09] 使用 TypeScript" -> "使用 TypeScript"

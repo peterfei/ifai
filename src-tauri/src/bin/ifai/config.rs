@@ -415,6 +415,15 @@ pub fn init_config_file() -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// 🔥 确保配置文件存在（首次运行自动创建，已存在则跳过）
+pub fn ensure_config() -> Result<PathBuf, String> {
+    let path = config_file_path();
+    if path.exists() {
+        return Ok(path);
+    }
+    init_config_file()
+}
+
 /// 🔥 从 TOML 配置读取 provider（优先级：Env > File > None）
 fn read_provider_from_toml() -> Option<String> {
     let config = read_toml_config().ok()?;
@@ -669,5 +678,64 @@ base_url = "https://api.custom.com"
         assert!(template.contains("[providers."));
         assert!(template.contains("# API key"));
         assert!(template.contains("Precedence"));
+    }
+
+    #[test]
+    fn test_ensure_config_creates_when_missing() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_ensure_cfg_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("config.toml");
+
+        // 用环境变量指向临时路径
+        let original = std::env::var("IFAI_CONFIG_PATH").ok();
+        std::env::set_var("IFAI_CONFIG_PATH", &config_path);
+
+        let result = ensure_config();
+        assert!(result.is_ok(), "应成功创建 config.toml");
+        assert!(config_path.exists(), "config.toml 应被创建");
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("[default]"), "应包含默认配置");
+
+        // 恢复
+        if let Some(val) = original {
+            std::env::set_var("IFAI_CONFIG_PATH", val);
+        } else {
+            std::env::remove_var("IFAI_CONFIG_PATH");
+        }
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_ensure_config_idempotent() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_ensure_cfg_idem_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let config_path = temp_dir.join("config.toml");
+
+        let custom = "# 自定义配置\n[default]\nprovider = \"test\"\n";
+        std::fs::write(&config_path, custom).unwrap();
+
+        let original = std::env::var("IFAI_CONFIG_PATH").ok();
+        std::env::set_var("IFAI_CONFIG_PATH", &config_path);
+
+        let result = ensure_config();
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        assert_eq!(content, custom, "已有内容不应被覆盖");
+
+        if let Some(val) = original {
+            std::env::set_var("IFAI_CONFIG_PATH", val);
+        } else {
+            std::env::remove_var("IFAI_CONFIG_PATH");
+        }
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 }

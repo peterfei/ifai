@@ -251,7 +251,7 @@ impl PermissionStore {
         rules
     }
 
-    fn config_path() -> PathBuf {
+    pub(crate) fn config_path() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".ifai")
@@ -546,6 +546,42 @@ impl Default for PermissionStore {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 确保 permissions.toml 文件存在（使用默认路径）
+pub fn ensure_permissions_file() -> Result<PathBuf, String> {
+    ensure_permissions_file_with_base(PermissionStore::config_path())
+}
+
+/// 确保 permissions.toml 文件存在（使用自定义路径，用于测试）
+fn ensure_permissions_file_with_base(path: PathBuf) -> Result<PathBuf, String> {
+    if path.exists() {
+        return Ok(path);
+    }
+    // 确保目录存在
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+    }
+    // 创建骨架模板
+    let template = "\
+# IfAI Permissions
+# 首次初始化自动创建
+#
+# 允许规则
+[[allow]]
+tool = \"bash\"
+pattern = \"ls *\"
+
+# 拒绝规则
+[[deny]]
+tool = \"bash\"
+pattern = \"rm -rf /*\"
+"
+    .to_string();
+    std::fs::write(&path, template)
+        .map_err(|e| format!("Failed to write permissions.toml: {}", e))?;
+    Ok(path)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1147,5 +1183,53 @@ pattern = "ls -la:*"
 
         // 清理
         let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ensure_permissions_file() 测试
+    // ═══════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_ensure_permissions_file_creates_when_missing() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_ensure_perm_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let perm_path = temp_dir.join("permissions.toml");
+
+        let result = ensure_permissions_file_with_base(perm_path.clone());
+        assert!(result.is_ok(), "应成功创建 permissions.toml");
+        assert!(perm_path.exists(), "permissions.toml 应被创建");
+
+        // 验证内容包含注释模板
+        let content = std::fs::read_to_string(&perm_path).unwrap();
+        assert!(content.contains("[[allow]]"), "应包含 allow 段");
+        assert!(content.contains("[[deny]]"), "应包含 deny 段");
+        assert!(content.contains("tool"), "应包含 tool 字段");
+
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_ensure_permissions_file_idempotent() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_perm_idem_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let perm_path = temp_dir.join("permissions.toml");
+
+        // 写入自定义内容
+        let custom = "[[allow]]\ntool = \"bash\"\npattern = \"git diff:*\"\n";
+        std::fs::write(&perm_path, custom).unwrap();
+
+        // ensure 不应覆盖已有内容
+        let result = ensure_permissions_file_with_base(perm_path.clone());
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&perm_path).unwrap();
+        assert_eq!(content, custom, "已有内容不应被覆盖");
+
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 }

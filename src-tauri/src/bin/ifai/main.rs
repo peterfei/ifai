@@ -27,6 +27,7 @@ mod diff_render; // 🔥 TUI Diff 渲染系统
 #[cfg(test)]
 mod e2e_concurrent_approval_test; // 🔥 Phase 6: 并发和审批 E2E 高保真测试
 mod event; // 🔥 TUI 事件系统 - 元编程级声明式事件处理框架
+mod first_run; // 🔥 首次运行检测器
 mod input_composer; // 🔥 输入框组件（替代 rustyline）
 #[cfg(test)]
 mod input_help_bug_test; // 🧪 键盘输入触发帮助 E2E 测试
@@ -99,6 +100,7 @@ mod compression_trigger_test; // 🧪 Mid-turn 压缩触发测试
 #[cfg(test)]
 mod compression_pairing_test; // 🧪 压缩后消息配对完整性测试
 mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
+mod wizard; // 🔥 首次运行设置向导
 
 // ============================================================================
 // TUI 事件循环结果
@@ -2516,6 +2518,22 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
     // 创建 TUI App
     let mut app = tui::App::new().map_err(|e| format!("Failed to initialize TUI: {}", e))?;
+
+    // 🔥 首次运行检测和初始化
+    let first_run_detector = first_run::FirstRunDetector::new();
+    let is_first_run = first_run_detector.is_first_run();
+    if is_first_run {
+        // 自动初始化配置文件（非破坏性：已存在则跳过）
+        let _ = config::ensure_config();
+        let _ = ifainew_lib::memory::io::ensure_memories_file();
+        let _ = permission_store::ensure_permissions_file();
+
+        // 部署内置资源到 ~/.ifai/（prompts/skills/agents）
+        let _ = first_run::deploy_builtin_resources();
+
+        // 激活设置向导
+        app.setup_wizard = Some(wizard::SetupWizard::new());
+    }
 
     if let Some(name) = &resume_name {
         app.push_line(format!("Resuming session: {}", name));

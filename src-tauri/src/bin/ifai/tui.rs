@@ -597,6 +597,8 @@ pub struct App {
     test_size: Option<(u16, u16)>,
     /// 🔥 当前运行的 workflow ID（用于 ESC 取消）
     pub running_workflow_id: Option<String>,
+    /// 🔥 首次运行设置向导
+    pub setup_wizard: Option<super::wizard::SetupWizard>,
 }
 
 impl App {
@@ -638,6 +640,7 @@ impl App {
             #[cfg(test)]
             test_size: None,
             running_workflow_id: None,
+            setup_wizard: None,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -671,6 +674,7 @@ impl App {
             #[cfg(test)]
             test_size: None,
             running_workflow_id: None,
+            setup_wizard: None,
         }
     }
 
@@ -1624,6 +1628,22 @@ impl App {
                     }
                 }
             }
+            // === 首次运行设置向导显示 ===
+            else if let Some(ref wizard) = self.setup_wizard {
+                if !help_mode {
+                    let wizard_lines = wizard.render();
+                    let wizard_content =
+                        Paragraph::new(wizard_lines).alignment(ratatui::layout::Alignment::Center);
+                    f.render_widget(wizard_content, content_render_area);
+                } else {
+                    // 向导激活时帮助模式不可见（保持向导焦点）
+                    let welcome_widget = super::welcome::WelcomeWidget::new();
+                    let welcome_lines = welcome_widget.render();
+                    let welcome_content =
+                        Paragraph::new(welcome_lines).alignment(ratatui::layout::Alignment::Center);
+                    f.render_widget(welcome_content, content_render_area);
+                }
+            }
             // === 欢迎页显示（当内容区为空且不在帮助模式时） ===
             else if is_empty && !help_mode {
                 let welcome_widget = super::welcome::WelcomeWidget::new();
@@ -2133,40 +2153,51 @@ impl App {
                 f.render_widget(separator, separator_area);
 
                 // === 输入框 ===
-                let prompt = Span::styled(
-                    format!("{}⟩ ", self.input.prompt()),
-                    ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
-                );
-                let input_text = if input_value.contains('\n') {
-                    // 多行输入：拆分为多行，后续行带缩进
-                    let indent_span = Span::raw(format!(
-                        "{:width$}",
-                        "",
-                        width = self.input.prompt().len() + 2
+                if self.setup_wizard.is_some() {
+                    // 向导模式：显示提示而不是输入框
+                    let wizard_hint = Line::from(Span::styled(
+                        "  使用 ↑↓←→ 键导航向导，Enter 确认，Esc 跳过  ",
+                        ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                     ));
-                    let lines: Vec<Line<'_>> = input_value
-                        .lines()
-                        .enumerate()
-                        .map(|(i, line_text)| {
-                            if i == 0 {
-                                Line::from(vec![prompt.clone(), Span::raw(line_text)])
-                            } else {
-                                Line::from(vec![indent_span.clone(), Span::raw(line_text)])
-                            }
-                        })
-                        .collect();
-                    ratatui::text::Text::from(lines)
+                    let input = Paragraph::new(wizard_hint)
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(input, input_area);
                 } else {
-                    let input_line = Line::from(vec![prompt, Span::raw(input_value)]);
-                    ratatui::text::Text::from(input_line)
-                };
-                let input = Paragraph::new(input_text);
-                f.render_widget(input, input_area);
+                    let prompt = Span::styled(
+                        format!("{}⟩ ", self.input.prompt()),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                    );
+                    let input_text = if input_value.contains('\n') {
+                        // 多行输入：拆分为多行，后续行带缩进
+                        let indent_span = Span::raw(format!(
+                            "{:width$}",
+                            "",
+                            width = self.input.prompt().len() + 2
+                        ));
+                        let lines: Vec<Line<'_>> = input_value
+                            .lines()
+                            .enumerate()
+                            .map(|(i, line_text)| {
+                                if i == 0 {
+                                    Line::from(vec![prompt.clone(), Span::raw(line_text)])
+                                } else {
+                                    Line::from(vec![indent_span.clone(), Span::raw(line_text)])
+                                }
+                            })
+                            .collect();
+                        ratatui::text::Text::from(lines)
+                    } else {
+                        let input_line = Line::from(vec![prompt, Span::raw(input_value)]);
+                        ratatui::text::Text::from(input_line)
+                    };
+                    let input = Paragraph::new(input_text);
+                    f.render_widget(input, input_area);
 
-                // 设置终端光标位置（input_cursor_col 已包含 prompt 和 ⟩ 的宽度）
-                let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
-                let cursor_y = input_area.y + input_cursor_row.min(input_area.height - 1);
-                f.set_cursor_position((cursor_x, cursor_y));
+                    // 设置终端光标位置（input_cursor_col 已包含 prompt 和 ⟩ 的宽度）
+                    let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
+                    let cursor_y = input_area.y + input_cursor_row.min(input_area.height - 1);
+                    f.set_cursor_position((cursor_x, cursor_y));
+                }
             }
         }
     }
@@ -2387,6 +2418,55 @@ impl App {
                 // 审批模式下：如果没有真正挂起的审批（状态残留），清除审批标记
                 // 正常情况 is_approving() 已经基于 approval_states 判断，这里是额外安全网
                 continue; // 审批模式下不处理其他事件
+            }
+
+            // 🔥 首次运行设置向导拦截：向导激活时拦截键盘输入
+            if self.setup_wizard.is_some() {
+                if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
+                    if let Ok(event) = event::read() {
+                        if let Event::Key(key) = &event {
+                            if key.kind == event::KeyEventKind::Release {
+                                continue;
+                            }
+
+                            if let Some(ref mut wizard) = self.setup_wizard {
+                                let action = wizard.handle_key(key.code);
+                                match action {
+                                    super::wizard::WizardAction::Skip => {
+                                        // 用户跳过向导，关闭向导，不保存配置
+                                        self.setup_wizard = None;
+                                    }
+                                    super::wizard::WizardAction::Complete => {
+                                        // 保存配置到 config.toml
+                                        if let Some(ref wizard) = self.setup_wizard {
+                                            if let Err(e) = wizard.save_config() {
+                                                self.push_line(format!("⚠️  保存配置失败: {}", e));
+                                            } else {
+                                                self.push_line("✅ 配置已保存到 ~/.ifai/config.toml".to_string());
+                                            }
+                                        }
+
+                                        // 创建 .onboarding 标记文件
+                                        let _ = super::first_run::FirstRunDetector::new()
+                                            .mark_completed();
+
+                                        self.setup_wizard = None; // 向导完成
+                                    }
+                                    super::wizard::WizardAction::Dismiss => {
+                                        self.setup_wizard = None; // 关闭完成提示
+                                    }
+                                    super::wizard::WizardAction::Advance
+                                    | super::wizard::WizardAction::Back
+                                    | super::wizard::WizardAction::None => {
+                                        // 其他动作已在 handle_key 中处理状态转换
+                                    }
+                                }
+                                self.render(); // 重新渲染向导
+                            }
+                        }
+                    }
+                }
+                continue; // 向导模式下不处理其他事件
             }
 
             if event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
