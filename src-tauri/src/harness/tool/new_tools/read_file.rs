@@ -11,7 +11,8 @@ use tool_macro::Tool;
 #[derive(Tool)]
 #[tool(
     name = "read_file",
-    description = "Read the contents of a file from disk"
+    description = "Read the contents of a file from disk",
+    params(path: str)
 )]
 pub struct ReadFileTool {
     // 工具没有可配置参数或状态，保持简单

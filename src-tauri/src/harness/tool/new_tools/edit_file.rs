@@ -9,7 +9,8 @@ use tool_macro::Tool;
 #[derive(Tool)]
 #[tool(
     name = "edit_file",
-    description = "Edit a file by replacing old_text with new_text, with fuzzy matching"
+    description = "Edit a file by replacing old_text with new_text, with fuzzy matching",
+    params(path: str, old_text: str, new_text: str)
 )]
 pub struct EditFileTool {
     // 工具没有可配置参数或状态

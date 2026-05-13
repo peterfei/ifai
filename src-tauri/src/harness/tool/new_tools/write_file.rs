@@ -9,7 +9,8 @@ use tool_macro::Tool;
 #[derive(Tool)]
 #[tool(
     name = "write_file",
-    description = "Write content to a file, creating directories if needed"
+    description = "Write content to a file, creating directories if needed",
+    params(path: str, content: str)
 )]
 pub struct WriteFileTool {
     // 工具没有可配置参数或状态

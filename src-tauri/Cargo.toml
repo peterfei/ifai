@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "ifai-render-macro"]
+members = [".", "ifai-render-macro", "tool_macro"]
 
 [package]
 name = "ifainew"
@@ -92,6 +92,7 @@ bincode = { version = "2.0.1", features = ["serde"] }
 
 ifainew-core = { path = "../../ifainew-core/rust", optional = true }
 ifai-render-macro = { path = "ifai-render-macro" }
+tool_macro = { path = "tool_macro" }
 tauri-plugin-window-state = "2"
 handlebars = "6.3.2"
 async-trait = "0.1.89"

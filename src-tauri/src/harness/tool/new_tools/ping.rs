@@ -8,7 +8,11 @@ use std::time::Duration;
 
 // TDD 步骤 1: 先定义工具接口（使用宏）
 #[derive(Tool)]
-#[tool(name = "ping", description = "Test network connectivity to a host")]
+#[tool(
+    name = "ping",
+    description = "Test network connectivity to a host",
+    params(host: str, port: int)
+)]
 pub struct PingTool {
     #[tool(config)]
     timeout_ms: u64,
@@ -21,7 +25,7 @@ impl PingTool {
     /// TDD 步骤 2: 定义工具行为
     ///
     /// 测试到主机的网络连接
-    pub fn execute_ping(&self, host: &str, port: u16) -> Result<PingResult, PingError> {
+    pub fn execute_ping(&self, host: &str, port: u64) -> Result<PingResult, PingError> {
         // 构造地址
         let addr = format!("{}:{}", host, port);
 
@@ -37,7 +41,7 @@ impl PingTool {
                 let elapsed = start.elapsed();
                 return Ok(PingResult {
                     host: host.to_string(),
-                    port,
+                    port: port as u16,
                     reachable: true,
                     latency_ms: elapsed.as_millis() as u64,
                 });
@@ -46,7 +50,7 @@ impl PingTool {
 
         Ok(PingResult {
             host: host.to_string(),
-            port,
+            port: port as u16,
             reachable: false,
             latency_ms: 0,
         })
@@ -60,6 +64,13 @@ pub struct PingResult {
     pub port: u16,
     pub reachable: bool,
     pub latency_ms: u64,
+}
+
+impl PingResult {
+    /// 格式化输出为字符串（用于 ToolLike trait）
+    pub fn to_output_string(&self) -> String {
+        self.to_string()
+    }
 }
 
 impl std::fmt::Display for PingResult {
@@ -108,7 +119,7 @@ mod tests {
     fn test_ping_localhost() {
         // 测试本地连接（应该成功）
         let tool = PingTool::new(5000, 1);
-        let result = tool.execute_ping("127.0.0.1", 80).unwrap();
+        let result = tool.execute_ping("127.0.0.1", 80_u64);
         // 注意：80 端口可能没有服务，但至少应该能连接到 localhost
         // 所以我们只验证不会 panic
         let _ = result;

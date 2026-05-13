@@ -17,7 +17,7 @@ pub fn derive_tool(input: TokenStream) -> TokenStream {
     let name = &input.ident;
 
     // 解析 #[tool(...)] 属性
-    let (tool_name, tool_description) = parse_tool_attr(&input.attrs);
+    let (tool_name, tool_description, params) = parse_tool_attr(&input.attrs);
 
     // 解析结构体字段
     let fields = parse_struct_fields(&input.data);
@@ -40,6 +40,118 @@ pub fn derive_tool(input: TokenStream) -> TokenStream {
             quote! { #field_name }
         })
         .collect();
+
+    // 生成参数解析代码
+    let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+    let param_idents: Vec<proc_macro2::Ident> = params.iter()
+        .map(|p| proc_macro2::Ident::new(&p.name, proc_macro2::Span::call_site()))
+        .collect();
+
+    let param_parsing: Vec<proc_macro2::TokenStream> = params.iter().map(|p| {
+        let param_name = &p.name;
+        let param_ident = proc_macro2::Ident::new(param_name, proc_macro2::Span::call_site());
+
+        let parse_expr = match p.ty {
+            ParamType::String => quote! {
+                let #param_ident = args.get(#param_name)
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| ToolError::InvalidInput(format!("Missing '{}' parameter", #param_name)))?;
+            },
+            ParamType::Integer => quote! {
+                let #param_ident = args.get(#param_name)
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| ToolError::InvalidInput(format!("Missing or invalid '{}' parameter", #param_name)))?;
+            },
+            ParamType::Float => quote! {
+                let #param_ident = args.get(#param_name)
+                    .and_then(|v| v.as_f64())
+                    .ok_or_else(|| ToolError::InvalidInput(format!("Missing or invalid '{}' parameter", #param_name)))?;
+            },
+            ParamType::Boolean => quote! {
+                let #param_ident = args.get(#param_name)
+                    .and_then(|v| v.as_bool())
+                    .ok_or_else(|| ToolError::InvalidInput(format!("Missing or invalid '{}' parameter", #param_name)))?;
+            },
+        };
+        parse_expr
+    }).collect();
+
+    // 生成参数的 JSON schema
+    let param_schemas: Vec<proc_macro2::TokenStream> = params.iter().map(|p| {
+        let param_name = &p.name;
+        let json_type = match p.ty {
+            ParamType::String => "string",
+            ParamType::Integer => "integer",
+            ParamType::Float => "number",
+            ParamType::Boolean => "boolean",
+        };
+
+        quote! {
+            #param_name: {
+                "type": #json_type,
+                "description": #param_name
+            }
+        }
+    }).collect();
+
+    // 生成 execute_method 的参数
+    let execute_params: Vec<proc_macro2::TokenStream> = params.iter().map(|p| {
+        let param_ident = proc_macro2::Ident::new(&p.name, proc_macro2::Span::call_site());
+        match p.ty {
+            ParamType::String => quote! { &#param_ident },
+            ParamType::Integer | ParamType::Float | ParamType::Boolean => quote! { #param_ident },
+        }
+    }).collect();
+
+    // 生成 ToolLike 实现
+    let tool_like_impl = if !params.is_empty() {
+        // 有参数声明，生成 ToolLike
+        let execute_method_name = proc_macro2::Ident::new(
+            &format!("execute_{}", tool_name.replace("-", "_")),
+            proc_macro2::Span::call_site()
+        );
+
+        quote! {
+            // 生成 ToolLike trait 实现
+            impl crate::harness::tool::new_tools::adapter::ToolLike for #name {
+                fn schema(&self) -> serde_json::Value {
+                    serde_json::json!({
+                        "type": "function",
+                        "function": {
+                            "name": #tool_name,
+                            "description": #tool_description,
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    #(#param_schemas),*
+                                },
+                                "required": [#(#param_names),*]
+                            }
+                        }
+                    })
+                }
+
+                fn execute_tool(&self, args: &serde_json::Value) -> Result<String, crate::harness::tool::ToolError> {
+                    use serde_json::Value;
+                    use crate::harness::tool::ToolError;
+
+                    // 解析参数
+                    #(#param_parsing)*
+
+                    // 调用 execute 方法
+                    let result = self.#execute_method_name(#(#execute_params),*)
+                        .map_err(|e| ToolError::Execution(e.to_string()))?;
+
+                    // 尝试调用 to_output_string()，如果失败就使用 to_string()
+                    use std::string::ToString;
+                    Ok(result.to_output_string())
+                }
+            }
+        }
+    } else {
+        // 没有参数声明，不生成 ToolLike（需要手动实现）
+        quote! {}
+    };
 
     // 生成代码
     let expanded = quote! {
@@ -65,15 +177,18 @@ pub fn derive_tool(input: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        #tool_like_impl
     };
 
     TokenStream::from(expanded)
 }
 
-/// 解析 #[tool(name = "...", description = "...")] 属性
-fn parse_tool_attr(attrs: &[Attribute]) -> (String, String) {
+/// 解析 #[tool(name = "...", description = "...", params(...))] 属性
+fn parse_tool_attr(attrs: &[Attribute]) -> (String, String, Vec<ToolParam>) {
     let mut tool_name = String::new();
     let mut tool_description = String::new();
+    let mut params = Vec::new();
 
     for attr in attrs {
         if attr.path().is_ident("tool") {
@@ -81,6 +196,7 @@ fn parse_tool_attr(attrs: &[Attribute]) -> (String, String) {
             if let Ok(parsed) = attr.parse_args::<ToolAttrArgs>() {
                 tool_name = parsed.name;
                 tool_description = parsed.description;
+                params = parsed.params;
                 break;
             }
         }
@@ -94,47 +210,117 @@ fn parse_tool_attr(attrs: &[Attribute]) -> (String, String) {
         tool_description = "A tool".to_string();
     }
 
-    (tool_name, tool_description)
+    (tool_name, tool_description, params)
 }
 
 /// 自定义属性解析器
 struct ToolAttrArgs {
     name: String,
     description: String,
+    params: Vec<ToolParam>,
+}
+
+/// 工具参数定义
+struct ToolParam {
+    name: String,
+    ty: ParamType,
+}
+
+/// 参数类型
+#[derive(Debug, Clone, PartialEq)]
+enum ParamType {
+    String,
+    Integer,
+    Float,
+    Boolean,
 }
 
 impl syn::parse::Parse for ToolAttrArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        use syn::{LitStr, Token};
+        use syn::{LitStr, Token, parenthesized};
+        use proc_macro2::Ident;
 
         let mut name = String::new();
         let mut description = String::new();
+        let mut params = Vec::new();
 
-        // 解析 name = "xxx", description = "xxx"
+        // 解析 name = "xxx", description = "xxx", params(...)
         while !input.is_empty() {
             // 读取标识符
-            let key: syn::Ident = input.parse()?;
+            let key: Ident = input.parse()?;
             let key_str = key.to_string();
 
-            // 读取 =
-            input.parse::<Token![=]>()?;
-
-            // 读取字符串值
-            let value: LitStr = input.parse()?;
-
             match key_str.as_str() {
-                "name" => name = value.value(),
-                "description" => description = value.value(),
-                _ => {}
-            }
+                "name" | "description" => {
+                    // 读取 =
+                    input.parse::<Token![=]>()?;
 
-            // 如果有逗号，跳过
-            if input.peek(Token![,]) {
-                input.parse::<Token![,]>()?;
+                    // 读取字符串值
+                    let value: LitStr = input.parse()?;
+
+                    if key_str == "name" {
+                        name = value.value();
+                    } else {
+                        description = value.value();
+                    }
+
+                    // 如果有逗号，跳过
+                    if input.peek(Token![,]) {
+                        input.parse::<Token![,]>()?;
+                    }
+                }
+                "params" => {
+                    // 解析 params(...) 列表
+                    let params_content;
+                    parenthesized!(params_content in input);
+
+                    // 解析参数列表: param_name: type, param_name2: type2
+                    while !params_content.is_empty() {
+                        // 参数名
+                        let param_name: Ident = params_content.parse()?;
+                        let param_name_str = param_name.to_string();
+
+                        // 冒号
+                        params_content.parse::<Token![:]>()?;
+
+                        // 类型
+                        let type_ident: Ident = params_content.parse()?;
+                        let param_type = match type_ident.to_string().as_str() {
+                            "str" | "string" | "String" => ParamType::String,
+                            "int" | "integer" | "u64" | "i64" | "u32" | "i32" | "usize" | "isize" => ParamType::Integer,
+                            "float" | "f64" | "f32" => ParamType::Float,
+                            "bool" | "boolean" => ParamType::Boolean,
+                            _ => ParamType::String, // 默认为字符串
+                        };
+
+                        params.push(ToolParam {
+                            name: param_name_str,
+                            ty: param_type,
+                        });
+
+                        // 如果有逗号，跳过
+                        if params_content.peek(Token![,]) {
+                            params_content.parse::<Token![,]>()?;
+                        }
+                    }
+
+                    // 如果有逗号，跳过
+                    if input.peek(Token![,]) {
+                        input.parse::<Token![,]>()?;
+                    }
+                }
+                _ => {
+                    // 未知键，跳过值
+                    input.parse::<Token![=]>()?;
+                    input.parse::<syn::Expr>()?;
+                    if input.peek(Token![,]) {
+                        input.parse::<Token![,]>()?;
+                    }
+                }
             }
         }
 
-        Ok(ToolAttrArgs { name, description })
+        Ok(ToolAttrArgs { name, description, params })
     }
 }
 
