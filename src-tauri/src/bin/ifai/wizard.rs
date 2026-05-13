@@ -68,86 +68,83 @@ impl WizardStep {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ProviderInfo — 服务商数据
+// ProviderInfo — 服务商数据（元编程：动态生成，零硬编码）
 // ═══════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone)]
 pub struct ProviderInfo {
     /// 简写 ID（用于 [default] 中的 provider 字段，如 "openai", "zhipu"）
-    pub id: &'static str,
+    pub id: String,
     /// 完整 ID（用于 [providers.xxx] 段名，如 "openai-official", "zhipu-official"）
-    pub official_id: &'static str,
+    pub official_id: String,
     /// 显示名称（如 "OpenAI", "智谱 AI"）
-    pub name: &'static str,
-    pub description: &'static str,
+    pub name: String,
+    pub description: String,
 }
 
-const PROVIDERS: &[ProviderInfo] = &[
-    ProviderInfo {
-        id: "openai",
-        official_id: "openai-official",
-        name: "OpenAI",
-        description: "GPT-4, GPT-3.5",
-    },
-    ProviderInfo {
-        id: "anthropic",
-        official_id: "anthropic-official",
-        name: "Anthropic",
-        description: "Claude 3, Claude 3.5",
-    },
-    ProviderInfo {
-        id: "zhipu",
-        official_id: "zhipu-official",
-        name: "智谱 AI",
-        description: "GLM-4, GLM-4V",
-    },
-    ProviderInfo {
-        id: "deepseek",
-        official_id: "deepseek-official",
-        name: "DeepSeek",
-        description: "DeepSeek-V2, V3",
-    },
-    ProviderInfo {
-        id: "gemini",
-        official_id: "gemini-official",
-        name: "Gemini",
-        description: "Gemini Pro, 1.5",
-    },
-    ProviderInfo {
-        id: "local",
-        official_id: "local-official",
-        name: "Local Model",
-        description: "Ollama/LM Studio",
-    },
-];
+/// 🏛️ 元编程：从 provider metadata 动态生成服务商列表
+/// 数据源：providers/registry/*.yaml（编译时嵌入）
+fn get_providers() -> Vec<ProviderInfo> {
+    use ifainew_lib::harness::api::provider_metadata;
 
-/// 根据服务商获取可用的模型列表（使用 provider ID）
-fn models_for(provider: &str) -> &[&'static str] {
-    match provider {
-        "openai" => &["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
-        "anthropic" => &["claude-3-opus", "claude-3-sonnet", "claude-3-haiku"],
-        "zhipu" => &["glm-4", "glm-4v", "glm-4-plus"],
-        "deepseek" => &["deepseek-chat", "deepseek-coder"],
-        "gemini" => &["gemini-pro", "gemini-1.5-pro", "gemini-1.5-flash"],
-        "local" => &["local-model"],
-        _ => &["unknown"],
+    let registry = provider_metadata::get_all_provider_specs();
+    let mut providers = Vec::new();
+
+    for (_id, spec) in registry.iter() {
+        // 提取简写 ID（去掉 -official 后缀）
+        let short_id = spec.metadata.id.replace("-official", "");
+
+        // 生成描述（从模型列表）
+        let model_names: Vec<&str> = spec.models.iter()
+            .take(3)
+            .map(|m| m.name.as_str())
+            .collect();
+        let description = if model_names.len() < spec.models.len() {
+            format!("{}, +{} 更多", model_names.join(", "), spec.models.len() - model_names.len())
+        } else {
+            model_names.join(", ")
+        };
+
+        providers.push(ProviderInfo {
+            id: short_id.clone(),
+            official_id: spec.metadata.id.clone(),
+            name: spec.metadata.name.clone(),
+            description,
+        });
+    }
+
+    // 按名称排序
+    providers.sort_by(|a, b| a.name.cmp(&b.name));
+    providers
+}
+
+/// 🏛️ 元编程：从 provider metadata 动态获取模型列表
+/// 数据源：providers/registry/*.yaml（编译时嵌入）
+fn models_for(provider_short: &str) -> Vec<String> {
+    match crate::provider::resolve_provider(provider_short) {
+        Ok(spec) => spec.models.iter()
+            .map(|m| m.id.clone())
+            .collect(),
+        Err(_) => vec!["unknown".to_string()],
     }
 }
 
-/// 根据 provider ID 获取显示名称
-fn provider_display_name(id: &str) -> &'static str {
-    PROVIDERS.iter()
+/// 根据 provider ID 获取显示名称（动态查询）
+fn provider_display_name(id: &str) -> String {
+    let providers = get_providers();
+    providers.iter()
         .find(|p| p.id == id)
-        .map(|p| p.name)
-        .unwrap_or("Unknown")
+        .map(|p| p.name.clone())
+        .unwrap_or_else(|| "Unknown".to_string())
 }
 
-/// 根据简写 ID 获取完整的 official ID
-fn provider_official_id(short_id: &str) -> &'static str {
-    PROVIDERS.iter()
+/// 根据简写 ID 获取完整的 official ID（动态查询）
+fn provider_official_id(short_id: &str) -> String {
+    let providers = get_providers();
+    providers.iter()
         .find(|p| p.id == short_id)
-        .map(|p| p.official_id)
-        .unwrap_or("unknown-official") // 如果找不到，返回默认值
+        .map(|p| p.official_id.clone())
+        .unwrap_or_else(|| format!("{}-official", short_id))
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -341,12 +338,14 @@ model = "gpt-4o"
                     WizardAction::None
                 }
                 KeyCode::Down => {
-                    let max = PROVIDERS.len().saturating_sub(1);
+                    let providers = get_providers();
+                    let max = providers.len().saturating_sub(1);
                     *cursor = max.min(*cursor + 1);
                     WizardAction::None
                 }
                 KeyCode::Enter => {
-                    self.selected_provider = Some(PROVIDERS[*cursor].id.to_string());
+                    let providers = get_providers();
+                    self.selected_provider = Some(providers[*cursor].id.clone());
                     self.step = WizardStep::ConfigureModel { cursor: 0 };
                     WizardAction::Advance
                 }
@@ -426,7 +425,7 @@ model = "gpt-4o"
                     let provider = self.selected_provider.as_deref().unwrap_or("");
                     let models = models_for(provider);
                     let model_idx = models.iter().position(|m| {
-                        self.selected_model.as_deref() == Some(*m)
+                        self.selected_model.as_ref().map(|s| s.as_str()) == Some(m.as_str())
                     }).unwrap_or(0);
                     self.step = WizardStep::ConfigureModel { cursor: model_idx };
                     WizardAction::Back
@@ -502,7 +501,8 @@ model = "gpt-4o"
                 lines.push(centered_line("请选择您的 AI 服务提供商：", Some(Color::White), false));
                 lines.push(Line::from(""));
 
-                for (i, provider) in PROVIDERS.iter().enumerate() {
+                let providers = get_providers();
+                for (i, provider) in providers.iter().enumerate() {
                     let selected = i == *cursor;
                     let prefix = if selected { " › " } else { "   " };
                     let name_style = if selected {
@@ -728,11 +728,21 @@ mod tests {
         let action = wiz.handle_key(KeyCode::Enter);
         assert_eq!(action, WizardAction::Advance);
         assert_eq!(wiz.current_step_name(), "ConfigureModel");
-        assert_eq!(
-            wiz.selected_provider.as_deref(),
-            Some("openai"),
-            "应默认选择第一个服务商"
+
+        // 不依赖特定 provider，只检查已选择某个 provider
+        assert!(
+            wiz.selected_provider.is_some(),
+            "应选择第一个服务商（动态生成列表的第一个）"
         );
+
+        // 验证选择的 provider 在有效列表中
+        if let Some(ref provider) = wiz.selected_provider {
+            let providers = get_providers();
+            assert!(
+                providers.iter().any(|p| &p.id == provider),
+                "选择的 provider 应在列表中"
+            );
+        }
     }
 
     #[test]
@@ -790,11 +800,20 @@ mod tests {
     #[test]
     fn test_wizard_selected_provider_and_model() {
         let mut wiz = SetupWizard::new();
-        wiz.handle_key(KeyCode::Enter); // Select OpenAI
-        assert_eq!(wiz.selected_provider.as_deref(), Some("openai"));
+        wiz.handle_key(KeyCode::Enter); // Select first provider
 
-        wiz.handle_key(KeyCode::Enter); // Select gpt-4o
-        assert_eq!(wiz.selected_model.as_deref(), Some("gpt-4o"));
+        // 获取第一个 provider 进行验证
+        let providers = get_providers();
+        let first_provider_id = &providers[0].id;
+        assert_eq!(wiz.selected_provider.as_deref(), Some(first_provider_id.as_str()));
+
+        wiz.handle_key(KeyCode::Enter); // Select first model
+
+        // 验证选择了某个模型
+        assert!(
+            wiz.selected_model.is_some(),
+            "应选择第一个模型"
+        );
     }
 
     #[test]
@@ -804,8 +823,9 @@ mod tests {
         for _ in 0..10 {
             wiz.handle_key(KeyCode::Down);
         }
+        let providers = get_providers();
         if let WizardStep::SelectProvider { cursor } = wiz.step {
-            assert_eq!(cursor, PROVIDERS.len() - 1, "不应超出列表范围");
+            assert_eq!(cursor, providers.len() - 1, "不应超出列表范围");
         }
 
         // 向上翻到顶
@@ -831,11 +851,15 @@ mod tests {
     #[test]
     fn test_wizard_render_configure_model() {
         let mut wiz = SetupWizard::new();
-        wiz.handle_key(KeyCode::Enter); // Advance
+        wiz.handle_key(KeyCode::Enter); // Select first provider
         let lines = wiz.render();
         let combined: String = lines.iter().map(|l| l.to_string()).collect();
         assert!(combined.contains("步骤 2/3"), "应包含步骤 2 信息");
-        assert!(combined.contains("OpenAI"), "应包含服务商名");
+
+        // 验证包含第一个 provider 的显示名称
+        let providers = get_providers();
+        let first_provider_name = &providers[0].name;
+        assert!(combined.contains(first_provider_name), "应包含服务商名");
     }
 
     #[test]
@@ -941,10 +965,10 @@ mod tests {
     #[test]
     fn test_models_for_known_providers() {
         let models = models_for("openai");
-        assert!(models.contains(&"gpt-4o"));
+        assert!(models.iter().any(|m| m == "gpt-4o"), "应包含 gpt-4o 模型");
 
         let models = models_for("Unknown");
-        assert_eq!(models, &["unknown"]);
+        assert_eq!(models, vec!["unknown"], "未知 provider 应返回 unknown");
     }
 
     #[test]
