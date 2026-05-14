@@ -12,7 +12,7 @@ use super::{
         ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
-    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache},
+    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
     ToolError,
 };
 
@@ -95,6 +95,10 @@ impl ToolRouter {
             Box::new(ReviewAgentExecutor::new()),
         );
         executors.insert(
+            "code_review".to_string(),
+            Box::new(ReviewAgentExecutor::new()),
+        );
+        executors.insert(
             "websearch_agent".to_string(),
             Box::new(WebSearchAgentExecutor::new()),
         );
@@ -127,6 +131,16 @@ impl ToolRouter {
         let web_search_cache = SearchCache::default_config();
         let web_search_adapter = CachedWebSearchAdapter::new(web_search_tool, web_search_cache, "web_search".to_string());
         executors.insert("web_search".to_string(), Box::new(web_search_adapter));
+
+        // 🆕 注册 GitDiffTool（代码审查）
+        let git_diff_tool = GitDiffTool::new(5, 0);
+        let git_diff_adapter = GitDiffAdapter::new(git_diff_tool, "git_diff".to_string());
+        executors.insert("git_diff".to_string(), Box::new(git_diff_adapter));
+
+        // 🆕 注册 ComplexityAnalyzer（代码复杂度分析）
+        let complexity_tool = ComplexityAnalyzer::new(10, 0);
+        let complexity_adapter = ComplexityAnalyzerAdapter::new(complexity_tool, "complexity_analyzer".to_string());
+        executors.insert("complexity_analyzer".to_string(), Box::new(complexity_adapter));
 
         Self {
             executors: Mutex::new(executors),
@@ -198,6 +212,9 @@ mod tests {
         assert!(tools.contains(&"grep_search".to_string()));
         assert!(tools.contains(&"bash".to_string()));
         assert!(tools.contains(&"PowerShell".to_string()));
+        assert!(tools.contains(&"git_diff".to_string()));
+        assert!(tools.contains(&"complexity_analyzer".to_string()));
+        assert!(tools.contains(&"code_review".to_string()));
     }
 
     #[test]

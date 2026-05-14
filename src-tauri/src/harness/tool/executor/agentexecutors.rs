@@ -277,18 +277,62 @@ impl ToolExecutor for ExploreAgentExecutor {
     }
 }
 
+/// Review Agent 配置
+#[derive(Debug, Clone)]
+pub struct ReviewConfig {
+    /// 是否检查安全性（XSS/SQL注入/CSRF等）
+    pub check_security: bool,
+    /// 是否检查性能
+    pub check_performance: bool,
+    /// 是否检查代码质量
+    pub check_quality: bool,
+    /// 函数长度阈值
+    pub max_function_length: usize,
+    /// 排除模式（glob模式）
+    pub exclude_patterns: Vec<String>,
+}
+
+impl Default for ReviewConfig {
+    fn default() -> Self {
+        Self {
+            check_security: true,
+            check_performance: true,
+            check_quality: true,
+            max_function_length: 50,
+            exclude_patterns: vec!["*.generated.rs".into(), "*.pb.rs".into()],
+        }
+    }
+}
+
 /// Review Agent 执行器
 /// 代码审查（质量、安全性、性能）
 pub struct ReviewAgentExecutor {
     allowed_tools: HashSet<String>,
+    config: ReviewConfig,
 }
 
 impl ReviewAgentExecutor {
     pub fn new() -> Self {
         let mut allowed_tools = HashSet::new();
         allowed_tools.insert("review_agent".to_string());
+        allowed_tools.insert("code_review".to_string());
 
-        Self { allowed_tools }
+        Self {
+            allowed_tools,
+            config: ReviewConfig::default(),
+        }
+    }
+
+    /// 使用自定义配置创建
+    pub fn with_config(config: ReviewConfig) -> Self {
+        let mut allowed_tools = HashSet::new();
+        allowed_tools.insert("review_agent".to_string());
+        allowed_tools.insert("code_review".to_string());
+
+        Self {
+            allowed_tools,
+            config,
+        }
     }
 
     fn handle_review(&self, input: &Value) -> Result<String, ToolError> {
@@ -303,11 +347,98 @@ impl ReviewAgentExecutor {
                 "'files' must be an array of strings".to_string()
             ))?;
 
-        // 构造任务描述
-        let task = format!("审查以下文件:\n{}", files.join("\n"));
+        // 根据配置构建多维度审查任务
+        let mut dimensions = Vec::new();
+
+        if self.config.check_security {
+            dimensions.push("安全");
+        }
+        if self.config.check_performance {
+            dimensions.push("性能");
+        }
+        if self.config.check_quality {
+            dimensions.push("代码质量");
+        }
+
+        let dimension_str = if dimensions.is_empty() {
+            "全面".to_string()
+        } else {
+            dimensions.join("、")
+        };
+
+        // 构造包含配置的任务描述
+        let task = format!(
+            "审查以下文件（{}维度）:\n{}\n\n审查配置:\n- 函数长度阈值: {} 行\n- 排除模式: {:?}",
+            dimension_str,
+            files.join("\n"),
+            self.config.max_function_length,
+            self.config.exclude_patterns,
+        );
 
         // 直接执行 review agent
         execute_agent_sync(AgentType::Review, &task)
+    }
+
+    /// 执行基于 git diff 的代码审查
+    fn handle_code_review(&self, input: &Value) -> Result<String, ToolError> {
+        let base = input
+            .get("base")
+            .and_then(|v| v.as_str())
+            .unwrap_or("HEAD~1");
+
+        let path_filter = input
+            .get("path_filter")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        // 先获取 git diff 信息
+        let diff_context = match self.get_git_diff(base, path_filter) {
+            Ok(diff) => diff,
+            Err(e) => format!("无法获取 diff: {}", e),
+        };
+
+        // 构建包含 diff 上下文的审查任务
+        let mut dimensions = Vec::new();
+        if self.config.check_security { dimensions.push("安全"); }
+        if self.config.check_performance { dimensions.push("性能"); }
+        if self.config.check_quality { dimensions.push("代码质量"); }
+
+        let task = format!(
+            "\
+## 代码变更
+
+{diff}
+
+## 审查要求
+
+请从以下维度审查上述代码变更:
+{dimensions}
+
+## 配置
+- 函数长度阈值: {max} 行
+- 排除模式: {exclude:?}
+
+## 报告格式
+请输出结构化报告，按严重程度排序:
+[CRITICAL] 问题描述 | 位置 | 修复建议
+[WARNING] 问题描述 | 位置 | 修复建议
+[INFO] 建议 | 描述
+",
+            diff = diff_context,
+            dimensions = dimensions.iter().map(|d| format!("- {}", d)).collect::<Vec<_>>().join("\n"),
+            max = self.config.max_function_length,
+            exclude = self.config.exclude_patterns,
+        );
+
+        execute_agent_sync(AgentType::Review, &task)
+    }
+
+    /// 获取 git diff（使用 GitDiffTool）
+    fn get_git_diff(&self, base: &str, path_filter: &str) -> Result<String, ToolError> {
+        let tool = crate::harness::tool::new_tools::git_diff::GitDiffTool::new(5, 0);
+        let result = tool.execute_git_diff(base, path_filter)
+            .map_err(|e| ToolError::Execution(format!("Git diff failed: {}", e)))?;
+        Ok(result.to_output_string())
     }
 }
 
@@ -315,6 +446,7 @@ impl ToolExecutor for ReviewAgentExecutor {
     fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
         match name {
             "review_agent" => self.handle_review(input),
+            "code_review" => self.handle_code_review(input),
             _ => Err(ToolError::NotFound {
                 name: name.to_string(),
             }),
@@ -386,8 +518,48 @@ mod tests {
     #[test]
     fn test_review_executor_creation() {
         let executor = ReviewAgentExecutor::new();
-        assert_eq!(executor.tool_count(), 1);
+        assert_eq!(executor.tool_count(), 2);
         assert!(executor.allowed_tools().contains("review_agent"));
+        assert!(executor.allowed_tools().contains("code_review"));
+    }
+
+    #[test]
+    fn test_review_executor_with_config() {
+        let config = ReviewConfig {
+            check_security: true,
+            check_performance: false,
+            check_quality: true,
+            max_function_length: 30,
+            exclude_patterns: vec!["*.test.rs".into()],
+        };
+        let executor = ReviewAgentExecutor::with_config(config);
+        assert_eq!(executor.tool_count(), 2);
+        assert!(executor.allowed_tools().contains("code_review"));
+    }
+
+    #[test]
+    fn test_review_config_default() {
+        let config = ReviewConfig::default();
+        assert!(config.check_security);
+        assert!(config.check_performance);
+        assert!(config.check_quality);
+        assert_eq!(config.max_function_length, 50);
+    }
+
+    #[test]
+    fn test_review_executor_code_review_missing_params() {
+        // code_review 支持无参数调用（使用默认值）
+        let mut executor = ReviewAgentExecutor::new();
+        let result = executor.execute("code_review", &json!({}));
+        // 应该能执行（使用默认值 HEAD~1 和空过滤）
+        assert!(!matches!(result, Err(ToolError::InvalidInput(_))));
+    }
+
+    #[test]
+    fn test_review_executor_code_review_tool() {
+        // 测试 code_review 工具名被识别
+        let executor = ReviewAgentExecutor::new();
+        assert!(executor.allowed_tools().contains("code_review"));
     }
 
     #[test]

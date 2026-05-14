@@ -71,6 +71,8 @@ pub type ReadFileAdapter = MacroToolAdapter<super::read_file::ReadFileTool>;
 pub type WriteFileAdapter = MacroToolAdapter<super::write_file::WriteFileTool>;
 pub type EditFileAdapter = MacroToolAdapter<super::edit_file::EditFileTool>;
 pub type WebSearchAdapter = MacroToolAdapter<super::web_search::WebSearchTool>;
+pub type GitDiffAdapter = MacroToolAdapter<super::git_diff::GitDiffTool>;
+pub type ComplexityAnalyzerAdapter = MacroToolAdapter<super::complexity_analyzer::ComplexityAnalyzer>;
 
 #[cfg(test)]
 mod tests {

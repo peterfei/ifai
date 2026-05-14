@@ -300,6 +300,68 @@ impl ToolRegistry {
             }),
             required_permission: ToolPermissionMode::ReadOnly,
         });
+
+        // 🆕 注册 GitDiffTool（审查用差异分析工具）
+        self.register(ToolSpec {
+            name: "git_diff",
+            description: "获取 Git 差异信息，支持基准提交和文件路径过滤。用于代码审查工作流。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "base": {
+                        "type": "string",
+                        "description": "基准提交 SHA 或分支名（如 HEAD~1, main）"
+                    },
+                    "path_filter": {
+                        "type": "string",
+                        "description": "可选的路径过滤（如 src/）"
+                    }
+                },
+                "required": ["base"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        // 🆕 注册 code_review 工具（多维度代码审查）
+        self.register(ToolSpec {
+            name: "code_review",
+            description: "多维度代码审查：安全、性能、代码质量。自动获取 git diff 上下文并生成结构化报告。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "base": {
+                        "type": "string",
+                        "description": "基准提交 SHA 或分支名（默认为 HEAD~1）"
+                    },
+                    "path_filter": {
+                        "type": "string",
+                        "description": "可选的路径过滤"
+                    }
+                }
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        // 🆕 注册 ComplexityAnalyzer（代码复杂度分析工具）
+        self.register(ToolSpec {
+            name: "complexity_analyzer",
+            description: "分析 Rust 代码的圈复杂度，识别高复杂度函数，用于代码审查工作流。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "要分析的 Rust 文件路径"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "分析深度"
+                    }
+                },
+                "required": ["file_path", "depth"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
     }
 
     /// 获取工具白名单（用于子 Agent）

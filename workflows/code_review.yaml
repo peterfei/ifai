@@ -1,0 +1,69 @@
+# Code Review 工作流
+# 多维度代码审查：安全、性能、质量、Rust 最佳实践
+
+id: "code-review"
+name: "Code Review 工作流"
+description: "多维度代码审查，结合 git diff 和复杂度分析工具"
+
+variables:
+  target_path: "./src"
+  base_ref: "HEAD~1"
+  path_filter: ""
+  severity_threshold: "2"
+  timeout: "60"
+
+nodes:
+  # 第一步：获取代码变更
+  - id: "prepare_context"
+    agentType: "review"
+    label: "获取变更上下文"
+    config:
+      task_description: "使用 git_diff 工具获取代码变更，使用 complexity_analyzer 分析复杂度"
+      tools: ["git_diff", "complexity_analyzer"]
+      timeout_secs: 30
+
+  # 第二步：安全检查
+  - id: "security_check"
+    agentType: "review"
+    label: "安全检查"
+    config:
+      task_description: "从安全角度审查代码：SQL注入、XSS、CSRF、权限检查、敏感数据处理"
+      timeout_secs: 30
+
+  # 第三步：性能检查
+  - id: "performance_check"
+    agentType: "review"
+    label: "性能检查"
+    config:
+      task_description: "从性能角度审查代码：算法复杂度、资源泄漏、不必要的克隆、内存分配"
+      timeout_secs: 30
+
+  # 第四步：代码质量检查
+  - id: "quality_check"
+    agentType: "review"
+    label: "代码质量检查"
+    config:
+      task_description: "从代码质量角度审查：函数长度、嵌套深度、错误处理、unwrap使用"
+      timeout_secs: 30
+
+  # 第五步：聚合报告
+  - id: "aggregate_report"
+    agentType: "review"
+    label: "生成审查报告"
+    config:
+      task_description: "聚合所有审查维度的结果，生成结构化报告：按严重程度排序，每个问题提供修复建议"
+      timeout_secs: 30
+
+edges:
+  - from: "prepare_context"
+    to: "security_check"
+  - from: "prepare_context"
+    to: "performance_check"
+  - from: "prepare_context"
+    to: "quality_check"
+  - from: "security_check"
+    to: "aggregate_report"
+  - from: "performance_check"
+    to: "aggregate_report"
+  - from: "quality_check"
+    to: "aggregate_report"
