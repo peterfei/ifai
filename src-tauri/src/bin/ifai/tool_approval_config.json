@@ -93,6 +93,47 @@
       "pathRiskRules": []
     },
     {
+      "name": "git_diff",
+      "aliases": [
+        "git_diff"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 50,
+      "pathRiskRules": []
+    },
+    {
+      "name": "complexity_analyzer",
+      "aliases": [
+        "complexity_analyzer",
+        "analyze_complexity"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 50,
+      "pathRiskRules": []
+    },
+    {
+      "name": "code_review",
+      "aliases": [
+        "code_review",
+        "review"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 10,
+      "pathRiskRules": []
+    },
+    {
       "name": "TodoWrite",
       "aliases": [
         "todowrite",
