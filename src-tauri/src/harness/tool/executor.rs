@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use super::spec::ToolPermissionMode;
 
 // 重新导出执行器
-pub use agentexecutors::{ExploreAgentExecutor, ReviewAgentExecutor};
+pub use agentexecutors::{ExploreAgentExecutor, ReviewAgentExecutor, WebSearchAgentExecutor};
 pub use aliastools::AliasExecutor;
 // pub use filetools::FileToolsExecutor;  // 已删除，被宏工具替代
 pub use memorytools::MemorySaveExecutor;

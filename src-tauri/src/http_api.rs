@@ -333,6 +333,7 @@ async fn execute_workflow_http(
                 AgentType::Doc => "doc".to_string(),
                 AgentType::TaskBreakdown => "task_breakdown".to_string(),
                 AgentType::ProposalGenerator => "proposal_generator".to_string(),
+                AgentType::WebSearch => "websearch".to_string(),
                 AgentType::GeneralPurpose => "general_purpose".to_string(),
             };
 

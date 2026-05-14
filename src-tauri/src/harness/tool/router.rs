@@ -10,7 +10,7 @@ use super::{
     executor::{
         AliasExecutor, ExploreAgentExecutor, MemorySaveExecutor,
         ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
-        ToolExecutor,
+        WebSearchAgentExecutor, ToolExecutor,
     },
     new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache},
     ToolError,
@@ -93,6 +93,10 @@ impl ToolRouter {
         executors.insert(
             "review_agent".to_string(),
             Box::new(ReviewAgentExecutor::new()),
+        );
+        executors.insert(
+            "websearch_agent".to_string(),
+            Box::new(WebSearchAgentExecutor::new()),
         );
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool

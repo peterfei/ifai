@@ -146,6 +146,9 @@ pub enum AgentType {
     /// 提案生成智能体
     ProposalGenerator,
 
+    /// 网络搜索智能体
+    WebSearch,
+
     /// 通用智能体
     GeneralPurpose,
 }
@@ -161,6 +164,7 @@ impl AgentType {
             AgentType::Doc => "doc",
             AgentType::TaskBreakdown => "task_breakdown",
             AgentType::ProposalGenerator => "proposal_generator",
+            AgentType::WebSearch => "websearch",
             AgentType::GeneralPurpose => "general_purpose",
         }
     }

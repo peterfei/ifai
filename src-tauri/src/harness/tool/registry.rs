@@ -283,6 +283,23 @@ impl ToolRegistry {
             }),
             required_permission: ToolPermissionMode::ReadOnly,
         });
+
+        // 🆕 注册 WebSearch Agent 工具
+        self.register(ToolSpec {
+            name: "websearch_agent",
+            description: "智能网络搜索 Agent，执行复杂的搜索任务并分析结果。当用户请求网络搜索、查找在线信息时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "搜索查询关键词"
+                    }
+                },
+                "required": ["query"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
     }
 
     /// 获取工具白名单（用于子 Agent）

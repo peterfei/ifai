@@ -302,6 +302,51 @@ impl ToolExecutor for ReviewAgentExecutor {
     }
 }
 
+/// WebSearch Agent 执行器
+/// 网络搜索 Agent（使用 web_search 工具）
+pub struct WebSearchAgentExecutor {
+    allowed_tools: HashSet<String>,
+}
+
+impl WebSearchAgentExecutor {
+    pub fn new() -> Self {
+        let mut allowed_tools = HashSet::new();
+        allowed_tools.insert("websearch_agent".to_string());
+
+        Self { allowed_tools }
+    }
+
+    fn handle_websearch(&self, input: &Value) -> Result<String, ToolError> {
+        let query = input
+            .get("query")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing 'query' parameter".to_string()
+            ))?;
+
+        // 构造任务描述
+        let task = format!("搜索: {}", query);
+
+        // 直接执行 websearch agent
+        execute_agent_sync(crate::agent_system::workflow::types::AgentType::WebSearch, &task)
+    }
+}
+
+impl ToolExecutor for WebSearchAgentExecutor {
+    fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
+        match name {
+            "websearch_agent" => self.handle_websearch(input),
+            _ => Err(ToolError::NotFound {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    fn allowed_tools(&self) -> &HashSet<String> {
+        &self.allowed_tools
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,6 +387,31 @@ mod tests {
     #[test]
     fn test_explore_executor_invalid_tool() {
         let mut executor = ExploreAgentExecutor::new();
+        let result = executor.execute("unknown_tool", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("unknown_tool") || err.contains("不存在"));
+    }
+
+    #[test]
+    fn test_websearch_executor_creation() {
+        let executor = WebSearchAgentExecutor::new();
+        assert_eq!(executor.tool_count(), 1);
+        assert!(executor.allowed_tools().contains("websearch_agent"));
+    }
+
+    #[test]
+    fn test_websearch_executor_missing_query() {
+        let mut executor = WebSearchAgentExecutor::new();
+        let result = executor.execute("websearch_agent", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Missing 'query' parameter") || err.contains("query"));
+    }
+
+    #[test]
+    fn test_websearch_executor_invalid_tool() {
+        let mut executor = WebSearchAgentExecutor::new();
         let result = executor.execute("unknown_tool", &json!({}));
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
