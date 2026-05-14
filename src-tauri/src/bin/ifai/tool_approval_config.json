@@ -84,7 +84,8 @@
         "explore",
         "review_agent",
         "test_agent",
-        "doc_agent"
+        "doc_agent",
+        "debug_agent"
       ],
       "category": "safe",
       "riskLevel": "low",

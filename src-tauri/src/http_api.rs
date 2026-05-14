@@ -331,6 +331,7 @@ async fn execute_workflow_http(
                 AgentType::Refactor => "refactor".to_string(),
                 AgentType::Test => "test".to_string(),
                 AgentType::Doc => "doc".to_string(),
+                AgentType::Debug => "debug".to_string(),
                 AgentType::TaskBreakdown => "task_breakdown".to_string(),
                 AgentType::ProposalGenerator => "proposal_generator".to_string(),
                 AgentType::WebSearch => "websearch".to_string(),

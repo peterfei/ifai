@@ -521,6 +521,7 @@ impl AgentNodeExecutor {
                 | AgentType::Refactor
                 | AgentType::Doc
                 | AgentType::Test
+                | AgentType::Debug
         ) {
             Self::quick_scan_tree(&ctx.project_root, 2)
         } else {

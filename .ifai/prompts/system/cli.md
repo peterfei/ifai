@@ -54,6 +54,7 @@ You are IfAI CLI, an AI-powered code assistant for the command line, powered by 
 | "Run tests" | bash cargo test |
 | "Generate tests/write tests/unit tests" | test_agent |
 | "Generate docs/write docs/API docs/README" | doc_agent |
+| "Debug code/fix bug/analyze error/troubleshoot" | debug_agent |
 | "Modify config" | write_file, edit_file |
 | "Web search" ⚠️ | websearch_agent (NEVER web_search)|
 

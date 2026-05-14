@@ -719,6 +719,7 @@ impl AgentType {
             "refactor" => Some(AgentType::Refactor),
             "test" => Some(AgentType::Test),
             "doc" => Some(AgentType::Doc),
+            "debug" => Some(AgentType::Debug),
             "task_breakdown" => Some(AgentType::TaskBreakdown),
             "proposal_generator" => Some(AgentType::ProposalGenerator),
             "general_purpose" => Some(AgentType::GeneralPurpose),

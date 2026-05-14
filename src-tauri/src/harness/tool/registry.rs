@@ -335,6 +335,23 @@ impl ToolRegistry {
             required_permission: ToolPermissionMode::ReadOnly,
         });
 
+        // 🆕 注册 Debug Agent 工具
+        self.register(ToolSpec {
+            name: "debug_agent",
+            description: "调试智能体，根据错误信息定位问题、分析根因、提供修复方案。当用户请求调试代码、分析错误、修复 bug 时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "调试任务描述（如：调试 src/main.rs 的编译错误）"
+                    }
+                },
+                "required": ["task"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
         // 🆕 注册 GitDiffTool（审查用差异分析工具）
         self.register(ToolSpec {
             name: "git_diff",

@@ -1511,7 +1511,8 @@ impl Session {
                 log_debug(format!(
                     "[LOOP-{}] 退出循环: finish_reason={:?}, tool_calls={}",
                     continuation_count, last_finish_reason, collected_tool_calls.len()
-                ));
+                ))
+                .await;
 
                 complete_current_task(get_global_task_store());
 
@@ -2763,7 +2764,7 @@ impl Session {
             // 关键：不设置回调时（非 TUI 路径），等同于现有行为
             let needs_progress = matches!(
                 tool.name.as_str(),
-                "explore_agent" | "review_agent" | "test_agent" | "doc_agent"
+                "explore_agent" | "review_agent" | "test_agent" | "doc_agent" | "debug_agent"
             );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();

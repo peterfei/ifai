@@ -140,6 +140,7 @@ impl WorkflowParser {
             "refactor" => Ok(AgentType::Refactor),
             "test" => Ok(AgentType::Test),
             "doc" => Ok(AgentType::Doc),
+            "debug" => Ok(AgentType::Debug),
             "task_breakdown" => Ok(AgentType::TaskBreakdown),
             "proposal_generator" => Ok(AgentType::ProposalGenerator),
             "general_purpose" => Ok(AgentType::GeneralPurpose),

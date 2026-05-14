@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use super::{
     executor::{
-        AliasExecutor, DocAgentExecutor, ExploreAgentExecutor, MemorySaveExecutor,
+        AliasExecutor, DebugAgentExecutor, DocAgentExecutor, ExploreAgentExecutor, MemorySaveExecutor,
         ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
@@ -109,6 +109,10 @@ impl ToolRouter {
         executors.insert(
             "doc_agent".to_string(),
             Box::new(DocAgentExecutor::new()),
+        );
+        executors.insert(
+            "debug_agent".to_string(),
+            Box::new(DebugAgentExecutor::new()),
         );
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool

@@ -203,6 +203,11 @@ impl AgentPromptLoader {
                 variable_names: &["PROJECT_ROOT", "TEST_TARGET"],
                 fallback_template: fallback_test_prompt,
             },
+            AgentType::Debug => AgentPromptConfig {
+                prompt_file: "debug.md",
+                variable_names: &["PROJECT_ROOT", "TASK_DESCRIPTION"],
+                fallback_template: fallback_debug_prompt,
+            },
             AgentType::ProposalGenerator => AgentPromptConfig {
                 prompt_file: "proposal-generator.md",
                 variable_names: &["PROJECT_ROOT", "REQUIREMENTS"],
@@ -483,6 +488,58 @@ fn fallback_test_prompt(ctx: &AgentContext) -> String {
     )
 }
 
+fn fallback_debug_prompt(ctx: &AgentContext) -> String {
+    format!(
+        r#"你是一个专业的调试智能体。
+
+**项目根目录**：{}
+**调试任务**：{}
+
+目录结构已在上下文中提供，无需调用 agent_scan_project。
+
+**严格限制：最多 2 次工具调用**
+
+**工具使用策略**：
+
+第 1 次调用：同时发起多个 `agent_read_file` — 并行读取报错相关源码文件。
+⚠️ 在同一次响应中发起多个 tool_call，它们会并行执行！
+
+第 2 次调用：不调用工具，直接输出诊断分析。
+
+**可用工具**：
+- `agent_read_file(rel_path)` — 读取单个文件，可同时发起多个实现并行
+- `agent_list_dir(rel_path)` — 列出单层目录
+- `grep_search(pattern, path)` — 搜索代码内容
+- `agent_search(pattern, type)` — 搜索文件或内容
+
+**调试分析流程**：
+
+1. **定位错误**：根据错误信息（编译错误、运行时 panic、逻辑错误）定位出错文件和行号
+2. **根因分析**：读取相关代码，分析错误根因（类型不匹配、空指针、逻辑缺陷、并发问题等）
+3. **修复建议**：给出具体的修复方案，包含代码片段
+4. **预防措施**：建议如何避免同类问题再次发生
+
+**输出格式**：
+
+## 🔍 错误定位
+[描述错误位置和现象]
+
+## 🧠 根因分析
+[深入分析错误根因]
+
+## ✅ 修复方案
+[具体的修复步骤和代码]
+
+## 🛡️ 预防建议
+[防止同类问题的建议]
+
+请开始调试分析。
+"#,
+        ctx.project_root,
+        ctx.variables.get("task_description").cloned().unwrap_or_default()
+    )
+}
+
 fn fallback_proposal_generator_prompt(_ctx: &AgentContext) -> String {
     r#"你是一个专业的提案生成智能体。你的任务是：
 
@@ -636,6 +693,7 @@ Actual content here"#;
             AgentType::Refactor,
             AgentType::Doc,
             AgentType::Test,
+            AgentType::Debug,
             AgentType::ProposalGenerator,
             AgentType::GeneralPurpose,
         ];

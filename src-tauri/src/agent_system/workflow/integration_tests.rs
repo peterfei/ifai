@@ -302,6 +302,7 @@ edges:
             (AgentType::Refactor, "refactor"),
             (AgentType::Test, "test"),
             (AgentType::Doc, "doc"),
+            (AgentType::Debug, "debug"),
             (AgentType::TaskBreakdown, "task_breakdown"),
             (AgentType::ProposalGenerator, "proposal_generator"),
             (AgentType::GeneralPurpose, "general_purpose"),

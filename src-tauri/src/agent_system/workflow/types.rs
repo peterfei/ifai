@@ -140,6 +140,9 @@ pub enum AgentType {
     /// 文档生成智能体
     Doc,
 
+    /// 调试智能体
+    Debug,
+
     /// 任务分解智能体
     TaskBreakdown,
 
@@ -162,6 +165,7 @@ impl AgentType {
             AgentType::Refactor => "refactor",
             AgentType::Test => "test",
             AgentType::Doc => "doc",
+            AgentType::Debug => "debug",
             AgentType::TaskBreakdown => "task_breakdown",
             AgentType::ProposalGenerator => "proposal_generator",
             AgentType::WebSearch => "websearch",
