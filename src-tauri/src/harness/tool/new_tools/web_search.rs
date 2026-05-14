@@ -5,6 +5,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::env;
+use std::fs;
+use std::path::PathBuf;
 use std::time::Duration;
 use tool_macro::Tool;
 use thiserror::Error;
@@ -34,6 +36,106 @@ impl BochaConfig {
     /// 从环境变量创建配置
     pub fn from_env() -> Self {
         Self::default()
+    }
+
+    /// 从 .env 文件加载配置
+    ///
+    /// 优先级：
+    /// 1. 环境变量 BOCHA_API_KEY
+    /// 2. .env 文件中的 BOCHA_API_KEY
+    /// 3. 返回 None（使用模拟结果）
+    pub fn from_env_file() -> Self {
+        // 先尝试环境变量
+        if let Ok(key) = env::var("BOCHA_API_KEY") {
+            if !key.is_empty() {
+                return Self {
+                    api_key: Some(key),
+                    ..Default::default()
+                };
+            }
+        }
+
+        // 然后尝试从 .env 文件读取
+        if let Some(key) = Self::load_from_dotenv() {
+            return Self {
+                api_key: Some(key),
+                ..Default::default()
+            };
+        }
+
+        // 都没有，返回默认配置（无 API Key）
+        Self::default()
+    }
+
+    /// 从项目根目录的 .env 文件加载 API Key
+    fn load_from_dotenv() -> Option<String> {
+        let env_path = Self::find_dotenv_path()?;
+        let content = fs::read_to_string(&env_path).ok()?;
+
+        // 解析 .env 文件，查找 BOCHA_API_KEY
+        for line in content.lines() {
+            let line = line.trim();
+            // 跳过注释和空行
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+
+            // 解析 KEY=VALUE 格式
+            if let Some((key, value)) = line.split_once('=') {
+                if key.trim() == "BOCHA_API_KEY" {
+                    let value = value.trim();
+                    // 跳过示例值
+                    if !value.starts_with("your_") && !value.is_empty() {
+                        return Some(value.to_string());
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// 查找 .env 文件路径
+    ///
+    /// 按顺序查找：
+    /// 1. 当前工作目录的 .env
+    /// 2. src-tauri/.env
+    /// 3. 项目根目录的 .env（通过查找 Cargo.toml）
+    fn find_dotenv_path() -> Option<PathBuf> {
+        // 1. 当前工作目录
+        let cwd = env::current_dir().ok()?;
+        let env_path = cwd.join(".env");
+        if env_path.exists() {
+            return Some(env_path);
+        }
+
+        // 2. src-tauri/.env
+        if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+            let manifest_path = PathBuf::from(&manifest_dir);
+            let env_path = manifest_path.join(".env");
+            if env_path.exists() {
+                return Some(env_path);
+            }
+        }
+
+        // 3. 查找项目根目录（包含 Cargo.toml 的目录）
+        let mut current = cwd;
+        loop {
+            let cargo_toml = current.join("Cargo.toml");
+            if cargo_toml.exists() {
+                let env_path = current.join(".env");
+                if env_path.exists() {
+                    return Some(env_path);
+                }
+            }
+
+            // 向上一级目录查找
+            if !current.pop() {
+                break; // 已到达根目录
+            }
+        }
+
+        None
     }
 
     /// 设置自定义 API Key
@@ -347,5 +449,33 @@ mod tests {
             ..Default::default()
         };
         assert!(!config.has_api_key());
+    }
+
+    #[test]
+    fn test_from_env_file_fallback() {
+        // 测试 .env 文件加载功能
+        // 注意：这个测试依赖于环境中是否有 .env 文件
+        let config = BochaConfig::from_env_file();
+        // 如果有 .env 文件，可能会加载到 API Key
+        // 如果没有，会返回默认配置（无 API Key）
+        // 这个测试主要是验证方法不会 panic
+        assert_eq!(config.endpoint, "https://api.bocha.cn/v1/web-search");
+        assert_eq!(config.timeout, 30);
+    }
+
+    #[test]
+    fn test_env_priority_over_file() {
+        // 测试环境变量优先级高于 .env 文件
+        let original_key = std::env::var("BOCHA_API_KEY");
+        std::env::set_var("BOCHA_API_KEY", "test-from-env");
+
+        let config = BochaConfig::from_env_file();
+        assert_eq!(config.api_key, Some("test-from-env".to_string()));
+
+        // 恢复原始值
+        match original_key {
+            Ok(key) => std::env::set_var("BOCHA_API_KEY", key),
+            Err(_) => std::env::remove_var("BOCHA_API_KEY"),
+        }
     }
 }

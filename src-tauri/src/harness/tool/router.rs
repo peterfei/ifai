@@ -116,7 +116,9 @@ impl ToolRouter {
         executors.insert("edit_file".to_string(), Box::new(edit_file_adapter));
 
         // 🆕 使用 #[derive(Tool)] 宏的 WebSearchTool（网络搜索功能）
-        let web_search_tool = WebSearchTool::new(BochaConfig::default());
+        // 从 .env 文件加载博查 API Key（环境变量优先，然后 .env 文件）
+        let web_search_config = BochaConfig::from_env_file();
+        let web_search_tool = WebSearchTool::new(web_search_config);
         let web_search_adapter = WebSearchAdapter::new(web_search_tool, "web_search".to_string());
         executors.insert("web_search".to_string(), Box::new(web_search_adapter));
 
