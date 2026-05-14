@@ -117,11 +117,13 @@ mod tests {
 
     #[test]
     fn test_cached_adapter_cache_miss() {
+        let tmp = std::env::temp_dir().join(format!("ifai_test_adapter_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
         let tool = WebSearchTool::new(BochaConfig {
             api_key: None,
             ..Default::default()
         });
-        let mut cache = SearchCache::default_config();
+        let cache = SearchCache::new(100, 3600, Some(tmp.clone()));
         let mut adapter = CachedWebSearchAdapter::new(tool, cache, "web_search".to_string());
 
         let input = serde_json::json!({
@@ -136,5 +138,7 @@ mod tests {
         // 检查缓存统计
         let stats = adapter.cache_stats();
         assert_eq!(stats.misses, 1);
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

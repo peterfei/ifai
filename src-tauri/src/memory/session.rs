@@ -166,6 +166,7 @@ pub fn inject_memories_into_system_prompt(system_prompt: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::sync::Mutex;
 
     /// 保护 HOME 环境变量的互斥锁（set_var 不是线程安全的）
@@ -290,6 +291,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_memories_for_injection_with_file() {
         let _lock = HOME_LOCK.lock().unwrap();
         let temp_dir = setup_test_home("injection_with_file");

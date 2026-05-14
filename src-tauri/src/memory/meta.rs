@@ -173,6 +173,7 @@ pub fn content_fingerprint(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
     fn setup_test_home(test_name: &str) -> std::path::PathBuf {
@@ -291,6 +292,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_metadata_store_save_and_load() {
         let temp_dir = setup_test_home("meta_save_load");
         let original_home = std::env::var("HOME").ok();

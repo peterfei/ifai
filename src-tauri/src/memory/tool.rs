@@ -70,6 +70,7 @@ pub fn handle_memory_save(path: &str, content: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
     fn setup_test_home(test_name: &str) -> std::path::PathBuf {
@@ -107,6 +108,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_handle_memory_save_2_layer_path() {
         let temp_dir = setup_test_home("save_2layer");
         let original_home = std::env::var("HOME").ok();
@@ -121,6 +123,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_handle_memory_save_3_layer_path() {
         let temp_dir = setup_test_home("save_3layer");
         let original_home = std::env::var("HOME").ok();
@@ -138,6 +141,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_handle_memory_save_append_to_existing() {
         let temp_dir = setup_test_home("save_append");
         let original_home = std::env::var("HOME").ok();

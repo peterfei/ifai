@@ -363,7 +363,9 @@ mod tests {
 
     #[test]
     fn test_cache_stats() {
-        let mut cache = SearchCache::default_config();
+        let tmp = std::env::temp_dir().join(format!("ifai_test_stats_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let mut cache = SearchCache::new(100, 3600, Some(tmp.clone()));
 
         let result = WebSearchResult {
             query: "test".to_string(),
@@ -373,7 +375,7 @@ mod tests {
 
         cache.set("test", 5, result);
 
-        // 第一次访问（未命中，因为刚设置但测试隔离）
+        // 第一次访问（命中，刚 set 的）
         let _ = cache.get("test", 5);
 
         // 第二次访问（命中）
@@ -382,11 +384,15 @@ mod tests {
         let stats = cache.stats();
         assert_eq!(stats.size, 1);
         assert!(stats.hits >= 1);
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
     fn test_cache_clear() {
-        let mut cache = SearchCache::default_config();
+        let tmp = std::env::temp_dir().join(format!("ifai_test_clear_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let mut cache = SearchCache::new(100, 3600, Some(tmp.clone()));
 
         let result = WebSearchResult {
             query: "test".to_string(),
@@ -400,6 +406,8 @@ mod tests {
         cache.clear();
         assert_eq!(cache.len(), 0);
         assert!(cache.is_empty());
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

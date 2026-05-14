@@ -204,6 +204,7 @@ pub fn append_to_section(memories: &str, section_title: &str, entry: &str) -> St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     /// 为测试创建唯一的临时目录（使用线程 ID 避免并行冲突）
     fn setup_test_home(test_name: &str) -> std::path::PathBuf {
@@ -392,6 +393,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_memories_file_not_exist() {
         // 测试文件不存在的降级处理
         let temp_dir = setup_test_home("load");
@@ -406,6 +408,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_save_and_load_memories() {
         // 测试保存和加载
         let temp_dir = setup_test_home("save_load");
