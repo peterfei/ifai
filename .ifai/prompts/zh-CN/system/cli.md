@@ -52,6 +52,7 @@ variables:
 | "搜索代码" | grep_search |
 | "读取文件" | read_file, agent_read_file |
 | "运行测试" | bash cargo test |
+| "生成测试/写测试/单元测试" | test_agent |
 | "修改配置" | write_file, edit_file |
 | "网络搜索" ⚠️ | websearch_agent（严禁使用 web_search）|
 

@@ -301,6 +301,23 @@ impl ToolRegistry {
             required_permission: ToolPermissionMode::ReadOnly,
         });
 
+        // 🆕 注册 Test Agent 工具
+        self.register(ToolSpec {
+            name: "test_agent",
+            description: "测试智能体，自动生成测试用例、分析测试覆盖率、建议测试策略。当用户请求生成测试、分析测试覆盖、编写单元测试时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "测试任务描述（如：为 src/lib.rs 生成单元测试）"
+                    }
+                },
+                "required": ["task"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
         // 🆕 注册 GitDiffTool（审查用差异分析工具）
         self.register(ToolSpec {
             name: "git_diff",

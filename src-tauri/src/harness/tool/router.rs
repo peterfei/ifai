@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use super::{
     executor::{
         AliasExecutor, ExploreAgentExecutor, MemorySaveExecutor,
-        ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
+        ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
     new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
@@ -101,6 +101,10 @@ impl ToolRouter {
         executors.insert(
             "websearch_agent".to_string(),
             Box::new(WebSearchAgentExecutor::new()),
+        );
+        executors.insert(
+            "test_agent".to_string(),
+            Box::new(TestAgentExecutor::new()),
         );
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool

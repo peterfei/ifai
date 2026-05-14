@@ -2759,9 +2759,12 @@ impl Session {
 
             let start = Instant::now();
 
-            // 🔥 对 explore_agent/review_agent 设置进度回调
+            // 🔥 对需要工作流 UI 的工具设置进度回调
             // 关键：不设置回调时（非 TUI 路径），等同于现有行为
-            let needs_progress = tool.name == "explore_agent" || tool.name == "review_agent";
+            let needs_progress = matches!(
+                tool.name.as_str(),
+                "explore_agent" | "review_agent" | "test_agent"
+            );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();
                 set_global_progress_callback(
