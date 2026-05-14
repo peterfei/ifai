@@ -338,7 +338,14 @@ impl HarnessAIService {
     /// 将工具注册表转换为 OpenAI 格式
     fn convert_tools_to_openai_format(&self) -> Vec<serde_json::Value> {
         let registry = get_global_tool_registry();
-        let tools = registry.all();
+        let all_tools = registry.all();
+
+        // 🔥 过滤掉 web_search 工具（LLM 应该使用 websearch_agent 代替）
+        // web_search 是底层实现，不应该直接暴露给 LLM
+        let tools: Vec<_> = all_tools
+            .into_iter()
+            .filter(|tool| tool.name != "web_search")
+            .collect();
 
         tools
             .into_iter()
