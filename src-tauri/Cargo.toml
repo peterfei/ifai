@@ -53,6 +53,11 @@ path = "src/bin/test_bocha_api.rs"
 name = "test_websearch_tool"
 path = "src/bin/test_websearch_tool.rs"
 
+# WebSearch 缓存功能测试
+[[bin]]
+name = "test_websearch_cache"
+path = "src/bin/test_websearch_cache.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 serde_yaml = "0.9"

@@ -184,12 +184,20 @@ impl ToolRegistry {
         });
 
         self.register(ToolSpec {
-            name: "WebSearch",
-            description: "Search the web",
+            name: "web_search",
+            description: "Search the web using Bocha AI and return relevant results. Use this tool when user asks to search the internet, find information online, or look up current data.",
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "query": { "type": "string" }
+                    "query": {
+                        "type": "string",
+                        "description": "The search query string"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of results to return (default: 5, max: 50)",
+                        "default": 5
+                    }
                 },
                 "required": ["query"]
             }),
