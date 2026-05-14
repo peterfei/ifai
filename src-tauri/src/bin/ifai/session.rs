@@ -2842,7 +2842,7 @@ impl Session {
                         result.clone(),
                         duration,
                     );
-                    results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
+                    results.push((tool.tool_id.clone(), tool.name.clone(), result.clone(), duration));
 
                     // 🎨 Diff 生成：write_file/edit_file 工具执行后生成 diff
                     if tool.name == "write_file" || tool.name == "edit_file" {
