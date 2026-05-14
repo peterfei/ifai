@@ -1,0 +1,111 @@
+name: websearch
+description: 智能网络搜索工作流
+version: 1.0.0
+
+# 工作流变量
+variables:
+  - name: query
+    type: string
+    required: true
+    description: 搜索查询关键词
+
+  - name: count
+    type: integer
+    default: 5
+    description: 返回结果数量（1-50）
+
+  - name: use_cache
+    type: boolean
+    default: true
+    description: 是否使用缓存
+
+  - name: language
+    type: string
+    default: auto
+    description: 搜索语言（zh/en/auto）
+
+# 工作流节点
+nodes:
+  # 节点 1：搜索前处理
+  - id: prepare_search
+    type: function
+    description: 准备搜索查询
+    config:
+      function: prepare_query
+      inputs:
+        query: "{{query}}"
+        language: "{{language}}"
+      outputs:
+        refined_query: search_query
+
+  # 节点 2：执行搜索
+  - id: execute_search
+    type: tool
+    description: 执行网络搜索
+    config:
+      tool: web_search
+      parameters:
+        query: "{{search_query}}"
+        count: "{{count}}"
+      cache:
+        enabled: "{{use_cache}}"
+        ttl: 3600
+    depends_on:
+      - prepare_search
+
+  # 节点 3：结果过滤
+  - id: filter_results
+    type: function
+    description: 过滤和排序搜索结果
+    config:
+      function: filter_search_results
+      inputs:
+        results: "{{execute_search.results}}"
+      outputs:
+        filtered_results: final_results
+    depends_on:
+      - execute_search
+
+  # 节点 4：格式化输出
+  - id: format_output
+    type: function
+    description: 格式化搜索结果
+    config:
+      function: format_search_results
+      inputs:
+        results: "{{final_results}}"
+        query: "{{query}}"
+      outputs:
+        formatted: output
+    depends_on:
+      - filter_results
+
+# 工作流输出
+outputs:
+  - name: output
+    from: format_output.formatted
+    description: 格式化的搜索结果
+
+  - name: results_count
+    from: filter_results.count
+    description: 结果数量
+
+  - name: search_duration
+    from: execute_search.duration
+    description: 搜索耗时
+
+# 错误处理
+error_handling:
+  - on: search_failed
+    action: retry
+    config:
+      max_retries: 2
+      backoff: exponential
+
+  - on: no_results
+    action: fallback
+    message: "未找到相关结果，请尝试调整搜索关键词"
+
+  - on: api_error
+    action: fallback
+    message: "搜索服务暂时不可用，请稍后重试"
