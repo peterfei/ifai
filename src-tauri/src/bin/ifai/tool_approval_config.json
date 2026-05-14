@@ -132,6 +132,21 @@
       "pathRiskRules": []
     },
     {
+      "name": "websearch_agent",
+      "aliases": [
+        "websearch",
+        "web_search_agent",
+        "search_web"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 100,
+      "pathRiskRules": []
+    },
+    {
       "name": "agent_write_file",
       "aliases": [
         "write_file",
