@@ -147,7 +147,7 @@ impl Default for RunnerConfig {
     fn default() -> Self {
         Self {
             max_concurrent_nodes: 3,
-            node_timeout_secs: 300, // 5 分钟
+            node_timeout_secs: 60, // 1 分钟
             max_retries: 5,         // 🔥 增加重试次数以更好地处理速率限制
             fail_fast: false,
         }
@@ -878,15 +878,39 @@ impl WorkflowRunner {
         wf_log!("[WorkflowRunner] 📂 Directory info: {}", file_list_info);
 
         // 🔥 获取 provider_config（从工作流变量中）
+        wf_log!("[WorkflowRunner] 🔍 Debug: All workflow variables keys: {:?}", workflow.variables.keys().collect::<Vec<_>>());
+
+        let provider_config_str = workflow.variables.get("provider_config");
+        wf_log!("[WorkflowRunner] 🔍 Debug: provider_config variable exists: {}", provider_config_str.is_some());
+        if let Some(config_str) = provider_config_str {
+            wf_log!("[WorkflowRunner] 🔍 Debug: provider_config string length: {} chars", config_str.len());
+            wf_log!("[WorkflowRunner] 🔍 Debug: provider_config preview: {}...", config_str.chars().take(200).collect::<String>());
+        }
+
         let provider_config: Option<crate::core_traits::ai::AIProviderConfig> = workflow
             .variables
             .get("provider_config")
-            .and_then(|config_str| serde_json::from_str(config_str).ok());
+            .and_then(|config_str| {
+                let parsed = serde_json::from_str::<crate::core_traits::ai::AIProviderConfig>(config_str);
+                match &parsed {
+                    Ok(config) => {
+                        wf_log!("[WorkflowRunner] ✅ Debug: Parsed provider_config: {} (enabled: {}, {} models)",
+                            config.name, config.enabled, config.models.len());
+                    },
+                    Err(e) => {
+                        wf_log!("[WorkflowRunner] ❌ Debug: Failed to parse provider_config: {}", e);
+                    }
+                }
+                parsed.ok()
+            });
 
         // 如果没有配置，使用默认配置
         let provider_config = provider_config.unwrap_or_else(|| {
-            wf_log!("[WorkflowRunner] ⚠️ No provider config found, using default");
-            crate::agent_system::workflow::executor::default_provider_config()
+            wf_log!("[WorkflowRunner] ⚠️ Debug: No provider_config found, using default");
+            let default_config = crate::agent_system::workflow::executor::default_provider_config();
+            wf_log!("[WorkflowRunner] ⚠️ Debug: Default provider_config: {} (enabled: {})",
+                default_config.name, default_config.enabled);
+            default_config
         });
 
         // 🔥 获取 current_model（从工作流变量中）

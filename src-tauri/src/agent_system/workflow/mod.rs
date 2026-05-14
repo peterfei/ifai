@@ -24,11 +24,27 @@ pub fn is_workflow_debug() -> bool {
 }
 
 /// 工作流调试日志宏（受 WORKFLOW_DEBUG 控制）
+/// 输出到控制台和 debug.log 文件
 #[macro_export]
 macro_rules! wf_log {
     ($($arg:tt)*) => {
         if $crate::agent_system::workflow::is_workflow_debug() {
+            use std::io::Write;
+
+            // 输出到控制台
             println!($($arg)*);
+
+            // 输出到 debug.log 文件（追加模式）
+            let log_line = format!($($arg)*);
+
+            // 注意：这会忽略错误（如果文件不可写），避免影响主流程
+            let _ = std::fs::OpenOptions::new()
+                .write(true)
+                .append(true)
+                .create(true)
+                .open("debug.log")
+                .ok()
+                .and_then(|mut file| file.write_all(log_line.as_bytes()).ok());
         }
     };
 }

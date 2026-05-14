@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::super::{ToolError, ToolExecutor};
 use crate::agent_system::workflow::types::{AgentType, Workflow, WorkflowNode};
 use crate::agent_system::workflow::runner::{RunnerConfig, WorkflowRunner};
+use crate::wf_log;
 
 /// 极简 UUID（仅用于生成唯一 ID）
 fn uuid_simple() -> String {
@@ -21,13 +22,27 @@ fn uuid_simple() -> String {
 
 /// 🔥 读取 provider 配置（优先级：全局 > 环境变量 > config.toml）
 fn load_provider_config() -> Option<String> {
+    wf_log!("[AgentExecutor] 🔍 load_provider_config() - Starting...");
+
     // 优先从全局配置读取（由 Session 设置）
     if let Some(config) = crate::harness::tool::get_global_provider_config() {
-        return serde_json::to_string(&config).ok();
+        wf_log!("[AgentExecutor] ✅ Found global config: {} (enabled: {})", config.name, config.enabled);
+        let json_result = serde_json::to_string(&config);
+        match &json_result {
+            Ok(json) => wf_log!("[AgentExecutor] ✅ Serialized to JSON ({} chars)", json.len()),
+            Err(e) => wf_log!("[AgentExecutor] ❌ Failed to serialize: {}", e),
+        }
+        return json_result.ok();
     }
 
+    wf_log!("[AgentExecutor] ⚠️ No global config, trying env...");
     // 回退到环境变量
-    load_provider_config_from_env()
+    let result = load_provider_config_from_env();
+    match &result {
+        Some(json) => wf_log!("[AgentExecutor] ✅ Loaded from env ({} chars)", json.len()),
+        None => wf_log!("[AgentExecutor] ❌ Failed to load from env"),
+    }
+    result
 }
 
 /// 读取 provider 配置（仅从环境变量或 config.toml）
@@ -112,9 +127,14 @@ fn build_agent_workflow(agent_type: AgentType, task: &str) -> Workflow {
     variables.insert("target_path".to_string(), ".".to_string());
 
     // 🔥 关键修复：添加 provider_config 到 workflow.variables
+    wf_log!("[AgentExecutor] 🔍 build_agent_workflow() - Loading provider_config...");
     if let Some(provider_config) = load_provider_config() {
+        wf_log!("[AgentExecutor] ✅ Inserting provider_config into variables ({} chars)", provider_config.len());
         variables.insert("provider_config".to_string(), provider_config);
+    } else {
+        wf_log!("[AgentExecutor] ⚠️ No provider_config loaded, using defaults");
     }
+    wf_log!("[AgentExecutor] 📋 Final variables keys: {:?}", variables.keys().collect::<Vec<_>>());
 
     Workflow {
         id: format!("agent-{}", uuid_simple()),
@@ -133,6 +153,8 @@ fn build_agent_workflow(agent_type: AgentType, task: &str) -> Workflow {
 
 /// 执行 agent 并返回结果
 fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolError> {
+    wf_log!("[AgentExecutor] 🚀 execute_agent_sync() - agent_type={:?}, task={}", agent_type, task);
+
     // 设置 task_description 到节点 config 和 workflow variables
     let mut workflow = build_agent_workflow(agent_type, task);
     if let Some(node) = workflow.nodes.first_mut() {
@@ -142,6 +164,8 @@ fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolE
     // 🔥 关键修复：将用户的任务也传递到 workflow.variables
     // 这样 runner 就会使用我们的任务而不是重新构建
     workflow.variables.insert("task_override".to_string(), task.to_string());
+
+    wf_log!("[AgentExecutor] 📋 Workflow created: id={}, variables={:?}", workflow.id, workflow.variables.keys().collect::<Vec<_>>());
 
     let config = RunnerConfig::default();
     let mut runner = WorkflowRunner::new(workflow, config)

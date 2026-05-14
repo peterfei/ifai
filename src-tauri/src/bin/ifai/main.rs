@@ -652,7 +652,7 @@ fn config_show() -> Result<(), String> {
 
     println!(
         "{}",
-        render::render_banner("v0.4.7", &config.provider(), &config.model(), &theme)
+        render::render_banner("v0.4.8", &config.provider(), &config.model(), &theme)
     );
     println!();
     println!(
@@ -852,7 +852,7 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 显示 Banner
     println!(
         "{}",
-        render::render_banner("v0.4.7", &config.provider(), &config.model(), &theme)
+        render::render_banner("v0.4.8", &config.provider(), &config.model(), &theme)
     );
     println!();
 
