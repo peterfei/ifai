@@ -580,7 +580,7 @@ fn run_action(action: CliAction) -> Result<(), String> {
 
 /// 📋 显示版本信息
 fn show_version() {
-    println!("IfAI CLI v0.4.7");
+    println!("IfAI CLI v0.4.8");
     println!("Industrial-grade AI code assistant");
 }
 

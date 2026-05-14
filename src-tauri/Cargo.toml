@@ -3,9 +3,9 @@ members = [".", "ifai-render-macro", "tool_macro"]
 
 [package]
 name = "ifainew"
-version = "0.4.7"
+version = "0.4.8"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["peterfei"]
 edition = "2021"
 default-run = "ifainew"  # 🎯 指定 Tauri UI 使用的默认二进制
 

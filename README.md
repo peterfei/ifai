@@ -5,7 +5,7 @@
   <p><strong>不只是编辑器，更是你的自主编程伙伴</strong></p>
   <p>基于 Tauri 2.0 + React 19 构建的高性能、本地优先的混合智能编辑器</p>
 
-  [简体中文](README.md) | [English](README_EN.md) | [📖 完整文档](https://docs.ifai.today/) | [🎯 下载发布页](https://github.com/peterfei/ifai/releases)
+  [简体中文](README.md) | [English](README_EN.md) | [Русский](README_RU.md) | [📖 完整文档](https://docs.ifai.today/) | [🎯 下载发布页](https://github.com/peterfei/ifai/releases)
 
   [![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -16,15 +16,44 @@
 
 ---
 
-### 🌟 v0.4.8 新特性：WebSearch Agent — 智能网络搜索，零审批自动执行
-- **WebSearch Agent**：集成博查 AI（Bocha AI）搜索引擎，支持实时网络搜索、最新技术文档、新闻资讯查询，智能结果分析和多轮迭代优化。
-- **三层防护机制**：系统提示词强制规则（TUI + GUI）、LLM 工具列表过滤（完全隐藏底层 web_search）、自动审批白名单（category: safe），确保用户始终使用 websearch_agent。
-- **缓存系统**：LRU 内存缓存 + JSON 持久化（~/.ifai/cache/search.json），TTL 1 小时过期，缓存命中率统计，重复查询 <10ms 响应。
-- **元编程架构**：使用 `#[derive(Tool)]` 宏实现零样板代码，MacroToolAdapter 桥接模式，CachedWebSearchAdapter 透明缓存层，声明式配置驱动。
-- **Agent 封装**：WebSearchAgentExecutor 集成 WorkflowRunner，支持 .ifai/prompts/agents/websearch.md 自定义提示词，fallback 内置模板确保可用性。
-- **嵌套运行时处理**：TUI 模式兼容（std::thread::spawn + current_thread runtime），CLI 模式（multi_thread runtime），自动检测并适配。
-- **安全配置加载**：优先级链（环境变量 > .env 文件 > 默认值），API Key 验证，自动降级到模拟结果（无 Key 时可用）。
-- **完整文档**：用户使用指南（docs/websearch-guide.md）、架构设计文档（docs/websearch-architecture.md）、故障排除、FAQ、示例对话。
+### 🌟 v0.4.8 新特性：WebSearch Agent + 元编程架构 + 6倍性能提升 + **自主会话能力质的飞跃**
+
+**一、自主会话能力质的飞跃 🤖⚡** ⭐ 核心亮点
+- **100% 信任模型**：完全移除循环阻断、熔断机制、"纯文本=停止"检查，充分信任 AI 自主决策
+- **工具调用暴增**：限制从 100 → 1000（**10倍提升**），支持更复杂的多步骤任务
+- **断链问题根治**：修复 Agentic Loop 断链、工具循环无限 Continuing、HTTP 400 + 断链三重问题
+- **智能压缩系统**：集成到 AI 服务层，防止上下文溢出，Mid-turn 压缩失效修复，消息配对完整性保障
+- **系统提示词增强**：自主工具调用强化，Phase 1 系统提示词优化
+- **工具调用进度优化**：添加目标信息（文件路径/搜索模式），修复显示时机问题
+
+**二、WebSearch Agent 🌐**
+- 集成博查 AI（Bocha AI）搜索引擎，支持实时网络搜索、最新技术文档、新闻资讯查询
+- 三层防护机制：系统提示词强制规则（TUI + GUI）、LLM 工具列表过滤（完全隐藏底层 web_search）、自动审批白名单（category: safe）
+- LRU 内存缓存 + JSON 持久化（~/.ifai/cache/search.json），TTL 1 小时过期，重复查询 <10ms 响应
+
+**三、#[derive(Tool)] 元编程系统 🔧**
+- 使用 `#[derive(Tool)]` 宏实现零样板代码，自动生成工具实现和 ToolLike trait
+- MacroToolAdapter 桥接模式，与旧工具系统无缝集成，通用工具执行接口
+- 完全替换旧的 FileToolsExecutor，配置驱动设计（基于 YAML）
+
+**四、Explore Agent 性能优化 🚀**
+- **6倍性能提升**：GUI 模式从 79 秒优化至 13 秒（**83.7%** 提升）
+- 移除 agent_batch_read，改用并行 agent_read_file + 预扫描目录树，充分利用多核 CPU
+- 智能截断大文件（防止 Token 浪费）、限制工具调用次数、实时状态栏反馈
+- 移除文件数量限制，强化多轮探索指示，Prompt 多语言回退
+
+**五、TUI 首次运行向导 🎯**
+- 智能设置向导：自动检测首次运行，引导用户配置 Provider、选择 Model 和 Base URL
+- Provider 元数据驱动：移除所有硬编码，YAML 配置驱动，自动加载 Provider 列表，支持自定义 Provider
+- 声明式状态栏动画系统（元编程架构）：声明式动画定义，自动生成渲染逻辑，零手写动画代码
+
+**六、专用 Agent 工具 🛠️**
+- explore_agent & review_agent 注册为低风险工具（无需审批），Agent 工具进度显示优化
+- glob_search 工具：支持模糊搜索文件、智能文件过滤、高性能搜索
+
+**七、提示词引用解析 📝**
+- 支持自定义提示词：提示词引用解析功能、用户自定义提示词优先级加载、最小化部署支持
+- 外部化模板：提示词模板外部化、支持热更新、无需重新编译
 
 ---
 
@@ -141,7 +170,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
-| **v0.4.8** | **WebSearch Agent** | **博查 AI 集成、三层防护机制（提示词 + 工具过滤 + 自动审批）、LRU 缓存系统（内存 + 持久化 + TTL）、元编程架构（#[derive(Tool)] + MacroToolAdapter）、Agent 封装（WebSearchAgentExecutor + WorkflowRunner）、嵌套运行时处理、完整文档（用户指南 + 架构设计）** |
+| **v0.4.8** | **自主会话飞跃 + WebSearch + 元编程 + 性能优化** | **100% 信任模型（工具限制 100→1000，10倍提升）、根治断链问题（Agentic Loop + 无限 Continuing + HTTP 400）、智能压缩系统（集成 AI 服务层 + Mid-turn 修复）、博查 AI 集成（三层防护 + LRU 缓存）、#[derive(Tool)] 元编程（零样板代码）、Explore 性能优化（79s→13s，6倍提升）、TUI 首次运行向导、声明式状态栏动画、专用 Agent 工具、提示词引用解析** |
 | **v0.4.7** | **持久化记忆系统** | **零依赖纯 Markdown 两层记忆（热记忆注入 + 冷记忆归档）、MemorySave 工具（AI 主动保存 + 自动去重）、LLM 批量提取、外部化提示词、18μs 注入延迟、会话归档、智能压缩系统、TUI+GUI 共享、10 项 Bug 修复** |
 | **v0.4.6** | **多线程并发对话系统 & TUI 架构重构** | **Per-Thread Session 隔离（并发 Streaming + 审批隔离）、/thread 斜杠命令、多行输入（Shift+Enter）、TUI God Object 重构 Phase 1-4（App 27→14 字段、Mode enum、声明式路由表、StreamState 统一 cleanup）、862 测试用例、10 项 Bug 修复** |
 | **v0.4.5** | **TUI 增强与测试框架完善** | **Ctrl+O Detail View Overlay（全屏查看）、Ctrl+D Diff Mode（Toggle 开关）、输入消息队列（Streaming 期间排队）、斜杠命令弹出框（元编程）、510+ 测试用例（参数化/并行/快照/E2E）、元编程架构、10 项 Bug 修复** |

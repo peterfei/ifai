@@ -216,12 +216,6 @@ AI: [调用 websearch_agent]
     [解释原因并提供解决方案]
 ```
 
-## 反馈与贡献
-
-遇到问题或有建议？
-- GitHub Issues: https://github.com/your-repo/issues
-- 文档反馈：欢迎提出改进建议
-
 ## 版本历史
 
 - **v1.0** (2024-05-14): 初始版本

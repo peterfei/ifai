@@ -1,5 +1,73 @@
 # IfAI — A Mature AI Native Harness 🚀
 
+<div align="center">
+  <img src="imgs/ifai.png" alt="IfAI Logo" width="120" />
+  <p><strong>More than an editor, your autonomous programming partner</strong></p>
+  <p>A high-performance, local-first hybrid intelligence editor built with Tauri 2.0 + React 19</p>
+
+  [简体中文](README.md) | [English](README_EN.md) | [Русский](README_RU.md) | [📖 Full Documentation](https://docs.ifai.today/) | [🎯 Releases](https://github.com/peterfei/ifai/releases)
+
+  [![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+  [![Tauri](https://img.shields.io/badge/Tauri-2.0-orange)](https://tauri.app/)
+  [![AI Native](https://img.shields.io/badge/AI-Native-green)](https://ai-native.dev)
+  [![Performance](https://img.shields.io/badge/Performance-120_FPS-blueviolet)](https://github.com/peterfei/ifai#performance)
+</div>
+
+---
+
+### 🌟 v0.4.8 Highlights: WebSearch Agent + Metaprogramming Architecture + 6x Performance Boost + **Qualitative Leap in Autonomous Conversations**
+
+**I. Qualitative Leap in Autonomous Conversations 🤖⚡** ⭐ Core Highlight
+- **100% Trust Model**: Completely removed loop blocking, circuit breaker, "plain text = stop" checks, fully trust AI autonomous decisions
+- **Tool Call Explosion**: Limit increased from 100 → 1000 (**10x boost**), supports more complex multi-step tasks
+- **Break Chain Issues Eradicated**: Fixed Agentic Loop break chains, infinite tool loop Continuing, HTTP 400 + break chain triple issues
+- **Smart Compression System**: Integrated into AI service layer, prevents context overflow, Mid-turn compression failure fix, message pairing integrity guarantee
+- **System Prompt Enhancement**: Autonomous tool calling reinforcement, Phase 1 system prompt optimization
+- **Tool Call Progress Optimization**: Added target info (file paths/search patterns), fixed display timing issues
+
+**II. WebSearch Agent 🌐**
+- Integrated Bocha AI search engine, supporting real-time web search, latest tech documentation, and news queries
+- Three-layer protection: System prompt enforcement (TUI + GUI), LLM tool list filtering (hides underlying web_search), auto-approval whitelist (category: safe)
+- LRU in-memory cache + JSON persistence (~/.ifai/cache/search.json), TTL 1-hour expiration, <10ms response for cached queries
+
+**III. #[derive(Tool)] Metaprogramming System 🔧**
+- Zero boilerplate code using `#[derive(Tool)]` macro, auto-generates tool implementations and ToolLike trait
+- MacroToolAdapter bridge pattern, seamless integration with legacy tool system, generic tool execution interface
+- Completely replaces old FileToolsExecutor, YAML-based configuration-driven design
+
+**IV. Explore Agent Performance Optimization 🚀**
+- **6x Performance Boost**: GUI mode optimized from 79s to 13s (**83.7%** improvement)
+- Removed agent_batch_read, switched to parallel agent_read_file + directory tree prescan, fully utilizes multi-core CPU
+- Smart truncation of large files (prevents Token waste), tool call limits, real-time status bar feedback
+- Removed file count limits, enhanced multi-round exploration, prompt multilingual fallback
+
+**V. TUI First-Run Wizard 🎯**
+- Smart setup wizard: Auto-detects first run, guides Provider configuration, Model and Base URL selection
+- Provider metadata-driven: Removed all hardcoding, YAML configuration-driven, auto-loads Provider list, supports custom providers
+- Declarative status bar animation system (metaprogramming): Declarative animation definitions, auto-generates rendering logic, zero hand-written animation code
+
+**VI. Dedicated Agent Tools 🛠️**
+- explore_agent & review_agent registered as low-risk tools (no approval needed), agent tool progress display optimized
+- glob_search tool: Supports fuzzy file search, smart file filtering, high-performance search
+
+**VII. Prompt Reference Resolution 📝**
+- Custom prompt support: Prompt reference resolution, user custom prompt priority loading, minimal deployment support
+- Externalized templates: Externalized prompt templates, supports hot reload, no recompilation needed
+
+---
+
+### 🌟 v0.4.7 Highlights: Persistent Memory System — Let AI Remember You Across Sessions
+- **Persistent Memory System**: Zero-dependency pure Markdown storage, two-layer memory architecture (hot memory injection into system prompt + cold memory session archiving), spatial metaphor organization (Wing → Hall → Room three-layer paths), 18μs injection latency
+- **MemorySave Tool**: AI proactively saves user preferences, technical decisions, project knowledge during conversations, auto-executed without approval, automatic deduplication prevents duplicate entries
+- **Post-Session Batch Extraction**: LLM-driven intelligent memory extraction, automatically mines information worth remembering from conversations, externalized prompt templates support customization (`~/.ifai/prompts/memory/extract.md`)
+- **Session Archiving (Cold Memory)**: TUI session end auto-generates summary archives to `~/.ifai/sessions/`, human-browsable Markdown format
+- **Smart Compression System**: Tool output truncation + model-aware thresholds + AI summarization, solves long conversation Token explosion
+- **TUI + GUI Memory Sharing**: Same `~/.ifai/memories.md` file, seamless cross-interface usage
+- **10 Bug Fixes**: Overlay content leakage, Agentic Loop spinning, Ctrl+O/Ctrl+D black screen, TodoWrite occlusion/break chains, LLM connection timeout no feedback
+
+---
+
 ### 🌟 v0.4.6 Highlights: Multi-Thread Concurrent Chat & TUI Architecture Refactor
 - **Multi-Thread Concurrent Chat System**: Per-Thread Session isolation with concurrent AI requests, Arc<Mutex> 3-stage lock strategy, ThreadEvent type-safe routing, concurrent streaming + approval isolation
 - **/thread Slash Commands**: `/thread new`, `/thread list`, `/thread switch <id>`, `/thread close` with thread mode popup rendering
@@ -8,477 +76,140 @@
 - **14-Round Context Break E2E Tests**: Including 2048 game generation, concurrent approval tests, cross-thread isolation tests, streaming leak tests; total tests 830→862
 - **10 Bug Fixes**: Shortcut blocking, scroll failure, streaming mouse wheel, keyboard event loss, message loss, cross-thread crosstalk, multi-line scroll overflow
 
-### 🌟 v0.4.5 Highlights: TUI Enhancement & Testing Framework
-- **Ctrl+O Detail View Overlay**: Full-screen AI response viewer with toggle support, Transcript/File/DiffContext viewing, streaming-time access
-- **Ctrl+D Diff Mode**: Multi-file diff browsing with toggle switch, streaming key response
-- **Input Message Queue**: Smart queuing during streaming, auto-sequential sending
-- **Slash Command Popup**: Declarative metaprogramming architecture, intelligent command completion
-- **TUI Testing Infrastructure**: 510+ test cases with parametrize/parallel/snapshot/E2E support
-- **Metaprogramming Architecture**: Declarative key mapping, composition pattern, build.rs auto-generation
-- **10 Bug Fixes**: Streaming response buffer,熔断机制, UTF-8 safety truncation, Ctrl+C exit logic
+---
 
-### 🌟 v0.4.2 Highlights: Skill Center Refactor & Streaming Performance Optimization
-- **Skill Center Phase 7 UI Refactor**: Fullscreen layout with split-panel details, search & filter, grid/list view, batch operations, skill editor (create/edit/view/preview), stats display `Skills(3/12)`.
-- **Streaming Performance Optimization**: BatchEventStream batch event processing, high-frequency log cleanup (log I/O reduced from ~15% to <1%), VirtualMessageList 10k-message cache optimization.
-- **Tool Call Race Condition Fix**: Force sync buffer before finish event handling, resolving approval component not showing.
-- **E2E Performance Test Framework v2.0**: Metaprogramming-driven ScenarioBuilder DSL, supporting 10,000 message stress test and long history real AI response test.
-- **Conversation Archive Engine**: Multi-format archiving, browsing, detail viewing, and restore functionality.
-- **Agent Prompt Unified Loader**: SmartScanner framework, AgentType prompt unified management.
-- **10 Bug Fixes**: Streaming indicator dedup, MonacoDiffView/MonacoEditor fixes, skill system install/stats fixes, skeleton screen/cache/compatibility fixes.
-- **Test Fixes**: Vitest 132/0 failed, E2E 409+/0 failed, SkillsIntegration 27/27 rewritten.
-
-### 🌟 v0.4.1 Highlights: Multi-Agent Collaboration & Message Stability
-- **Multi-Agent Collaboration System (P0-P4)**: ~7,130 lines of code, 79 test cases, complete DAG workflow engine, agent communication protocol, collaboration visualization, tab isolation.
-- **Workflow Engine**: Rust backend DAG workflow engine with topological sort scheduling, parallel execution, and conditional branches.
-- **Message Queue System**: Dual queue + priority scheduling for normal and workflow messages.
-- **Tab Message Isolation**: Fixed message cross-talk during thread switching.
-- **Workflow Inline Monitor**: Real-time workflow node execution visualization.
-- **Message Persistence Fixes**: Fixed IndexedDB version conflicts and persist rehydrate overwriting memory messages.
-
-### 🌟 v0.4.0 Highlights: Prompt Ecosystem, Multi-Agent Architecture & Conversation Management
-- **Prompt Management System**: Layered transparency strategy (80%/15%/5%), version control, Monaco Editor integration
-- **Multi-Agent System**: Community edition unlocked! Explore/Review/TaskBreakdown/ProposalGenerator/Refactor Agents
-- **Tool System**: 10+ core tools (file operations, search, Shell commands, TodoWrite), three-level permission grading
-- **Conversation Management**: Session notes auto-extraction (60+ keywords), Token statistics & threshold detection (100k), auto-summary & smart compression (88.6% Token reduction)
-- **CLI Interactive Tool**: `ifai` command-line tool, multi-Provider support, command history
-- **Mature Harness Milestone**: Completion of conversation management marks IfAI as a fully functional AI Native Harness
-
-### 🌟 v0.3.12 Highlights: Event-Driven Architecture & Streaming Order
-- **ChatEventBus Architecture**: Global event bus decoupling for messaging, streaming, and persistence
-- **ContentSegmentManager (Industry First)**: Resolving streaming response ordering issues
-- **Industrial Persistence**: Full IndexedDB migration with automatic session self-healing
-
-### 🌟 v0.3.9 Highlights: Physical Fidelity & Cognitive Upgrade
-- **Symbol-First Probing Engine**: Millisecond-level physical structure analysis for large files
-- **Physical Fidelity Reinforcement**: Full IndexedDB storage migration (bye-bye 5MB LocalStorage limit)
-- **NVIDIA NIM Deep Integration**: Rust-based URL auto-calibration for industrial inference protocols
-
-### 🌟 v0.3.6 Highlights: UI Refactor, PIVO 2.0 & Structured Workflow
-- **Industrial UI Refactor**: Model Capsule panel and enhanced multi-threading management
-- **PIVO 2.0 Engine**: Risk-aware instruction engine with asynchronous previews
-- **Structured Workflow**: Tool results consumed as PivoProjectTree graphical nodes
-
-<div align="center">
-
-**A Mature AI Native Harness — Empowering Autonomous Agents**
-
-Built with Tauri 2.0 + React 19
-
-[简体中文](./README.md) | English
-
-[![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tauri](https://img.shields.io/badge/Tauri-2.0-blue)](https://tauri.app/)
-[![AI Native](https://img.shields.io/badge/AI-Native-green)](https://ai-native.dev)
-[![Harness Ready](https://img.shields.io/badge/Harness-Mature-brightgreen)](https://github.com/peterfei/ifai#harness-capabilities)
-[![React](https://img.shields.io/badge/React-19-61dafb)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)](https://www.typescriptlang.org/)
-[![Rust](https://img.shields.io/badge/Rust-Latest-orange)](https://www.rust-lang.org/)
-
-</div>
+![ifai](imgs/ifai.gif)
 
 ---
 
-![](imgs/ifai2601003_1280.gif)
+## 💡 Why Choose IfAI?
+
+In the AI era, editors should be more than code containers—they should be the body of AI. IfAI adopts an **AI-Native** architecture, deeply implanting reasoning capabilities into its core.
+
+*   **⚡ Extreme Performance**: Rust kernel driven, 120 FPS smooth rendering even under 10k+ data loads
+*   **🛡️ Privacy & Local-First**: Supports Qwen2.5 and other on-device models, sensitive code never leaves locally, hybrid routing automatic switching
+*   **🐚 Autonomous Agent Evolution**: Beyond conversation, Agents have Shell-level control, automatically configure environments, execute tasks, self-correct
+*   **📑 Specification-Driven (OpenSpec)**: Deep OpenSpec protocol integration ensures AI follows industrial-grade design specifications
 
 ---
 
-## 📖 Introduction
+## 🚀 Development Milestones
 
-**IfAI (若爱)** is a mature AI Native Harness that empowers autonomous agents with complete runtime environment. With v0.4.0, IfAI achieves full core capability coverage including tool execution, multi-agent collaboration, prompt management, conversation management, and persistence. The name "若爱" (IfAI) means "if there is love, code will be warm" — we believe AI should be the most caring programming companion for developers.
+We maintain rapid iteration, committed to building the most professional AI pair programming environment.
 
-### 🎖️ Mature Harness Capabilities
-
-As a mature AI Native Harness, IfAI provides:
-
-- **Complete Tool Execution System**: 10+ core tools with standardized interfaces, three-level permission grading, and automatic path resolution
-- **Multi-Agent Collaboration**: 5 core agents (Explore, Review, TaskBreakdown, ProposalGenerator, Refactor) with collaboration mechanisms and DAG visualization
-- **Prompt Management System**: Layered transparency strategy, version control with Git integration, Monaco Editor integration
-- **Conversation Management**: Auto-summarization, smart compression (88.6% Token reduction), session notes auto-extraction
-- **Production-Ready Persistence**: IndexedDB storage with transaction-level consistency and automatic repair
-
-### 📈 Project Status
-
-- **✅ v0.4.6** - May 06, 2026 (Multi-Thread Concurrent Chat & TUI Architecture Refactor)
-- **✅ v0.4.5** - May 02, 2026 (TUI Enhancement & Testing Framework)
-- **✅ v0.4.2** - Apr 21, 2026 (Skill Center Refactor & Streaming Performance Optimization)
-- **✅ v0.4.1** - Apr 2026 (Multi-Agent Collaboration & Message Stability)
-- **✅ v0.4.0** - Apr 08, 2026 (Prompt Ecosystem, Multi-Agent Architecture & Conversation Management — Mature Harness)
-- **✅ v0.3.12** - Event-Driven Architecture & Streaming Order
-- **✅ v0.3.9** - Physical Fidelity & Cognitive Upgrade
-- **✅ v0.3.6** - UI Refactor, PIVO 2.0 & Structured Workflow
-- **🎉 v0.3.0 Multimodal Vision Upgrade** - Jan 14, 2026 (Vision LLM, Hybrid Scheduling, Code Navigation, Onboarding Tour)
-- **🎉 v0.2.9 Agent Intelligence** - Jan 12, 2026 (Smart Terminal Loop, Inline Editing Experience, AI Code Review)
-- **🎉 v0.2.8 Industrial Evolution** - Jan 10, 2026 (Composer 2.0, RAG Symbol-Aware, Command Palette)
-- **🎉 v0.2.7 Experience Leap** - Jan 09, 2026 (AI Rollback, Smart Diff, Industrial Layout Switcher, Automated E2E Framework)
-- **🎉 v0.2.5 Hybrid Intelligence** - Jan 03, 2026 (Local LLM Support, Intelligence Router, Offline Completion)
-- **🎉 v0.2.4 Optimization Update** - Dec 30, 2025 (Windows Rendering, Flicker Fixes, Stability)
-- **🎉 v0.2.0 Major Update** - Dec 20, 2025 (Interactivity & Performance Milestone)
-- **🎉 v0.1.2 Stable** - Dec 19, 2025
-- **⚡ Rendering** - 120 FPS High Frame Rate + GPU Acceleration
-- **🌊 Interaction** - Claude-style progressive streaming
-- **💾 Memory Usage** - ~80MB (20% lower than v0.1.0)
-
-<img src="imgs/ifai.gif" alt="IfAI Demo" width="600" height="auto"/>
+| Version | Theme | Core Breakthroughs |
+| :--- | :--- | :--- |
+| **v0.4.8** | **Autonomous Conversation Leap + WebSearch + Metaprogramming + Performance** | **100% trust model (tool limits 100→1000, 10x boost), eradicated break chain issues (Agentic Loop + infinite Continuing + HTTP 400), smart compression system (integrated into AI service layer + Mid-turn fix), Bocha AI integration (three-layer protection + LRU cache), #[derive(Tool)] metaprogramming (zero boilerplate), Explore performance optimization (79s→13s, 6x boost), TUI first-run wizard, declarative status bar animation, dedicated Agent tools, prompt reference resolution** |
+| **v0.4.7** | **Persistent Memory System** | **Zero-dependency pure Markdown two-layer memory (hot injection + cold archiving), MemorySave tool (AI proactive save + auto dedup), LLM batch extraction, externalized prompts, 18μs injection latency, session archiving, smart compression, TUI+GUI sharing, 10 bug fixes** |
+| **v0.4.6** | **Multi-Thread Concurrent Chat & TUI Refactor** | **Per-Thread Session isolation (concurrent streaming + approval isolation), /thread slash commands, multi-line input (Shift+Enter), TUI God Object refactor Phase 1-4 (App 27→14 fields, Mode enum, declarative routing, StreamState unified cleanup), 862 tests, 10 bug fixes** |
+| **v0.4.5** | **TUI Enhancement & Testing Framework** | **Ctrl+O Detail View Overlay (fullscreen view), Ctrl+D Diff Mode (toggle switch), input message queue (streaming queuing), slash command popup (metaprogramming), 510+ tests (parametric/parallel/snapshot/E2E), metaprogramming architecture, 10 bug fixes** |
+| **v0.4.4** | **CLI Overhaul — Industrial Terminal AI Assistant** | **Metadata-driven CLI architecture, metaprogramming permission engine, Token system, TOML configuration, session persistence, Pipeline visualization, loop detection engine, ratatui fullscreen TUI, smart Glob search, 49 tests** |
+| **v0.4.3** | **Metadata-Driven Architecture & Internationalization** | **Metadata-driven Provider architecture (YAML config), 5 AI providers 80+ models, complete multimodal support, three-language coverage (CN/EN/RU), CI integration & quality gates, SSE stream parsing fix** |
+| **v0.4.2** | **Skill Center Refactor & Streaming Performance** | **Skill Center Phase 7 full refactor, BatchEventStream optimization, tool call race fix, E2E test framework v2.0, 10 bug fixes** |
+| **v0.4.1** | **Multi-Agent Collaboration & Message Stability** | **Multi-agent collaboration system (P0-P4 complete), DAG workflow engine, agent communication protocol, message queue system, Tab message isolation, 12 bug fixes** |
+| **v0.4.0** | **Prompt Ecosystem & Multi-Agent** | **Prompt management system, multi-agent system (Explore/Review/TaskBreakdown/ProposalGenerator/Refactor), tool system (10+ tools), CLI tool, community edition unlocks agent features** |
+| **v0.3.9** | **Physical Fidelity & Cognitive Upgrade** | **Symbol-First probing engine, full IndexedDB migration, NVIDIA NIM integration, dynamic Token physical statistics** |
+| **v0.3.7** | **Asset Security & Immersive Preview** | **Path-aware risk engine, editor in-place approval, auto-focus change points, Rust execution layer physical sandbox** |
+| **v0.3.6** | **UI Refactor & Structuring** | **Model capsule panel, PIVO 2.0 async preview, full-chain structured PivoProjectTree rendering** |
+| **v0.3.4** | **Dual-Mode Drive Engine** | **Vibe/Spec dual-mode interaction, pluginized skill system (Skills), silent approval automation, startup time elimination** |
+| **v0.3.0** | **Multimodal & Hybrid Scheduling** | **Vision LLM image understanding, local/remote hybrid inference scheduling, Zhipu AI native support, Bash tool integration** |
+| **v0.2.8** | **Industrial Toolchain** | **Composer 2.0 (AI multi-file editing), RAG symbol-aware (AST understanding), smart terminal self-healing** |
+| **v0.2.6** | **Agent Evolution** | **Shell capability unlock, structured task tree, OpenSpec deep integration, 120 FPS high-refresh rendering** |
+| **v0.2.0** | **Performance Foundation** | **Hybrid intelligence architecture (Qwen2.5), GPU hardware acceleration, zero-flicker streaming interaction** |
 
 ---
 
-## ✨ v0.2.0 Interaction & Performance Revolution
+## ✨ Core Features
 
-### 🌊 Claude-style Streaming System
-- **Typewriter Effect** - AI tool operations present a smooth line-by-line generation effect.
-- **Progressive Parsing** - The Rust backend features heuristic parsing, extracting code content before the response ends.
-- **Streaming Cursor Feedback** - Added a dynamic pulsing cursor to tool previews for real-time visual confirmation.
+### 🤖 Composer 2.0 - AI Multi-File Editing Engine
+*   **Parallel Editing**: AI can modify multiple files simultaneously, automatically detecting conflicts and intelligently merging
+*   **Fine-grained Control**: Support accepting/rejecting modifications individually, real-time Diff preview
+*   **One-Click Rollback**: Not satisfied? One-click undo all AI modifications
+*   **Dynamic File Refresh**: Editor automatically updates after accept/reject, no manual refresh needed
 
-### 🚀 GPU Hardware Acceleration Pipeline
-- **120 FPS Support** - Optimized rendering for high-refresh-rate monitors, ensuring ultra-smooth scrolls and animations.
-- **Zero-Lag Generation** - 150ms rendering throttling and dynamic scaling eliminate editor lag during AI generation.
-- **Performance Monitor** - Toggle a real-time FPS panel with `Mod+Alt+p`.
+### 🧠 RAG Symbol-Aware - Code Structure Understanding
+*   **Symbol-Level Understanding**: Not just text matching, AI truly understands relationships between Traits, classes, functions
+*   **Cross-File Association**: Automatically analyzes cross-file dependencies like `use`, `import`, `impl`
+*   **Precise Answers**: Ask "What implementations does this Trait have?", AI accurately lists all implementation classes and file paths
+*   **Distinguish Real from Fake**: Intelligently distinguishes real code from examples in comments, won't be misled
 
-### ⌨️ Advanced UX & Keyboard Navigation
-- **Persistent Command History** - Call back your previous prompts with the **Up Arrow**, even after restarting the app. Experience terminal-like input efficiency.
-- **Seamless Global Control** - Re-engineered keyboard logic for Slash Commands and Project Search, supporting smooth up/down navigation and instant selection.
-- **Intelligent Indexing** - Precisely distinguishes between manual edits and history refills, ensuring continuous interaction remains intuitive.
+### ⌨️ Command Bar - Professional Command Execution
+*   **Real-time Search**: Instant matching as you type, millisecond-level response preview
+*   **Keyboard Navigation**: Complete keyboard support, ↑↓ select, Enter execute, Esc close
+*   **View Splitting**: Command bar + main interface display in parallel, doesn't affect current work
+*   **Commercial Edition Integration**: Deeply integrated with commercial edition commands and features
 
-### 🛡️ Smart Agent Monitor
-- **Drag & Snap** - The monitor widget can be dragged anywhere and intelligently snaps to corners.
-- **Adaptive Layout** - The panel automatically adjusts its expansion direction based on its snap position.
-- **Full Internationalization** - Task status and real-time logs fully support EN/CN switching.
+### 🤖 The Agent Engine
+*   **Shell-Level Control**: Agent can execute `npm`, `git`, `cargo` and other commands, autonomously completing dependency installation and environment self-healing
+*   **Structured Task Breakdown**: Automatically converts vague requirements into visualized **Task Tree**, supports real-time progress tracking
+*   **Smart Path Awareness**: Automatically calibrates execution paths, effectively preventing AI from falling into source directory or permission traps
 
-### 📐 Intelligent Rendering Logic
-- **Summary at Bottom** - Re-engineered the engine so tool boxes stay on top, while the AI **Summary** naturally lands at the bottom.
-- **Pure UI Upgrade** - Minimalist logo design to maximize space for code communication.
+### 🔍 Next-Gen RAG (Retrieval-Augmented Generation)
+*   **Multi-Dimensional Hybrid Retrieval**: Combines keywords with semantic vectors, millisecond-level positioning of full-project code context
+*   **Project Isolation Architecture**: Forced index reset mechanism ensures absolute context purity when switching between multiple projects
+*   **Symbol-Aware Engine**: tree-sitter based AST analysis, precisely extracts code symbols and relationships
 
+### 🎨 Modern Development Experience
+*   **Professional Markdown Support**: Real-time preview rendering engine, supports split-screen, fullscreen document writing modes
+*   **Code Snippet Management**: Snippet Manager supports 10k-level data volume, with **Fill-In-the-Middle** intelligent completion
+*   **Token Cost Dashboard**: Real-time consumption metering, detailed breakdown of input/output tokens, costs under control
 
-### 🎨 Modern Editor
+---
 
-- **Monaco Editor Core** - Same editor engine as VSCode
-- **Syntax Highlighting** - Support for mainstream programming languages
-- **Code Intelligence** - Auto-completion, code navigation, refactoring
-- **Multi-Tab** - Efficiently manage multiple files
-- **File Tree** - Intuitive project structure browsing
-- **Theme Customization** - Dark/Light themes, eye-friendly
+## 📊 Performance (Performance)
 
-### 🤖 AI Assistant
+We conducted rigorous industrial-grade extreme stress testing on v0.2.6:
 
-- **Multi-Model Support** - OpenAI, Anthropic Claude, Zhipu AI, and other mainstream LLMs
-- **Context Understanding** - RAG retrieval enhancement for precise project code comprehension
-- **Code Generation** - Generate code from natural language descriptions
-- **Smart Refactoring** - AI-assisted code optimization and refactoring
-- **Bug Diagnosis** - Intelligent error analysis with fix suggestions
-- **Technical Q&A** - Instant answers to programming questions
-
-### 🛠 Development Tools Integration
-
-- **Integrated Terminal** - Built-in terminal for seamless command execution
-- **Git Integration** - File status tracking, visual version control
-- **LSP Support** - Language Server Protocol for intelligent code analysis
-- **Quick Search** - Global file and content search
-- **Multi-Language Support** - English/Chinese interface switching
+*   **Massive List Scrolling**: 10,000+ records, stably maintains **120 FPS**, batch insertion only **1003ms**
+*   **Zero-Lag Rendering**: High-frequency streaming output scenarios, UI response delay **< 15ms**, CPU usage reduced **30%**
+*   **Second-Grade Environment Awareness**: Path calibration and environment detection takes **< 1ms**, success rate **100%**
 
 ---
 
 ## 🏗 Technical Architecture
 
-### Tech Stack
-
-```
-┌─────────────────────────────────────────────────────┐
-│                      IfAI                            │
-├─────────────────────────────────────────────────────┤
-│  Frontend Layer                                      │
-│  ├─ React 19         - UI Framework                 │
-│  ├─ TypeScript 5.8   - Type Safety                  │
-│  ├─ Zustand          - State Management             │
-│  ├─ TailwindCSS      - Styling System               │
-│  ├─ Monaco Editor    - Code Editor                  │
-│  └─ Vite             - Build Tool                   │
-├─────────────────────────────────────────────────────┤
-│  Backend Layer (Rust/Tauri)                         │
-│  ├─ Tauri 2.0        - Cross-Platform Framework     │
-│  ├─ tokio            - Async Runtime                │
-│  ├─ serde            - Serialization                │
-│  ├─ reqwest          - HTTP Client                  │
-│  ├─ git2             - Git Integration              │
-│  ├─ portable-pty     - Terminal Emulation           │
-│  └─ walkdir          - File Traversal               │
-├─────────────────────────────────────────────────────┤
-│  Core Capability Layer (Private Extension)          │
-│  ├─ AI Model Integration - Multi-model adapters    │
-│  ├─ Agent Toolchain     - Smart code operations    │
-│  ├─ RAG Retrieval       - Vector semantic search   │
-│  └─ Context Building    - Intelligent understanding │
-└─────────────────────────────────────────────────────┘
-```
-
-### Core Design
-
-- **Tauri Architecture** - Web frontend + Rust backend, combining performance with development efficiency
-- **Event-Driven** - Async communication between frontend and backend through event system
-- **Dependency Injection** - Core package accesses main app state through registry mechanism
-- **Plugin Design** - Core AI capabilities as independent packages, easy to extend
-- **Local-First** - File operations and Git management all performed locally
-
-### Project Structure
-
-```
-ifainew/
-├── src/                      # React frontend code
-│   ├── components/          # UI components
-│   │   ├── Editor/         # Monaco editor
-│   │   ├── FileTree/       # File tree
-│   │   ├── AIChat/         # AI chat interface
-│   │   └── Terminal/       # Terminal emulator
-│   ├── stores/             # Zustand state management
-│   │   ├── fileStore.ts    # File state
-│   │   ├── chatStore.ts    # AI chat state
-│   │   └── settingsStore.ts # Settings state
-│   └── utils/              # Utility functions
-│
-├── src-tauri/               # Rust backend code
-│   ├── src/
-│   │   ├── lib.rs          # Main entry
-│   │   ├── file_walker.rs  # File traversal
-│   │   ├── terminal.rs     # Terminal management
-│   │   ├── git.rs          # Git integration
-│   │   ├── lsp.rs          # LSP client
-│   │   └── search.rs       # File search
-│   └── Cargo.toml
-│
-├── tests/                   # Test cases
-│   ├── spec_agent_flow.cjs
-│   ├── spec_escape_fix.cjs
-│   └── spec_tool_history.cjs
-│
-└── package.json
+```mermaid
+graph TD
+    A[Interaction Layer: React 19] --> B[Core Engine: Rust / Tauri 2.0]
+    B --> C[AI Services: Custom API / Local LLM]
+    B --> D[Vector Engine: RAG / Semantic Search]
+    B --> E[System Services: Shell / PTY / Git]
+    C --> F[Models: DeepSeek / Kimi / Qwen]
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🦶 Quick Start
 
-### Prerequisites
+### 1. Environment Preparation
+Ensure Node.js >= 18 and Rust >= 1.80 are installed.
 
-Ensure the following tools are installed:
-
-- **Node.js** >= 18.0
-- **Rust** >= 1.70 (install via [rustup](https://rustup.rs/))
-- **System Dependencies**:
-  - **Windows**: Visual Studio Build Tools
-  - **macOS**: Xcode Command Line Tools
-  - **Linux**: `build-essential`, `libgtk-3-dev`, `libwebkit2gtk-4.0-dev`
-
-### Installation Steps
-
-1. **Clone Repository**
-
-   ```bash
-   git clone https://github.com/peterfei/ifai.git
-   cd ifai
-   ```
-
-2. **Install Dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Start Development Server**
-
-   ```bash
-   npm run tauri dev
-   ```
-
-   The app will automatically compile and start, usually within seconds.
-
-### Build Release Version
-
+### 2. Quick Launch
 ```bash
-# Build frontend
-npm run build
-
-# Build Tauri app
-npm run tauri build
-```
-
-Build artifacts are located in `src-tauri/target/release/bundle/`.
-
----
-
-## 📸 Screenshots
-
-### Main Interface - Code Editing & File Management
-![IfAI Main Interface](./imgs/ifai2025001.png)
-
-*Monaco Editor + File Tree + Multi-Tab, Smooth Development Experience*
-
----
-
-### AI Assistant - Code Generation & Conversation
-![AI Assistant Interface](./imgs/ifai2025002.png)
-
-*Multi-model support, streaming responses, Markdown rendering, code highlighting*
-
----
-
-### Integrated Terminal - Seamless Command Execution
-![Integrated Terminal](./imgs/ifai2025003.png)
-
-*Built-in terminal emulator, multi-session management, ANSI escape sequences*
-
----
-
-## 🛠 Development Guide
-
-### Local Development
-
-```bash
-# Start development mode
+git clone https://github.com/peterfei/ifai.git
+cd ifai
+npm install
 npm run tauri dev
-
-# Run frontend dev server only
-npm run dev
-
-# Run tests
-node tests/spec_agent_flow.cjs
 ```
 
-### Code Standards
-
-- **Frontend**: Use TypeScript strict mode, follow React Hooks best practices
-- **Backend**: Follow Rust official code standards, run `cargo fmt` and `cargo clippy`
-- **Commits**: Follow Conventional Commits specification
-
-### Tech Stack Rationale
-
-**Why Tauri?**
-- Excellent performance: Fast startup, low memory (90% less than Electron)
-- Secure & reliable: Rust memory safety prevents common vulnerabilities
-- Cross-platform: Write once, run everywhere
-- Small bundle size: 5-10MB release packages (vs Electron's 100MB+)
-
-**Why React 19?**
-- Latest features: React Server Components, concurrent rendering
-- Rich ecosystem: Abundant component libraries and tooling
-- Developer experience: Hot reload, DevTools, TypeScript support
-
----
-
-## 🗺 Roadmap
-
-### v0.2.0 (Current) - Interaction Milestone
-
-- ✅ **Claude-style Streaming** - Progressive JSON parsing and typewriter rendering
-- ✅ **Smart Agent Monitor** - Draggable, corner-snapping, and adaptive layout
-- ✅ **Personalized Settings** - Fira Code, ligatures, smooth caret, and VS Code-style options
-- ✅ **Rendering Optimization** - Ensures summary text always lands at the message bottom
-- ✅ **Minimalist UI** - Clean chat header and optimized visual space
-
-### v0.3.0 (Planned) - Intelligence Upgrade
-
-- 📋 AI code review
-- 📋 Smart test generation
-- 📋 Performance analysis tools
-- 📋 Team collaboration features
-- 📋 Cloud settings sync
-
-### v1.0.0 (Vision) - Production-Ready
-
-- 📋 Enterprise features
-- 📋 Private deployment solution
-- 📋 Extension marketplace
-- 📋 Real-time collaboration
-- 📋 Complete debugger integration
-
----
-
-## 🌟 Future Vision
-
-### Technical Vision
-
-**IfAI** is committed to becoming the smartest programming companion for developers:
-
-1. **AI-Native Editor** - Not simple AI feature stacking, but AI thinking integrated from the ground up
-2. **Local-First** - Fully offline capable, protecting code privacy
-3. **Open Ecosystem** - Open-source core framework, community-driven plugins and extensions
-4. **Cross-Platform Experience** - Unified operation experience, seamless environment switching
-
-### Product Vision
-
-We hope **IfAI** can:
-
-- 🎯 **Lower Programming Barriers** - Enable beginners to quickly get started with AI assistance
-- 💡 **Boost Development Efficiency** - Reduce repetitive work, focus on creative tasks
-- 🤝 **Facilitate Knowledge Transfer** - AI assistant as code knowledge carrier
-- 🌍 **Serve Global Developers** - Multi-language support, adapt to different cultures
-
-### Community Vision
-
-- **Open-Source Collaboration** - Open core framework, welcome code and ideas
-- **Knowledge Sharing** - Build developer community, share best practices
-- **Continuous Innovation** - Keep up with AI tech evolution, explore new possibilities
+### 3. Build Release
+```bash
+npm run build:community  # Build frontend
+npm run tauri:community  # Build Tauri app
+```
 
 ---
 
 ## 🤝 Contributing
 
-We welcome all forms of contribution!
+IfAI is in a high-growth phase, we welcome any form of contribution! Whether it's bug fixes, feature suggestions, or documentation improvements.
 
-### How to Contribute
-
-1. **Fork this repository**
-2. **Create feature branch** (`git checkout -b feature/AmazingFeature`)
-3. **Commit changes** (`git commit -m 'Add some AmazingFeature'`)
-4. **Push to branch** (`git push origin feature/AmazingFeature`)
-5. **Submit Pull Request**
-
-For detailed contribution guide, see [CONTRIBUTING.md](./CONTRIBUTING.md).
-
-### Ways to Participate
-
-- 🐛 **Report Bugs** - Submit detailed issue reports
-- 💡 **Feature Suggestions** - Share your ideas and needs
-- 📝 **Improve Documentation** - Enhance docs and examples
-- 💻 **Contribute Code** - Fix bugs or add features
-- 🌍 **Translation** - Help translate to other languages
-
----
-
-## 📄 License
-
-This project is licensed under **MIT License**.
-
-Core AI capabilities are provided by proprietary commercial modules and are not included in the open-source scope. The open-source portion provides a complete editor framework and extension interfaces.
-
-See [LICENSE](./LICENSE) file for details.
-
----
-
-## 💬 Community & Support
-
-- **GitHub Issues**: [Bug Reports](https://github.com/peterfei/ifai/issues)
-- **GitHub Discussions**: [Discussions](https://github.com/peterfei/ifai/discussions)
-- **Project Homepage**: [https://github.com/peterfei/ifai](https://github.com/peterfei/ifai)
-
----
-
-## 🙏 Acknowledgments
-
-Thanks to the following open-source projects:
-
-- [Tauri](https://tauri.app/) - Cross-platform framework
-- [Monaco Editor](https://microsoft.github.io/monaco-editor/) - Code editor
-- [React](https://reactjs.org/) - UI framework
-- [Rust](https://www.rust-lang.org/) - System programming language
-
-And all developers who have contributed to this project! ❤️
+- **Report Issues**: [GitHub Issues](https://github.com/peterfei/ifai/issues)
+- **Join Discussion**: [GitHub Discussions](https://github.com/peterfei/ifai/discussions)
 
 ---
 
 <div align="center">
-
-**If this project helps you, please give us a ⭐️**
-
-Made with ❤️ by [peterfei](https://github.com/peterfei)
-
+  <p><strong>Made with ❤️ by peterfei</strong></p>
+  <p>If IfAI helps you, please give us a ⭐️ to support me!</p>
 </div>
