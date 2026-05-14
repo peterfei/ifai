@@ -380,6 +380,9 @@ impl ReviewAgentExecutor {
     }
 
     /// 执行基于 git diff 的代码审查
+    ///
+    /// 直接返回 diff 上下文 + 审查指令，由外层 LLM 完成审查分析。
+    /// 不嵌套 execute_agent_sync，避免两层 workflow 竞争 UI。
     fn handle_code_review(&self, input: &Value) -> Result<String, ToolError> {
         let base = input
             .get("base")
@@ -391,46 +394,86 @@ impl ReviewAgentExecutor {
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        // 先获取 git diff 信息
+        // 获取 git diff 信息
         let diff_context = match self.get_git_diff(base, path_filter) {
             Ok(diff) => diff,
             Err(e) => format!("无法获取 diff: {}", e),
         };
 
-        // 构建包含 diff 上下文的审查任务
-        let mut dimensions = Vec::new();
-        if self.config.check_security { dimensions.push("安全"); }
-        if self.config.check_performance { dimensions.push("性能"); }
-        if self.config.check_quality { dimensions.push("代码质量"); }
+        // 可选：获取复杂度分析
+        let complexity_info = self.get_complexity_hint(&diff_context);
 
-        let task = format!(
+        // 构建审查维度
+        let mut dimensions = Vec::new();
+        if self.config.check_security { dimensions.push("安全性（SQL注入、XSS、CSRF、权限检查、敏感数据）"); }
+        if self.config.check_performance { dimensions.push("性能（算法复杂度、资源泄漏、不必要的克隆、内存分配）"); }
+        if self.config.check_quality { dimensions.push("代码质量（函数长度、嵌套深度、错误处理、unwrap 使用）"); }
+
+        let dimension_str = if dimensions.is_empty() {
+            "全面审查".to_string()
+        } else {
+            dimensions.iter().map(|d| format!("- {}", d)).collect::<Vec<_>>().join("\n")
+        };
+
+        // 直接返回上下文 + 审查指令，外层 LLM 会完成分析
+        Ok(format!(
             "\
-## 代码变更
+## 代码变更 (base: {base})
 
 {diff}
+
+{complexity}
 
 ## 审查要求
 
 请从以下维度审查上述代码变更:
 {dimensions}
 
-## 配置
-- 函数长度阈值: {max} 行
-- 排除模式: {exclude:?}
-
 ## 报告格式
 请输出结构化报告，按严重程度排序:
 [CRITICAL] 问题描述 | 位置 | 修复建议
 [WARNING] 问题描述 | 位置 | 修复建议
-[INFO] 建议 | 描述
-",
+[INFO] 建议 | 描述",
+            base = base,
             diff = diff_context,
-            dimensions = dimensions.iter().map(|d| format!("- {}", d)).collect::<Vec<_>>().join("\n"),
-            max = self.config.max_function_length,
-            exclude = self.config.exclude_patterns,
-        );
+            complexity = complexity_info,
+            dimensions = dimension_str,
+        ))
+    }
 
-        execute_agent_sync(AgentType::Review, &task)
+    /// 从 diff 中提取文件路径，给出复杂度提示
+    fn get_complexity_hint(&self, diff: &str) -> String {
+        let files: Vec<&str> = diff
+            .lines()
+            .filter(|l| l.starts_with("diff --git"))
+            .filter_map(|l| l.split(" b/").nth(1))
+            .filter(|f| f.ends_with(".rs"))
+            .take(5)
+            .collect();
+
+        if files.is_empty() {
+            return String::new();
+        }
+
+        let analyzer = crate::harness::tool::new_tools::complexity_analyzer::ComplexityAnalyzer::new(10, 0);
+        let mut hints = Vec::new();
+
+        for file in files {
+            if let Ok(report) = analyzer.execute_complexity_analyzer(file, 3) {
+                if report.total_functions > 0 {
+                    hints.push(format!(
+                        "  - {}: {} 个函数, {} 个高复杂度",
+                        file, report.total_functions, report.high_complexity.len()
+                    ));
+                }
+            }
+        }
+
+        if hints.is_empty() {
+            String::new()
+        } else {
+            format!("## 复杂度提示\n{}\n", hints.join("\n"))
+        }
     }
 
     /// 获取 git diff（使用 GitDiffTool）
