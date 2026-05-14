@@ -43,6 +43,16 @@ path = "src/bin/ifai/main.rs"
 name = "generate_tests"
 path = "src/bin/ifai/tests/generate_tests.rs"
 
+# 博查 API 测试程序
+[[bin]]
+name = "test_bocha_api"
+path = "src/bin/test_bocha_api.rs"
+
+# WebSearch 工具集成测试
+[[bin]]
+name = "test_websearch_tool"
+path = "src/bin/test_websearch_tool.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 serde_yaml = "0.9"

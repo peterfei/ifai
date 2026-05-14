@@ -162,22 +162,35 @@ struct BochaRequest {
     count: Option<u64>,
 }
 
-/// 博查 Web Search API 响应
+/// 博查 Web Search API 响应（实际格式）
 #[derive(Debug, Deserialize)]
 struct BochaResponse {
-    web_results: Option<Vec<BochaWebResult>>,
+    code: i32,
+    data: BochaResponseData,
+}
+
+#[derive(Debug, Deserialize)]
+struct BochaResponseData {
+    #[serde(rename = "webPages")]
+    web_pages: Option<BochaWebPages>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BochaWebPages {
+    value: Vec<BochaWebResult>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 struct BochaWebResult {
+    #[serde(rename = "name")]
     title: String,
     url: String,
     snippet: String,
-    #[serde(default)]
+    #[serde(rename = "siteName", default)]
     site_name: String,
-    #[serde(default)]
+    #[serde(rename = "siteIcon", default)]
     icon: Option<String>,
-    #[serde(default)]
+    #[serde(rename = "datePublished", default)]
     published_time: Option<String>,
 }
 
@@ -250,8 +263,18 @@ impl WebSearchTool {
             .await
             .map_err(|e| WebSearchError::Parse(format!("Failed to parse response: {}", e)))?;
 
+        // 检查响应码
+        if bocha_response.code != 200 {
+            return Err(WebSearchError::Api(format!("API returned code {}", bocha_response.code)));
+        }
+
         // 转换结果
-        let web_results = bocha_response.web_results.unwrap_or_default();
+        let web_results = bocha_response
+            .data
+            .web_pages
+            .map(|wp| wp.value)
+            .unwrap_or_default();
+
         let results: Vec<SearchResult> = web_results
             .into_iter()
             .map(|r| SearchResult {
