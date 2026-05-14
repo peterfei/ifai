@@ -48,6 +48,16 @@ pub enum ToolError {
 
     #[error("JSON 错误: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("WebSearch 错误: {0}")]
+    WebSearch(String),
+}
+
+// 从 WebSearchError 转换
+impl From<crate::harness::tool::new_tools::web_search::WebSearchError> for ToolError {
+    fn from(err: crate::harness::tool::new_tools::web_search::WebSearchError) -> Self {
+        ToolError::WebSearch(err.to_string())
+    }
 }
 
 /// 工具执行器 trait

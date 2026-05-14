@@ -12,7 +12,7 @@ use super::{
         ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
         ToolExecutor,
     },
-    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, BochaConfig},
+    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache},
     ToolError,
 };
 
@@ -115,11 +115,13 @@ impl ToolRouter {
         let edit_file_adapter = EditFileAdapter::new(edit_file_tool, "edit_file".to_string());
         executors.insert("edit_file".to_string(), Box::new(edit_file_adapter));
 
-        // 🆕 使用 #[derive(Tool)] 宏的 WebSearchTool（网络搜索功能）
+        // 🆕 使用 #[derive(Tool)] 宏的 WebSearchTool（网络搜索功能 + 缓存）
         // 从 .env 文件加载博查 API Key（环境变量优先，然后 .env 文件）
+        // 启用缓存以减少 API 调用成本
         let web_search_config = BochaConfig::from_env_file();
         let web_search_tool = WebSearchTool::new(web_search_config);
-        let web_search_adapter = WebSearchAdapter::new(web_search_tool, "web_search".to_string());
+        let web_search_cache = SearchCache::default_config();
+        let web_search_adapter = CachedWebSearchAdapter::new(web_search_tool, web_search_cache, "web_search".to_string());
         executors.insert("web_search".to_string(), Box::new(web_search_adapter));
 
         Self {

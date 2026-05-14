@@ -334,7 +334,7 @@ pub struct SearchResult {
 }
 
 /// WebSearch 结果
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchResult {
     /// 搜索查询
     pub query: String,
