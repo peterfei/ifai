@@ -8,6 +8,7 @@ pub mod ping;
 pub mod read_file;
 pub mod write_file;
 pub mod edit_file;
+pub mod web_search;
 pub mod adapter;
 
 #[cfg(test)]
@@ -26,4 +27,5 @@ pub use ping::{PingTool, PingResult, PingError};
 pub use read_file::{ReadFileTool, ReadFileResult, ReadFileError};
 pub use write_file::{WriteFileTool, WriteFileResult, WriteFileError};
 pub use edit_file::{EditFileTool, EditFileResult, EditFileError};
-pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter};
+pub use web_search::{WebSearchTool, WebSearchResult, WebSearchError, SearchResult};
+pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter};

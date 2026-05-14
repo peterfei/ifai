@@ -12,7 +12,7 @@ use super::{
         ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
         ToolExecutor,
     },
-    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter},
+    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter},
     ToolError,
 };
 
@@ -115,6 +115,11 @@ impl ToolRouter {
         let edit_file_adapter = EditFileAdapter::new(edit_file_tool, "edit_file".to_string());
         executors.insert("edit_file".to_string(), Box::new(edit_file_adapter));
 
+        // 🆕 使用 #[derive(Tool)] 宏的 WebSearchTool（网络搜索功能）
+        let web_search_tool = WebSearchTool::new();
+        let web_search_adapter = WebSearchAdapter::new(web_search_tool, "web_search".to_string());
+        executors.insert("web_search".to_string(), Box::new(web_search_adapter));
+
         Self {
             executors: Mutex::new(executors),
         }
@@ -180,6 +185,7 @@ mod tests {
         assert!(tools.contains(&"read_file".to_string()));
         assert!(tools.contains(&"write_file".to_string()));
         assert!(tools.contains(&"edit_file".to_string()));
+        assert!(tools.contains(&"web_search".to_string()));
         assert!(tools.contains(&"glob_search".to_string()));
         assert!(tools.contains(&"grep_search".to_string()));
         assert!(tools.contains(&"bash".to_string()));

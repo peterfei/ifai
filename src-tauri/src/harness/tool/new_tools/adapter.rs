@@ -70,6 +70,7 @@ pub type PingToolAdapter = MacroToolAdapter<super::ping::PingTool>;
 pub type ReadFileAdapter = MacroToolAdapter<super::read_file::ReadFileTool>;
 pub type WriteFileAdapter = MacroToolAdapter<super::write_file::WriteFileTool>;
 pub type EditFileAdapter = MacroToolAdapter<super::edit_file::EditFileTool>;
+pub type WebSearchAdapter = MacroToolAdapter<super::web_search::WebSearchTool>;
 
 #[cfg(test)]
 mod tests {
