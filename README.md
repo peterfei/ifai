@@ -16,6 +16,18 @@
 
 ---
 
+### 🌟 v0.4.8 新特性：WebSearch Agent — 智能网络搜索，零审批自动执行
+- **WebSearch Agent**：集成博查 AI（Bocha AI）搜索引擎，支持实时网络搜索、最新技术文档、新闻资讯查询，智能结果分析和多轮迭代优化。
+- **三层防护机制**：系统提示词强制规则（TUI + GUI）、LLM 工具列表过滤（完全隐藏底层 web_search）、自动审批白名单（category: safe），确保用户始终使用 websearch_agent。
+- **缓存系统**：LRU 内存缓存 + JSON 持久化（~/.ifai/cache/search.json），TTL 1 小时过期，缓存命中率统计，重复查询 <10ms 响应。
+- **元编程架构**：使用 `#[derive(Tool)]` 宏实现零样板代码，MacroToolAdapter 桥接模式，CachedWebSearchAdapter 透明缓存层，声明式配置驱动。
+- **Agent 封装**：WebSearchAgentExecutor 集成 WorkflowRunner，支持 .ifai/prompts/agents/websearch.md 自定义提示词，fallback 内置模板确保可用性。
+- **嵌套运行时处理**：TUI 模式兼容（std::thread::spawn + current_thread runtime），CLI 模式（multi_thread runtime），自动检测并适配。
+- **安全配置加载**：优先级链（环境变量 > .env 文件 > 默认值），API Key 验证，自动降级到模拟结果（无 Key 时可用）。
+- **完整文档**：用户使用指南（docs/websearch-guide.md）、架构设计文档（docs/websearch-architecture.md）、故障排除、FAQ、示例对话。
+
+---
+
 ### 🌟 v0.4.7 新特性：持久化记忆系统 — 让 AI 跨会话记住你
 - **持久化记忆系统**：零依赖纯 Markdown 存储，两层记忆架构（热记忆注入 system prompt + 冷记忆会话归档），空间隐喻组织（Wing → Hall → Room 三层路径），18μs 注入延迟。
 - **MemorySave 工具**：AI 对话中主动保存用户偏好、技术决策、项目知识，自动执行无需审批，自动去重避免重复条目。
@@ -129,6 +141,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.4.8** | **WebSearch Agent** | **博查 AI 集成、三层防护机制（提示词 + 工具过滤 + 自动审批）、LRU 缓存系统（内存 + 持久化 + TTL）、元编程架构（#[derive(Tool)] + MacroToolAdapter）、Agent 封装（WebSearchAgentExecutor + WorkflowRunner）、嵌套运行时处理、完整文档（用户指南 + 架构设计）** |
 | **v0.4.7** | **持久化记忆系统** | **零依赖纯 Markdown 两层记忆（热记忆注入 + 冷记忆归档）、MemorySave 工具（AI 主动保存 + 自动去重）、LLM 批量提取、外部化提示词、18μs 注入延迟、会话归档、智能压缩系统、TUI+GUI 共享、10 项 Bug 修复** |
 | **v0.4.6** | **多线程并发对话系统 & TUI 架构重构** | **Per-Thread Session 隔离（并发 Streaming + 审批隔离）、/thread 斜杠命令、多行输入（Shift+Enter）、TUI God Object 重构 Phase 1-4（App 27→14 字段、Mode enum、声明式路由表、StreamState 统一 cleanup）、862 测试用例、10 项 Bug 修复** |
 | **v0.4.5** | **TUI 增强与测试框架完善** | **Ctrl+O Detail View Overlay（全屏查看）、Ctrl+D Diff Mode（Toggle 开关）、输入消息队列（Streaming 期间排队）、斜杠命令弹出框（元编程）、510+ 测试用例（参数化/并行/快照/E2E）、元编程架构、10 项 Bug 修复** |
