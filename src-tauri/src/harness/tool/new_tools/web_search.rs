@@ -293,12 +293,40 @@ impl WebSearchTool {
     }
 
     /// 同步版本的搜索（用于非异步上下文）
+    ///
+    /// 如果在 Tokio 运行时中调用，会在独立线程中执行
     pub fn execute_web_search(&self, query: &str, count: u64) -> Result<WebSearchResult, WebSearchError> {
-        // 使用 tokio 运行时执行异步代码
-        let rt = tokio::runtime::Runtime::new()
-            .map_err(|e| WebSearchError::Network(format!("Failed to create runtime: {}", e)))?;
+        use tokio::runtime::Builder;
 
-        rt.block_on(self.execute_web_search_async(query, count))
+        // 检测是否已在 Tokio 运行时中
+        if tokio::runtime::Handle::try_current().is_ok() {
+            // 在异步上下文中，使用 std::thread::spawn 在独立线程中执行
+            // 使用 current_thread 运行时，避免与外部运行时冲突
+            let query = query.to_string();
+            let config = self.config.clone(); // 只克隆配置
+
+            std::thread::spawn(move || {
+                // 在独立线程中创建 current_thread 运行时（不会冲突）
+                let rt = Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| WebSearchError::Network(format!("Failed to create runtime: {}", e)))?;
+
+                // 创建新工具实例
+                let tool = WebSearchTool::with_config(config);
+                rt.block_on(tool.execute_web_search_async(&query, count))
+            })
+            .join()
+            .map_err(|_| WebSearchError::Network("Thread join error".to_string()))?
+        } else {
+            // 不在运行时中，创建新的多线程运行时
+            let rt = Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| WebSearchError::Network(format!("Failed to create runtime: {}", e)))?;
+
+            rt.block_on(self.execute_web_search_async(query, count))
+        }
     }
 
     /// 模拟搜索结果（当没有 API Key 时使用）
