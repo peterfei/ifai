@@ -2763,7 +2763,7 @@ impl Session {
             // 关键：不设置回调时（非 TUI 路径），等同于现有行为
             let needs_progress = matches!(
                 tool.name.as_str(),
-                "explore_agent" | "review_agent" | "test_agent"
+                "explore_agent" | "review_agent" | "test_agent" | "doc_agent"
             );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();

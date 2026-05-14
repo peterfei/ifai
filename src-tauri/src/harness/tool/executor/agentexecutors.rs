@@ -587,6 +587,47 @@ impl ToolExecutor for TestAgentExecutor {
     }
 }
 
+/// Doc Agent 执行器
+/// 生成文档、API 文档、README、代码注释等
+pub struct DocAgentExecutor {
+    allowed_tools: HashSet<String>,
+}
+
+impl DocAgentExecutor {
+    pub fn new() -> Self {
+        let mut allowed_tools = HashSet::new();
+        allowed_tools.insert("doc_agent".to_string());
+
+        Self { allowed_tools }
+    }
+
+    fn handle_doc(&self, input: &Value) -> Result<String, ToolError> {
+        let task = input
+            .get("task")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing 'task' parameter".to_string()
+            ))?;
+
+        execute_agent_sync(AgentType::Doc, task)
+    }
+}
+
+impl ToolExecutor for DocAgentExecutor {
+    fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
+        match name {
+            "doc_agent" => self.handle_doc(input),
+            _ => Err(ToolError::NotFound {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    fn allowed_tools(&self) -> &HashSet<String> {
+        &self.allowed_tools
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -731,6 +772,43 @@ mod tests {
         // 传入 task 参数应能进入执行路径（可能因无 runtime 而失败，但不应是 InvalidInput）
         let result = executor.execute("test_agent", &json!({"task": "为 src/lib.rs 生成测试"}));
         // 不检查成功/失败（依赖 runtime），只检查不是 InvalidInput
+        if let Err(e) = &result {
+            let err_str = e.to_string();
+            assert!(!err_str.contains("Missing 'task' parameter"), "不应因缺少 task 报错: {}", err_str);
+        }
+    }
+
+    // ========== DocAgentExecutor 测试 ==========
+
+    #[test]
+    fn test_doc_executor_creation() {
+        let executor = DocAgentExecutor::new();
+        assert_eq!(executor.tool_count(), 1);
+        assert!(executor.allowed_tools().contains("doc_agent"));
+    }
+
+    #[test]
+    fn test_doc_executor_missing_task() {
+        let mut executor = DocAgentExecutor::new();
+        let result = executor.execute("doc_agent", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Missing 'task' parameter") || err.contains("task"));
+    }
+
+    #[test]
+    fn test_doc_executor_invalid_tool() {
+        let mut executor = DocAgentExecutor::new();
+        let result = executor.execute("unknown_tool", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("unknown_tool") || err.contains("不存在"));
+    }
+
+    #[test]
+    fn test_doc_executor_valid_task() {
+        let mut executor = DocAgentExecutor::new();
+        let result = executor.execute("doc_agent", &json!({"task": "为 src/lib.rs 生成 API 文档"}));
         if let Err(e) = &result {
             let err_str = e.to_string();
             assert!(!err_str.contains("Missing 'task' parameter"), "不应因缺少 task 报错: {}", err_str);

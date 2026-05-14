@@ -318,6 +318,23 @@ impl ToolRegistry {
             required_permission: ToolPermissionMode::ReadOnly,
         });
 
+        // 🆕 注册 Doc Agent 工具
+        self.register(ToolSpec {
+            name: "doc_agent",
+            description: "文档智能体，生成 API 文档、README、代码注释、使用指南。当用户请求生成文档、写文档注释、创建 README 时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "文档任务描述（如：为 src/lib.rs 生成 API 文档）"
+                    }
+                },
+                "required": ["task"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
         // 🆕 注册 GitDiffTool（审查用差异分析工具）
         self.register(ToolSpec {
             name: "git_diff",

@@ -83,7 +83,8 @@
       "aliases": [
         "explore",
         "review_agent",
-        "test_agent"
+        "test_agent",
+        "doc_agent"
       ],
       "category": "safe",
       "riskLevel": "low",
