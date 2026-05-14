@@ -27,5 +27,5 @@ pub use ping::{PingTool, PingResult, PingError};
 pub use read_file::{ReadFileTool, ReadFileResult, ReadFileError};
 pub use write_file::{WriteFileTool, WriteFileResult, WriteFileError};
 pub use edit_file::{EditFileTool, EditFileResult, EditFileError};
-pub use web_search::{WebSearchTool, WebSearchResult, WebSearchError, SearchResult};
+pub use web_search::{WebSearchTool, WebSearchResult, WebSearchError, SearchResult, BochaConfig};
 pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter};

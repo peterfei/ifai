@@ -12,7 +12,7 @@ use super::{
         ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TodoWriteExecutor,
         ToolExecutor,
     },
-    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter},
+    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, BochaConfig},
     ToolError,
 };
 
@@ -116,7 +116,7 @@ impl ToolRouter {
         executors.insert("edit_file".to_string(), Box::new(edit_file_adapter));
 
         // 🆕 使用 #[derive(Tool)] 宏的 WebSearchTool（网络搜索功能）
-        let web_search_tool = WebSearchTool::new();
+        let web_search_tool = WebSearchTool::new(BochaConfig::default());
         let web_search_adapter = WebSearchAdapter::new(web_search_tool, "web_search".to_string());
         executors.insert("web_search".to_string(), Box::new(web_search_adapter));
 
