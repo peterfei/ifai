@@ -436,7 +436,7 @@ impl ReviewAgentExecutor {
     /// 获取 git diff（使用 GitDiffTool）
     fn get_git_diff(&self, base: &str, path_filter: &str) -> Result<String, ToolError> {
         let tool = crate::harness::tool::new_tools::git_diff::GitDiffTool::new(5, 0);
-        let result = tool.execute_git_diff(base, path_filter)
+        let result = tool.diff_with_filter(base, path_filter)
             .map_err(|e| ToolError::Execution(format!("Git diff failed: {}", e)))?;
         Ok(result.to_output_string())
     }

@@ -1,7 +1,7 @@
 //! Git Diff 工具 - 使用 #[derive(Tool)] 宏
 //!
 //! 获取 Git 差异信息，用于代码审查工作流。
-//! 支持指定基准提交和文件路径过滤。
+//! base 为必填参数，path_filter 通过内部方法支持（宏不支持可选参数）。
 
 use tool_macro::Tool;
 
@@ -11,8 +11,8 @@ use tool_macro::Tool;
 #[derive(Tool)]
 #[tool(
     name = "git_diff",
-    description = "获取 Git 差异信息，支持指定基准提交和文件路径过滤",
-    params(base: str, path_filter: str)
+    description = "获取 Git 差异信息，只需传入基准提交（如 HEAD~1, main）。返回代码变更内容。",
+    params(base: str)
 )]
 pub struct GitDiffTool {
     #[tool(config)]
@@ -25,8 +25,13 @@ pub struct GitDiffTool {
 }
 
 impl GitDiffTool {
-    /// 执行 git diff 命令
-    pub fn execute_git_diff(&self, base: &str, path_filter: &str) -> Result<GitDiffOutput, GitDiffError> {
+    /// 宏生成的入口方法（只接受 base）
+    pub fn execute_git_diff(&self, base: &str) -> Result<GitDiffOutput, GitDiffError> {
+        self.diff_with_filter(base, "")
+    }
+
+    /// 带路径过滤的 diff（供 code_review 等内部调用）
+    pub fn diff_with_filter(&self, base: &str, path_filter: &str) -> Result<GitDiffOutput, GitDiffError> {
         let mut cmd = std::process::Command::new("git");
         cmd.arg("diff");
         cmd.arg(format!("--context={}", self.context_lines));
@@ -47,8 +52,6 @@ impl GitDiffTool {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            // git diff exits with 1 when there are differences — that's normal
-            // but if there's actual error output, report it
             if stderr.contains("fatal:") || stderr.contains("error:") {
                 return Err(GitDiffError::CommandFailed(stderr.trim().to_string()));
             }
@@ -111,35 +114,38 @@ mod tests {
 
     #[test]
     fn test_git_diff_in_repo() {
-        // 在当前 git 仓库中测试
         let tool = GitDiffTool::new(5, 0);
-        let result = tool.execute_git_diff("HEAD~1", "");
-        // 应该在 git 仓库中成功执行
+        let result = tool.execute_git_diff("HEAD~1");
         assert!(result.is_ok());
-        let output = result.unwrap();
-        let text = output.to_output_string();
-        // 输出要么包含 diff 信息，要么是 "No changes found"
+        let text = result.unwrap().to_output_string();
         assert!(text.contains("diff --git") || text.contains("No changes found"));
     }
 
     #[test]
     fn test_git_diff_with_path_filter() {
         let tool = GitDiffTool::new(3, 0);
-        let result = tool.execute_git_diff("HEAD~1", "src-tauri/src/harness");
+        let result = tool.diff_with_filter("HEAD~1", "src-tauri/src/harness");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_git_diff_invalid_base() {
         let tool = GitDiffTool::new(5, 0);
-        let result = tool.execute_git_diff("INVALID_REF_12345", "");
-        // 无效引用应当报错
+        let result = tool.execute_git_diff("INVALID_REF_12345");
         match result {
             Err(GitDiffError::CommandFailed(msg)) => {
                 assert!(msg.contains("invalid") || msg.contains("unknown") || msg.contains("bad"));
             },
             other => panic!("Expected CommandFailed error, got: {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_git_diff_only_base_no_filter() {
+        // 模拟 LLM 只传 base，不传 path_filter
+        let tool = GitDiffTool::new(5, 0);
+        let result = tool.execute_git_diff("HEAD~1");
+        assert!(result.is_ok());
     }
 
     #[test]

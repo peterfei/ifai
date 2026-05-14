@@ -304,17 +304,13 @@ impl ToolRegistry {
         // 🆕 注册 GitDiffTool（审查用差异分析工具）
         self.register(ToolSpec {
             name: "git_diff",
-            description: "获取 Git 差异信息，支持基准提交和文件路径过滤。用于代码审查工作流。",
+            description: "获取 Git 差异信息。只需传入基准提交（如 HEAD~1, main），即可返回代码变更内容。",
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "base": {
                         "type": "string",
                         "description": "基准提交 SHA 或分支名（如 HEAD~1, main）"
-                    },
-                    "path_filter": {
-                        "type": "string",
-                        "description": "可选的路径过滤（如 src/）"
                     }
                 },
                 "required": ["base"]

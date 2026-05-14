@@ -47,7 +47,8 @@ variables:
 | "列出文件" | agent_list_dir, glob_search |
 | "分析项目" | explore_agent |
 | "深度分析项目" | explore_agent |
-| "审查代码" | review_agent |
+| "审查代码/审查提交/审查变更" | code_review（严禁直接调用 git_diff）|
+| "审查指定文件" | review_agent |
 | "搜索代码" | grep_search |
 | "读取文件" | read_file, agent_read_file |
 | "运行测试" | bash cargo test |
@@ -78,8 +79,39 @@ variables:
 
 ---
 
+## ⚠️ 代码审查规则（最高优先级）
+
+**禁止直接调用 `git_diff` 工具！**
+
+当用户请求代码审查相关操作时，**必须且只能**使用 `code_review` 工具。
+
+### 用户意图示例（必须使用 code_review）：
+- "审查代码"
+- "帮我审查最近一次提交"
+- "看看最近的变更有没有问题"
+- "review 一下代码"
+- "检查代码质量"
+- "审查 HEAD~1 的变更"
+
+### ✅ 正确做法：
+- 使用 `code_review` 工具（自动获取 git diff + 多维度审查报告）
+
+### ❌ 严格禁止：
+- ❌ 直接调用 `git_diff` 工具（这是底层实现，code_review 内部会自动调用）
+- ❌ 直接调用 `complexity_analyzer` 工具（同理，code_review 内部按需调用）
+- ❌ 使用 `bash` 执行 `git diff` 命令
+
+### 区分 code_review 和 review_agent：
+- 用户提到"审查提交/变更/diff" → `code_review`（基于 git diff 自动分析）
+- 用户提到"审查这些文件"并给出了文件列表 → `review_agent`（基于指定文件）
+
+### 理由：
+`code_review` 自动获取 git diff 上下文，生成安全/性能/质量三维结构化报告，无需手动拼凑信息。
+
+---
+
 ### 工具选择策略
-1. **强制使用专用工具**：分析项目时必须使用 `scan_project`，搜索代码时必须使用 `grep_search`，网络搜索时必须使用 `websearch_agent`，不得使用替代方案
+1. **强制使用专用工具**：分析项目时必须使用 `scan_project`，搜索代码时必须使用 `grep_search`，网络搜索时必须使用 `websearch_agent`，代码审查时必须使用 `code_review`，不得使用替代方案
 2. **先读后写**：始终在建议修改前先读取文件
 3. **直接行动**：不要请求许可 - 直接使用工具
 4. **批量操作**：可以并行读取多个文件
