@@ -34,8 +34,10 @@ impl GitDiffTool {
     pub fn diff_with_filter(&self, base: &str, path_filter: &str) -> Result<GitDiffOutput, GitDiffError> {
         let mut cmd = std::process::Command::new("git");
         cmd.arg("diff");
-        cmd.arg(format!("--context={}", self.context_lines));
-        cmd.arg(base);
+        // 使用 -U 短格式（--context=N 与 .. 范围语法冲突）
+        cmd.arg(format!("-U{}", self.context_lines));
+        // 使用 commit range 语法（base..HEAD），避免工作树状态影响结果
+        cmd.arg(format!("{}..HEAD", base));
 
         if !path_filter.is_empty() {
             cmd.arg("--");
