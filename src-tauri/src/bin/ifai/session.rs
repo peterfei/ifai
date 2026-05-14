@@ -2914,6 +2914,11 @@ impl Session {
                     if tool.name != "TodoWrite" {
                         auto_advance_tasks(task_store);
                     }
+
+                    // 🔍 WebSearch 输出：发送搜索结果到 TUI
+                    if tool.name == "web_search" && !result.is_empty() {
+                        let _ = output_tx.send(result.clone().into());
+                    }
                 }
                 Err(e) => {
                     let duration = start.elapsed();
