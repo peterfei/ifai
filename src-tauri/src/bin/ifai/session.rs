@@ -3330,53 +3330,60 @@ fn format_execution_time(time_ms: Option<i64>) -> String {
 }
 
 // ============================================================================
-// Agent 意图路由：检测用户消息关键词，动态注入 system prompt 后缀
-// Phase 5 — 解决 LLM 不主动调用专用 Agent 工具的问题
+// Agent 意图路由：声明式路由表 + 通用匹配引擎
+// Phase 5 — 新增 Agent 只需向表中追加一行，零代码改动
 // ============================================================================
 
-/// 辅助函数：检查文本是否包含任一关键词
-fn contains_any(text: &str, keywords: &[&str]) -> bool {
-    keywords.iter().any(|k| text.contains(k))
+/// 一条意图路由规则（纯数据，声明式）
+struct AgentIntentRule {
+    tool: &'static str,
+    keywords: &'static [&'static str],
+    exclusions: &'static [&'static str],
 }
 
-/// 检测用户消息是否匹配专用 Agent 工具意图
-/// 返回应强制调用的工具名称（如 "debug_agent"）
-///
-/// 仅在 stream_prompt_tui 第一轮（continuation_count == 0）调用。
-/// 已排除用户明确指定工具名和"运行测试"等误触发场景。
+/// 路由表：新增 Agent 在此追加一行即可
+const AGENT_INTENT_RULES: &[AgentIntentRule] = &[
+    AgentIntentRule {
+        tool: "debug_agent",
+        keywords: &[
+            "调试", "排查问题", "修复bug", "分析错误", "debug", "troubleshoot",
+            "报错", "是什么原因", "为什么报错", "什么原因",
+            "panic", "编译错误", "编译失败", "运行报错",
+            "排查错误", "修复错误", "解决问题", "解决报错",
+            "fix bug", "fix error", "what's wrong", "what is wrong",
+        ],
+        exclusions: &["debug_agent"],
+    },
+    AgentIntentRule {
+        tool: "test_agent",
+        keywords: &[
+            "生成测试", "写测试", "单元测试", "测试用例",
+            "generate test", "write test", "unit test",
+        ],
+        exclusions: &["test_agent", "运行测试", "跑测试", "cargo test", "run test"],
+    },
+    AgentIntentRule {
+        tool: "doc_agent",
+        keywords: &[
+            "生成文档", "写文档", "api文档", "生成 readme",
+            "generate doc", "write doc",
+        ],
+        exclusions: &["doc_agent"],
+    },
+];
+
+/// 通用匹配引擎：遍历路由表，首条命中即返回
 fn detect_agent_intent(user_prompt: &str) -> Option<&'static str> {
     let lower = user_prompt.to_lowercase();
-
-    // debug_agent：调试/排查/修复bug/报错/错误/panic/编译错误
-    if contains_any(&lower, &[
-        "调试", "排查问题", "修复bug", "分析错误", "debug", "troubleshoot",
-        "报错", "是什么原因", "为什么报错", "什么原因",
-        "panic", "编译错误", "编译失败", "运行报错",
-        "fix bug", "fix error", "what's wrong", "what is wrong",
-    ])
-        || (contains_any(&lower, &["排查", "修复", "解决"]) && contains_any(&lower, &["问题", "错误", "bug", "error", "报错"]))
-    {
-        if !lower.contains("debug_agent") {
-            return Some("debug_agent");
+    AGENT_INTENT_RULES.iter().find_map(|rule| {
+        let hits_keyword = rule.keywords.iter().any(|k| lower.contains(k));
+        let hits_exclusion = rule.exclusions.iter().any(|k| lower.contains(k));
+        if hits_keyword && !hits_exclusion {
+            Some(rule.tool)
+        } else {
+            None
         }
-    }
-
-    // test_agent：生成测试/写测试/单元测试（排除"运行测试"）
-    if contains_any(&lower, &["生成测试", "写测试", "单元测试", "测试用例", "generate test", "write test", "unit test"])
-        && !lower.contains("test_agent")
-        && !contains_any(&lower, &["运行测试", "跑测试", "cargo test", "run test"])
-    {
-        return Some("test_agent");
-    }
-
-    // doc_agent：生成文档/写文档/API文档/README
-    if contains_any(&lower, &["生成文档", "写文档", "api文档", "生成 readme", "generate doc", "write doc"])
-        && !lower.contains("doc_agent")
-    {
-        return Some("doc_agent");
-    }
-
-    None
+    })
 }
 
 // ============================================================================
