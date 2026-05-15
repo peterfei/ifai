@@ -321,6 +321,163 @@ impl DefaultToolExecutor {
         Ok(())
     }
 
+    // ========================================================================
+    // Git 工具（Git Commit Agent 使用）
+    // ========================================================================
+
+    /// 执行 git_status — 查看仓库状态
+    async fn git_status(&self) -> Result<String> {
+        let output = std::process::Command::new("git")
+            .arg("status")
+            .arg("--porcelain")
+            .output()
+            .map_err(|e| anyhow::anyhow!("执行 git status 失败: {}", e))?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!("git status 失败: {}", stderr));
+        }
+
+        if stdout.is_empty() {
+            Ok("工作区干净，没有变更。".to_string())
+        } else {
+            Ok(format!("仓库状态:\n{}", stdout))
+        }
+    }
+
+    /// 执行 git_snapshot — 创建或回滚快照
+    async fn git_snapshot(&self, action: &str) -> Result<String> {
+        match action {
+            "create" => {
+                // 使用 git stash create 创建临时快照
+                let output = std::process::Command::new("git")
+                    .arg("stash")
+                    .arg("create")
+                    .output()
+                    .map_err(|e| anyhow::anyhow!("创建快照失败: {}", e))?;
+
+                let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if hash.is_empty() {
+                    Ok("没有未暂存的变更需要快照。".to_string())
+                } else {
+                    Ok(format!("快照已创建: {}", hash))
+                }
+            }
+            "rollback" => {
+                // 这里需要快照 hash 作为参数，但简化处理
+                let output = std::process::Command::new("git")
+                    .arg("stash")
+                    .arg("list")
+                    .output()
+                    .map_err(|e| anyhow::anyhow!("列出快照失败: {}", e))?;
+
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                Ok(format!("可用的快照:\n{}", stdout))
+            }
+            _ => Err(anyhow::anyhow!("未知的快照操作: {}", action)),
+        }
+    }
+
+    /// 执行 secret_scanner — 扫描敏感信息
+    async fn secret_scanner(&self, content: &str) -> Result<String> {
+        let patterns = [
+            ("Generic API Key", r#"(?i)(api[_-]?key|apikey)\s*[=:]\s*['"]?[a-zA-Z0-9]{20,}"#),
+            ("Password", r#"(?i)(password|passwd|pwd)\s*[=:]\s*['"]?[^\s'"]{8,}"#),
+            ("Token", r#"(?i)(token|secret|auth)\s*[=:]\s*['"]?[a-zA-Z0-9_\-]{20,}"#),
+            ("Private Key", r"-----BEGIN\s+(RSA|EC|DSA|OPENSSH)\s+PRIVATE\s+KEY-----"),
+            ("JWT Token", r"eyJ[a-zA-Z0-9_\-]+\.eyJ[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+"),
+            ("AWS Key", r"(?i)AKIA[0-9A-Z]{16}"),
+            ("GitHub Token", r"(?i)gh[ps]_[a-zA-Z0-9_]{36,}"),
+            ("Slack Token", r"(?i)xox[baprs]-[a-zA-Z0-9_\-]{10,}"),
+            ("npm token", r"(?i)npm_[a-zA-Z0-9]{36,}"),
+        ];
+
+        let mut findings = Vec::new();
+
+        for (name, pattern) in &patterns {
+            if let Ok(re) = regex::Regex::new(pattern) {
+                for line in content.lines() {
+                    if re.find(line).is_some() {
+                        let masked = line.chars().map(|c| if c.is_alphanumeric() { '*' } else { c }).collect::<String>();
+                        findings.push(format!("[{}] 发现 {}: {}", name, name, masked));
+                    }
+                }
+            }
+        }
+
+        if findings.is_empty() {
+            Ok("✅ 未发现敏感信息。".to_string())
+        } else {
+            let mut result = "⚠️  发现可能的敏感信息:\n".to_string();
+            for finding in &findings {
+                result.push_str(&format!("  {}\n", finding));
+            }
+            result.push_str("\n请检查并移除敏感信息后再提交。");
+            Ok(result)
+        }
+    }
+
+    /// 执行 git_commit — 安全提交（自动追加 Co-authored-by）
+    async fn git_commit(&self, message: &str) -> Result<String> {
+        let full_message = format!(
+            "{}\n\nCo-authored-by: IfAI CLI <noreply@ifai.today>",
+            message.trim()
+        );
+
+        // git add -A
+        let add_output = std::process::Command::new("git")
+            .arg("add")
+            .arg("-A")
+            .output()
+            .map_err(|e| anyhow::anyhow!("git add 失败: {}", e))?;
+
+        if !add_output.status.success() {
+            let stderr = String::from_utf8_lossy(&add_output.stderr);
+            return Err(anyhow::anyhow!("git add 失败: {}", stderr));
+        }
+
+        // git commit -m "message"
+        let commit_output = std::process::Command::new("git")
+            .arg("commit")
+            .arg("-m")
+            .arg(&full_message)
+            .output()
+            .map_err(|e| anyhow::anyhow!("git commit 失败: {}", e))?;
+
+        if !commit_output.status.success() {
+            let stderr = String::from_utf8_lossy(&commit_output.stderr);
+            if stderr.contains("nothing to commit") || stderr.contains("no changes") {
+                return Ok("nothing to commit, working tree clean".to_string());
+            }
+            return Err(anyhow::anyhow!("git commit 失败: {}", stderr));
+        }
+
+        // 获取 commit hash
+        let hash_output = std::process::Command::new("git")
+            .arg("rev-parse")
+            .arg("HEAD")
+            .output()
+            .ok();
+        let commit_hash = hash_output
+            .and_then(|o| {
+                if o.status.success() {
+                    String::from_utf8(o.stdout).ok()
+                } else {
+                    None
+                }
+            })
+            .map(|s| s.trim().to_string());
+
+        let stdout = String::from_utf8_lossy(&commit_output.stdout);
+        let mut summary = stdout.trim().to_string();
+        if let Some(ref hash) = commit_hash {
+            summary.push_str(&format!("\nHash: {}", hash));
+        }
+
+        Ok(summary)
+    }
 }
 
 #[async_trait::async_trait]
@@ -361,8 +518,30 @@ impl ToolExecutor for DefaultToolExecutor {
                     .unwrap_or("."); // 默认搜索当前目录
                 self.search(pattern, path).await
             }
+            // Git 工具（Git Commit Agent）
+            "git_status" => {
+                self.git_status().await
+            }
+            "git_snapshot" => {
+                let action = input["action"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 action 参数（create/rollback）"))?;
+                self.git_snapshot(action).await
+            }
+            "secret_scanner" => {
+                let content = input["content"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 content 参数"))?;
+                self.secret_scanner(content).await
+            }
+            "git_commit" => {
+                let message = input["message"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 message 参数"))?;
+                self.git_commit(message).await
+            }
             _ => Err(anyhow::anyhow!(
-                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project, agent_search",
+                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project, agent_search, git_status, git_snapshot, secret_scanner, git_commit",
                 name
             )),
         }
@@ -475,6 +654,70 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
                         }
                     },
                     "required": ["pattern"]
+                }
+            }
+        }),
+        // Git Commit Agent 工具
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "git_status",
+                "description": "查看当前 git 仓库状态（变更的文件列表）。返回 git status --porcelain 格式的输出。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "git_snapshot",
+                "description": "创建或回滚 git 快照。action=\"create\" 创建快照，action=\"rollback\" 查看可用的快照列表。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "description": "\"create\" 创建快照，\"rollback\" 查看快照列表"
+                        }
+                    },
+                    "required": ["action"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "secret_scanner",
+                "description": "扫描内容中的敏感信息（API key、密码、token、私钥等）。返回发现的敏感信息列表或确认安全。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "要扫描的内容文本"
+                        }
+                    },
+                    "required": ["content"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "git_commit",
+                "description": "执行 git add -A + git commit，自动追加 Co-authored-by: IfAI CLI <noreply@ifai.today>。传入 commit message 参数。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "Commit message，遵循 Conventional Commits 格式，例如 feat(scope): 描述。无需包含 Co-authored-by 行。"
+                        }
+                    },
+                    "required": ["message"]
                 }
             }
         }),

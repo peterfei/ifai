@@ -74,6 +74,7 @@ pub type WebSearchAdapter = MacroToolAdapter<super::web_search::WebSearchTool>;
 pub type GitDiffAdapter = MacroToolAdapter<super::git_diff::GitDiffTool>;
 pub type GitStatusAdapter = MacroToolAdapter<super::git_status::GitStatusTool>;
 pub type GitSnapshotAdapter = MacroToolAdapter<super::git_snapshot::GitSnapshotTool>;
+pub type GitCommitAdapter = MacroToolAdapter<super::git_commit::GitCommitTool>;
 pub type SecretScannerAdapter = MacroToolAdapter<super::secret_scanner::SecretScannerTool>;
 pub type ComplexityAnalyzerAdapter = MacroToolAdapter<super::complexity_analyzer::ComplexityAnalyzer>;
 

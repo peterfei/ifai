@@ -12,7 +12,7 @@ use super::{
         RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
-    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
+    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, GitCommitTool, GitCommitAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
     ToolError,
 };
 
@@ -174,6 +174,11 @@ impl ToolRouter {
         let secret_scanner_tool = SecretScannerTool::new();
         let secret_scanner_adapter = SecretScannerAdapter::new(secret_scanner_tool, "secret_scanner".to_string());
         executors.insert("secret_scanner".to_string(), Box::new(secret_scanner_adapter));
+
+        // 🆕 注册 GitCommitTool（安全提交 + 自动 Co-authored-by）
+        let git_commit_tool = GitCommitTool::new();
+        let git_commit_adapter = GitCommitAdapter::new(git_commit_tool, "git_commit".to_string());
+        executors.insert("git_commit".to_string(), Box::new(git_commit_adapter));
 
         Self {
             executors: Mutex::new(executors),

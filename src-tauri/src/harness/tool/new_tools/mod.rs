@@ -16,6 +16,7 @@ pub mod git_diff;
 pub mod complexity_analyzer;
 pub mod git_status;
 pub mod git_snapshot;
+pub mod git_commit;
 pub mod secret_scanner;
 
 #[cfg(test)]
@@ -38,8 +39,9 @@ pub use web_search::{WebSearchTool, WebSearchResult, WebSearchError, SearchResul
 pub use git_diff::{GitDiffTool, GitDiffError, GitDiffOutput};
 pub use git_status::{GitStatusTool, GitStatusOutput, GitStatusError};
 pub use git_snapshot::{GitSnapshotTool, GitSnapshotOutput, GitSnapshotError};
+pub use git_commit::{GitCommitTool, GitCommitOutput, GitCommitError};
 pub use secret_scanner::{SecretScannerTool, SecretScanOutput, SecretScanError, SecretFinding};
 pub use complexity_analyzer::{ComplexityAnalyzer, ComplexityReport, ComplexityError, FunctionComplexity};
 pub use cache::{SearchCache, CacheStats};
 pub use cached_adapter::CachedWebSearchAdapter;
-pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter, GitDiffAdapter, GitStatusAdapter, GitSnapshotAdapter, SecretScannerAdapter, ComplexityAnalyzerAdapter};
+pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter, GitDiffAdapter, GitStatusAdapter, GitSnapshotAdapter, GitCommitAdapter, SecretScannerAdapter, ComplexityAnalyzerAdapter};
