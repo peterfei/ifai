@@ -391,7 +391,8 @@ fn format_tool_args_preview(tool_name: &str, args: &serde_json::Value) -> String
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
             let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
             let preview = if content.len() > 60 {
-                format!("{}... ({} 字符)", &content[..57], content.len())
+                let truncated: String = content.chars().take(57).collect();
+                format!("{}... ({} 字符)", truncated, content.len())
             } else {
                 content.to_string()
             };
@@ -401,7 +402,8 @@ fn format_tool_args_preview(tool_name: &str, args: &serde_json::Value) -> String
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
             let edit = args.get("edit").and_then(|v| v.as_str()).unwrap_or("?");
             let preview = if edit.len() > 60 {
-                format!("{}...", &edit[..57])
+                let truncated: String = edit.chars().take(57).collect();
+                format!("{}...", truncated)
             } else {
                 edit.to_string()
             };

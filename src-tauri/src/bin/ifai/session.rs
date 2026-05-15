@@ -649,7 +649,7 @@ async fn generate_compaction_summary(
         };
         if let MessageContent::Text(text) = &msg.content {
             let display = if text.len() > 500 {
-                format!("{}... ({} chars truncated)", &text[..500], text.len() - 500)
+                format!("{}... ({} chars truncated)", text.chars().take(500).collect::<String>(), text.len() - 500)
             } else {
                 text.clone()
             };
@@ -3287,13 +3287,13 @@ fn extract_tool_input_summary(tool_name: &str, tool_input: &str) -> String {
                 if let Some(pattern) = input_json.get("pattern").and_then(|p| p.as_str()) {
                     // 截断过长的搜索模式
                     if pattern.len() > 40 {
-                        format!("\"{}...\"", &pattern[..37])
+                        format!("\"{}...\"", pattern.chars().take(37).collect::<String>())
                     } else {
                         format!("\"{}\"", pattern)
                     }
                 } else if let Some(query) = input_json.get("query").and_then(|q| q.as_str()) {
                     if query.len() > 40 {
-                        format!("\"{}...\"", &query[..37])
+                        format!("\"{}...\"", query.chars().take(37).collect::<String>())
                     } else {
                         format!("\"{}\"", query)
                     }
@@ -3305,7 +3305,7 @@ fn extract_tool_input_summary(tool_name: &str, tool_input: &str) -> String {
                 if let Some(command) = input_json.get("command").and_then(|c| c.as_str()) {
                     // 截断过长的命令
                     if command.len() > 50 {
-                        format!("\"{}...\"", &command[..47])
+                        format!("\"{}...\"", command.chars().take(47).collect::<String>())
                     } else {
                         format!("\"{}\"", command)
                     }

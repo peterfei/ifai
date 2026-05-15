@@ -324,7 +324,7 @@ impl SessionPersistence {
 
             // 限制长度（每条消息最多 500 字符）
             let truncated = if text.len() > 500 {
-                format!("{}...\n\n*[Message truncated]*", &text[..500])
+                format!("{}...\n\n*[Message truncated]*", text.chars().take(500).collect::<String>())
             } else {
                 text.clone()
             };

@@ -164,7 +164,7 @@ async fn generate_compaction_summary_harness(
         let display = if content_text.len() > 500 {
             format!(
                 "{}... ({} chars truncated)",
-                &content_text[..500],
+                crate::ai_utils::safe_truncate(&content_text, 500),
                 content_text.len() - 500
             )
         } else {

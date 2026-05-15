@@ -118,7 +118,7 @@ fn print_result(result: &WorkflowResult) {
         if let Some(output) = &node_result.output {
             // 只显示前 100 个字符
             let preview = if output.len() > 100 {
-                format!("{}...", &output[..100])
+                format!("{}...", output.chars().take(100).collect::<String>())
             } else {
                 output.clone()
             };
