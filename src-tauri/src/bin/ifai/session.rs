@@ -2783,7 +2783,7 @@ impl Session {
             let needs_progress = matches!(
                 tool.name.as_str(),
                 "explore_agent" | "review_agent" | "test_agent" | "doc_agent" | "debug_agent"
-                | "refactor_agent" | "git_commit_agent"
+                | "refactor_agent" | "git_commit_agent" | "plan_agent"
             );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();
@@ -3386,6 +3386,16 @@ const AGENT_INTENT_RULES: &[AgentIntentRule] = &[
             "提交修改", "创建提交", "暂存提交",
         ],
         exclusions: &["git_commit_agent", "git push", "撤销提交", "回退提交"],
+    },
+    // Phase 6C: Plan Agent
+    AgentIntentRule {
+        tool: "plan_agent",
+        keywords: &[
+            "任务分解", "制定计划", "拆解任务", "如何实现",
+            "实施步骤", "task breakdown", "create plan",
+            "make a plan", "break down",
+        ],
+        exclusions: &["plan_agent"],
     },
 ];
 
@@ -4501,6 +4511,27 @@ mod tests {
         assert_eq!(detect_agent_intent("回退提交"), None);
         // 不相关的请求不触发
         assert_eq!(detect_agent_intent("查看 git log"), None);
+    }
+
+    // ========== Phase 6C: Plan Agent 意图路由测试 ==========
+
+    #[test]
+    fn test_detect_plan_agent_intent() {
+        assert_eq!(detect_agent_intent("任务分解"), Some("plan_agent"));
+        assert_eq!(detect_agent_intent("制定计划"), Some("plan_agent"));
+        assert_eq!(detect_agent_intent("拆解任务"), Some("plan_agent"));
+        assert_eq!(detect_agent_intent("如何实现用户登录功能"), Some("plan_agent"));
+        assert_eq!(detect_agent_intent("实施步骤"), Some("plan_agent"));
+        assert_eq!(detect_agent_intent("break down this task"), Some("plan_agent"));
+    }
+
+    #[test]
+    fn test_plan_agent_intent_exclusions() {
+        // 排除规则：显式调用不触发
+        assert_eq!(detect_agent_intent("使用 plan_agent"), None);
+        assert_eq!(detect_agent_intent("调用 plan_agent"), None);
+        // 不相关的请求不触发
+        assert_eq!(detect_agent_intent("读取文件"), None);
     }
 
     #[test]

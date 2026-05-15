@@ -942,6 +942,48 @@ impl ToolExecutor for GitCommitAgentExecutor {
     }
 }
 
+/// Plan Agent 执行器
+///
+/// 对外工具名 `plan_agent`，内部映射到 `AgentType::TaskBreakdown`。
+/// 复用 TaskBreakdown 的执行逻辑，无需新代码路径。
+pub struct PlanAgentExecutor {
+    allowed_tools: HashSet<String>,
+}
+
+impl PlanAgentExecutor {
+    pub fn new() -> Self {
+        let mut allowed_tools = HashSet::new();
+        allowed_tools.insert("plan_agent".to_string());
+        Self { allowed_tools }
+    }
+
+    fn handle_plan(&self, input: &Value) -> Result<String, ToolError> {
+        let task = input
+            .get("task")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing 'task' parameter".to_string()
+            ))?;
+
+        execute_agent_sync(AgentType::TaskBreakdown, task)
+    }
+}
+
+impl ToolExecutor for PlanAgentExecutor {
+    fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
+        match name {
+            "plan_agent" => self.handle_plan(input),
+            _ => Err(ToolError::NotFound {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    fn allowed_tools(&self) -> &HashSet<String> {
+        &self.allowed_tools
+    }
+}
+
 /// 🔇 Stderr 静音守卫（RAII）
 ///
 /// 临时将 stderr 重定向到 /dev/null，drop 时自动恢复。
@@ -1275,6 +1317,43 @@ mod tests {
     fn test_git_commit_executor_valid_task() {
         let mut executor = GitCommitAgentExecutor::new();
         let result = executor.execute("git_commit_agent", &json!({"task": "提交当前变更"}));
+        if let Err(e) = &result {
+            let err_str = e.to_string();
+            assert!(!err_str.contains("Missing 'task' parameter"), "不应因缺少 task 报错: {}", err_str);
+        }
+    }
+
+    // === Phase 6C: Plan Agent ===
+
+    #[test]
+    fn test_plan_executor_creation() {
+        let executor = PlanAgentExecutor::new();
+        assert_eq!(executor.tool_count(), 1);
+        assert!(executor.allowed_tools().contains("plan_agent"));
+    }
+
+    #[test]
+    fn test_plan_executor_missing_task() {
+        let mut executor = PlanAgentExecutor::new();
+        let result = executor.execute("plan_agent", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Missing 'task' parameter") || err.contains("task"));
+    }
+
+    #[test]
+    fn test_plan_executor_invalid_tool() {
+        let mut executor = PlanAgentExecutor::new();
+        let result = executor.execute("unknown_tool", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("unknown_tool") || err.contains("不存在"));
+    }
+
+    #[test]
+    fn test_plan_executor_valid_task() {
+        let mut executor = PlanAgentExecutor::new();
+        let result = executor.execute("plan_agent", &json!({"task": "拆解这个任务为子任务"}));
         if let Err(e) = &result {
             let err_str = e.to_string();
             assert!(!err_str.contains("Missing 'task' parameter"), "不应因缺少 task 报错: {}", err_str);

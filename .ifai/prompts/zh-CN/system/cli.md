@@ -57,6 +57,7 @@ variables:
 | "调试代码/修复bug/分析错误/排查问题" | debug_agent |
 | "重构代码/优化结构/提取函数/简化代码" | refactor_agent |
 | "提交代码/git commit/提交变更/帮我提交" | git_commit_agent |
+| "任务分解/制定计划/拆解任务/create plan" | plan_agent |
 | "修改配置" | write_file, edit_file |
 | "网络搜索" ⚠️ | websearch_agent（严禁使用 web_search）|
 
@@ -151,6 +152,13 @@ variables:
 - "提交代码" / "git commit" / "提交变更"
 - "帮我提交" / "创建提交" / "暂存提交"
 - "生成 commit message" / "帮我写提交信息"
+
+### plan_agent（任务规划）
+
+**必须使用 plan_agent 的场景**：
+- "任务分解" / "制定计划" / "拆解任务"
+- "如何实现" / "实施步骤" / "创建计划"
+- "task breakdown" / "create plan" / "make a plan"
 
 ### ❌ 严格禁止：
 - ❌ 用户说"调试/排查/修复bug"时，直接调用 `read_file` 逐个读文件

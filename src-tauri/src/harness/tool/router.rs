@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use super::{
     executor::{
         AliasExecutor, DebugAgentExecutor, DocAgentExecutor, ExploreAgentExecutor, GitCommitAgentExecutor, MemorySaveExecutor,
-        RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
+        PlanAgentExecutor, RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
     new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, GitCommitTool, GitCommitAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
@@ -121,6 +121,12 @@ impl ToolRouter {
         executors.insert(
             "git_commit_agent".to_string(),
             Box::new(GitCommitAgentExecutor::new()),
+        );
+
+        // Phase 6C: Plan Agent
+        executors.insert(
+            "plan_agent".to_string(),
+            Box::new(PlanAgentExecutor::new()),
         );
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool
@@ -262,6 +268,9 @@ mod tests {
         assert!(tools.contains(&"git_status".to_string()));
         assert!(tools.contains(&"git_snapshot".to_string()));
         assert!(tools.contains(&"secret_scanner".to_string()));
+
+        // Phase 6C: Plan Agent
+        assert!(tools.contains(&"plan_agent".to_string()));
     }
 
     #[test]

@@ -352,6 +352,23 @@ impl ToolRegistry {
             required_permission: ToolPermissionMode::ReadOnly,
         });
 
+        // 🆕 注册 Plan Agent 工具
+        self.register(ToolSpec {
+            name: "plan_agent",
+            description: "任务规划智能体，将复杂任务拆解为可执行的子任务步骤。当用户请求制定计划、拆解任务时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "规划任务描述（如：为用户登录功能制定实施计划）"
+                    }
+                },
+                "required": ["task"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
         // 🆕 注册 GitDiffTool（审查用差异分析工具）
         self.register(ToolSpec {
             name: "git_diff",
