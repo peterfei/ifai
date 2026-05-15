@@ -7,6 +7,7 @@ mod config;
 mod provider;
 mod render;
 mod session;
+mod sigint_handler; // 🔥 SIGINT 信号处理器（TUI 模式安全退出）
 mod workflow_cmd; // 🔥 /workflow 命令
 mod agent_cmd;   // 🔥 /agent 命令
 mod note_cmd;    // 🔥 /note 命令
@@ -2487,6 +2488,14 @@ fn handle_single_key_event(
 async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 🔇 全局禁用调试日志
     std::env::set_var("IFAI_QUIET", "1");
+
+    // 🔥 注册全局 SIGINT 处理器（Ctrl+C 安全退出 TUI）
+    let mut sigint = sigint_handler::SigintHandler::new();
+    if let Err(e) = sigint.install() {
+        // 如果注册失败（如重复注册），记录但继续运行
+        // TUI 模式仍然可以通过 /exit 或 Ctrl+D 退出
+        eprintln!("[IfAI] 警告：SIGINT 处理器注册失败: {}", e);
+    }
 
     // 解析有效配置
     let config = config::EffectiveConfig::resolve(None, None, None, None)?;
