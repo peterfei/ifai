@@ -1048,4 +1048,40 @@ fn test_main() {
             assert_eq!(result.lines().count(), *file_count);
         }
     }
+
+    // ========================================================================
+    // Workflow 工具注册完整性测试
+    //
+    // 验证 Agent 提示词中声明的工具都在 create_tool_definitions() 中，
+    // 否则 LLM 在 function calling 中看不到这些工具。
+    //
+    // ⚠️ 新增 Agent 时，如果提示词引入新工具，必须在此追加断言。
+    // ========================================================================
+
+    #[test]
+    fn test_git_tools_registered_in_workflow_definitions() {
+        let definitions = super::create_tool_definitions();
+        let names: std::collections::HashSet<&str> = definitions
+            .iter()
+            .filter_map(|d| d["function"]["name"].as_str())
+            .collect();
+
+        // Phase 6B: Git Commit Agent 的工具
+        assert!(
+            names.contains("git_status"),
+            "git_status 必须在 workflow tool definitions 中"
+        );
+        assert!(
+            names.contains("git_snapshot"),
+            "git_snapshot 必须在 workflow tool definitions 中"
+        );
+        assert!(
+            names.contains("secret_scanner"),
+            "secret_scanner 必须在 workflow tool definitions 中"
+        );
+        assert!(
+            names.contains("git_commit"),
+            "git_commit 必须在 workflow tool definitions 中"
+        );
+    }
 }
