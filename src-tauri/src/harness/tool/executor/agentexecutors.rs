@@ -11,6 +11,8 @@ use crate::agent_system::workflow::types::{AgentType, Workflow, WorkflowNode};
 use crate::agent_system::workflow::runner::{RunnerConfig, WorkflowRunner};
 use crate::wf_log;
 
+use regex::Regex;
+
 /// 极简 UUID（仅用于生成唯一 ID）
 fn uuid_simple() -> String {
     let nanos = SystemTime::now()
@@ -712,10 +714,10 @@ impl ToolExecutor for RefactorAgentExecutor {
     }
 }
 
-/// Git Commit Agent 执行器
+/// Git Commit Agent 执行器（直接执行模式）
 ///
-/// Git 提交智能体：安全提交代码变更。
-/// 所有安全逻辑通过 Prompt Safety Protocol 声明式规则实现。
+/// 绕过 Workflow 多轮 LLM 循环，直接执行 git 命令 + 一次 LLM 调用。
+/// Co-authored-by 在代码层硬追加，不会被 LLM 绕过。
 pub struct GitCommitAgentExecutor {
     allowed_tools: HashSet<String>,
 }
@@ -736,8 +738,188 @@ impl GitCommitAgentExecutor {
                 "Missing 'task' parameter".to_string()
             ))?;
 
-        execute_agent_sync(AgentType::GitCommit, task)
+        // Step 1: Check git status
+        let status_output = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .output()
+            .map_err(|e| ToolError::Execution(format!("git status 失败: {}", e)))?;
+
+        if !status_output.status.success() {
+            let stderr = String::from_utf8_lossy(&status_output.stderr);
+            return Err(ToolError::Execution(format!("git status 失败: {}", stderr)));
+        }
+
+        let status_stdout = String::from_utf8_lossy(&status_output.stdout).to_string();
+        if status_stdout.trim().is_empty() {
+            return Ok("工作区干净，没有变更需要提交。".to_string());
+        }
+
+        // Step 2: Get full diff content
+        let mut diff_parts = Vec::new();
+        diff_parts.push(format!(">>> git status --porcelain\n{}", status_stdout.trim()));
+
+        let staged = run_git_cmd(&["diff", "--cached"]);
+        if !staged.is_empty() {
+            diff_parts.push(format!("\n>>> git diff --cached\n{}", staged));
+        }
+
+        let unstaged = run_git_cmd(&["diff"]);
+        if !unstaged.is_empty() {
+            diff_parts.push(format!("\n>>> git diff\n{}", unstaged));
+        }
+
+        let untracked = run_git_cmd(&["ls-files", "--others", "--exclude-standard"]);
+        if !untracked.is_empty() {
+            diff_parts.push(format!("\n>>> untracked files\n{}", untracked));
+        }
+
+        let all_diff = diff_parts.join("\n");
+
+        // Step 3: Scan for secrets
+        let secret_findings = scan_for_secrets(&all_diff);
+        if !secret_findings.is_empty() {
+            return Ok(format!(
+                "⚠️ 发现可能的敏感信息，已阻止提交:\n{}\n\n请检查并移除敏感信息后再提交。",
+                secret_findings.join("\n")
+            ));
+        }
+
+        // Step 4: Call LLM to generate commit message
+        let config = crate::harness::tool::get_global_provider_config()
+            .ok_or_else(|| ToolError::Execution(
+                "无法获取 AI 配置，请在设置中配置 AI 提供商后再使用提交功能。".to_string()
+            ))?;
+
+        let system_prompt = r#"你是一个专业的 Git 提交助手。分析代码变更并生成高质量的 commit message。
+
+## 规则
+1. 使用 Conventional Commits 格式：type(scope): subject
+   - type: feat | fix | refactor | docs | test | chore | perf
+   - scope: 可选的模块名
+   - subject: 简短描述（不超过 50 字符），使用祈使语气
+2. 语言匹配：commit message 的 subject 必须使用用户请求的语言
+3. body 可选，解释为什么而非做了什么
+4. 不要包含 Co-authored-by 行（工具会自动追加）
+5. 只输出 commit message，不要包含其他内容，不要用代码块包裹"#;
+
+        let user_prompt = format!(
+            "变更内容：\n{}\n\n任务描述：{}\n\n请生成 Conventional Commits 格式的 commit message。",
+            all_diff,
+            task
+        );
+
+        let messages = vec![
+            crate::core_traits::ai::Message {
+                role: "system".to_string(),
+                content: crate::core_traits::ai::Content::Text(system_prompt.to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            crate::core_traits::ai::Message {
+                role: "user".to_string(),
+                content: crate::core_traits::ai::Content::Text(user_prompt),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        let handle = tokio::runtime::Handle::try_current()
+            .map_err(|e| ToolError::Execution(format!("获取 Tokio runtime 失败: {}", e)))?;
+
+        let response_msg = tokio::task::block_in_place(|| {
+            handle.block_on(async {
+                crate::ai_utils::fetch_ai_completion_simple(&config, messages).await
+            })
+        }).map_err(|e| ToolError::Execution(format!("AI 调用失败: {}", e)))?;
+
+        let commit_message = match &response_msg.content {
+            crate::core_traits::ai::Content::Text(s) => s.trim().to_string(),
+            _ => return Err(ToolError::Execution("AI 返回格式错误".to_string())),
+        };
+
+        if commit_message.is_empty() {
+            return Err(ToolError::Execution("AI 生成的 commit message 为空".to_string()));
+        }
+
+        // Step 5: git add -A
+        let add_output = std::process::Command::new("git")
+            .args(["add", "-A"])
+            .output()
+            .map_err(|e| ToolError::Execution(format!("git add 失败: {}", e)))?;
+
+        if !add_output.status.success() {
+            let stderr = String::from_utf8_lossy(&add_output.stderr);
+            return Err(ToolError::Execution(format!("git add 失败: {}", stderr)));
+        }
+
+        // Step 6: git commit with Co-authored-by (hard-coded, cannot be bypassed)
+        let full_message = format!(
+            "{}\n\nCo-authored-by: IfAI CLI <noreply@ifai.today>",
+            commit_message
+        );
+        let commit_output = std::process::Command::new("git")
+            .args(["commit", "-m", &full_message])
+            .output()
+            .map_err(|e| ToolError::Execution(format!("git commit 失败: {}", e)))?;
+
+        if !commit_output.status.success() {
+            let stderr = String::from_utf8_lossy(&commit_output.stderr);
+            if stderr.contains("nothing to commit") || stderr.contains("no changes") {
+                return Ok("nothing to commit, working tree clean".to_string());
+            }
+            return Err(ToolError::Execution(format!("git commit 失败: {}", stderr)));
+        }
+
+        let stdout = String::from_utf8_lossy(&commit_output.stdout).to_string();
+        Ok(stdout.trim().to_string())
     }
+}
+
+/// 执行 git 命令并返回 stdout
+fn run_git_cmd(args: &[&str]) -> String {
+    std::process::Command::new("git")
+        .args(args)
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                Some(String::from_utf8_lossy(&o.stdout).to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default()
+}
+
+/// 扫描内容中的敏感信息
+fn scan_for_secrets(content: &str) -> Vec<String> {
+    let patterns = [
+        ("Generic API Key", r#"(?i)(api[_-]?key|apikey)\s*[=:]\s*['"]?[a-zA-Z0-9]{20,}"#),
+        ("Password", r#"(?i)(password|passwd|pwd)\s*[=:]\s*['"]?[^\s'"]{8,}"#),
+        ("Token", r#"(?i)(token|secret|auth)\s*[=:]\s*['"]?[a-zA-Z0-9_\-]{20,}"#),
+        ("Private Key", r"-----BEGIN\s+(RSA|EC|DSA|OPENSSH)\s+PRIVATE\s+KEY-----"),
+        ("JWT Token", r"eyJ[a-zA-Z0-9_\-]+\.eyJ[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+"),
+        ("AWS Key", r"(?i)AKIA[0-9A-Z]{16}"),
+        ("GitHub Token", r"(?i)gh[ps]_[a-zA-Z0-9_]{36,}"),
+        ("Slack Token", r"(?i)xox[baprs]-[a-zA-Z0-9_\-]{10,}"),
+        ("npm token", r"(?i)npm_[a-zA-Z0-9]{36,}"),
+    ];
+
+    let mut findings = Vec::new();
+    for (name, pattern) in &patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            for line in content.lines() {
+                if re.find(line).is_some() {
+                    let masked: String = line.chars()
+                        .map(|c| if c.is_alphanumeric() { '*' } else { c })
+                        .collect();
+                    findings.push(format!("[{}] {}", name, masked));
+                    break;
+                }
+            }
+        }
+    }
+    findings
 }
 
 impl ToolExecutor for GitCommitAgentExecutor {
