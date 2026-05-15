@@ -823,6 +823,9 @@ impl GitCommitAgentExecutor {
             },
         ];
 
+        // 🔇 临时静音 stderr（ai_utils 的 eprintln! 调试日志会污染 TUI 输入区）
+        let _stderr_mute = StderrMute::new();
+
         let handle = tokio::runtime::Handle::try_current()
             .map_err(|e| ToolError::Execution(format!("获取 Tokio runtime 失败: {}", e)))?;
 
@@ -831,6 +834,8 @@ impl GitCommitAgentExecutor {
                 crate::ai_utils::fetch_ai_completion_simple(&config, messages).await
             })
         }).map_err(|e| ToolError::Execution(format!("AI 调用失败: {}", e)))?;
+
+        // stderr 在 _stderr_mute drop 时自动恢复
 
         let commit_message = match &response_msg.content {
             crate::core_traits::ai::Content::Text(s) => s.trim().to_string(),
@@ -935,6 +940,47 @@ impl ToolExecutor for GitCommitAgentExecutor {
     fn allowed_tools(&self) -> &HashSet<String> {
         &self.allowed_tools
     }
+}
+
+/// 🔇 Stderr 静音守卫（RAII）
+///
+/// 临时将 stderr 重定向到 /dev/null，drop 时自动恢复。
+/// 用于屏蔽 ai_utils 的 eprintln! 调试日志污染 TUI。
+#[cfg(unix)]
+struct StderrMute {
+    saved_fd: i32,
+}
+
+#[cfg(unix)]
+impl StderrMute {
+    fn new() -> Self {
+        use std::os::fd::AsRawFd;
+        let saved_fd = unsafe { libc::dup(2) };
+        if saved_fd >= 0 {
+            if let Ok(devnull) = std::fs::File::create("/dev/null") {
+                unsafe { libc::dup2(devnull.as_raw_fd(), 2) };
+            }
+        }
+        Self { saved_fd }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for StderrMute {
+    fn drop(&mut self) {
+        if self.saved_fd >= 0 {
+            unsafe { libc::dup2(self.saved_fd, 2) };
+            unsafe { libc::close(self.saved_fd) };
+        }
+    }
+}
+
+/// 非 Unix 平台空实现
+#[cfg(not(unix))]
+struct StderrMute;
+#[cfg(not(unix))]
+impl StderrMute {
+    fn new() -> Self { Self }
 }
 
 #[cfg(test)]
