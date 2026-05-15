@@ -2783,6 +2783,7 @@ impl Session {
             let needs_progress = matches!(
                 tool.name.as_str(),
                 "explore_agent" | "review_agent" | "test_agent" | "doc_agent" | "debug_agent"
+                | "refactor_agent" | "git_commit_agent"
             );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();
