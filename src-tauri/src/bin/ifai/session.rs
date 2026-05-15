@@ -1978,11 +1978,29 @@ impl Session {
                 (ctx.messages.clone(), token::estimate_tokens(&ctx.messages))
             };
 
+            // 🔥 Phase 5: Agent 意图路由 — 首轮检测用户意图，注入强制指令
+            let effective_system = if continuation_count == 0 {
+                let mut sys = system_prompt.clone();
+                if let Some(agent_tool) = detect_agent_intent(prompt) {
+                    sys.push_str(&format!(
+
+                        "\n\n⚠️ CRITICAL ROUTING OVERRIDE: The user's request matches the `{}` tool pattern. \
+                         You MUST call `{}` as your FIRST tool call with a task parameter describing the user's request. \
+                         Do NOT use read_file, grep_search, bash, glob_search, or any other basic tool for this request. \
+                         ONLY call `{}`.",
+                        agent_tool, agent_tool, agent_tool
+                    ));
+                }
+                sys
+            } else {
+                system_prompt.clone()
+            };
+
             let request = ifainew_lib::harness::api::StreamRequest {
                 model: model.clone(),
                 messages: messages_for_request,
                 max_tokens: 8192,
-                system: Some(system_prompt.clone()),
+                system: Some(effective_system),
                 temperature: Some(0.7),
                 stream: true,
                 tools: if tools_disabled || tools.is_empty() {
@@ -3309,6 +3327,56 @@ fn format_execution_time(time_ms: Option<i64>) -> String {
         Some(t) => format!("({}.{}s)", t / 1000, t % 1000 / 100),
         None => String::new(),
     }
+}
+
+// ============================================================================
+// Agent 意图路由：检测用户消息关键词，动态注入 system prompt 后缀
+// Phase 5 — 解决 LLM 不主动调用专用 Agent 工具的问题
+// ============================================================================
+
+/// 辅助函数：检查文本是否包含任一关键词
+fn contains_any(text: &str, keywords: &[&str]) -> bool {
+    keywords.iter().any(|k| text.contains(k))
+}
+
+/// 检测用户消息是否匹配专用 Agent 工具意图
+/// 返回应强制调用的工具名称（如 "debug_agent"）
+///
+/// 仅在 stream_prompt_tui 第一轮（continuation_count == 0）调用。
+/// 已排除用户明确指定工具名和"运行测试"等误触发场景。
+fn detect_agent_intent(user_prompt: &str) -> Option<&'static str> {
+    let lower = user_prompt.to_lowercase();
+
+    // debug_agent：调试/排查/修复bug/报错/错误/panic/编译错误
+    if contains_any(&lower, &[
+        "调试", "排查问题", "修复bug", "分析错误", "debug", "troubleshoot",
+        "报错", "是什么原因", "为什么报错", "什么原因",
+        "panic", "编译错误", "编译失败", "运行报错",
+        "fix bug", "fix error", "what's wrong", "what is wrong",
+    ])
+        || (contains_any(&lower, &["排查", "修复", "解决"]) && contains_any(&lower, &["问题", "错误", "bug", "error", "报错"]))
+    {
+        if !lower.contains("debug_agent") {
+            return Some("debug_agent");
+        }
+    }
+
+    // test_agent：生成测试/写测试/单元测试（排除"运行测试"）
+    if contains_any(&lower, &["生成测试", "写测试", "单元测试", "测试用例", "generate test", "write test", "unit test"])
+        && !lower.contains("test_agent")
+        && !contains_any(&lower, &["运行测试", "跑测试", "cargo test", "run test"])
+    {
+        return Some("test_agent");
+    }
+
+    // doc_agent：生成文档/写文档/API文档/README
+    if contains_any(&lower, &["生成文档", "写文档", "api文档", "生成 readme", "generate doc", "write doc"])
+        && !lower.contains("doc_agent")
+    {
+        return Some("doc_agent");
+    }
+
+    None
 }
 
 // ============================================================================

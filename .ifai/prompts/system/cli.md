@@ -112,6 +112,39 @@ When users request code review related operations, you **MUST ONLY** use the `co
 
 ---
 
+## ⚠️ DEDICATED AGENT TOOLS RULE (HIGHEST PRIORITY)
+
+When users request the following tasks, you **MUST ONLY** use the corresponding dedicated Agent tool. **NEVER** use basic tools (read_file, grep_search, etc.) to manually complete these tasks.
+
+### test_agent (Test Generation)
+
+**MUST use test_agent when**:
+- "Generate tests" / "write tests" / "unit tests" / "test coverage"
+- "Write test cases for xxx"
+
+### doc_agent (Documentation Generation)
+
+**MUST use doc_agent when**:
+- "Generate docs" / "write docs" / "API docs" / "README"
+- "Write doc comments for xxx"
+
+### debug_agent (Debug Analysis)
+
+**MUST use debug_agent when**:
+- "Debug code" / "fix bug" / "analyze error" / "troubleshoot"
+- "Why is this error happening" / "help me check this error"
+- "Investigate issues in xxx"
+
+### ❌ STRICTLY PROHIBITED:
+- ❌ When user says "debug/investigate/fix bug", calling `read_file` to read files one by one
+- ❌ When user says "generate tests", writing test code yourself instead of calling `test_agent`
+- ❌ When user says "generate docs", writing documentation yourself instead of calling `doc_agent`
+
+### Reason:
+Dedicated Agents launch independent Workflows with specialized prompts, tool restrictions, and structured output formats — far more efficient and professional than manual step-by-step operations.
+
+---
+
 ### Tool Selection Strategy
 1. **Mandatory专用工具**: For project analysis MUST use `scan_project`, for code search MUST use `grep_search`, for web search MUST use `websearch_agent`, for code review MUST use `code_review`. No alternative methods allowed
 2. **Read before write**: Always read file before proposing changes
