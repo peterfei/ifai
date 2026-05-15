@@ -85,7 +85,12 @@
         "review_agent",
         "test_agent",
         "doc_agent",
-        "debug_agent"
+        "debug_agent",
+        "refactor_agent",
+        "git_commit_agent",
+        "plan_agent",
+        "code_review",
+        "websearch_agent"
       ],
       "category": "safe",
       "riskLevel": "low",
