@@ -3378,6 +3378,14 @@ const AGENT_INTENT_RULES: &[AgentIntentRule] = &[
         ],
         exclusions: &["refactor_agent"],
     },
+    AgentIntentRule {
+        tool: "git_commit_agent",
+        keywords: &[
+            "提交代码", "提交变更", "commit", "git commit",
+            "提交修改", "创建提交", "暂存提交",
+        ],
+        exclusions: &["git_commit_agent", "git push", "撤销提交", "回退提交"],
+    },
 ];
 
 /// 通用匹配引擎：遍历路由表，首条命中即返回
@@ -4469,6 +4477,29 @@ mod tests {
         // 不相关的请求不触发
         assert_eq!(detect_agent_intent("审查代码"), None);
         assert_eq!(detect_agent_intent("读取 session.rs"), None);
+    }
+
+    // ========== Phase 6B: Git Commit Agent 意图路由测试 ==========
+
+    #[test]
+    fn test_detect_git_commit_agent_intent() {
+        assert_eq!(detect_agent_intent("提交代码"), Some("git_commit_agent"));
+        assert_eq!(detect_agent_intent("帮我 commit"), Some("git_commit_agent"));
+        assert_eq!(detect_agent_intent("git commit 这些变更"), Some("git_commit_agent"));
+        assert_eq!(detect_agent_intent("提交变更"), Some("git_commit_agent"));
+    }
+
+    #[test]
+    fn test_git_commit_agent_intent_exclusions() {
+        // 排除规则：显式调用不触发
+        assert_eq!(detect_agent_intent("使用 git_commit_agent"), None);
+        assert_eq!(detect_agent_intent("调用 git_commit_agent"), None);
+        // 排除规则：push / 撤销不触发
+        assert_eq!(detect_agent_intent("git push"), None);
+        assert_eq!(detect_agent_intent("撤销提交"), None);
+        assert_eq!(detect_agent_intent("回退提交"), None);
+        // 不相关的请求不触发
+        assert_eq!(detect_agent_intent("查看 git log"), None);
     }
 
     #[test]

@@ -8,11 +8,11 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use super::{
     executor::{
-        AliasExecutor, DebugAgentExecutor, DocAgentExecutor, ExploreAgentExecutor, MemorySaveExecutor,
+        AliasExecutor, DebugAgentExecutor, DocAgentExecutor, ExploreAgentExecutor, GitCommitAgentExecutor, MemorySaveExecutor,
         RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
-    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
+    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
     ToolError,
 };
 
@@ -118,6 +118,10 @@ impl ToolRouter {
             "refactor_agent".to_string(),
             Box::new(RefactorAgentExecutor::new()),
         );
+        executors.insert(
+            "git_commit_agent".to_string(),
+            Box::new(GitCommitAgentExecutor::new()),
+        );
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool
         let ping_tool = PingTool::new(5000, 0);
@@ -157,6 +161,19 @@ impl ToolRouter {
         let complexity_tool = ComplexityAnalyzer::new(10, 0);
         let complexity_adapter = ComplexityAnalyzerAdapter::new(complexity_tool, "complexity_analyzer".to_string());
         executors.insert("complexity_analyzer".to_string(), Box::new(complexity_adapter));
+
+        // Phase 6B: Git Commit Agent 工具
+        let git_status_tool = GitStatusTool::new();
+        let git_status_adapter = GitStatusAdapter::new(git_status_tool, "git_status".to_string());
+        executors.insert("git_status".to_string(), Box::new(git_status_adapter));
+
+        let git_snapshot_tool = GitSnapshotTool::new();
+        let git_snapshot_adapter = GitSnapshotAdapter::new(git_snapshot_tool, "git_snapshot".to_string());
+        executors.insert("git_snapshot".to_string(), Box::new(git_snapshot_adapter));
+
+        let secret_scanner_tool = SecretScannerTool::new();
+        let secret_scanner_adapter = SecretScannerAdapter::new(secret_scanner_tool, "secret_scanner".to_string());
+        executors.insert("secret_scanner".to_string(), Box::new(secret_scanner_adapter));
 
         Self {
             executors: Mutex::new(executors),
@@ -234,6 +251,12 @@ mod tests {
 
         // Phase 6A: Refactor Agent
         assert!(tools.contains(&"refactor_agent".to_string()));
+
+        // Phase 6B: Git Commit Agent
+        assert!(tools.contains(&"git_commit_agent".to_string()));
+        assert!(tools.contains(&"git_status".to_string()));
+        assert!(tools.contains(&"git_snapshot".to_string()));
+        assert!(tools.contains(&"secret_scanner".to_string()));
     }
 
     #[test]

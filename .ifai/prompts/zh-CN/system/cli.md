@@ -55,6 +55,8 @@ variables:
 | "生成测试/写测试/单元测试" | test_agent |
 | "生成文档/写文档/API文档/README" | doc_agent |
 | "调试代码/修复bug/分析错误/排查问题" | debug_agent |
+| "重构代码/优化结构/提取函数/简化代码" | refactor_agent |
+| "提交代码/git commit/提交变更/帮我提交" | git_commit_agent |
 | "修改配置" | write_file, edit_file |
 | "网络搜索" ⚠️ | websearch_agent（严禁使用 web_search）|
 
@@ -135,6 +137,20 @@ variables:
 - "调试代码" / "修复 bug" / "分析错误" / "排查问题"
 - "这个报错是什么原因" / "帮我看看这个错误"
 - "排查 xxx 中的问题"
+
+### refactor_agent（代码重构）
+
+**必须使用 refactor_agent 的场景**：
+- "重构代码" / "优化结构" / "代码重构"
+- "提取函数" / "简化代码" / "清理代码"
+- "改善代码组织" / "重组代码"
+
+### git_commit_agent（智能提交）
+
+**必须使用 git_commit_agent 的场景**：
+- "提交代码" / "git commit" / "提交变更"
+- "帮我提交" / "创建提交" / "暂存提交"
+- "生成 commit message" / "帮我写提交信息"
 
 ### ❌ 严格禁止：
 - ❌ 用户说"调试/排查/修复bug"时，直接调用 `read_file` 逐个读文件

@@ -361,6 +361,7 @@ impl WorkflowRunner {
                         AgentType::TaskBreakdown => "task_breakdown".to_string(),
                         AgentType::ProposalGenerator => "proposal_generator".to_string(),
                         AgentType::WebSearch => "websearch".to_string(),
+                        AgentType::GitCommit => "git_commit".to_string(),
                         AgentType::GeneralPurpose => "general_purpose".to_string(),
                     };
 
@@ -946,6 +947,7 @@ impl WorkflowRunner {
                     AgentType::TaskBreakdown => "任务分解",
                     AgentType::ProposalGenerator => "提案生成",
                     AgentType::WebSearch => "网络搜索",
+                    AgentType::GitCommit => "Git 提交",
                     AgentType::GeneralPurpose => "处理",
                 },
                 target_path,
@@ -1235,6 +1237,7 @@ impl WorkflowRunner {
                 AgentType::TaskBreakdown => "任务分解",
                 AgentType::ProposalGenerator => "提案生成",
                 AgentType::WebSearch => "网络搜索",
+                AgentType::GitCommit => "Git 提交",
                 AgentType::GeneralPurpose => "处理",
             },
             target_path,
@@ -1307,6 +1310,7 @@ impl WorkflowRunner {
                     AgentType::TaskBreakdown => "task_breakdown".to_string(),
                     AgentType::ProposalGenerator => "proposal_generator".to_string(),
                     AgentType::WebSearch => "websearch".to_string(),
+                    AgentType::GitCommit => "git_commit".to_string(),
                     AgentType::GeneralPurpose => "general_purpose".to_string(),
                 };
                 PlannedNode {

@@ -103,54 +103,55 @@ pub fn derive_tool(input: TokenStream) -> TokenStream {
         }
     }).collect();
 
-    // 生成 ToolLike 实现
-    let tool_like_impl = if !params.is_empty() {
-        // 有参数声明，生成 ToolLike
-        let execute_method_name = proc_macro2::Ident::new(
-            &format!("execute_{}", tool_name.replace("-", "_")),
-            proc_macro2::Span::call_site()
-        );
+    // 生成 ToolLike 实现（始终生成，空参数工具也支持）
+    let execute_method_name = proc_macro2::Ident::new(
+        &format!("execute_{}", tool_name.replace("-", "_")),
+        proc_macro2::Span::call_site()
+    );
 
-        quote! {
-            // 生成 ToolLike trait 实现
-            impl crate::harness::tool::new_tools::adapter::ToolLike for #name {
-                fn schema(&self) -> serde_json::Value {
-                    serde_json::json!({
-                        "type": "function",
-                        "function": {
-                            "name": #tool_name,
-                            "description": #tool_description,
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    #(#param_schemas),*
-                                },
-                                "required": [#(#param_names),*]
-                            }
+    // required 列表：有参数时生成，无参数时空数组
+    let required_array = if params.is_empty() {
+        quote! {}
+    } else {
+        quote! { "required": [#(#param_names),*] }
+    };
+
+    let tool_like_impl = quote! {
+        // 生成 ToolLike trait 实现
+        impl crate::harness::tool::new_tools::adapter::ToolLike for #name {
+            fn schema(&self) -> serde_json::Value {
+                serde_json::json!({
+                    "type": "function",
+                    "function": {
+                        "name": #tool_name,
+                        "description": #tool_description,
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                #(#param_schemas),*
+                            },
+                            #required_array
                         }
-                    })
-                }
+                    }
+                })
+            }
 
-                fn execute_tool(&self, args: &serde_json::Value) -> Result<String, crate::harness::tool::ToolError> {
-                    use serde_json::Value;
-                    use crate::harness::tool::ToolError;
+            fn execute_tool(&self, args: &serde_json::Value) -> Result<String, crate::harness::tool::ToolError> {
+                use serde_json::Value;
+                use crate::harness::tool::ToolError;
 
-                    // 解析参数
-                    #(#param_parsing)*
+                // 解析参数
+                #(#param_parsing)*
 
-                    // 调用 execute 方法
-                    let result = self.#execute_method_name(#(#execute_params),*)
-                        .map_err(|e| ToolError::Execution(e.to_string()))?;
+                // 调用 execute 方法
+                let result = self.#execute_method_name(#(#execute_params),*)
+                    .map_err(|e| ToolError::Execution(e.to_string()))?;
 
-                    // 尝试调用 to_output_string()，如果失败就使用 to_string()
-                    use std::string::ToString;
-                    Ok(result.to_output_string())
-                }
+                // 尝试调用 to_output_string()，如果失败就使用 to_string()
+                use std::string::ToString;
+                Ok(result.to_output_string())
             }
         }
-    } else {
-        // 没有参数声明，不生成 ToolLike（需要手动实现）
-        quote! {}
     };
 
     // 生成代码

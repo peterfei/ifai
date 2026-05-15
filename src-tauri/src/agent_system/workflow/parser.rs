@@ -143,6 +143,7 @@ impl WorkflowParser {
             "debug" => Ok(AgentType::Debug),
             "task_breakdown" => Ok(AgentType::TaskBreakdown),
             "proposal_generator" => Ok(AgentType::ProposalGenerator),
+            "git_commit" => Ok(AgentType::GitCommit),
             "general_purpose" => Ok(AgentType::GeneralPurpose),
             _ => Err(ParseError::InvalidAgentType(s.to_string())),
         }

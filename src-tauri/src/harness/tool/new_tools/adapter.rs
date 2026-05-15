@@ -72,6 +72,9 @@ pub type WriteFileAdapter = MacroToolAdapter<super::write_file::WriteFileTool>;
 pub type EditFileAdapter = MacroToolAdapter<super::edit_file::EditFileTool>;
 pub type WebSearchAdapter = MacroToolAdapter<super::web_search::WebSearchTool>;
 pub type GitDiffAdapter = MacroToolAdapter<super::git_diff::GitDiffTool>;
+pub type GitStatusAdapter = MacroToolAdapter<super::git_status::GitStatusTool>;
+pub type GitSnapshotAdapter = MacroToolAdapter<super::git_snapshot::GitSnapshotTool>;
+pub type SecretScannerAdapter = MacroToolAdapter<super::secret_scanner::SecretScannerTool>;
 pub type ComplexityAnalyzerAdapter = MacroToolAdapter<super::complexity_analyzer::ComplexityAnalyzer>;
 
 #[cfg(test)]

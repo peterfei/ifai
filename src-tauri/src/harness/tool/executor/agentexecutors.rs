@@ -712,6 +712,49 @@ impl ToolExecutor for RefactorAgentExecutor {
     }
 }
 
+/// Git Commit Agent 执行器
+///
+/// Git 提交智能体：安全提交代码变更。
+/// 所有安全逻辑通过 Prompt Safety Protocol 声明式规则实现。
+pub struct GitCommitAgentExecutor {
+    allowed_tools: HashSet<String>,
+}
+
+impl GitCommitAgentExecutor {
+    pub fn new() -> Self {
+        let mut allowed_tools = HashSet::new();
+        allowed_tools.insert("git_commit_agent".to_string());
+
+        Self { allowed_tools }
+    }
+
+    fn handle_git_commit(&self, input: &Value) -> Result<String, ToolError> {
+        let task = input
+            .get("task")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing 'task' parameter".to_string()
+            ))?;
+
+        execute_agent_sync(AgentType::GitCommit, task)
+    }
+}
+
+impl ToolExecutor for GitCommitAgentExecutor {
+    fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
+        match name {
+            "git_commit_agent" => self.handle_git_commit(input),
+            _ => Err(ToolError::NotFound {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    fn allowed_tools(&self) -> &HashSet<String> {
+        &self.allowed_tools
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -967,6 +1010,43 @@ mod tests {
     fn test_refactor_executor_valid_task() {
         let mut executor = RefactorAgentExecutor::new();
         let result = executor.execute("refactor_agent", &json!({"task": "重构 session.rs 提取重复逻辑"}));
+        if let Err(e) = &result {
+            let err_str = e.to_string();
+            assert!(!err_str.contains("Missing 'task' parameter"), "不应因缺少 task 报错: {}", err_str);
+        }
+    }
+
+    // ========== GitCommitAgentExecutor 测试 ==========
+
+    #[test]
+    fn test_git_commit_executor_creation() {
+        let executor = GitCommitAgentExecutor::new();
+        assert_eq!(executor.tool_count(), 1);
+        assert!(executor.allowed_tools().contains("git_commit_agent"));
+    }
+
+    #[test]
+    fn test_git_commit_executor_missing_task() {
+        let mut executor = GitCommitAgentExecutor::new();
+        let result = executor.execute("git_commit_agent", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Missing 'task' parameter") || err.contains("task"));
+    }
+
+    #[test]
+    fn test_git_commit_executor_invalid_tool() {
+        let mut executor = GitCommitAgentExecutor::new();
+        let result = executor.execute("unknown_tool", &json!({}));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("unknown_tool") || err.contains("不存在"));
+    }
+
+    #[test]
+    fn test_git_commit_executor_valid_task() {
+        let mut executor = GitCommitAgentExecutor::new();
+        let result = executor.execute("git_commit_agent", &json!({"task": "提交当前变更"}));
         if let Err(e) = &result {
             let err_str = e.to_string();
             assert!(!err_str.contains("Missing 'task' parameter"), "不应因缺少 task 报错: {}", err_str);

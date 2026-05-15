@@ -152,6 +152,9 @@ pub enum AgentType {
     /// 网络搜索智能体
     WebSearch,
 
+    /// Git 提交智能体
+    GitCommit,
+
     /// 通用智能体
     GeneralPurpose,
 }
@@ -169,6 +172,7 @@ impl AgentType {
             AgentType::TaskBreakdown => "task_breakdown",
             AgentType::ProposalGenerator => "proposal_generator",
             AgentType::WebSearch => "websearch",
+            AgentType::GitCommit => "git_commit",
             AgentType::GeneralPurpose => "general_purpose",
         }
     }
