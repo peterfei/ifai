@@ -229,5 +229,4 @@ mod tests {
         let result = executor.execute("unknown_tool", &input);
         assert!(matches!(result, Err(ToolError::NotFound { .. })));
     }
-
 }
