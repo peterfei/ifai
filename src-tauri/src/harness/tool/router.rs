@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use super::{
     executor::{
         AliasExecutor, DebugAgentExecutor, DocAgentExecutor, ExploreAgentExecutor, MemorySaveExecutor,
-        ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
+        RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
     new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
@@ -113,6 +113,10 @@ impl ToolRouter {
         executors.insert(
             "debug_agent".to_string(),
             Box::new(DebugAgentExecutor::new()),
+        );
+        executors.insert(
+            "refactor_agent".to_string(),
+            Box::new(RefactorAgentExecutor::new()),
         );
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool
@@ -227,6 +231,9 @@ mod tests {
         assert!(tools.contains(&"git_diff".to_string()));
         assert!(tools.contains(&"complexity_analyzer".to_string()));
         assert!(tools.contains(&"code_review".to_string()));
+
+        // Phase 6A: Refactor Agent
+        assert!(tools.contains(&"refactor_agent".to_string()));
     }
 
     #[test]

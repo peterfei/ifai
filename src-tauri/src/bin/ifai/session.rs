@@ -3370,6 +3370,14 @@ const AGENT_INTENT_RULES: &[AgentIntentRule] = &[
         ],
         exclusions: &["doc_agent"],
     },
+    AgentIntentRule {
+        tool: "refactor_agent",
+        keywords: &[
+            "重构", "提取重复", "简化代码", "优化结构",
+            "refactor", "restructure", "simplify",
+        ],
+        exclusions: &["refactor_agent"],
+    },
 ];
 
 /// 通用匹配引擎：遍历路由表，首条命中即返回
@@ -4441,5 +4449,34 @@ mod tests {
             "429 错误消息应包含 'Rate limited'"
         );
         assert!(formatted.contains("wait"), "429 错误消息应提示等待");
+    }
+
+    // ========== Phase 6A: Refactor Agent 意图路由测试 ==========
+
+    #[test]
+    fn test_detect_refactor_agent_intent() {
+        assert_eq!(detect_agent_intent("重构代码"), Some("refactor_agent"));
+        assert_eq!(detect_agent_intent("refactor session.rs"), Some("refactor_agent"));
+        assert_eq!(detect_agent_intent("重构 module 提取重复逻辑"), Some("refactor_agent"));
+        assert_eq!(detect_agent_intent("refactor the code"), Some("refactor_agent"));
+    }
+
+    #[test]
+    fn test_refactor_agent_intent_exclusions() {
+        // 排除规则：显式调用不触发
+        assert_eq!(detect_agent_intent("使用 refactor_agent"), None);
+        assert_eq!(detect_agent_intent("调用 refactor_agent"), None);
+        // 不相关的请求不触发
+        assert_eq!(detect_agent_intent("审查代码"), None);
+        assert_eq!(detect_agent_intent("读取 session.rs"), None);
+    }
+
+    #[test]
+    fn test_agent_intent_rules_no_duplicate_tools() {
+        let tools: Vec<&str> = AGENT_INTENT_RULES.iter().map(|r| r.tool).collect();
+        let mut sorted = tools.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(tools.len(), sorted.len(), "AGENT_INTENT_RULES 中存在重复的 tool 名称");
     }
 }
