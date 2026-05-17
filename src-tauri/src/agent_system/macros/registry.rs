@@ -3,6 +3,7 @@
 // 全局 Agent 注册表，支持 Agent 互调用和调用链追踪。
 
 use crate::agent_system::workflow::types::AgentType;
+use crate::agent_system::macros::permission::{PermissionChecker, AllowAllPermissionChecker};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use thiserror::Error;
@@ -92,6 +93,9 @@ impl AgentRegistry {
             });
         }
 
+        // 🔥 Phase 5.2: 权限检查
+        ctx.check_permission(&agent_type)?;
+
         // 增加调用深度
         ctx.increment_depth();
         ctx.chain.push_call(agent_type.clone());
@@ -153,20 +157,34 @@ use crate::harness::tool::ToolExecutor;
 use crate::harness::tool::ToolExecutor;
 
 /// Agent 调用上下文
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CallContext {
     depth: usize,
     max_depth: usize,
     chain: CallChain,
+    /// 🔥 Phase 5.2: 权限检查器（使用 Rc 以便克隆共享）
+    permission_checker: std::sync::Arc<dyn PermissionChecker + Send + Sync>,
+}
+
+impl Clone for CallContext {
+    fn clone(&self) -> Self {
+        Self {
+            depth: self.depth,
+            max_depth: self.max_depth,
+            chain: self.chain.clone(),
+            permission_checker: std::sync::Arc::clone(&self.permission_checker),
+        }
+    }
 }
 
 impl CallContext {
-    /// 创建新的调用上下文（默认 max_depth=5）
+    /// 创建新的调用上下文（默认 max_depth=5, 使用 AllowAllPermissionChecker）
     pub fn new() -> Self {
         CallContext {
             depth: 0,
             max_depth: 5,
             chain: CallChain::new(),
+            permission_checker: std::sync::Arc::new(AllowAllPermissionChecker),
         }
     }
 
@@ -177,6 +195,20 @@ impl CallContext {
             depth: 0,
             max_depth,
             chain: CallChain::new(),
+            permission_checker: std::sync::Arc::new(AllowAllPermissionChecker),
+        }
+    }
+
+    /// 🔥 Phase 5.2: 使用自定义权限检查器创建调用上下文
+    pub fn with_permission_checker(
+        max_depth: usize,
+        checker: std::sync::Arc<dyn PermissionChecker + Send + Sync>,
+    ) -> Self {
+        CallContext {
+            depth: 0,
+            max_depth,
+            chain: CallChain::new(),
+            permission_checker: checker,
         }
     }
 
@@ -193,6 +225,19 @@ impl CallContext {
     /// 获取调用链
     pub fn call_chain(&self) -> &CallChain {
         &self.chain
+    }
+
+    /// 🔥 Phase 5.2: 检查 Agent 权限
+    ///
+    /// 如果当前权限级别不足，返回 PermissionDenied 错误
+    pub fn check_permission(&self, agent_type: &AgentType) -> Result<(), AgentCallError> {
+        let required = agent_type.required_permission();
+        self.permission_checker
+            .check_permission(required)
+            .map_err(|e| AgentCallError::PermissionDenied {
+                required: format!("{:?}", required),
+                current: format!("{:?}", self.permission_checker.current_level()),
+            })
     }
 
     /// 增加深度

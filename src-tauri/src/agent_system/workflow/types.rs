@@ -204,6 +204,37 @@ impl AgentType {
             AgentType::GeneralPurpose => "general_purpose",
         }
     }
+
+    /// 获取此 Agent 所需的权限级别
+    ///
+    /// # 权限分级
+    ///
+    /// - `None`: 纯计算类 Agent（Plan, TaskBreakdown）
+    /// - `WorkspaceRead`: 只读操作（Explore, Review, Doc, WebSearch）
+    /// - `WorkspaceWrite`: 修改操作（Refactor, Test, GitCommit, Debug）
+    pub fn required_permission(&self) -> crate::agent_system::macros::PermissionLevel {
+        use crate::agent_system::macros::PermissionLevel;
+
+        match self {
+            // 纯计算类 - 无需工作区访问
+            AgentType::TaskBreakdown |
+            AgentType::ProposalGenerator |
+            AgentType::ReAct => PermissionLevel::None,
+
+            // 只读类 - 需要读取工作区
+            AgentType::Explore |
+            AgentType::Review |
+            AgentType::Doc |
+            AgentType::WebSearch |
+            AgentType::GeneralPurpose => PermissionLevel::WorkspaceRead,
+
+            // 写入类 - 需要修改工作区
+            AgentType::Refactor |
+            AgentType::Test |
+            AgentType::GitCommit |
+            AgentType::Debug => PermissionLevel::WorkspaceWrite,
+        }
+    }
 }
 
 /// 智能体配置
@@ -389,5 +420,37 @@ mod tests {
         assert_eq!(AgentType::Explore.as_str(), "explore");
         assert_eq!(AgentType::Review.as_str(), "review");
         assert_eq!(AgentType::Refactor.as_str(), "refactor");
+    }
+
+    #[test]
+    fn test_agent_permission_none() {
+        // 纯计算类 Agent 无需权限
+        use crate::agent_system::macros::PermissionLevel;
+
+        assert_eq!(AgentType::TaskBreakdown.required_permission(), PermissionLevel::None);
+        assert_eq!(AgentType::ProposalGenerator.required_permission(), PermissionLevel::None);
+        assert_eq!(AgentType::ReAct.required_permission(), PermissionLevel::None);
+    }
+
+    #[test]
+    fn test_agent_permission_read() {
+        // 只读类 Agent 需要读取权限
+        use crate::agent_system::macros::PermissionLevel;
+
+        assert_eq!(AgentType::Explore.required_permission(), PermissionLevel::WorkspaceRead);
+        assert_eq!(AgentType::Review.required_permission(), PermissionLevel::WorkspaceRead);
+        assert_eq!(AgentType::Doc.required_permission(), PermissionLevel::WorkspaceRead);
+        assert_eq!(AgentType::WebSearch.required_permission(), PermissionLevel::WorkspaceRead);
+    }
+
+    #[test]
+    fn test_agent_permission_write() {
+        // 写入类 Agent 需要写入权限
+        use crate::agent_system::macros::PermissionLevel;
+
+        assert_eq!(AgentType::Refactor.required_permission(), PermissionLevel::WorkspaceWrite);
+        assert_eq!(AgentType::Test.required_permission(), PermissionLevel::WorkspaceWrite);
+        assert_eq!(AgentType::GitCommit.required_permission(), PermissionLevel::WorkspaceWrite);
+        assert_eq!(AgentType::Debug.required_permission(), PermissionLevel::WorkspaceWrite);
     }
 }

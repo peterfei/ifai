@@ -25,6 +25,7 @@
 //! ```
 
 pub mod registry;
+pub mod permission;
 
 /// 全局 Agent 注册表宏
 ///
@@ -194,6 +195,7 @@ mod tests {
     include!("tests/registry_tests.rs");
     include!("tests/workflow_tests.rs");
     include!("tests/agent_call_tests.rs");
+    include!("tests/permission_tests.rs");
 }
 
 // 重新导出常用类型
@@ -204,4 +206,12 @@ pub use registry::{
     AgentCaller,
     AgentCallError,
     AgentCallResult,
+};
+
+pub use permission::{
+    PermissionLevel,
+    PermissionChecker,
+    PermissionError,
+    AllowAllPermissionChecker,
+    ConfigPermissionChecker,
 };
