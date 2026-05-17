@@ -93,6 +93,12 @@ pub struct WorkflowNode {
     /// 节点标签（用于显示）
     #[serde(default)]
     pub label: Option<String>,
+
+    /// 条件表达式（JSONPath 语法）
+    ///
+    /// 如果指定，只有条件满足时才会执行此节点
+    #[serde(rename = "condition", default)]
+    pub condition: Option<String>,
 }
 
 impl WorkflowNode {
@@ -103,6 +109,7 @@ impl WorkflowNode {
             agent_type,
             config: AgentConfig::default(),
             label: None,
+            condition: None,
         }
     }
 
@@ -116,6 +123,23 @@ impl WorkflowNode {
     pub fn with_config(mut self, config: AgentConfig) -> Self {
         self.config = config;
         self
+    }
+
+    /// 设置条件表达式
+    pub fn with_condition(mut self, condition: impl Into<String>) -> Self {
+        self.condition = Some(condition.into());
+        self
+    }
+
+    /// 检查节点是否应该执行（基于条件和输出）
+    pub fn should_execute(&self, output: &serde_json::Value) -> Result<bool, String> {
+        if let Some(ref condition_expr) = self.condition {
+            use crate::agent_system::workflow::condition::eval_condition;
+            eval_condition(output, condition_expr)
+                .map_err(|e| format!("条件评估失败: {}", e))
+        } else {
+            Ok(true)
+        }
     }
 }
 
@@ -275,6 +299,44 @@ mod tests {
         assert_eq!(workflow.id, "test-workflow");
         assert_eq!(workflow.name, "Test Workflow");
         assert_eq!(workflow.description, "A test workflow");
+    }
+
+    #[test]
+    fn test_workflow_node_with_condition() {
+        // 测试节点条件表达式
+        let node = WorkflowNode::new("fix", AgentType::Refactor)
+            .with_condition("$.severity > 5");
+
+        assert_eq!(node.id, "fix");
+        assert_eq!(node.condition, Some("$.severity > 5".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_node_should_execute() {
+        // 测试节点是否应该执行
+        let node_with_condition = WorkflowNode::new("fix", AgentType::Refactor)
+            .with_condition("$.severity > 5");
+
+        let output = serde_json::json!({
+            "severity": 8
+        });
+
+        // 暂时总是返回 true
+        let result = node_with_condition.should_execute(&output);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+    }
+
+    #[test]
+    fn test_workflow_node_no_condition() {
+        // 测试无条件节点（总是执行）
+        let node = WorkflowNode::new("scan", AgentType::Explore);
+
+        let output = serde_json::json!({});
+        let result = node.should_execute(&output);
+
+        assert!(result.is_ok());
+        assert!(result.unwrap());
     }
 
     #[test]
