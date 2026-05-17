@@ -196,6 +196,7 @@ mod tests {
     include!("tests/workflow_tests.rs");
     include!("tests/agent_call_tests.rs");
     include!("tests/permission_tests.rs");
+    include!("tests/e2e_tests.rs");
 }
 
 // 重新导出常用类型
