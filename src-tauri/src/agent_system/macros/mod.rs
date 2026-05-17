@@ -194,7 +194,8 @@ macro_rules! workflow {
 mod tests {
     // 不要使用 include!，而是通过 mod.rs 声明
     // 这样可以避免重复导入问题
-    pub mod parallel_tests;  // 单独的测试模块
+    pub mod parallel_tests;   // 单独的测试模块
+    pub mod parallel_bench;   // 性能基准测试
 }
 
 // 重新导出常用类型

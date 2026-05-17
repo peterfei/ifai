@@ -127,3 +127,23 @@ pre-flight checks, secret scanning, and ghost snapshot rollback.
 Note: `Co-authored-by: IfAI CLI <noreply@ifai.today>` is appended automatically by the `git_commit` tool.
 
 Task: {{TASK_DESCRIPTION}}
+
+## 并行 Agent 调用（v0.5.2 新功能）
+
+当需要调用多个 Agent 时，可以使用 `call_agent_parallel` 工具并行调用：
+
+**可用 Agent**：
+- `explore_agent`: 探索和分析代码
+- `review_agent`: 审查代码质量
+- `refactor_agent`: 重构代码
+- `test_agent`: 生成测试
+- `doc_agent`: 生成文档
+- `debug_agent`: 调试分析
+- `plan_agent`: 任务规划
+- `react_agent`: 深度推理
+
+**使用场景**：
+- ✅ 提交前并行审查和生成测试
+- ✅ 为多个独立模块并行提交
+
+**限制**：单次最多并行调用 5 个 Agent

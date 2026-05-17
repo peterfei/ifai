@@ -12,7 +12,9 @@ use super::{
         PlanAgentExecutor, ReActAgentExecutor, RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
-    new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, GitCommitTool, GitCommitAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
+    new_tools::{
+        PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, GitCommitTool, GitCommitAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter, AgentCallParallelTool, AgentCallParallelAdapter,
+    },
     ToolError,
 };
 
@@ -134,6 +136,11 @@ impl ToolRouter {
             "react_agent".to_string(),
             Box::new(ReActAgentExecutor::new()),
         );
+
+        // 🆕 Phase 2.5: Agent 并行调用工具
+        let agent_call_parallel_tool = AgentCallParallelTool;
+        let agent_call_parallel_adapter = AgentCallParallelAdapter::new(agent_call_parallel_tool, "call_agent_parallel".to_string());
+        executors.insert("call_agent_parallel".to_string(), Box::new(agent_call_parallel_adapter));
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool
         let ping_tool = PingTool::new(5000, 0);

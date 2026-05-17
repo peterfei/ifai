@@ -77,6 +77,7 @@ pub type GitSnapshotAdapter = MacroToolAdapter<super::git_snapshot::GitSnapshotT
 pub type GitCommitAdapter = MacroToolAdapter<super::git_commit::GitCommitTool>;
 pub type SecretScannerAdapter = MacroToolAdapter<super::secret_scanner::SecretScannerTool>;
 pub type ComplexityAnalyzerAdapter = MacroToolAdapter<super::complexity_analyzer::ComplexityAnalyzer>;
+pub type AgentCallParallelAdapter = MacroToolAdapter<super::agent_call_parallel::AgentCallParallelTool>;
 
 #[cfg(test)]
 mod tests {
