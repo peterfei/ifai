@@ -70,6 +70,7 @@ pub fn build_agent_workflow(agent_type_name: &str, task: &str) -> Workflow {
             agent_type: at,
             config: Default::default(),
             label: None,
+            condition: None,
         }],
         edges: vec![],
         variables: std::collections::HashMap::new(),
