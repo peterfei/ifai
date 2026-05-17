@@ -50,6 +50,7 @@ macro_rules! wf_log {
 }
 
 pub mod cancellation;
+pub mod condition;
 pub mod executor;
 pub mod parallel;
 pub mod parser;
