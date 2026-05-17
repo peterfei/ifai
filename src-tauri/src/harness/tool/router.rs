@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use super::{
     executor::{
         AliasExecutor, DebugAgentExecutor, DocAgentExecutor, ExploreAgentExecutor, GitCommitAgentExecutor, MemorySaveExecutor,
-        PlanAgentExecutor, RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
+        PlanAgentExecutor, ReActAgentExecutor, RefactorAgentExecutor, ReviewAgentExecutor, SearchToolsExecutor, ShellToolsExecutor, TestAgentExecutor, TodoWriteExecutor,
         WebSearchAgentExecutor, ToolExecutor,
     },
     new_tools::{PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, GitCommitTool, GitCommitAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter},
@@ -127,6 +127,12 @@ impl ToolRouter {
         executors.insert(
             "plan_agent".to_string(),
             Box::new(PlanAgentExecutor::new()),
+        );
+
+        // Phase 6D: ReAct Agent
+        executors.insert(
+            "react_agent".to_string(),
+            Box::new(ReActAgentExecutor::new()),
         );
 
         // 🆕 注册使用 #[derive(Tool)] 宏的 PingTool
@@ -271,6 +277,9 @@ mod tests {
 
         // Phase 6C: Plan Agent
         assert!(tools.contains(&"plan_agent".to_string()));
+
+        // Phase 6D: ReAct Agent
+        assert!(tools.contains(&"react_agent".to_string()));
     }
 
     #[test]

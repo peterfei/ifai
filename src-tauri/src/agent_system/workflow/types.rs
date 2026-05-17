@@ -155,6 +155,9 @@ pub enum AgentType {
     /// Git 提交智能体
     GitCommit,
 
+    /// ReAct 推理智能体（Thought-Action-Observation）
+    ReAct,
+
     /// 通用智能体
     GeneralPurpose,
 }
@@ -173,6 +176,7 @@ impl AgentType {
             AgentType::ProposalGenerator => "proposal_generator",
             AgentType::WebSearch => "websearch",
             AgentType::GitCommit => "git_commit",
+            AgentType::ReAct => "react",
             AgentType::GeneralPurpose => "general_purpose",
         }
     }

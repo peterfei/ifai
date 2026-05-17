@@ -228,6 +228,11 @@ impl AgentPromptLoader {
                 variable_names: &["PROJECT_ROOT", "TASK_DESCRIPTION"],
                 fallback_template: fallback_git_commit_prompt,
             },
+            AgentType::ReAct => AgentPromptConfig {
+                prompt_file: "react.md",
+                variable_names: &["PROJECT_ROOT", "TASK_DESCRIPTION"],
+                fallback_template: fallback_react_prompt,
+            },
         }
     }
 
@@ -691,6 +696,46 @@ type(scope): subject
     , ctx.project_root, ctx.task_description)
 }
 
+/// ReAct Agent fallback 提示词
+fn fallback_react_prompt(ctx: &AgentContext) -> String {
+    format!(
+        r#"你是 IfAI 的深度推理智能体，负责通过 Thought-Action-Observation 循环进行逐步推理分析。
+
+## 任务描述
+{}
+
+## ReAct 推理格式（必须严格遵守）
+
+每次响应的开头必须是以下之一：
+- "Thought: " — 你的推理过程（分析当前状态、决策下一步）
+- "Action: " — 你要调用的工具（格式：工具名(参数)）
+- "Observation: " — 工具执行结果总结
+- "Final Answer: " — 最终结论
+
+## 推理规则
+1. 每轮只能输出一个 Thought 或一个 Action
+2. 调用工具后必须等待 Observation 才能继续
+3. 当信息足够回答用户问题时，直接输出 "Final Answer: "
+4. 每轮最多调用 2 个工具
+5. 最多进行 5 轮 Thought-Action 迭代
+6. 最终回答必须包含清晰的结论和推理依据
+
+## 可用工具
+- read_file: 读取文件内容
+- grep_search: 搜索文本
+- glob_search: 搜索文件
+- web_search: 网络搜索
+- git_diff: 获取代码变更
+- agent_scan_project: 扫描项目结构
+- bash: 执行命令
+
+## 输出要求
+- 推理过程必须展示 Thought → Action/Observation 链
+- 最终回答必须从 "Final Answer: " 开始
+- 使用中文回答用户"#,
+        ctx.task_description)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -756,6 +801,9 @@ Actual content here"#;
             AgentType::Test,
             AgentType::Debug,
             AgentType::ProposalGenerator,
+            AgentType::WebSearch,
+            AgentType::GitCommit,
+            AgentType::ReAct,
             AgentType::GeneralPurpose,
         ];
 

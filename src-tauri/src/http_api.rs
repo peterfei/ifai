@@ -336,6 +336,7 @@ async fn execute_workflow_http(
                 AgentType::ProposalGenerator => "proposal_generator".to_string(),
                 AgentType::WebSearch => "websearch".to_string(),
                 AgentType::GitCommit => "git_commit".to_string(),
+                AgentType::ReAct => "react".to_string(),
                 AgentType::GeneralPurpose => "general_purpose".to_string(),
             };
 

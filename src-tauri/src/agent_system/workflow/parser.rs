@@ -144,6 +144,7 @@ impl WorkflowParser {
             "task_breakdown" => Ok(AgentType::TaskBreakdown),
             "proposal_generator" => Ok(AgentType::ProposalGenerator),
             "git_commit" => Ok(AgentType::GitCommit),
+            "react" => Ok(AgentType::ReAct),
             "general_purpose" => Ok(AgentType::GeneralPurpose),
             _ => Err(ParseError::InvalidAgentType(s.to_string())),
         }

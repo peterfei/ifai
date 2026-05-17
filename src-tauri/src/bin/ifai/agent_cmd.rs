@@ -10,6 +10,7 @@ const AGENT_TYPES: &[(&str, AgentType)] = &[
     ("debug", AgentType::Debug),
     ("taskbreakdown", AgentType::TaskBreakdown),
     ("proposal", AgentType::ProposalGenerator),
+    ("react", AgentType::ReAct),
     ("general", AgentType::GeneralPurpose),
 ];
 
@@ -52,6 +53,7 @@ fn resolve_agent_type(name: &str) -> AgentType {
         "debug" => AgentType::Debug,
         "taskbreakdown" => AgentType::TaskBreakdown,
         "proposal" => AgentType::ProposalGenerator,
+        "react" => AgentType::ReAct,
         _ => AgentType::GeneralPurpose,
     }
 }
@@ -214,6 +216,7 @@ mod tests {
             ("debug", AgentType::Debug),
             ("taskbreakdown", AgentType::TaskBreakdown),
             ("proposal", AgentType::ProposalGenerator),
+            ("react", AgentType::ReAct),
             ("general", AgentType::GeneralPurpose),
         ];
         for (name, expected_at) in type_mapping {

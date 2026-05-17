@@ -58,6 +58,7 @@ variables:
 | "重构代码/优化结构/提取函数/简化代码" | refactor_agent |
 | "提交代码/git commit/提交变更/帮我提交" | git_commit_agent |
 | "任务分解/制定计划/拆解任务/create plan" | plan_agent |
+| "深度分析/逐步推理/多步骤分析/综合分析" | react_agent |
 | "修改配置" | write_file, edit_file |
 | "网络搜索" ⚠️ | websearch_agent（严禁使用 web_search）|
 
@@ -159,6 +160,13 @@ variables:
 - "任务分解" / "制定计划" / "拆解任务"
 - "如何实现" / "实施步骤" / "创建计划"
 - "task breakdown" / "create plan" / "make a plan"
+
+### react_agent（深度推理）
+
+**必须使用 react_agent 的场景**：
+- "深度分析" / "逐步推理" / "全面分析"
+- "多步骤分析" / "综合分析" / "多步推理"
+- 需要多轮工具调用和逐步推理的复杂问题
 
 ### ❌ 严格禁止：
 - ❌ 用户说"调试/排查/修复bug"时，直接调用 `read_file` 逐个读文件

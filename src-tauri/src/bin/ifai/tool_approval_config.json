@@ -89,6 +89,7 @@
         "refactor_agent",
         "git_commit_agent",
         "plan_agent",
+        "react_agent",
         "code_review",
         "websearch_agent"
       ],

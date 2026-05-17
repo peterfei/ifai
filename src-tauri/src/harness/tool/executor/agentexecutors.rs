@@ -984,6 +984,49 @@ impl ToolExecutor for PlanAgentExecutor {
     }
 }
 
+/// ReAct Agent 执行器
+///
+/// 对外工具名 `react_agent`，内部映射到 `AgentType::ReAct`。
+/// ReAct 的 Thought-Action-Observation 格式约束通过 system prompt 注入实现，
+/// 复用 execute_with_tools 的已有循环，无需新代码路径。
+pub struct ReActAgentExecutor {
+    allowed_tools: HashSet<String>,
+}
+
+impl ReActAgentExecutor {
+    pub fn new() -> Self {
+        let mut allowed_tools = HashSet::new();
+        allowed_tools.insert("react_agent".to_string());
+        Self { allowed_tools }
+    }
+
+    fn handle_react(&self, input: &Value) -> Result<String, ToolError> {
+        let task = input
+            .get("task")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidInput(
+                "Missing 'task' parameter".to_string()
+            ))?;
+
+        execute_agent_sync(AgentType::ReAct, task)
+    }
+}
+
+impl ToolExecutor for ReActAgentExecutor {
+    fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
+        match name {
+            "react_agent" => self.handle_react(input),
+            _ => Err(ToolError::NotFound {
+                name: name.to_string(),
+            }),
+        }
+    }
+
+    fn allowed_tools(&self) -> &HashSet<String> {
+        &self.allowed_tools
+    }
+}
+
 /// 🔇 Stderr 静音守卫（RAII）
 ///
 /// 临时将 stderr 重定向到 /dev/null，drop 时自动恢复。

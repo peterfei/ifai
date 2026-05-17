@@ -406,6 +406,23 @@ impl ToolRegistry {
             required_permission: ToolPermissionMode::ReadOnly,
         });
 
+        // Phase 6D: ReAct Agent 工具
+        self.register(ToolSpec {
+            name: "react_agent",
+            description: "深度推理智能体，通过 Thought-Action-Observation 循环进行多步推理分析。当用户请求深度分析、逐步推理、全面分析时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "推理任务描述（如：深度分析项目中的性能瓶颈）"
+                    }
+                },
+                "required": ["task"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
         // 🆕 注册 ComplexityAnalyzer（代码复杂度分析工具）
         self.register(ToolSpec {
             name: "complexity_analyzer",

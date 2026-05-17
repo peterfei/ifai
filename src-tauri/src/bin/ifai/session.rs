@@ -2783,7 +2783,7 @@ impl Session {
             let needs_progress = matches!(
                 tool.name.as_str(),
                 "explore_agent" | "review_agent" | "test_agent" | "doc_agent" | "debug_agent"
-                | "refactor_agent" | "git_commit_agent" | "plan_agent"
+                | "refactor_agent" | "git_commit_agent" | "plan_agent" | "react_agent"
             );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();
@@ -3396,6 +3396,16 @@ const AGENT_INTENT_RULES: &[AgentIntentRule] = &[
             "make a plan", "break down",
         ],
         exclusions: &["plan_agent"],
+    },
+    // Phase 6D: ReAct Agent（低优先级，置于路由表底部）
+    AgentIntentRule {
+        tool: "react_agent",
+        keywords: &[
+            "深度分析", "逐步推理", "多步骤分析", "全面分析",
+            "综合分析", "deep analysis", "step by step",
+            "comprehensive analysis", "多步推理",
+        ],
+        exclusions: &["react_agent", "探索", "explore", "审查", "review"],
     },
 ];
 
