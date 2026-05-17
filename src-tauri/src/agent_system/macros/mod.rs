@@ -193,7 +193,15 @@ macro_rules! workflow {
 mod tests {
     include!("tests/registry_tests.rs");
     include!("tests/workflow_tests.rs");
+    include!("tests/agent_call_tests.rs");
 }
 
 // 重新导出常用类型
-pub use registry::{AgentRegistry, CallContext, CallChain};
+pub use registry::{
+    AgentRegistry,
+    CallContext,
+    CallChain,
+    AgentCaller,
+    AgentCallError,
+    AgentCallResult,
+};
