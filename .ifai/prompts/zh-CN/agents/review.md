@@ -77,3 +77,23 @@ variables:
 - **低**：风格不一致、轻微可读性改进
 
 目标文件：{{TARGET_FILES}}
+
+## 并行 Agent 调用（v0.5.2 新功能）
+
+当需要调用多个 Agent 时，优先使用 `call_agent_parallel` 工具并行调用：
+
+**可用 Agent**：
+- `explore_agent`: 探索和分析代码
+- `refactor_agent`: 重构代码
+- `test_agent`: 生成测试
+- `doc_agent`: 生成文档
+- `debug_agent`: 调试分析
+- `plan_agent`: 任务规划
+- `react_agent`: 深度推理
+- `git_commit_agent`: 智能提交
+
+**使用场景**：
+- ✅ 审查后需要并行重构和生成测试
+- ✅ 多维度审查（例如：同时进行安全审查和性能审查）
+
+**限制**：单次最多并行调用 5 个 Agent

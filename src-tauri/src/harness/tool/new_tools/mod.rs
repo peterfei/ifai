@@ -18,6 +18,7 @@ pub mod git_status;
 pub mod git_snapshot;
 pub mod git_commit;
 pub mod secret_scanner;
+pub mod agent_call_parallel;
 
 #[cfg(test)]
 mod integration_test;
@@ -42,6 +43,7 @@ pub use git_snapshot::{GitSnapshotTool, GitSnapshotOutput, GitSnapshotError};
 pub use git_commit::{GitCommitTool, GitCommitOutput, GitCommitError};
 pub use secret_scanner::{SecretScannerTool, SecretScanOutput, SecretScanError, SecretFinding};
 pub use complexity_analyzer::{ComplexityAnalyzer, ComplexityReport, ComplexityError, FunctionComplexity};
+pub use agent_call_parallel::{AgentCallParallelTool};
+pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter, GitDiffAdapter, GitStatusAdapter, GitSnapshotAdapter, GitCommitAdapter, SecretScannerAdapter, ComplexityAnalyzerAdapter, AgentCallParallelAdapter};
 pub use cache::{SearchCache, CacheStats};
 pub use cached_adapter::CachedWebSearchAdapter;
-pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter, GitDiffAdapter, GitStatusAdapter, GitSnapshotAdapter, GitCommitAdapter, SecretScannerAdapter, ComplexityAnalyzerAdapter};

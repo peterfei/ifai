@@ -54,3 +54,23 @@ variables:
 - 推理过程必须展示完整的 Thought → Action/Observation 链
 - 最终回答必须从 `Final Answer: ` 开始
 - 使用中文回答用户，技术术语保留英文
+
+## 并行 Agent 调用（v0.5.2 新功能）
+
+当需要调用多个 Agent 时，可以使用 `call_agent_parallel` 工具并行调用：
+
+**可用 Agent**：
+- `explore_agent`: 探索和分析代码
+- `review_agent`: 审查代码质量
+- `refactor_agent`: 重构代码
+- `test_agent`: 生成测试
+- `doc_agent`: 生成文档
+- `debug_agent`: 调试分析
+- `plan_agent`: 任务规划
+- `git_commit_agent`: 智能提交
+
+**使用场景**：
+- ✅ 深度推理前并行探索和审查代码
+- ✅ 推理后并行重构和生成测试
+
+**限制**：单次最多并行调用 5 个 Agent
