@@ -16,6 +16,40 @@
 
 ---
 
+### 🌟 v0.5.0 Highlights: Multi-Agent System Maturity + Intent Routing + TUI Markdown Rendering Engine
+
+**I. 9 Dedicated Agents Fully Online ⭐ Core Highlight**
+- **Refactor Agent** (`refactor_agent`): Code refactoring, completing existing AgentType
+- **Git Commit Agent** (`git_commit_agent`): Smart commit — analyze changes → generate message → safe commit, 5-layer security (Pre-flight / Ghost Snapshot / Secret scanning / Commit Attribution / Blocklist)
+- **Plan Agent** (`plan_agent`): Task decomposition and planning, auto-breakdown of complex requirements
+- **ReAct Agent** (`react_agent`): Deep reasoning — explicit Thought → Action → Observation loop, with reflection and completion assessment
+- **Review Agent Enhanced**: New `git_diff` / `complexity_analyzer` / `code_review` underlying tools
+- **Test Agent** (`test_agent`): Automated test generation and execution
+- **Doc Agent** (`doc_agent`): Automated documentation generation and maintenance
+- **Debug Agent** (`debug_agent`): Smart debugging, auto error analysis and issue localization
+- All Agents registered as safe tools (no approval needed)
+
+**II. Declarative Intent Routing System 🔀**
+- Declarative routing table replacing procedural if-else chains, O(1) lookup
+- Say "refactor code" → auto-routes to `refactor_agent`, "commit code" → `git_commit_agent`
+- Adding new Agents requires only one routing rule
+
+**III. TUI Markdown Rendering Engine 🎨**
+- **Dual-path rendering**: ANSI color/style preservation + Markdown markup cleanup (headers, tables, bold, italic, code)
+- **Adaptive wrapping**: Narrow terminals no longer truncate content
+- **State reset**: Auto-cleanup per conversation turn, no residue
+
+**IV. Terminal Experience Improvements ⌨️**
+- **Bracketed Paste Mode**: Pasting large text blocks no longer triggers per-character events
+- **Auto-scroll fix**: Multi-line input content no longer hidden
+- **SIGINT handler**: Ctrl+C safely exits TUI
+
+**V. Security Fixes 🛡️**
+- Fixed 9 UTF-8 string slicing out-of-bounds panics
+- 1032 tests all passing (100%)
+
+---
+
 ### 🌟 v0.4.8 Highlights: WebSearch Agent + Metaprogramming Architecture + 6x Performance Boost + **Qualitative Leap in Autonomous Conversations**
 
 **I. Qualitative Leap in Autonomous Conversations 🤖⚡** ⭐ Core Highlight
@@ -99,6 +133,7 @@ We maintain rapid iteration, committed to building the most professional AI pair
 
 | Version | Theme | Core Breakthroughs |
 | :--- | :--- | :--- |
+| **v0.5.0** | **Multi-Agent System Maturity + Intent Routing + TUI Rendering** | **9 dedicated Agents (Refactor/Git Commit/Plan/ReAct/Review/Test/Doc/Debug/Explore), declarative intent routing (O(1) lookup), TUI Markdown rendering engine (dual-path + adaptive wrapping), Bracketed Paste Mode, SIGINT safe exit, 1032 tests passing** |
 | **v0.4.8** | **Autonomous Conversation Leap + WebSearch + Metaprogramming + Performance** | **100% trust model (tool limits 100→1000, 10x boost), eradicated break chain issues (Agentic Loop + infinite Continuing + HTTP 400), smart compression system (integrated into AI service layer + Mid-turn fix), Bocha AI integration (three-layer protection + LRU cache), #[derive(Tool)] metaprogramming (zero boilerplate), Explore performance optimization (79s→13s, 6x boost), TUI first-run wizard, declarative status bar animation, dedicated Agent tools, prompt reference resolution** |
 | **v0.4.7** | **Persistent Memory System** | **Zero-dependency pure Markdown two-layer memory (hot injection + cold archiving), MemorySave tool (AI proactive save + auto dedup), LLM batch extraction, externalized prompts, 18μs injection latency, session archiving, smart compression, TUI+GUI sharing, 10 bug fixes** |
 | **v0.4.6** | **Multi-Thread Concurrent Chat & TUI Refactor** | **Per-Thread Session isolation (concurrent streaming + approval isolation), /thread slash commands, multi-line input (Shift+Enter), TUI God Object refactor Phase 1-4 (App 27→14 fields, Mode enum, declarative routing, StreamState unified cleanup), 862 tests, 10 bug fixes** |

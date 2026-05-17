@@ -16,6 +16,40 @@
 
 ---
 
+### 🌟 v0.5.0 新特性：多智能体系统成型 + 意图路由 + TUI Markdown 渲染引擎
+
+**一、9 个专用 Agent 全面上线 ⭐ 核心亮点**
+- **Refactor Agent**（`refactor_agent`）：代码重构，补全已有 AgentType
+- **Git Commit Agent**（`git_commit_agent`）：智能提交 — 分析变更 → 生成 message → 安全提交，5 层安全设计（Pre-flight / Ghost Snapshot / Secret 扫描 / Commit Attribution / 禁止列表）
+- **Plan Agent**（`plan_agent`）：任务分解与规划，自动拆解复杂需求
+- **ReAct Agent**（`react_agent`）：深度推理 — 显式 Thought → Action → Observation 循环，含反思机制和完成度评估
+- **Review Agent 增强**：新增 `git_diff` / `complexity_analyzer` / `code_review` 底层工具
+- **Test Agent**（`test_agent`）：自动化测试生成和执行
+- **Doc Agent**（`doc_agent`）：自动化文档生成和维护
+- **Debug Agent**（`debug_agent`）：智能调试，自动分析错误和定位问题
+- 所有 Agent 注册为安全工具（免审批），体验丝滑
+
+**二、声明式意图路由系统 🔀**
+- 声明式路由表替代过程式 if-else 链，O(1) 查表性能
+- 用户说"重构代码"自动路由到 `refactor_agent`，说"提交代码"自动路由到 `git_commit_agent`
+- 新增 Agent 只需添加一条路由规则
+
+**三、TUI Markdown 渲染引擎 🎨**
+- **双路径渲染**：ANSI 颜色/样式保留 + Markdown 标记清理（标题、表格、粗体、斜体、代码）
+- **自适应换行**：窄屏终端不再截断内容
+- **状态重置**：每轮对话自动清理渲染状态，无残留
+
+**四、终端体验优化 ⌨️**
+- **Bracketed Paste Mode**：粘贴大段文本不再逐字符触发，原子粘贴体验
+- **自动滚动修复**：多行输入时内容不再被遮挡
+- **SIGINT 信号处理**：Ctrl+C 安全退出 TUI
+
+**五、安全修复 🛡️**
+- 修复 9 处 UTF-8 字符串切片越界 panic
+- 1032 个测试全部通过（100%）
+
+---
+
 ### 🌟 v0.4.8 新特性：WebSearch Agent + 元编程架构 + 6倍性能提升 + **自主会话能力质的飞跃**
 
 **一、自主会话能力质的飞跃 🤖⚡** ⭐ 核心亮点
@@ -170,6 +204,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.5.0** | **多智能体系统成型 + 意图路由 + TUI 渲染优化** | **9 个专用 Agent（Refactor/Git Commit/Plan/ReAct/Review/Test/Doc/Debug/Explore）、声明式意图路由（O(1) 查表）、TUI Markdown 渲染引擎（双路径+自适应换行）、Bracketed Paste Mode、SIGINT 安全退出、1032 测试通过** |
 | **v0.4.8** | **自主会话飞跃 + WebSearch + 元编程 + 性能优化** | **100% 信任模型（工具限制 100→1000，10倍提升）、根治断链问题（Agentic Loop + 无限 Continuing + HTTP 400）、智能压缩系统（集成 AI 服务层 + Mid-turn 修复）、博查 AI 集成（三层防护 + LRU 缓存）、#[derive(Tool)] 元编程（零样板代码）、Explore 性能优化（79s→13s，6倍提升）、TUI 首次运行向导、声明式状态栏动画、专用 Agent 工具、提示词引用解析** |
 | **v0.4.7** | **持久化记忆系统** | **零依赖纯 Markdown 两层记忆（热记忆注入 + 冷记忆归档）、MemorySave 工具（AI 主动保存 + 自动去重）、LLM 批量提取、外部化提示词、18μs 注入延迟、会话归档、智能压缩系统、TUI+GUI 共享、10 项 Bug 修复** |
 | **v0.4.6** | **多线程并发对话系统 & TUI 架构重构** | **Per-Thread Session 隔离（并发 Streaming + 审批隔离）、/thread 斜杠命令、多行输入（Shift+Enter）、TUI God Object 重构 Phase 1-4（App 27→14 字段、Mode enum、声明式路由表、StreamState 统一 cleanup）、862 测试用例、10 项 Bug 修复** |
