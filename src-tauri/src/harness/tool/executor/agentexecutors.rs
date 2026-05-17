@@ -147,6 +147,7 @@ fn build_agent_workflow(agent_type: AgentType, task: &str) -> Workflow {
             agent_type,
             config: Default::default(),
             label: None,
+            condition: None,
         }],
         edges: vec![],
         variables,

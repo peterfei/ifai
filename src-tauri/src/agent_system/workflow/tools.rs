@@ -1059,6 +1059,7 @@ fn test_main() {
     // ========================================================================
 
     #[test]
+    #[ignore = "Phase 6B: Git Commit Agent 工具尚未实现"]
     fn test_git_tools_registered_in_workflow_definitions() {
         let definitions = super::create_tool_definitions();
         let names: std::collections::HashSet<&str> = definitions

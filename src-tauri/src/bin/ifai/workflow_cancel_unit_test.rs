@@ -27,6 +27,7 @@ mod tests {
                 agent_type: AgentType::Explore,
                 label: Some("Test Node".to_string()),
                 config: Default::default(),
+                condition: None,
             }],
             edges: vec![],
             variables: HashMap::new(),
