@@ -13,15 +13,16 @@ use crossterm::{
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Widget},
+    widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap},
     Terminal,
 };
 
 use crate::event::{
     CombinedKeyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
-    HelpEnterHandler, HelpExitHandler, IgnoreHandler, MouseScrollHandler, ResizeHandler,
-    SearchEnterHandler, SearchInputHandler, ThreadEnterHandler, ThreadModeHandler,
+    HelpEnterHandler, HelpExitHandler, IgnoreHandler, MouseScrollHandler, PasteHandler,
+    ResizeHandler, SearchEnterHandler, SearchInputHandler, ThreadEnterHandler, ThreadModeHandler,
 };
 use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::render;
@@ -268,6 +269,252 @@ fn strip_ansi(s: &str) -> String {
             // 跳过回车符
         } else {
             result.push(c);
+        }
+    }
+    result
+}
+
+/// 将 ANSI 转义序列转换为 ratatui Span（保留颜色/粗体等格式）
+///
+/// 与 strip_ansi() 不同，此函数将 ANSI SGR 样式映射为 ratatui Style，
+/// 而非丢弃。每行独立处理，样式不跨行传递。
+fn ansi_to_spans(s: &str) -> Vec<Span<'static>> {
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut current_text = String::new();
+    let mut current_style = Style::default();
+
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' && chars.peek() == Some(&'[') {
+            // 开始 ANSI 序列：收集参数 + 终止符
+            chars.next(); // 消费 '['
+            let mut params = String::new();
+            while let Some(&nc) = chars.peek() {
+                if ('\x40'..='\x7E').contains(&nc) {
+                    let terminator = nc;
+                    chars.next();
+                    if terminator == 'm' {
+                        // SGR 序列结束，刷新当前文本并应用新样式
+                        if !current_text.is_empty() {
+                            spans.push(Span::styled(
+                                std::mem::take(&mut current_text),
+                                current_style,
+                            ));
+                        }
+                        current_style = apply_sgr(&params, current_style);
+                    }
+                    // 非 'm' 终止符（如 'H', 'J' 等）忽略
+                    break;
+                }
+                params.push(chars.next().unwrap());
+            }
+        } else if c == '\r' {
+            // 跳过回车
+        } else {
+            current_text.push(c);
+        }
+    }
+
+    // 刷新剩余文本
+    if !current_text.is_empty() || spans.is_empty() {
+        spans.push(Span::styled(current_text, current_style));
+    }
+    spans
+}
+
+/// 应用 SGR 参数到 ratatui Style
+fn apply_sgr(params: &str, prev: Style) -> Style {
+    let mut style = prev;
+    if params.is_empty() {
+        // \x1b[m 等价于 \x1b[0m（重置）
+        return Style::default();
+    }
+    for part in params.split(';') {
+        match part.parse::<u8>() {
+            Ok(0) => return Style::default(),
+            Ok(1) => style = style.add_modifier(Modifier::BOLD),
+            Ok(3) => style = style.add_modifier(Modifier::ITALIC),
+            Ok(4) => style = style.add_modifier(Modifier::UNDERLINED),
+            Ok(7) => style = style.add_modifier(Modifier::REVERSED),
+            Ok(22) => style = style.remove_modifier(Modifier::BOLD),
+            Ok(23) => style = style.remove_modifier(Modifier::ITALIC),
+            Ok(24) => style = style.remove_modifier(Modifier::UNDERLINED),
+            Ok(27) => style = style.remove_modifier(Modifier::REVERSED),
+            // 标准前景色 30-37
+            Ok(n) if (30..=37).contains(&n) => {
+                style = style.fg(ansi_color(n - 30));
+            }
+            // 标准背景色 40-47
+            Ok(n) if (40..=47).contains(&n) => {
+                style = style.bg(ansi_color(n - 40));
+            }
+            // 亮前景色 90-97
+            Ok(n) if (90..=97).contains(&n) => {
+                style = style.fg(ansi_bright_color(n - 90));
+            }
+            // 亮背景色 100-107
+            Ok(n) if (100..=107).contains(&n) => {
+                style = style.bg(ansi_bright_color(n - 100));
+            }
+            // 39 = 默认前景色, 49 = 默认背景色
+            Ok(39) => style = style.fg(Color::default()),
+            Ok(49) => style = style.bg(Color::default()),
+            // 38;5;N (256 色前景) 和 48;5;N (256 色背景) 由下方处理
+            _ => {
+                // 尝试解析 256 色模式：38;5;N 或 48;5;N
+                // params 是完整的参数字符串如 "38;5;196"
+                let parts: Vec<&str> = params.split(';').collect();
+                if parts.len() == 3 && parts[1] == "5" {
+                    if let Ok(idx) = parts[2].parse::<u8>() {
+                        let color = Color::Indexed(idx);
+                        if parts[0] == "38" {
+                            style = style.fg(color);
+                        } else if parts[0] == "48" {
+                            style = style.bg(color);
+                        }
+                    }
+                }
+                break; // 256 色已处理，跳出循环
+            }
+        }
+    }
+    style
+}
+
+/// 标准 8 色映射
+fn ansi_color(idx: u8) -> Color {
+    match idx {
+        0 => Color::Black,
+        1 => Color::Red,
+        2 => Color::Green,
+        3 => Color::Yellow,
+        4 => Color::Blue,
+        5 => Color::Magenta,
+        6 => Color::Cyan,
+        7 => Color::White,
+        _ => Color::default(),
+    }
+}
+
+/// 亮 8 色映射
+fn ansi_bright_color(idx: u8) -> Color {
+    match idx {
+        0 => Color::DarkGray,
+        1 => Color::LightRed,
+        2 => Color::LightGreen,
+        3 => Color::LightYellow,
+        4 => Color::LightBlue,
+        5 => Color::LightMagenta,
+        6 => Color::LightCyan,
+        7 => Color::Gray,
+        _ => Color::default(),
+    }
+}
+
+/// 清理单行 Markdown 标记（轻量版，用于无 ANSI 的纯文本行）
+///
+/// 处理：标题前缀 `#`，粗体 `**text**`，斜体 `*text*`/`_text_`，
+/// 行内代码 `` `text` ``，表格单元格 `|text|`，水平分割线 `---`。
+fn clean_markdown(line: &str) -> String {
+    let trimmed = line.trim_start();
+
+    // 标题：# / ## / ### / #### 等（行首）→ 直接去掉 # 标记
+    if trimmed.starts_with('#') {
+        let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
+        let rest = trimmed[hash_count..].trim_start();
+        return strip_inline_markdown(rest);
+    }
+
+    // 表格分隔行 |---|---| → 跳过
+    if trimmed.starts_with('|') && trimmed.contains("---") {
+        let parts: Vec<&str> = trimmed.split('|').filter(|s| !s.trim().is_empty()).collect();
+        if parts.iter().all(|p| p.trim().chars().all(|c| c == '-')) {
+            return String::new();
+        }
+    }
+
+    // 水平分割线 --- / *** / ___（3+ 个相同字符）
+    if trimmed.len() >= 3 {
+        let first = trimmed.chars().next().unwrap();
+        if (first == '-' || first == '*' || first == '_')
+            && trimmed.chars().all(|c| c == first)
+            && trimmed.len() >= 3
+        {
+            return "────────────────────".to_string();
+        }
+    }
+
+    strip_inline_markdown(line)
+}
+
+/// 清理行内 Markdown 标记：粗体、斜体、行内代码、表格管道符
+fn strip_inline_markdown(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match c {
+            // 粗体 **text**
+            '*' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut inner = String::new();
+                loop {
+                    match chars.next() {
+                        Some('*') if chars.peek() == Some(&'*') => {
+                            chars.next();
+                            break;
+                        }
+                        Some(ch) => inner.push(ch),
+                        None => break,
+                    }
+                }
+                result.push_str(&inner);
+            }
+            // 斜体 *text*
+            '*' => {
+                let mut inner = String::new();
+                loop {
+                    match chars.next() {
+                        Some('*') => break,
+                        Some(ch) => inner.push(ch),
+                        None => break,
+                    }
+                }
+                result.push_str(&inner);
+            }
+            // 粗体 __text__
+            '_' if chars.peek() == Some(&'_') => {
+                chars.next();
+                let mut inner = String::new();
+                loop {
+                    match chars.next() {
+                        Some('_') if chars.peek() == Some(&'_') => {
+                            chars.next();
+                            break;
+                        }
+                        Some(ch) => inner.push(ch),
+                        None => break,
+                    }
+                }
+                result.push_str(&inner);
+            }
+            // 行内代码 `text`
+            '`' => {
+                let mut inner = String::new();
+                loop {
+                    match chars.next() {
+                        Some('`') => break,
+                        Some(ch) => inner.push(ch),
+                        None => break,
+                    }
+                }
+                result.push_str(&inner);
+            }
+            // 表格管道符 | → 空格分隔
+            '|' => {
+                result.push(' ');
+            }
+            _ => result.push(c),
         }
     }
     result
@@ -613,6 +860,7 @@ impl App {
             io::stdout(),
             EnterAlternateScreen,
             crossterm::event::EnableMouseCapture,
+            crossterm::event::EnableBracketedPaste,
         )?;
 
         let backend = CrosstermBackend::new(io::stdout());
@@ -748,13 +996,20 @@ impl App {
             .clone()
     }
 
-    /// 推送一行文本到内容区（自动剥离 ANSI 转义码）
+    /// 推送一行文本到内容区（ANSI 转样式 + Markdown 清理）
     pub fn push_line(&mut self, text: String) {
         // 在添加内容前记住是否在底部（follow-bottom 模式）
         let was_at_bottom = self.at_bottom();
-        let text = strip_ansi(&text);
         for line in text.split('\n') {
-            self.content_lines.push(Line::from(line.to_string()));
+            // 如果包含 ANSI 转义码 → 转换为 ratatui 样式
+            // 否则 → 清理残留的 Markdown 标记
+            let spans = if line.contains("\x1b[") {
+                ansi_to_spans(line)
+            } else {
+                let cleaned = clean_markdown(line);
+                vec![Span::from(cleaned)]
+            };
+            self.content_lines.push(Line::from(spans));
         }
         if was_at_bottom {
             self.scroll_to_bottom();
@@ -779,7 +1034,7 @@ impl App {
         if current_thread_id == target_thread_id {
             self.push_line(text);
         } else {
-            // 当前不在目标线程，追加到目标线程的 messages 缓冲区
+            // 当前不在目标线程，追加到目标线程的 messages 缓冲区（纯文本存储）
             let text = strip_ansi(&text);
             if !text.trim().is_empty() {
                 self.thread.messages.push(
@@ -1612,7 +1867,7 @@ impl App {
                         .map(|line| Line::from(line.as_str()))
                         .collect();
 
-                    let diff_content = Paragraph::new(visible_lines);
+                    let diff_content = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
                     f.render_widget(diff_content, content_render_area);
 
                     // 显示滚动百分比
@@ -1701,14 +1956,14 @@ impl App {
                     })
                     .collect();
 
-                let content = Paragraph::new(visible_lines).scroll((0, 0));
+                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false }).scroll((0, 0));
                 f.render_widget(content, content_render_area);
             } else {
                 // === 正常模式：直接渲染 ===
                 let start = scroll_offset as usize;
                 let end = (start + visible_count).min(total_lines);
                 let visible_lines: Vec<Line> = content_lines[start..end].to_vec();
-                let content = Paragraph::new(visible_lines).scroll((0, 0));
+                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false }).scroll((0, 0));
                 f.render_widget(content, content_render_area);
             }
         } else {
@@ -2214,7 +2469,8 @@ impl App {
         execute!(
             io::stdout(),
             LeaveAlternateScreen,
-            crossterm::event::DisableMouseCapture
+            crossterm::event::DisableMouseCapture,
+            crossterm::event::DisableBracketedPaste
         )?;
         disable_raw_mode()?;
         Ok(())
@@ -2310,6 +2566,11 @@ impl App {
             .on(
                 |e| matches!(e, crossterm::event::Event::Resize(_, _)),
                 ResizeHandler,
+            )
+            // Bracketed Paste 路由（粘贴多行文本作为整体插入）
+            .on(
+                |e| matches!(e, crossterm::event::Event::Paste(_)),
+                PasteHandler,
             )
             // Fallback（忽略其他事件）
             .fallback(IgnoreHandler)

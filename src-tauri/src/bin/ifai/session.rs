@@ -142,6 +142,188 @@ fn format_duration(seconds: f64) -> String {
     }
 }
 
+/// 剥离 Markdown 标记，输出终端友好的纯文本
+///
+/// 处理：标题 `#`/`##`/`###`，代码块围栏 ` ``` `，粗体 `**text**`，
+/// 斜体 `*text*`/`_text_`，行内代码 `` `text` ``，表格分隔行 `|---|`，
+/// 保留段落结构和换行。
+fn strip_markdown(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_code_block = false;
+    let mut chars = s.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        // 代码块围栏检测：```
+        if c == '`' {
+            let mut backtick_count = 1;
+            while chars.peek() == Some(&'`') {
+                chars.next();
+                backtick_count += 1;
+            }
+            if backtick_count >= 3 {
+                in_code_block = !in_code_block;
+                // 跳过围栏后的语言标识（如 ```rust）
+                while let Some(&nc) = chars.peek() {
+                    if nc == '\n' {
+                        break;
+                    }
+                    chars.next();
+                }
+                continue;
+            }
+            // 行内代码 `text`（1-2 个反引号）
+            if !in_code_block && backtick_count <= 2 {
+                // 跳过闭合反引号
+                let mut inner = String::new();
+                while let Some(&nc) = chars.peek() {
+                    if nc == '`' {
+                        let mut close_count = 0;
+                        while chars.peek() == Some(&'`') && close_count < backtick_count {
+                            chars.next();
+                            close_count += 1;
+                        }
+                        break;
+                    }
+                    inner.push(chars.next().unwrap());
+                }
+                result.push_str(&inner);
+                continue;
+            }
+            if in_code_block {
+                for _ in 0..backtick_count {
+                    result.push('`');
+                }
+            }
+            continue;
+        }
+
+        if in_code_block {
+            result.push(c);
+            continue;
+        }
+
+        // 标题标记：行首的 # (1-6 个)
+        if c == '#' {
+            // 检查是否在行首
+            if result.is_empty() || result.ends_with('\n') {
+                let mut hash_count = 1;
+                while chars.peek() == Some(&'#') {
+                    chars.next();
+                    hash_count += 1;
+                }
+                // 跳过标题标记后的空格
+                if chars.peek() == Some(&' ') {
+                    chars.next();
+                }
+                // 直接去掉 # 标记，不加前缀
+                continue;
+            }
+            result.push(c);
+            continue;
+        }
+
+        // 粗体 **text**
+        if c == '*' {
+            if chars.peek() == Some(&'*') {
+                chars.next(); // 消费第二个 *
+                // 收集内容直到遇到 **
+                let mut inner = String::new();
+                loop {
+                    match chars.next() {
+                        Some('*') if chars.peek() == Some(&'*') => {
+                            chars.next(); // 消费闭合 **
+                            break;
+                        }
+                        Some(ch) => inner.push(ch),
+                        None => break,
+                    }
+                }
+                result.push_str(&inner);
+                continue;
+            }
+            // 斜体 *text*
+            let mut inner = String::new();
+            loop {
+                match chars.next() {
+                    Some('*') => break,
+                    Some(ch) => inner.push(ch),
+                    None => break,
+                }
+            }
+            result.push_str(&inner);
+            continue;
+        }
+
+        // 下划线粗体/斜体 __text__ / _text_
+        if c == '_' {
+            if chars.peek() == Some(&'_') {
+                chars.next();
+                let mut inner = String::new();
+                loop {
+                    match chars.next() {
+                        Some('_') if chars.peek() == Some(&'_') => {
+                            chars.next();
+                            break;
+                        }
+                        Some(ch) => inner.push(ch),
+                        None => break,
+                    }
+                }
+                result.push_str(&inner);
+                continue;
+            }
+            let mut inner = String::new();
+            loop {
+                match chars.next() {
+                    Some('_') => break,
+                    Some(ch) => inner.push(ch),
+                    None => break,
+                }
+            }
+            result.push_str(&inner);
+            continue;
+        }
+
+        // 表格分隔行 |---|---|
+        if c == '|' && (result.is_empty() || result.ends_with('\n')) {
+            let rest: String = chars.by_ref().take_while(|&c| c != '\n').collect();
+            if rest.contains("---") {
+                // 表格分隔行，跳过整行
+                result.push('\n');
+                continue;
+            }
+            // 普通表格行，保留但去掉首尾 |
+            let trimmed = rest.trim_end_matches('|').trim();
+            result.push_str(trimmed);
+            result.push('\n');
+            continue;
+        }
+
+        // 水平分割线 --- 或 ***
+        if (c == '-' || c == '*') && (result.is_empty() || result.ends_with('\n')) {
+            let mut dash_count = 1;
+            let same_char = c;
+            while chars.peek() == Some(&same_char) {
+                chars.next();
+                dash_count += 1;
+            }
+            if dash_count >= 3 && (chars.peek() == Some(&'\n') || chars.peek().is_none()) {
+                result.push_str("────────────────────");
+                result.push('\n');
+                continue;
+            }
+            // 不是分割线，恢复
+            for _ in 0..dash_count {
+                result.push(same_char);
+            }
+            continue;
+        }
+
+        result.push(c);
+    }
+    result
+}
+
 /// 格式化工具参数以便友好显示
 fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
     match tool_name {
@@ -1765,6 +1947,9 @@ impl Session {
         let (spec, system_prompt, model, tools_disabled, provider_config, tools) = {
             let mut s = session.lock().await;
 
+            // 每轮新流式响应前重置 Markdown 状态机，杜绝跨轮状态残留
+            s.markdown_state = crate::markdown_stream::MarkdownStreamState::new();
+
             // 注入 per-thread TaskStore
             s.tool_router.set_task_store(task_store.clone());
 
@@ -2407,6 +2592,8 @@ impl Session {
                     // 从最新到最旧查找，避免匹配到之前同名的旧步骤
                     if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name)
                     {
+                        // Agent 工具输出含原始 Markdown，需要清理
+                        let is_agent_tool = name.ends_with("_agent");
                         let status_render = step.status.render_with_theme("zh", &theme, RESET);
                         let args_preview = if step.tool_args.chars().count() > 50 {
                             format!("{}...", step.tool_args.chars().take(47).collect::<String>())
@@ -2434,10 +2621,15 @@ impl Session {
                         match &step.output {
                             crate::pipeline::StepOutput::Empty => {}
                             crate::pipeline::StepOutput::Full { content } => {
+                                let display_content = if is_agent_tool {
+                                    strip_markdown(content)
+                                } else {
+                                    content.clone()
+                                };
                                 let _ = output_tx.send(
                                     format!(
                                         "   ╾ {}",
-                                        content.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                                        display_content.lines().collect::<Vec<_>>().join("\n   ╾ ")
                                     )
                                     .into(),
                                 );
@@ -2446,10 +2638,15 @@ impl Session {
                                 preview,
                                 total_lines,
                             } => {
+                                let display_preview = if is_agent_tool {
+                                    strip_markdown(preview)
+                                } else {
+                                    preview.clone()
+                                };
                                 let _ = output_tx.send(
                                     format!(
                                         "   ╾ {}",
-                                        preview.lines().collect::<Vec<_>>().join("\n   ╾ ")
+                                        display_preview.lines().collect::<Vec<_>>().join("\n   ╾ ")
                                     )
                                     .into(),
                                 );
@@ -2787,6 +2984,7 @@ impl Session {
             );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();
+                let tool_name_for_filter = tool.name.clone();
                 set_global_progress_callback(
                     move |event: ifainew_lib::agent_system::workflow::ProgressEvent| {
                         // 将 ProgressEvent 转换为 TUI 可显示的文本（格式与 /agent explore 一致）
@@ -2838,8 +3036,19 @@ impl Session {
                             }
                             "workflow:completed" => "▸ 工作流完成".to_string(),
                             "content_delta" => {
-                                // 流式文本直接追加
-                                event.content_delta.unwrap_or_default()
+                                // Agent 工具（doc_agent 除外）的 content_delta 是子 Agent 内部推理，
+                                // 静默丢弃以避免污染 TUI
+                                let is_silent_agent = matches!(
+                                    tool_name_for_filter.as_str(),
+                                    "explore_agent" | "review_agent" | "test_agent"
+                                    | "debug_agent" | "refactor_agent"
+                                    | "git_commit_agent" | "plan_agent" | "react_agent"
+                                );
+                                if is_silent_agent {
+                                    String::new() // 静默丢弃
+                                } else {
+                                    event.content_delta.unwrap_or_default()
+                                }
                             }
                             _ => String::new(),
                         };

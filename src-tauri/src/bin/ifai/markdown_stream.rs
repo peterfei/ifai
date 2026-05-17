@@ -409,6 +409,7 @@ impl MarkdownStreamState {
         self.code_lang.clear();
         self.code_buffer.clear();
         self.backtick_count = 0;
+        self.output_buffer.clear();
     }
 
     /// 强制刷新（用于流结束时处理未闭合的代码块）

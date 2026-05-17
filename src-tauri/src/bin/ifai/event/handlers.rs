@@ -309,10 +309,17 @@ impl EventHandler<Event> for CombinedKeyHandler {
             }
 
             // 先处理输入相关的键
+            let prev_input_lines = app.input.line_count();
+            let was_at_bottom = app.at_bottom();
             let action = app.input.handle_key(*key);
             // 输入变化后更新弹出框过滤
             if app.command_popup.is_visible() || app.input.value().starts_with('/') {
                 app.command_popup.update(app.input.value());
+            }
+            // 输入框高度变化时，如果之前在底部，重新滚动到底部
+            let new_input_lines = app.input.line_count();
+            if prev_input_lines != new_input_lines && was_at_bottom {
+                app.scroll_to_bottom();
             }
             match action {
                 InputAction::Submit(text) => {
@@ -920,5 +927,35 @@ mod tests {
             app.scroll_offset,
             bottom_offset
         );
+    }
+}
+
+// ============================================================================
+// 粘贴处理器（Bracketed Paste Mode）
+// ============================================================================
+
+/// 粘贴事件处理器
+///
+/// 终端启用 Bracketed Paste Mode 后，粘贴内容以 `Event::Paste(String)` 形式发送，
+/// 而非被拆分为独立的键盘事件。此处理器将完整文本插入 InputComposer 的 buffer。
+pub struct PasteHandler;
+
+impl EventHandler<Event> for PasteHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if app.is_busy() {
+            return ControlFlow::Continue;
+        }
+        if let Event::Paste(text) = event {
+            if !text.is_empty() {
+                let was_at_bottom = app.at_bottom();
+                app.input.insert_paste(text);
+                if was_at_bottom && text.contains('\n') {
+                    app.scroll_to_bottom();
+                }
+            }
+            ControlFlow::Continue
+        } else {
+            ControlFlow::Continue
+        }
     }
 }

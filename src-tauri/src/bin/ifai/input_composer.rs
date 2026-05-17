@@ -283,6 +283,17 @@ impl InputComposer {
         }
     }
 
+    /// 在光标位置插入粘贴文本（Bracketed Paste Mode）
+    ///
+    /// 将完整文本（含多行）插入 buffer，不触发提交。
+    pub fn insert_paste(&mut self, text: &str) {
+        for c in text.chars() {
+            self.buffer.insert(self.cursor_pos, c);
+            self.cursor_pos += c.len_utf8();
+        }
+        self.history_index = None;
+    }
+
     /// 获取光标所在行号（0-based）
     pub fn cursor_row(&self) -> usize {
         self.buffer[..self.cursor_pos].matches('\n').count()
