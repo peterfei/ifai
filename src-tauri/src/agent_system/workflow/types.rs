@@ -122,7 +122,7 @@ impl WorkflowNode {
 /// 智能体类型
 ///
 /// 支持的智能体类型枚举
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentType {
     /// 代码探索智能体
