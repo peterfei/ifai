@@ -73,10 +73,126 @@ macro_rules! global_agent_registry {
     };
 }
 
+/// 工作流 DSL 宏
+///
+/// 声明式定义 Agent 协作工作流，自动生成 Workflow 结构体。
+///
+/// # 语法
+///
+/// ```rust
+/// workflow! {
+///     name: "workflow_name",
+///     description: "Workflow description",
+///
+///     nodes: [
+///         Explore("node_id"),
+///         Review("another_id"),
+///     ],
+///
+///     edges: [
+///         ("node_id", "another_id"),
+///         ("from", "to", "$.condition > 5"),
+///     ],
+/// }
+/// ```
+///
+/// 注意：边定义使用元组语法，格式为 `(from, to)` 或 `(from, to, condition)`
+#[macro_export]
+macro_rules! workflow {
+    // 完整版本：带 nodes 和 edges（使用元组语法定义边）
+    {
+        name: $name:expr,
+        description: $desc:expr,
+
+        nodes: [
+            $(
+                $agent_type:ident ( $node_id:expr )
+            ),+
+            $(,)?
+        ],
+
+        edges: [
+            $(
+                ( $from:expr, $to:expr $(, $condition:expr )? )
+            ),+
+            $(,)?
+        ],
+    } => {
+        {
+            use crate::agent_system::workflow::types::{Workflow, WorkflowNode, WorkflowEdge, AgentType};
+
+            let mut workflow = Workflow::new(
+                uuid::Uuid::new_v4().to_string(),
+                $name
+            );
+            workflow.description = $desc.to_string();
+
+            // 添加节点
+            $(
+                workflow.add_node(
+                    WorkflowNode::new(
+                        $node_id,
+                        AgentType::$agent_type
+                    )
+                );
+            )+
+
+            // 添加边
+            $(
+                workflow.add_edge(
+                    WorkflowEdge::new($from, $to)
+                    $(
+                        .with_condition($condition)
+                    )?
+                );
+            )+
+
+            workflow
+        }
+    };
+
+    // 最简版本：仅 nodes，无 edges
+    {
+        name: $name:expr,
+        description: $desc:expr,
+
+        nodes: [
+            $(
+                $agent_type:ident ( $node_id:expr )
+            ),+
+            $(,)?
+        ],
+
+        edges: [],
+    } => {
+        {
+            use crate::agent_system::workflow::types::{Workflow, WorkflowNode, AgentType};
+
+            let mut workflow = Workflow::new(
+                uuid::Uuid::new_v4().to_string(),
+                $name
+            );
+            workflow.description = $desc.to_string();
+
+            $(
+                workflow.add_node(
+                    WorkflowNode::new(
+                        $node_id,
+                        AgentType::$agent_type
+                    )
+                );
+            )+
+
+            workflow
+        }
+    };
+}
+
 // 测试模块
 #[cfg(test)]
 mod tests {
     include!("tests/registry_tests.rs");
+    include!("tests/workflow_tests.rs");
 }
 
 // 重新导出常用类型
