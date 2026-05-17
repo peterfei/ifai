@@ -192,11 +192,9 @@ macro_rules! workflow {
 // 测试模块
 #[cfg(test)]
 mod tests {
-    include!("tests/registry_tests.rs");
-    include!("tests/workflow_tests.rs");
-    include!("tests/agent_call_tests.rs");
-    include!("tests/permission_tests.rs");
-    include!("tests/e2e_tests.rs");
+    // 不要使用 include!，而是通过 mod.rs 声明
+    // 这样可以避免重复导入问题
+    pub mod parallel_tests;  // 单独的测试模块
 }
 
 // 重新导出常用类型

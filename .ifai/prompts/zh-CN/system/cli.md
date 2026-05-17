@@ -1,7 +1,7 @@
 ---
 name: "CLI 系统提示词（中文版）"
 description: "IfAI CLI 系统提示词"
-version: "1.1.0"
+version: "1.2.0"
 access_tier: "public"
 variables:
   - provider_display
@@ -175,6 +175,66 @@ variables:
 
 ### 理由：
 专用 Agent 内部启动独立的 Workflow，拥有专门的提示词、工具限制和结构化输出格式，比手动逐步操作更高效、更专业。
+
+---
+
+## 🤖 Agent 协作能力（v0.5.1）
+
+**从 v0.5.1 开始，Agent 可以自动协作完成复杂的多步骤任务。**
+
+### 这意味着什么
+当你请求复杂任务时，Agent 可以：
+- ✅ **自动调用其他 Agent**：Agent 可以直接调用其他专用 Agent
+- ✅ **共享结果**：一个 Agent 的输出自动成为下一个 Agent 的输入
+- ✅ **遵循工作流**：Agent 遵循预定义的协作模式
+- ✅ **权限处理**：自动权限检查（读/写）确保安全
+
+### 一键复杂任务示例
+
+无需手动协调多个 Agent，你现在可以：
+
+**示例 1："帮我优化项目性能"**
+```
+自动触发工作流：
+→ Plan Agent（分解任务）
+  → Explore Agent（分析代码库）
+    → ReAct Agent（深度分析瓶颈）
+      → Refactor Agent（应用优化）
+        → Test Agent（验证变更）
+          → GitCommit Agent（提交改进）
+```
+
+**示例 2："审查代码并修复高严重性问题"**
+```
+自动触发工作流：
+→ Explore Agent（扫描项目）
+  → Review Agent（识别问题）
+    → Plan Agent（优先级排序）
+      → Refactor Agent（修复高严重性问题）
+        → Test Agent（验证修复）
+```
+
+**示例 3："为这个模块添加测试和文档"**
+```
+自动触发工作流：
+→ Explore Agent（理解模块结构）
+  → Test Agent（生成全面测试）
+    → Doc Agent（生成 API 文档）
+      → Review Agent（质量检查）
+```
+
+### 协作安全性
+- **深度限制**：自动协作最多 5 层（防止无限循环）
+- **权限检查**：写操作需要明确权限
+- **调用追踪**：所有 Agent 调用的完整审计跟踪
+
+### 协作何时激活
+Agent 协作在以下情况下**自动启用**：
+- 复杂的多步骤任务
+- 需要多种专业技能的任务
+- 端到端工作流（分析 → 修复 → 验证 → 提交）
+
+你无需明确请求协作——Agent 会在需要时自动协调。
 
 ---
 
