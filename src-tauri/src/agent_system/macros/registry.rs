@@ -3,8 +3,31 @@
 // 全局 Agent 注册表，支持 Agent 互调用和调用链追踪。
 
 use crate::agent_system::workflow::types::AgentType;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashSet;
+use thiserror::Error;
+
+/// Agent 互调用错误
+#[derive(Debug, Error)]
+pub enum AgentCallError {
+    #[error("Agent {0:?} 未注册")]
+    AgentNotRegistered(AgentType),
+
+    #[error("调用深度超限: 当前深度 {depth}, 最大深度 {max}")]
+    MaxDepthExceeded { depth: usize, max: usize },
+
+    #[error("Agent 执行失败: {0}")]
+    ExecutionFailed(String),
+
+    #[error("权限不足: 需要 {required:?}, 当前 {current:?}")]
+    PermissionDenied {
+        required: String,
+        current: String,
+    },
+}
+
+/// Agent 调用结果
+pub type AgentCallResult = Result<Value, AgentCallError>;
 
 /// 全局 Agent 注册表（单例）
 #[derive(Debug)]
@@ -38,7 +61,96 @@ impl AgentRegistry {
     pub fn has_agent(&self, agent_type: &AgentType) -> bool {
         self.agents.contains(agent_type)
     }
+
+    /// 调用指定 Agent（核心互调用方法）
+    ///
+    /// # 参数
+    ///
+    /// * `agent_type` - 要调用的 Agent 类型
+    /// * `input` - 输入数据（JSON）
+    /// * `ctx` - 调用上下文
+    ///
+    /// # 返回
+    ///
+    /// Agent 执行结果（JSON）
+    pub fn call(
+        &self,
+        agent_type: AgentType,
+        input: Value,
+        ctx: &mut CallContext,
+    ) -> AgentCallResult {
+        // 检查 Agent 是否已注册
+        if !self.has_agent(&agent_type) {
+            return Err(AgentCallError::AgentNotRegistered(agent_type));
+        }
+
+        // 检查调用深度
+        if ctx.is_at_max_depth() {
+            return Err(AgentCallError::MaxDepthExceeded {
+                depth: ctx.depth(),
+                max: ctx.max_depth,
+            });
+        }
+
+        // 增加调用深度
+        ctx.increment_depth();
+        ctx.chain.push_call(agent_type.clone());
+
+        // TODO: 实际执行 Agent
+        // 这里需要集成现有的 Agent 执行逻辑
+        // 暂时返回模拟结果
+        let agent_name = format!("{:?}", agent_type);
+        Ok(json!({
+            "agent": agent_name,
+            "input": input,
+            "depth": ctx.depth(),
+        }))
+
+        // 实际实现应该是：
+        // let task = extract_task_from_input(&input)?;
+        // let output = execute_agent_sync(agent_type, &task)?;
+        // ctx.decrement_depth();
+        // Ok(serde_json::from_str(&output)?)
+    }
 }
+
+/// Agent 调用者 trait
+///
+/// 所有需要调用其他 Agent 的类型都应该实现此 trait
+pub trait AgentCaller {
+    /// 调用其他 Agent
+    ///
+    /// # 参数
+    ///
+    /// * `target` - 目标 Agent 类型
+    /// * `input` - 输入数据（JSON）
+    /// * `ctx` - 调用上下文
+    ///
+    /// # 返回
+    ///
+    /// Agent 执行结果（JSON）
+    fn call_agent(
+        &mut self,
+        target: AgentType,
+        input: Value,
+        ctx: &mut CallContext,
+    ) -> AgentCallResult {
+        // 默认实现：通过全局注册表调用
+        AgentRegistry::global().call(target, input, ctx)
+    }
+}
+
+// 为所有 ToolExecutor 实现 AgentCaller（blanket impl）
+impl<T: ToolExecutor> AgentCaller for T {
+    // 使用默认实现
+}
+
+// ToolExecutor trait 的前向声明
+#[cfg(not(feature = "commercial"))]
+use crate::harness::tool::ToolExecutor;
+
+#[cfg(feature = "commercial")]
+use crate::harness::tool::ToolExecutor;
 
 /// Agent 调用上下文
 #[derive(Debug, Clone)]
@@ -73,10 +185,20 @@ impl CallContext {
         self.depth
     }
 
+    /// 获取最大深度
+    pub fn max_depth(&self) -> usize {
+        self.max_depth
+    }
+
+    /// 获取调用链
+    pub fn call_chain(&self) -> &CallChain {
+        &self.chain
+    }
+
     /// 增加深度
     pub fn increment_depth(&mut self) {
         self.depth += 1;
-        self.chain.push_call(AgentType::ReAct); // 测试用，实际应该从外部传入
+        // 注意：不在这里调用 chain.push_call，由 AgentRegistry.call() 负责
     }
 
     /// 减少深度
