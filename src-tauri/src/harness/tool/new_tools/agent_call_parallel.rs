@@ -95,21 +95,18 @@ impl ToolLike for AgentCallParallelTool {
         }
 
         // 3. 并行调用 Agent
+        // 注意：需要在独立的 runtime 中执行，避免与现有 tokio runtime 冲突
         let registry = AgentRegistry::global();
         let mut call_ctx = CallContext::new();
 
-        // 使用 spawn_blocking 在独立的线程池中运行 async 操作
-        // 这可以避免在已有的 tokio runtime 上下文中使用 block_on() 导致的 panic
-        let results = tokio::task::spawn_blocking(move || {
-            // 创建独立的 runtime 用于并行调用
-            let rt = tokio::runtime::Runtime::new()
-                .expect("Failed to create tokio runtime for parallel agent calls");
+        // 创建独立的 runtime 用于并行调用
+        // 这是在同步函数中调用 async 代码的正确方式
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| ToolError::Execution(format!("无法创建 tokio runtime: {}", e)))?;
 
-            rt.block_on(async {
-                registry.call_parallel_async(calls, &mut call_ctx).await
-            })
-        }).await
-        .map_err(|e| ToolError::Execution(format!("并行 Agent 调用任务失败: {}", e)))?;
+        let results = rt.block_on(async {
+            registry.call_parallel_async(calls, &mut call_ctx).await
+        });
 
         // 4. 格式化结果
         let formatted = format_parallel_results(&results);
