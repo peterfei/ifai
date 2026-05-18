@@ -157,6 +157,21 @@
       "pathRiskRules": []
     },
     {
+      "name": "call_agent_parallel",
+      "aliases": [
+        "call_agent_parallel",
+        "agent_parallel",
+        "parallel_agents"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 100,
+      "pathRiskRules": []
+    },
+    {
       "name": "complexity_analyzer",
       "aliases": [
         "complexity_analyzer",
