@@ -196,6 +196,7 @@ mod tests {
     // 这样可以避免重复导入问题
     pub mod parallel_tests;   // 单独的测试模块
     pub mod parallel_bench;   // 性能基准测试
+    pub mod agent_bridge_integration_tests;  // Phase 0.1.1: Agent 互调用桥接集成测试
 }
 
 // 重新导出常用类型

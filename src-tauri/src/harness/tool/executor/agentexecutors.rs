@@ -154,8 +154,10 @@ fn build_agent_workflow(agent_type: AgentType, task: &str) -> Workflow {
     }
 }
 
-/// 执行 agent 并返回结果
-fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolError> {
+/// 🔥 Phase 0.1.1: 执行 agent 并返回结果（公开函数）
+///
+/// 此函数被 AgentRegistry::call() 调用，用于实现 Agent 互调用
+pub fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolError> {
     wf_log!("[AgentExecutor] 🚀 execute_agent_sync() - agent_type={:?}, task={}", agent_type, task);
 
     // 设置 task_description 到节点 config 和 workflow variables
