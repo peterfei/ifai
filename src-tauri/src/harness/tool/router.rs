@@ -14,6 +14,8 @@ use super::{
     },
     new_tools::{
         PingTool, PingToolAdapter, ReadFileTool, ReadFileAdapter, WriteFileTool, WriteFileAdapter, EditFileTool, EditFileAdapter, WebSearchTool, WebSearchAdapter, CachedWebSearchAdapter, BochaConfig, SearchCache, GitDiffTool, GitDiffAdapter, GitStatusTool, GitStatusAdapter, GitSnapshotTool, GitSnapshotAdapter, GitCommitTool, GitCommitAdapter, SecretScannerTool, SecretScannerAdapter, ComplexityAnalyzer, ComplexityAnalyzerAdapter, AgentCallParallelTool, AgentCallParallelAdapter,
+        // Phase 3: 协作工具
+        AggregateResultsTool, AggregateResultsAdapter, ShareKnowledgeTool, ShareKnowledgeAdapter, MonitorProgressTool, MonitorProgressAdapter,
     },
     ToolError,
 };
@@ -199,6 +201,19 @@ impl ToolRouter {
         let git_commit_adapter = GitCommitAdapter::new(git_commit_tool, "git_commit".to_string());
         executors.insert("git_commit".to_string(), Box::new(git_commit_adapter));
 
+        // 🆕 Phase 3: 注册协作工具
+        let aggregate_results_tool = AggregateResultsTool;
+        let aggregate_results_adapter = AggregateResultsAdapter::new(aggregate_results_tool, "aggregate_results".to_string());
+        executors.insert("aggregate_results".to_string(), Box::new(aggregate_results_adapter));
+
+        let share_knowledge_tool = ShareKnowledgeTool;
+        let share_knowledge_adapter = ShareKnowledgeAdapter::new(share_knowledge_tool, "share_knowledge".to_string());
+        executors.insert("share_knowledge".to_string(), Box::new(share_knowledge_adapter));
+
+        let monitor_progress_tool = MonitorProgressTool;
+        let monitor_progress_adapter = MonitorProgressAdapter::new(monitor_progress_tool, "monitor_progress".to_string());
+        executors.insert("monitor_progress".to_string(), Box::new(monitor_progress_adapter));
+
         Self {
             executors: Mutex::new(executors),
         }
@@ -287,6 +302,11 @@ mod tests {
 
         // Phase 6D: ReAct Agent
         assert!(tools.contains(&"react_agent".to_string()));
+
+        // Phase 3: 协作工具
+        assert!(tools.contains(&"aggregate_results".to_string()));
+        assert!(tools.contains(&"share_knowledge".to_string()));
+        assert!(tools.contains(&"monitor_progress".to_string()));
     }
 
     #[test]

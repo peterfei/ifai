@@ -19,6 +19,10 @@ pub mod git_snapshot;
 pub mod git_commit;
 pub mod secret_scanner;
 pub mod agent_call_parallel;
+// Phase 3: 协作工具
+pub mod aggregate_results;
+pub mod share_knowledge;
+pub mod monitor_progress;
 
 #[cfg(test)]
 mod integration_test;
@@ -44,6 +48,10 @@ pub use git_commit::{GitCommitTool, GitCommitOutput, GitCommitError};
 pub use secret_scanner::{SecretScannerTool, SecretScanOutput, SecretScanError, SecretFinding};
 pub use complexity_analyzer::{ComplexityAnalyzer, ComplexityReport, ComplexityError, FunctionComplexity};
 pub use agent_call_parallel::{AgentCallParallelTool};
-pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter, GitDiffAdapter, GitStatusAdapter, GitSnapshotAdapter, GitCommitAdapter, SecretScannerAdapter, ComplexityAnalyzerAdapter, AgentCallParallelAdapter};
+// Phase 3: 协作工具导出
+pub use aggregate_results::AggregateResultsTool;
+pub use share_knowledge::ShareKnowledgeTool;
+pub use monitor_progress::MonitorProgressTool;
+pub use adapter::{ToolLike, MacroToolAdapter, PingToolAdapter, ReadFileAdapter, WriteFileAdapter, EditFileAdapter, WebSearchAdapter, GitDiffAdapter, GitStatusAdapter, GitSnapshotAdapter, GitCommitAdapter, SecretScannerAdapter, ComplexityAnalyzerAdapter, AgentCallParallelAdapter, AggregateResultsAdapter, ShareKnowledgeAdapter, MonitorProgressAdapter};
 pub use cache::{SearchCache, CacheStats};
 pub use cached_adapter::CachedWebSearchAdapter;
