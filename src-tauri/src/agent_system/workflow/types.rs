@@ -242,6 +242,7 @@ impl AgentType {
     /// - `None`: 纯计算类 Agent（Plan, TaskBreakdown）
     /// - `WorkspaceRead`: 只读操作（Explore, Review, Doc, WebSearch）
     /// - `WorkspaceWrite`: 修改操作（Refactor, Test, GitCommit, Debug）
+    #[cfg(feature = "commercial")]
     pub fn required_permission(&self) -> crate::agent_system::macros::PermissionLevel {
         use crate::agent_system::macros::PermissionLevel;
 

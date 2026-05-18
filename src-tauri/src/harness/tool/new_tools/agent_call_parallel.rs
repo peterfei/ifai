@@ -3,6 +3,7 @@
 //! 让 LLM 可以并行调用多个 Agent
 
 use crate::agent_system::workflow::types::AgentType;
+#[cfg(feature = "commercial")]
 use crate::agent_system::macros::{AgentRegistry, CallContext};
 use crate::harness::tool::ToolError;
 use serde_json::{json, Value};
@@ -53,6 +54,7 @@ impl ToolLike for AgentCallParallelTool {
         })
     }
 
+    #[cfg(feature = "commercial")]
     fn execute_tool(&self, args: &Value) -> Result<String, ToolError> {
         // 1. 解析参数
         let calls_array = args["calls"]
@@ -109,6 +111,13 @@ impl ToolLike for AgentCallParallelTool {
 
         Ok(formatted)
     }
+
+    #[cfg(not(feature = "commercial"))]
+    fn execute_tool(&self, _args: &Value) -> Result<String, ToolError> {
+        Err(ToolError::InvalidInput(
+            "call_agent_parallel 工具需要 commercial feature".to_string()
+        ))
+    }
 }
 
 /// 解析 Agent 类型字符串
@@ -128,6 +137,7 @@ fn parse_agent_type(s: &str) -> Result<AgentType, ToolError> {
 }
 
 /// 格式化并行调用结果
+#[cfg(feature = "commercial")]
 fn format_parallel_results(
     results: &[(AgentType, Result<Value, crate::agent_system::macros::AgentCallError>)],
 ) -> String {
