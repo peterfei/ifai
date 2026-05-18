@@ -133,4 +133,82 @@ mod tests {
         assert!(json_str.contains("\"type\":\"Broadcast\""));
         assert!(json_str.contains("\"content\":"));
     }
+
+    // Phase 2: 协作节点测试
+
+    /// 测试 9: 验证 Parallel 节点创建
+    #[test]
+    fn test_collab_node_parallel() {
+        use crate::agent_system::workflow::types::{WorkflowNode, AgentType};
+        use crate::collab_node;
+
+        let node = collab_node!(Parallel, "parallel_test", [Review, Test]);
+
+        assert_eq!(node.id, "parallel_test");
+        assert_eq!(node.agent_type, AgentType::Parallel);
+
+        // 验证 agents 配置
+        let agents = node.config.custom_params.get("agents").unwrap();
+        let agents_array = agents.as_array().unwrap();
+        assert_eq!(agents_array.len(), 2);
+        assert_eq!(agents_array[0], "review");
+        assert_eq!(agents_array[1], "test");
+    }
+
+    /// 测试 10: 验证 Diamond 节点创建
+    #[test]
+    fn test_collab_node_diamond() {
+        use crate::agent_system::workflow::types::{WorkflowNode, AgentType};
+        use crate::collab_node;
+
+        let node = collab_node!(Diamond, "diamond_test", [Review, Refactor]);
+
+        assert_eq!(node.id, "diamond_test");
+        assert_eq!(node.agent_type, AgentType::Diamond);
+
+        let agents = node.config.custom_params.get("agents").unwrap();
+        let agents_array = agents.as_array().unwrap();
+        assert_eq!(agents_array[0], "review");
+        assert_eq!(agents_array[1], "refactor");
+    }
+
+    /// 测试 11: 验证 KnowledgeChain 节点创建
+    #[test]
+    fn test_collab_node_knowledge_chain() {
+        use crate::agent_system::workflow::types::{WorkflowNode, AgentType};
+        use crate::collab_node;
+
+        let node = collab_node!(KnowledgeChain, "chain_test", [Review, Refactor, Test]);
+
+        assert_eq!(node.id, "chain_test");
+        assert_eq!(node.agent_type, AgentType::KnowledgeChain);
+
+        let agents = node.config.custom_params.get("agents").unwrap();
+        let agents_array = agents.as_array().unwrap();
+        assert_eq!(agents_array.len(), 3);
+    }
+
+    /// 测试 12: 验证协作 workflow 创建
+    #[test]
+    fn test_collaboration_workflow() {
+        use crate::agent_system::workflow::types::{Workflow, WorkflowNode, AgentType};
+        use crate::{workflow, collab_node};
+
+        let workflow: Workflow = workflow! {
+            name: "collab_workflow",
+            description: "协作工作流测试",
+
+            nodes: [
+                WorkflowNode::new("explore", AgentType::Explore),
+                collab_node!(Parallel, "parallel", [Review, Test]),
+            ],
+
+            edges: [
+                ("explore", "parallel"),
+            ],
+        };
+
+        assert_eq!(workflow.nodes.len(), 2);
+        assert_eq!(workflow.nodes[1].agent_type, AgentType::Parallel);
+    }
 }

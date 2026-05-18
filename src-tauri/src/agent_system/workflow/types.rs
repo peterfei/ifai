@@ -184,6 +184,32 @@ pub enum AgentType {
 
     /// 通用智能体
     GeneralPurpose,
+
+    // Phase 2: 协作模式智能体类型
+    //
+    // 这些不是真正的智能体，而是协作模式的语法糖
+    // 在 workflow! 宏中使用，展开时会转换为多个智能体节点
+
+    /// 并行执行模式
+    ///
+    /// 在 workflow! 中使用：`Parallel("node_id", [Review, Test])`
+    /// 展开为多个并行执行的智能体节点
+    /// custom_params 中存储：`agents: ["review", "test"]`
+    Parallel,
+
+    /// 菱形协作模式
+    ///
+    /// 在 workflow! 中使用：`Diamond("node_id", [Review, Refactor])`
+    /// 展开为：split → (Review || Refactor) → merge
+    /// custom_params 中存储：`agents: ["review", "refactor"]`
+    Diamond,
+
+    /// 知识共享链模式
+    ///
+    /// 在 workflow! 中使用：`KnowledgeChain("node_id", [Review, Refactor, Test])`
+    /// 展开为串行执行，每个节点共享前一个节点的知识
+    /// custom_params 中存储：`agents: ["review", "refactor", "test"]`
+    KnowledgeChain,
 }
 
 impl AgentType {
@@ -202,6 +228,10 @@ impl AgentType {
             AgentType::GitCommit => "git_commit",
             AgentType::ReAct => "react",
             AgentType::GeneralPurpose => "general_purpose",
+            // Phase 2: 协作模式
+            AgentType::Parallel => "parallel",
+            AgentType::Diamond => "diamond",
+            AgentType::KnowledgeChain => "knowledge_chain",
         }
     }
 
@@ -233,6 +263,12 @@ impl AgentType {
             AgentType::Test |
             AgentType::GitCommit |
             AgentType::Debug => PermissionLevel::WorkspaceWrite,
+
+            // Phase 2: 协作模式 - 取决于包含的 Agent
+            // 使用最大权限确保安全性
+            AgentType::Parallel |
+            AgentType::Diamond |
+            AgentType::KnowledgeChain => PermissionLevel::WorkspaceWrite,
         }
     }
 }

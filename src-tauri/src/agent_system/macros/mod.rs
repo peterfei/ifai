@@ -83,6 +83,8 @@ macro_rules! global_agent_registry {
 ///
 /// # 语法
 ///
+/// ## 基础语法
+///
 /// ```rust
 /// workflow! {
 ///     name: "workflow_name",
@@ -100,10 +102,116 @@ macro_rules! global_agent_registry {
 /// }
 /// ```
 ///
+/// ## 协作模式语法（Phase 2）
+///
+/// ### Parallel - 并行执行
+/// ```rust
+/// workflow! {
+///     name: "parallel_review",
+///     description: "并行审查工作流",
+///
+///     nodes: [
+///         Explore("explore"),
+///         Parallel("parallel_review", [Review, Test]),
+///     ],
+///
+///     edges: [
+///         ("explore", "parallel_review"),
+///     ],
+/// }
+/// ```
+/// 展开为：`parallel_review_0` (Review) 和 `parallel_review_1` (Test) 两个并行节点
+///
+/// ### Diamond - 菱形协作
+/// ```rust
+/// workflow! {
+///     name: "diamond_workflow",
+///     description: "菱形协作工作流",
+///
+///     nodes: [
+///         Explore("split"),
+///         Diamond("diamond", [Review, Refactor]),
+///         Test("merge"),
+///     ],
+///
+///     edges: [
+///         ("split", "diamond"),
+///         ("diamond", "merge"),
+///     ],
+/// }
+/// ```
+/// 展开为：split → (Review || Refactor) → merge
+///
+/// ### KnowledgeChain - 知识共享链
+/// ```rust
+/// workflow! {
+///     name: "knowledge_chain",
+///     description: "知识共享链工作流",
+///
+///     nodes: [
+///         Explore("explore"),
+///         KnowledgeChain("chain", [Review, Refactor, Test]),
+///     ],
+///
+///     edges: [
+///         ("explore", "chain"),
+///     ],
+/// }
+/// ```
+/// 展开为：explore → Review → Refactor → Test（串行，带知识共享）
+///
 /// 注意：边定义使用元组语法，格式为 `(from, to)` 或 `(from, to, condition)`
 #[macro_export]
 macro_rules! workflow {
-    // 完整版本：带 nodes 和 edges（使用元组语法定义边）
+    // Phase 2: 混合节点版本（普通节点 + 协作节点）
+    // 使用表达式形式的节点，支持 WorkflowNode 或 collab_node!()
+    {
+        name: $name:expr,
+        description: $desc:expr,
+
+        nodes: [
+            $(
+                $node_expr:expr
+            ),+
+            $(,)?
+        ],
+
+        edges: [
+            $(
+                ( $from:expr, $to:expr $(, $condition:expr )? )
+            ),+
+            $(,)?
+        ],
+    } => {
+        {
+            use crate::agent_system::workflow::types::{Workflow, WorkflowEdge};
+
+            let mut workflow = Workflow::new(
+                uuid::Uuid::new_v4().to_string(),
+                $name
+            );
+            workflow.description = $desc.to_string();
+
+            // 添加节点（支持表达式形式的节点）
+            $(
+                workflow.add_node($node_expr);
+            )+
+
+            // 添加边
+            $(
+                workflow.add_edge(
+                    WorkflowEdge::new($from, $to)
+                    $(
+                        .with_condition($condition)
+                    )?
+                );
+            )+
+
+            workflow
+        }
+    };
+
+    // 完整版本：带 nodes 和 edges（使用元组语法定义边）- 旧版本保持兼容
     {
         name: $name:expr,
         description: $desc:expr,
@@ -155,6 +263,37 @@ macro_rules! workflow {
         }
     };
 
+    // Phase 2: 混合节点最简版本（仅 nodes，无 edges）
+    {
+        name: $name:expr,
+        description: $desc:expr,
+
+        nodes: [
+            $(
+                $node_expr:expr
+            ),+
+            $(,)?
+        ],
+
+        edges: [],
+    } => {
+        {
+            use crate::agent_system::workflow::types::Workflow;
+
+            let mut workflow = Workflow::new(
+                uuid::Uuid::new_v4().to_string(),
+                $name
+            );
+            workflow.description = $desc.to_string();
+
+            $(
+                workflow.add_node($node_expr);
+            )+
+
+            workflow
+        }
+    };
+
     // 最简版本：仅 nodes，无 edges
     {
         name: $name:expr,
@@ -190,6 +329,55 @@ macro_rules! workflow {
             workflow
         }
     };
+}
+
+/// 协作节点辅助宏（Phase 2）
+///
+/// 用于在 workflow! 中定义协作节点
+///
+/// # 语法
+///
+/// ```rust
+/// collab_node!(Parallel, "node_id", [Review, Test])
+/// collab_node!(Diamond, "node_id", [Review, Refactor])
+/// collab_node!(KnowledgeChain, "node_id", [Review, Refactor, Test])
+/// ```
+///
+/// 展开为包含协作 Agent 列表的 WorkflowNode
+#[macro_export]
+macro_rules! collab_node {
+    // Parallel 节点
+    (Parallel, $node_id:expr, [$($agent:ident),+ $(,)?]) => {{
+        use crate::agent_system::workflow::types::{WorkflowNode, AgentType};
+        use serde_json::json;
+
+        let agents = vec![$(stringify!($agent).to_lowercase()),+];
+        let mut node = WorkflowNode::new($node_id, AgentType::Parallel);
+        node.config.custom_params.insert("agents".to_string(), json!(agents));
+        node
+    }};
+
+    // Diamond 节点
+    (Diamond, $node_id:expr, [$($agent:ident),+ $(,)?]) => {{
+        use crate::agent_system::workflow::types::{WorkflowNode, AgentType};
+        use serde_json::json;
+
+        let agents = vec![$(stringify!($agent).to_lowercase()),+];
+        let mut node = WorkflowNode::new($node_id, AgentType::Diamond);
+        node.config.custom_params.insert("agents".to_string(), json!(agents));
+        node
+    }};
+
+    // KnowledgeChain 节点
+    (KnowledgeChain, $node_id:expr, [$($agent:ident),+ $(,)?]) => {{
+        use crate::agent_system::workflow::types::{WorkflowNode, AgentType};
+        use serde_json::json;
+
+        let agents = vec![$(stringify!($agent).to_lowercase()),+];
+        let mut node = WorkflowNode::new($node_id, AgentType::KnowledgeChain);
+        node.config.custom_params.insert("agents".to_string(), json!(agents));
+        node
+    }};
 }
 
 // 测试模块
