@@ -8,6 +8,12 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use thiserror::Error;
 
+// 🔥 Phase 0.1.1: 导入 Agent 执行函数（仅当 commercial feature 启用时）
+#[cfg(feature = "commercial")]
+use crate::harness::tool::executor::agentexecutors::execute_agent_sync;
+#[cfg(feature = "commercial")]
+use crate::harness::tool::ToolError;
+
 /// Agent 互调用错误
 #[derive(Debug, Error)]
 pub enum AgentCallError {
@@ -100,21 +106,37 @@ impl AgentRegistry {
         ctx.increment_depth();
         ctx.chain.push_call(agent_type.clone());
 
-        // TODO: 实际执行 Agent
-        // 这里需要集成现有的 Agent 执行逻辑
-        // 暂时返回模拟结果
-        let agent_name = format!("{:?}", agent_type);
-        Ok(json!({
-            "agent": agent_name,
-            "input": input,
-            "depth": ctx.depth(),
-        }))
+        // 🔥 Phase 0.1.1: 集成真实的 Agent 执行逻辑
+        #[cfg(feature = "commercial")]
+        {
+            // 从 input 中提取任务描述
+            let task_description = extract_task_from_input(&input)?;
 
-        // 实际实现应该是：
-        // let task = extract_task_from_input(&input)?;
-        // let output = execute_agent_sync(agent_type, &task)?;
-        // ctx.decrement_depth();
-        // Ok(serde_json::from_str(&output)?)
+            // 调用实际的 Agent 执行器
+            let output = execute_agent_sync(agent_type.clone(), &task_description)
+                .map_err(|e| AgentCallError::ExecutionFailed(e.to_string()))?;
+
+            // 减少调用深度（调用完成）
+            ctx.decrement_depth();
+
+            // 尝试将输出解析为 JSON，如果失败则返回字符串
+            let output_json: Value = serde_json::from_str(&output)
+                .unwrap_or_else(|_| json!({ "output": output }));
+
+            Ok(output_json)
+        }
+
+        // ❌ 非 commercial feature：继续使用模拟实现
+        #[cfg(not(feature = "commercial"))]
+        {
+            let agent_name = format!("{:?}", agent_type);
+            Ok(json!({
+                "agent": agent_name,
+                "input": input,
+                "depth": ctx.depth(),
+                "note": "模拟实现（启用 commercial feature 以使用真实 Agent 执行）"
+            }))
+        }
     }
 
     /// 🔥 Phase 2.5: 并行调用多个 Agent
@@ -480,4 +502,27 @@ impl CallChain {
     pub fn is_at_max_depth(&self, max: usize) -> bool {
         self.calls.len() >= max
     }
+}
+
+/// 🔥 Phase 0.1.1: 从输入 JSON 中提取任务描述
+///
+/// 支持不同的 Agent 类型输入格式：
+/// - Explore/Refactor/Test/Doc: `{"task": "..."}`
+/// - Review: `{"files": [...], ...}`
+/// - 其他: 将整个 JSON 序列化为字符串
+fn extract_task_from_input(input: &Value) -> Result<String, AgentCallError> {
+    // 优先尝试提取 "task" 字段
+    if let Some(task) = input.get("task").and_then(|v| v.as_str()) {
+        return Ok(task.to_string());
+    }
+
+    // 尝试提取其他特定字段
+    if let Some(files) = input.get("files") {
+        // Review Agent 的 files 字段
+        return Ok(format!("审查文件: {}", files));
+    }
+
+    // 如果没有特定字段，将整个 JSON 序列化为字符串
+    serde_json::to_string(input)
+        .map_err(|e| AgentCallError::ExecutionFailed(format!("输入序列化失败: {}", e)))
 }
