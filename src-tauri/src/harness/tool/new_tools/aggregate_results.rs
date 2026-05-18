@@ -68,18 +68,33 @@ impl ToolLike for AggregateResultsTool {
 impl AggregateResultsTool {
     /// 合并所有结果
     fn merge_results(&self, results: &[Value]) -> Result<String, ToolError> {
-        let merged: Vec<String> = results.iter()
-            .enumerate()
-            .map(|(i, r)| format!("结果 {}:\n{}", i + 1, r.as_str().unwrap_or("")))
-            .collect();
+        let mut output = String::new();
+        output.push_str("结果聚合\n");
+        output.push_str(&format!("├─ 策略: merge\n"));
+        output.push_str(&format!("├─ 数量: {} 个结果\n\n", results.len()));
 
-        Ok(merged.join("\n\n---\n\n"))
+        for (i, result) in results.iter().enumerate() {
+            let is_last = i == results.len() - 1;
+            let prefix = if is_last { "└─" } else { "├─" };
+
+            if let Some(text) = result.as_str() {
+                let preview = if text.len() > 80 {
+                    format!("{}...", &text[..80])
+                } else {
+                    text.to_string()
+                };
+                output.push_str(&format!("{} 结果 {}: {}\n", prefix, i + 1, preview));
+            }
+        }
+
+        output.push_str(&format!("\n✔ Done · {} 个结果已合并\n", results.len()));
+        Ok(output)
     }
 
     /// 多数投票
     fn vote_results(&self, results: &[Value]) -> Result<String, ToolError> {
         if results.is_empty() {
-            return Ok("没有结果可供投票".to_string());
+            return Ok("结果聚合\n└─ 策略: vote\n\n✔ Done · 0 个结果\n".to_string());
         }
 
         // 统计每个结果的出现次数
@@ -94,28 +109,66 @@ impl AggregateResultsTool {
         // 找出出现次数最多的结果
         let most_common = counts.into_iter()
             .max_by_key(|(_, count)| *count)
-            .map(|(result, _)| result)
-            .unwrap_or_else(|| "没有有效结果".to_string());
+            .map(|(result, count)| (result, count, results.len()));
 
-        Ok(format!("投票结果（多数）:\n{}", most_common))
+        let mut output = String::new();
+        output.push_str("结果聚合\n");
+        output.push_str("├─ 策略: vote (多数投票)\n");
+
+        if let Some((result, count, total)) = most_common {
+            let percentage = (count as f64 / total as f64 * 100.0) as u32;
+            output.push_str(&format!("├─ 投票率: {} / {} ({}%)\n", count, total, percentage));
+
+            let preview = if result.len() > 80 {
+                format!("{}...", &result[..80])
+            } else {
+                result.to_string()
+            };
+            output.push_str(&format!("└─ 获胜结果: {}\n", preview));
+            output.push_str(&format!("\n✔ Done · 投票完成\n"));
+        }
+
+        Ok(output)
     }
 
     /// 返回第一个成功结果
     fn first_success_result(&self, results: &[Value]) -> Result<String, ToolError> {
+        let mut output = String::new();
+        output.push_str("结果聚合\n");
+        output.push_str("├─ 策略: first (首个成功)\n");
+
         for result in results {
             if let Some(s) = result.as_str() {
                 if !s.is_empty() && !s.contains("错误") && !s.contains("失败") {
-                    return Ok(format!("第一个成功结果:\n{}", s));
+                    let preview = if s.len() > 80 {
+                        format!("{}...", &s[..80])
+                    } else {
+                        s.to_string()
+                    };
+                    output.push_str(&format!("└─ 结果: {}\n", preview));
+                    output.push_str(&format!("\n✔ Done · 返回首个成功结果\n"));
+                    return Ok(output);
                 }
             }
         }
 
         // 如果没有成功结果，返回第一个结果（如果有的话）
         if let Some(first) = results.first() {
-            Ok(format!("第一个结果（可能包含错误）:\n{}", first.as_str().unwrap_or("")))
-        } else {
-            Ok("没有结果".to_string())
+            if let Some(s) = first.as_str() {
+                let preview = if s.len() > 80 {
+                    format!("{}...", &s[..80])
+                } else {
+                    s.to_string()
+                };
+                output.push_str(&format!("└─ 结果（可能包含错误）: {}\n", preview));
+                output.push_str(&format!("\n⚠ Done · 无成功结果，返回首个\n"));
+                return Ok(output);
+            }
         }
+
+        output.push_str("└─ 无结果\n");
+        output.push_str(&format!("\n✘ Done · 无可用结果\n"));
+        Ok(output)
     }
 }
 
@@ -134,9 +187,10 @@ mod tests {
         });
 
         let result = tool.execute_tool(&args).unwrap();
-        assert!(result.contains("结果 1"));
-        assert!(result.contains("结果 2"));
-        assert!(result.contains("结果 3"));
+        assert!(result.contains("结果聚合"));
+        assert!(result.contains("merge"));
+        assert!(result.contains("3 个结果"));
+        assert!(result.contains("✔ Done"));
     }
 
     #[test]
@@ -150,8 +204,10 @@ mod tests {
         });
 
         let result = tool.execute_tool(&args).unwrap();
-        assert!(result.contains("选项A"));
-        assert!(result.contains("投票结果"));
+        assert!(result.contains("结果聚合"));
+        assert!(result.contains("vote"));
+        assert!(result.contains("投票率"));
+        assert!(result.contains("✔ Done"));
     }
 
     #[test]
@@ -165,6 +221,9 @@ mod tests {
         });
 
         let result = tool.execute_tool(&args).unwrap();
+        assert!(result.contains("结果聚合"));
+        assert!(result.contains("first"));
         assert!(result.contains("成功结果"));
+        assert!(result.contains("✔ Done"));
     }
 }
