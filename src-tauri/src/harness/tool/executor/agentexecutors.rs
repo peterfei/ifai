@@ -172,7 +172,10 @@ pub fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, T
 
     wf_log!("[AgentExecutor] 📋 Workflow created: id={}, variables={:?}", workflow.id, workflow.variables.keys().collect::<Vec<_>>());
 
-    let config = RunnerConfig::default();
+    let config = RunnerConfig {
+        node_timeout_secs: 300,
+        ..Default::default()
+    };
     let mut runner = WorkflowRunner::new(workflow, config)
         .map_err(|e| ToolError::Execution(format!("工作流初始化失败: {}", e)))?;
 

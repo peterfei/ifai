@@ -413,7 +413,14 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
 
             // 回退：无结构化内容时展示原始输出首行预览
             if has_content {
-                output.push_str(&format!("{}└─ 完整报告 [▸] 展开查看\n", prefix));
+                // 直接展示完整报告
+                for line in full_output.lines().take(5) {
+                    output.push_str(&format!("{}   {}\n", prefix, line));
+                }
+                let remaining = full_output.lines().count().saturating_sub(5);
+                if remaining > 0 {
+                    output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
+                }
             } else {
                 let preview = output_preview(&full_output, 70);
                 output.push_str(&format!("{}└─ {}\n", prefix, preview));
@@ -445,7 +452,14 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
             }
 
             if has_content {
-                output.push_str(&format!("{}└─ 完整代码 [▸] 展开查看\n", prefix));
+                // 直接展示完整代码
+                for line in full_output.lines().take(5) {
+                    output.push_str(&format!("{}   {}\n", prefix, line));
+                }
+                let remaining = full_output.lines().count().saturating_sub(5);
+                if remaining > 0 {
+                    output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
+                }
             } else {
                 let preview = output_preview(&full_output, 70);
                 output.push_str(&format!("{}└─ {}\n", prefix, preview));
@@ -482,7 +496,14 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
             }
 
             if has_content {
-                output.push_str(&format!("{}└─ 完整代码 [▸] 展开查看\n", prefix));
+                // 直接展示完整代码
+                for line in full_output.lines().take(5) {
+                    output.push_str(&format!("{}   {}\n", prefix, line));
+                }
+                let remaining = full_output.lines().count().saturating_sub(5);
+                if remaining > 0 {
+                    output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
+                }
             } else {
                 let preview = output_preview(&full_output, 70);
                 output.push_str(&format!("{}└─ {}\n", prefix, preview));
@@ -505,7 +526,14 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
                         output.push_str(&format!("{}│  ├─ {}\n", prefix, dir));
                     }
                 }
-                output.push_str(&format!("{}└─ 完整报告 [▸] 展开查看\n", prefix));
+                // 直接展示完整报告
+                for line in full_output.lines().take(5) {
+                    output.push_str(&format!("{}   {}\n", prefix, line));
+                }
+                let remaining = full_output.lines().count().saturating_sub(5);
+                if remaining > 0 {
+                    output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
+                }
             } else {
                 let preview = output_preview(&full_output, 70);
                 output.push_str(&format!("{}└─ {}\n", prefix, preview));
@@ -518,13 +546,16 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
     }
 }
 
-/// 提取输出首行作为预览
+/// 提取输出首行作为预览（跳过 tool_call: 和空行）
 #[cfg(feature = "commercial")]
 fn output_preview(text: &str, max_len: usize) -> String {
     text.lines()
-        .find(|l| !l.trim().is_empty() && l.len() > 5)
-        .map(|l| truncate(l, max_len))
-        .unwrap_or_else(|| truncate(text, max_len))
+        .find(|l| {
+            let t = l.trim();
+            !t.is_empty() && !t.starts_with("tool_call:")
+        })
+        .map(|l| truncate(l.trim(), max_len))
+        .unwrap_or_else(|| truncate(text.trim(), max_len))
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -716,6 +747,38 @@ mod tests {
         assert!(matches!(parse_agent_type("plan_agent"), Ok(AgentType::TaskBreakdown)));
 
         assert!(parse_agent_type("invalid_agent").is_err());
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn test_output_preview_filters_tool_call() {
+        // tool_call: 行应被跳过
+        let input = "tool_call:agent_read_file\n这是实际的审查内容";
+        let result = output_preview(input, 70);
+        assert!(!result.contains("tool_call:"));
+        assert!(result.contains("实际的审查内容"));
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn test_output_preview_empty_input() {
+        // 空输入不 panic
+        let result = output_preview("", 70);
+        assert_eq!(result, "");
+
+        // 纯空白输入
+        let result = output_preview("   \n  \n  ", 70);
+        assert_eq!(result.trim(), "");
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn test_output_preview_only_tool_call_lines() {
+        // 全部是 tool_call: 行时，回退到截取整段
+        let input = "tool_call:agent_read_file\ntool_call:agent_write_file";
+        let result = output_preview(input, 70);
+        // 应该不 panic，返回某个截断结果
+        assert!(!result.is_empty() || input.is_empty());
     }
 
     #[cfg(feature = "commercial")]

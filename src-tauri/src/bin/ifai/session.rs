@@ -2981,6 +2981,7 @@ impl Session {
                 tool.name.as_str(),
                 "explore_agent" | "review_agent" | "test_agent" | "doc_agent" | "debug_agent"
                 | "refactor_agent" | "git_commit_agent" | "plan_agent" | "react_agent"
+                | "call_agent_parallel"
             );
             if needs_progress {
                 let output_tx_clone = output_tx.clone();

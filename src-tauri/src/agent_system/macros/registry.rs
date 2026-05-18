@@ -255,17 +255,43 @@ impl AgentRegistry {
                 ctx_fork.increment_depth();
                 ctx_fork.chain.push_call(agent_type_clone.clone());
 
-                // TODO: 实际执行 Agent
-                // 暂时返回模拟结果
-                let agent_name = format!("{:?}", agent_type_clone);
-                (
-                    agent_type_clone.clone(),
-                    Ok(json!({
-                        "agent": agent_name,
-                        "input": input_clone,
-                        "depth": ctx_fork.depth(),
-                    })),
-                )
+                // 🔥 真实执行 Agent（commercial feature）
+                #[cfg(feature = "commercial")]
+                {
+                    match extract_task_from_input(&input_clone) {
+                        Ok(task) => {
+                            let agent = agent_type_clone.clone();
+                            let result = tokio::task::spawn_blocking(move || {
+                                execute_agent_sync(agent, &task)
+                            }).await;
+
+                            match result {
+                                Ok(Ok(output)) => {
+                                    ctx_fork.decrement_depth();
+                                    let output_json: Value = serde_json::from_str(&output)
+                                        .unwrap_or_else(|_| json!({ "output": output }));
+                                    (agent_type_clone.clone(), Ok(output_json))
+                                }
+                                Ok(Err(e)) => (agent_type_clone.clone(), Err(AgentCallError::ExecutionFailed(e.to_string()))),
+                                Err(e) => (agent_type_clone.clone(), Err(AgentCallError::ExecutionFailed(format!("spawn_blocking: {}", e)))),
+                            }
+                        }
+                        Err(e) => (agent_type_clone.clone(), Err(e)),
+                    }
+                }
+
+                #[cfg(not(feature = "commercial"))]
+                {
+                    let agent_name = format!("{:?}", agent_type_clone);
+                    (
+                        agent_type_clone.clone(),
+                        Ok(json!({
+                            "agent": agent_name,
+                            "input": input_clone,
+                            "depth": ctx_fork.depth(),
+                        })),
+                    )
+                }
             });
         }
 

@@ -338,7 +338,8 @@ mod collaboration_e2e_tests {
         });
         let monitor_result = monitor_tool.execute_tool(&monitor_args);
         assert!(monitor_result.is_ok());
-        assert!(monitor_result.unwrap().contains("test-workflow-123"));
-        assert!(monitor_result.unwrap().contains("✔ Done"));
+        let monitor_output = monitor_result.unwrap();
+        assert!(monitor_output.contains("test-workflow-123"));
+        assert!(monitor_output.contains("✔ Done"));
     }
 }
