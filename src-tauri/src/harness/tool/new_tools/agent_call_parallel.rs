@@ -422,8 +422,8 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
                     output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
                 }
             } else {
-                let preview = output_preview(&full_output, 70);
-                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+                // 无结构化内容，直接展示多行原始输出
+                append_output_lines(output, prefix, &full_output);
             }
         }
 
@@ -461,8 +461,8 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
                     output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
                 }
             } else {
-                let preview = output_preview(&full_output, 70);
-                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+                // 无结构化内容，直接展示多行原始输出
+                append_output_lines(output, prefix, &full_output);
             }
         }
 
@@ -505,8 +505,8 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
                     output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
                 }
             } else {
-                let preview = output_preview(&full_output, 70);
-                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+                // 无结构化内容，直接展示多行原始输出
+                append_output_lines(output, prefix, &full_output);
             }
         }
 
@@ -535,8 +535,8 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
                     output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, remaining));
                 }
             } else {
-                let preview = output_preview(&full_output, 70);
-                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+                // 无结构化内容，直接展示多行原始输出
+                append_output_lines(output, prefix, &full_output);
             }
         }
 
@@ -546,13 +546,53 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
     }
 }
 
-/// 提取输出首行作为预览（跳过 tool_call: 和空行）
+/// 将工具执行结果以多行格式追加到输出
+#[cfg(feature = "commercial")]
+fn append_output_lines(output: &mut String, prefix: &str, text: &str) {
+    // 跳过 tool_call: 和 [已执行工具:] 等回显行
+    let meaningful_lines: Vec<&str> = text.lines()
+        .filter(|l| {
+            let t = l.trim();
+            !t.is_empty()
+                && !t.starts_with("tool_call:")
+                && !t.starts_with("[已执行工具:")
+        })
+        .take(10)
+        .collect();
+
+    if meaningful_lines.is_empty() {
+        // 全部是回显行，回退到原始内容
+        let preview = truncate(text.trim(), 70);
+        output.push_str(&format!("{}└─ {}\n", prefix, preview));
+        return;
+    }
+
+    for (i, line) in meaningful_lines.iter().enumerate() {
+        let is_last = i == meaningful_lines.len() - 1;
+        let line_prefix = if is_last { "└─" } else { "├─" };
+        output.push_str(&format!("{}{} {}\n", prefix, line_prefix, truncate(line.trim(), 100)));
+    }
+
+    let total_meaningful = text.lines()
+        .filter(|l| {
+            let t = l.trim();
+            !t.is_empty() && !t.starts_with("tool_call:") && !t.starts_with("[已执行工具:")
+        })
+        .count();
+    if total_meaningful > 10 {
+        output.push_str(&format!("{}   ... 还有 {} 行\n", prefix, total_meaningful - 10));
+    }
+}
+
+/// 提取输出首行作为预览（跳过 tool_call: 和 [已执行工具:] 等回显行）
 #[cfg(feature = "commercial")]
 fn output_preview(text: &str, max_len: usize) -> String {
     text.lines()
         .find(|l| {
             let t = l.trim();
-            !t.is_empty() && !t.starts_with("tool_call:")
+            !t.is_empty()
+                && !t.starts_with("tool_call:")
+                && !t.starts_with("[已执行工具:")
         })
         .map(|l| truncate(l.trim(), max_len))
         .unwrap_or_else(|| truncate(text.trim(), max_len))
@@ -756,6 +796,16 @@ mod tests {
         let input = "tool_call:agent_read_file\n这是实际的审查内容";
         let result = output_preview(input, 70);
         assert!(!result.contains("tool_call:"));
+        assert!(result.contains("实际的审查内容"));
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn test_output_preview_filters_executed_tool() {
+        // [已执行工具: ...] 行也应被跳过
+        let input = "[已执行工具: agent_read_file]\n这是实际的审查内容";
+        let result = output_preview(input, 70);
+        assert!(!result.contains("[已执行工具:"));
         assert!(result.contains("实际的审查内容"));
     }
 
