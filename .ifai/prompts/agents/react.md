@@ -41,6 +41,7 @@ variables:
 
 ## 可用工具
 
+### 基础工具
 - `read_file` — 读取文件内容
 - `grep_search` — 搜索文本
 - `glob_search` — 搜索文件
@@ -48,6 +49,12 @@ variables:
 - `git_diff` — 获取代码变更
 - `agent_scan_project` — 扫描项目结构
 - `bash` — 执行命令
+
+### 协作工具（v0.5.2）
+- `call_agent_parallel` — 并行调用多个 Agent
+- `share_knowledge` — 在 Agent 之间共享知识
+- `aggregate_results` — 聚合多个 Agent 的结果
+- `monitor_progress` — 监控工作流进度
 
 ## 输出要求
 
