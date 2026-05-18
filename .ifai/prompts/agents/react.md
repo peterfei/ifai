@@ -64,9 +64,36 @@ variables:
 
 ## 并行 Agent 调用（v0.5.2 新功能）
 
-当需要调用多个 Agent 时，可以使用 `call_agent_parallel` 工具并行调用：
+**🔥 重要规则**：当用户请求需要多个 Agent 完成的任务时，**必须使用单次并行调用**，而非顺序多次调用！
 
-**可用 Agent**：
+### 何时不并行
+- ❌ 单个任务只需要一个 Agent
+- ❌ 后续任务依赖前一个任务的结果
+
+### 何时必须并行
+- ✅ 用户明确提到"同时"、"一起"、"并行"
+- ✅ 多个独立任务可以同时执行（如：审查+测试、审查+重构）
+- ✅ 用户的请求包含多个不同类型的操作（如："审查并测试"、"重构并生成文档"）
+
+### 正确示例
+
+用户："同时审查和测试 src/lib.rs"
+```
+Action: call_agent_parallel({"calls": [
+  {"agent_type": "review_agent", "task": "审查 src/lib.rs"},
+  {"agent_type": "test_agent", "task": "为 src/lib.rs 生成测试"}
+]})
+```
+
+### 错误示例
+
+❌ 不要这样做（顺序调用两次）：
+```
+Action: call_agent_parallel({"calls": [{"agent_type": "review_agent", ...}]})
+Action: call_agent_parallel({"calls": [{"agent_type": "test_agent", ...}]})
+```
+
+### 可用 Agent
 - `explore_agent`: 探索和分析代码
 - `review_agent`: 审查代码质量
 - `refactor_agent`: 重构代码
@@ -75,10 +102,6 @@ variables:
 - `debug_agent`: 调试分析
 - `plan_agent`: 任务规划
 - `git_commit_agent`: 智能提交
-
-**使用场景**：
-- ✅ 深度推理前并行探索和审查代码
-- ✅ 推理后并行重构和生成测试
 
 **限制**：单次最多并行调用 5 个 Agent
 
