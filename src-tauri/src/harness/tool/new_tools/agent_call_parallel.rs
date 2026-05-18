@@ -98,36 +98,25 @@ impl ToolLike for AgentCallParallelTool {
         // 注意：需要在独立的系统线程和 runtime 中执行，避免与现有 tokio runtime 冲突
         let registry = AgentRegistry::global();
 
-        // 使用通道在线程间传递结果
-        let (sender, receiver) = std::sync::mpsc::channel();
-
         // 在独立线程中运行，避免与现有 tokio runtime 冲突
         let handle = std::thread::spawn(move || {
             let mut call_ctx = CallContext::new();
 
             // 创建独立的 runtime 用于并行调用
             let rt = tokio::runtime::Runtime::new()
-                .map_err(|e| ToolError::Execution(format!("无法创建 tokio runtime: {}", e)));
+                .map_err(|e| ToolError::Execution(format!("无法创建 tokio runtime: {}", e)))?;
 
-            match rt {
-                Ok(runtime) => {
-                    let results = runtime.block_on(async {
-                        registry.call_parallel_async(calls, &mut call_ctx).await
-                    });
-                    sender.send(Ok(results)).map_err(|_| {
-                        ToolError::Execution("发送并行调用结果失败".to_string())
-                    })
-                }
-                Err(e) => sender.send(Err(e)).map_err(|_| {
-                    ToolError::Execution("发送错误结果失败".to_string())
-                })
-            }
+            // 执行并行调用并返回结果
+            let results = rt.block_on(async {
+                registry.call_parallel_async(calls, &mut call_ctx).await
+            });
+
+            Ok::<_, ToolError>(results)
         });
 
         // 等待线程完成并获取结果
         let results = handle.join()
-            .map_err(|e| ToolError::Execution(format!("并行 Agent 调用线程失败: {:?}", e)))?
-            .map_err(|e| ToolError::Execution(format!("接收并行调用结果失败: {}", e)))?;
+            .map_err(|e| ToolError::Execution(format!("并行 Agent 调用线程失败: {:?}", e)))??;
 
         // 4. 格式化结果
         let formatted = format_parallel_results(&results);
