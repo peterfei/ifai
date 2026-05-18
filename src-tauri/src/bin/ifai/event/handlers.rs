@@ -185,8 +185,8 @@ pub struct ResizeHandler;
 
 impl EventHandler<Event> for ResizeHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        if let Event::Resize(_, _) = event {
-            app.scroll_to_bottom();
+        if let Event::Resize(cols, rows) = event {
+            app.handle_resize(*cols, *rows);
             ControlFlow::Continue
         } else {
             ControlFlow::Continue

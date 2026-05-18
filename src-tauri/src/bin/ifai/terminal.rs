@@ -105,6 +105,14 @@ impl Terminal {
         *self.last_update.write().unwrap() = now;
     }
 
+    /// 强制刷新缓存的终端尺寸（resize 事件后调用）
+    pub fn refresh(&self) {
+        let new_size = self.query_size();
+        let now = Instant::now();
+        *self.size.write().unwrap() = Some(new_size);
+        *self.last_update.write().unwrap() = now;
+    }
+
     /// 🔥 查询终端尺寸（跨平台抽象）
     #[cfg(unix)]
     fn query_size(&self) -> TerminalSize {
