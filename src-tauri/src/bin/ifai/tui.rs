@@ -944,6 +944,45 @@ impl App {
         self.test_size = Some((width, height));
     }
 
+    /// 🔥 检查状态不变式（调试模式，捕获状态断链）
+    #[cfg(debug_assertions)]
+    fn check_invariants(&self) {
+        // 1. Overlay 模式一致性
+        if self.mode == Mode::Overlay {
+            assert!(self.overlay.is_some(), "Overlay mode inconsistency: mode=Overlay but overlay=None");
+        } else {
+            assert!(self.overlay.is_none(), "Overlay mode inconsistency: mode={:?} but overlay=Some", self.mode);
+        }
+
+        // 2. 滚动偏移边界
+        let content_len = self.content_lines.len();
+        if content_len > 0 {
+            let max_scroll = content_len.saturating_sub(1) as u16;
+            assert!(self.scroll_offset <= max_scroll,
+                "Scroll offset out of bounds: offset={} max={} len={}",
+                self.scroll_offset, max_scroll, content_len
+            );
+        }
+
+        // 3. 线程状态一致性
+        if let Some(active) = self.thread.store.active_thread() {
+            let current_id = self.current_thread_id();
+            assert_eq!(active.id, current_id,
+                "Thread ID inconsistency: active={:?} current={:?}",
+                active.id, current_id
+            );
+        }
+
+        // 4. Approving 模式一致性
+        if self.mode == Mode::Approving {
+            let current_id = self.current_thread_id();
+            assert!(self.approval.states.contains_key(&current_id),
+                "Approving mode inconsistency: mode=Approving but no approval for thread {:?}",
+                current_id
+            );
+        }
+    }
+
     /// 🔥 清理 resize 后的残留内容（线程感知）
     ///
     /// **功能**：
@@ -1407,22 +1446,34 @@ impl App {
 
     /// 是否处于 overlay 模式
     pub fn is_overlay_mode(&self) -> bool {
+        // 🔥 状态一致性检查：mode 与 overlay 必须同步
+        debug_assert_eq!(
+            self.mode == Mode::Overlay,
+            self.overlay.is_some(),
+            "Overlay mode inconsistency: mode={:?}, overlay={:?}",
+            self.mode,
+            self.overlay.is_some()
+        );
         self.mode == Mode::Overlay
     }
 
-    /// 进入 overlay 模式
+    /// 进入 overlay 模式（原子性操作，确保状态一致）
     pub fn enter_overlay_mode(&mut self, overlay: crate::detail_overlay::DetailOverlay) {
-        self.mode = Mode::Overlay;
+        // 🔥 原子性设置：先设置 overlay，再设置 mode
+        // 这样即使中间被打断，状态也不会不一致
         self.overlay = Some(overlay);
+        self.mode = Mode::Overlay;
 
-        // 🔥 清空终端 buffer，确保主 UI 内容残留被完全清除
+        // 清空终端 buffer，确保主 UI 内容残留被完全清除
         if let Some(terminal) = &mut self.terminal {
             let _ = terminal.clear();
         }
     }
 
-    /// 退出 overlay 模式
+    /// 退出 overlay 模式（原子性操作，确保状态一致）
     pub fn exit_overlay_mode(&mut self) {
+        // 🔥 原子性重置：先清除 mode，再清除 overlay
+        // 这样即使中间被打断，也不会进入无效的 overlay 模式
         self.mode = Mode::Normal;
         self.overlay = None;
     }
@@ -1624,9 +1675,21 @@ impl App {
         }
     }
 
-    /// 是否处于审批状态
+    /// 是否处于审批状态（线程感知验证）
     pub fn is_approving(&self) -> bool {
-        self.mode == Mode::Approving
+        // 🔥 状态一致性检查：mode 与实际审批状态必须匹配
+        if self.mode == Mode::Approving {
+            let current_thread_id = self.current_thread_id();
+            let has_approval = self.approval.states.contains_key(&current_thread_id);
+            debug_assert!(
+                has_approval,
+                "Approving mode inconsistency: mode=Approving but no approval for thread {:?}",
+                current_thread_id
+            );
+            has_approval
+        } else {
+            false
+        }
     }
 
     /// 🔥 获取并移除当前线程的待处理审批请求（用于重新发送到审批 loop）
@@ -2899,76 +2962,99 @@ impl App {
         self.thread.store.rename_thread(thread_id, new_name)
     }
 
-    /// 切换线程
+    /// 切换线程（原子性操作，确保状态一致）
     pub fn switch_thread(&mut self, thread_id: ThreadId) -> bool {
-        // 切换前：将当前 content_lines 保存为当前线程的消息（替换旧的）
-        if let Some(current_thread_id) = self.thread.store.active_thread().map(|t| t.id) {
-            if current_thread_id != thread_id && !self.content_lines.is_empty() {
-                let current_content: String = self.content_lines.iter()
-                    .map(|line| {
-                        line.spans.iter()
-                            .map(|span| span.content.as_ref())
-                            .collect::<String>()
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
+        // 🔥 第一步：保存当前线程内容（在切换前，确保不会丢失）
+        let old_thread_id = self.thread.store.active_thread().map(|t| t.id);
+        let should_save = old_thread_id != Some(thread_id) && !self.content_lines.is_empty();
 
-                if !current_content.trim().is_empty() {
-                    // 始终替换，确保内容是最新的
-                    self.thread.messages.replace(
-                        current_thread_id,
-                        vec![crate::thread::Message::assistant(current_content)]
-                    );
-                }
+        let saved_content = if should_save {
+            let current_content: String = self.content_lines.iter()
+                .map(|line| {
+                    line.spans.iter()
+                        .map(|span| span.content.as_ref())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            if !current_content.trim().is_empty() {
+                Some(current_content)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // 🔥 第二步：保存到旧线程（如果有内容）
+        if let Some(old_id) = old_thread_id {
+            if let Some(content) = saved_content {
+                self.thread.messages.replace(
+                    old_id,
+                    vec![crate::thread::Message::assistant(content)]
+                );
             }
         }
 
-        if self.thread.store.switch_to(thread_id) {
-            self.content_lines.clear();
-            self.scroll_offset = 0;
+        // 🔥 第三步：尝试切换（关键操作）
+        if !self.thread.store.switch_to(thread_id) {
+            // 切换失败，不修改任何状态
+            return false;
+        }
 
-            // 加载目标线程的历史消息
-            let messages_to_load: Vec<String> = self
-                .thread
-                .messages
-                .get(thread_id)
-                .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
-                .unwrap_or_default();
+        // 🔥 第四步：切换成功，清除并重新加载
+        self.content_lines.clear();
+        self.scroll_offset = 0;
 
-            // 加载后清空目标线程的 messages，下次切换走时会从 content_lines 重新保存
-            self.thread.messages.replace(thread_id, vec![]);
+        // 加载目标线程的历史消息
+        let messages_to_load: Vec<String> = self
+            .thread
+            .messages
+            .get(thread_id)
+            .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
+            .unwrap_or_default();
 
-            for msg in messages_to_load {
-                self.push_line(msg);
+        // 加载后清空目标线程的 messages，下次切换走时会从 content_lines 重新保存
+        self.thread.messages.replace(thread_id, vec![]);
+
+        for msg in messages_to_load {
+            self.push_line(msg);
+        }
+
+        // 🔥 第五步：重置所有非 per-thread 模式
+        self.reset_per_thread_modes();
+
+        // 🔥 第六步：设置线程相关模式
+        if self.approval.states.contains_key(&thread_id) {
+            self.mode = Mode::Approving;
+        } else if self.mode == Mode::Approving {
+            self.mode = Mode::Normal;
+        }
+
+        true  // 切换成功
+    }
+
+    /// 🔥 重置所有非 per-thread 的模式（原子性操作）
+    /// 在切换线程时调用，确保模式状态一致性
+    fn reset_per_thread_modes(&mut self) {
+        match self.mode {
+            Mode::Overlay => {
+                self.exit_overlay_mode();
             }
-
-            // 同步 mode：如果目标线程有审批请求，切到 Approving；否则恢复 Normal
-            // 退出 overlay/diff/search 等非 per-thread 模式
-            match self.mode {
-                Mode::Overlay => {
-                    self.exit_overlay_mode();
-                }
-                Mode::Diff => {
-                    self.exit_diff_mode();
-                }
-                Mode::Search => {
-                    self.exit_search_mode();
-                }
-                Mode::Help => {
-                    self.help_mode = false;
-                    self.mode = Mode::Normal;
-                }
-                Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::Normal => {}
+            Mode::Diff => {
+                self.exit_diff_mode();
             }
-            if self.approval.states.contains_key(&thread_id) {
-                self.mode = Mode::Approving;
-            } else if self.mode == Mode::Approving {
+            Mode::Search => {
+                self.exit_search_mode();
+            }
+            Mode::Help => {
+                self.help_mode = false;
                 self.mode = Mode::Normal;
             }
-
-            true
-        } else {
-            false
+            Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::Normal => {
+                // 这些模式会在线程切换后重新计算，不需要重置
+            }
         }
     }
 
