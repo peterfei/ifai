@@ -325,20 +325,7 @@ async fn execute_workflow_http(
         .map(|node| {
             use crate::agent_system::workflow::types::AgentType;
             // 将 AgentType 转换为字符串
-            let agent_type_str = match node.agent_type {
-                AgentType::Explore => "explore".to_string(),
-                AgentType::Review => "review".to_string(),
-                AgentType::Refactor => "refactor".to_string(),
-                AgentType::Test => "test".to_string(),
-                AgentType::Doc => "doc".to_string(),
-                AgentType::Debug => "debug".to_string(),
-                AgentType::TaskBreakdown => "task_breakdown".to_string(),
-                AgentType::ProposalGenerator => "proposal_generator".to_string(),
-                AgentType::WebSearch => "websearch".to_string(),
-                AgentType::GitCommit => "git_commit".to_string(),
-                AgentType::ReAct => "react".to_string(),
-                AgentType::GeneralPurpose => "general_purpose".to_string(),
-            };
+            let agent_type_str = node.agent_type.as_str().to_string();
 
             PlannedNode {
                 id: node.id.clone(),
