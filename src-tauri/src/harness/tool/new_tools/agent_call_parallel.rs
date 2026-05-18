@@ -103,6 +103,9 @@ impl ToolLike for AgentCallParallelTool {
         // 注意：需要在独立的系统线程和 runtime 中执行，避免与现有 tokio runtime 冲突
         let registry = AgentRegistry::global();
 
+        // 🔥 Phase 7: 初始化文件缓存（并行 Agent 共享读优化）
+        crate::agent_system::workflow::tools::file_cache_init();
+
         // 在独立线程中运行，避免与现有 tokio runtime 冲突
         let handle = std::thread::spawn(move || {
             let mut call_ctx = CallContext::new();
@@ -122,6 +125,9 @@ impl ToolLike for AgentCallParallelTool {
         // 等待线程完成并获取结果
         let results = handle.join()
             .map_err(|e| ToolError::Execution(format!("并行 Agent 调用线程失败: {:?}", e)))??;
+
+        // 🔥 Phase 7: 清理文件缓存
+        crate::agent_system::workflow::tools::file_cache_clear();
 
         // 4. 格式化结果
         let formatted = format_parallel_results(&results);
