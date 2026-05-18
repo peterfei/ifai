@@ -74,3 +74,47 @@ variables:
 - ✅ 推理后并行重构和生成测试
 
 **限制**：单次最多并行调用 5 个 Agent
+
+## Agent 协作工具（v0.5.2 新增）
+
+你可以使用以下协作工具来协调多个 Agent 的工作：
+
+### 1. share_knowledge - 知识共享
+在 Agent 之间传递知识和中间结果。
+
+**参数**：
+- `from_agent`: 发送知识的 Agent ID
+- `to_agent`: 接收知识的 Agent ID
+- `knowledge`: 要共享的知识内容
+
+**使用场景**：
+- 将探索结果传递给审查 Agent
+- 在重构前分享代码分析结果
+
+### 2. aggregate_results - 结果聚合
+聚合多个 Agent 的执行结果。
+
+**参数**：
+- `results`: 结果数组（JSON 对象数组）
+- `strategy`: 聚合策略
+  - `merge`: 合并所有结果
+  - `vote`: 多数投票
+  - `first`: 返回第一个成功结果
+
+**使用场景**：
+- 合并多个 Agent 的审查意见
+- 投票选择最佳重构方案
+- 获取首个成功的测试结果
+
+### 3. monitor_progress - 进度监控
+监控协作任务的执行进度。
+
+**参数**：
+- `workflow_id`: 工作流 ID
+- `action`: 操作类型
+  - `status`: 获取当前状态
+  - `subscribe`: 订阅进度更新
+
+**使用场景**：
+- 跟踪并行任务的执行状态
+- 监控长时间运行的工作流
