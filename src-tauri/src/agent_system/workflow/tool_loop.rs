@@ -135,6 +135,17 @@ pub async fn execute_with_tools(
         let tool_calls = extract_tool_calls(&response)?;
 
         if tool_calls.is_empty() {
+            let trimmed = response.trim();
+
+            // 兜底：过滤 tool_call: 回显（兼容旧格式残留）
+            if trimmed.starts_with("tool_call:") {
+                wf_log!(
+                    "[ToolLoop] ⚠️ 检测到 tool_call 回显，已过滤"
+                );
+                final_response = String::new();
+                break;
+            }
+
             // 没有工具调用，返回 AI 响应
             final_response = response;
             wf_log!(
@@ -315,7 +326,7 @@ pub async fn execute_with_tools(
         for (tool_call, result) in results {
             messages.push(Message {
                 role: "assistant".to_string(),
-                content: Content::Text(format!("tool_call:{}", tool_call.name)),
+                content: Content::Text(format!("[已执行工具: {}]", tool_call.name)),
                 tool_calls: None,
                 tool_call_id: None,
             });
@@ -1438,7 +1449,7 @@ async fn execute_with_tools_filtered(
             messages.push(crate::core_traits::ai::Message {
                 role: "assistant".to_string(),
                 content: crate::core_traits::ai::Content::Text(format!(
-                    "tool_call:{}",
+                    "[已执行工具: {}]",
                     tool_call.name
                 )),
                 tool_calls: None,
