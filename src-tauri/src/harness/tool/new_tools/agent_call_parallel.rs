@@ -9,6 +9,11 @@ use crate::harness::tool::ToolError;
 use serde_json::{json, Value};
 use super::adapter::ToolLike;
 
+#[cfg(feature = "commercial")]
+use regex::Regex;
+#[cfg(feature = "commercial")]
+use std::sync::OnceLock;
+
 /// 并行 Agent 调用工具
 ///
 /// 允许 LLM 通过单个工具调用同时启动多个 Agent
@@ -372,8 +377,11 @@ fn parse_explore_output(output: &str) -> ParsedContent {
 #[cfg(feature = "commercial")]
 fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedContent) {
     match parsed {
-        ParsedContent::Review { files, issues_count, issues, line_count, .. } => {
+        ParsedContent::Review { files, issues_count, issues, line_count, full_output } => {
+            let mut has_content = false;
+
             if !files.is_empty() {
+                has_content = true;
                 output.push_str(&format!("{}├─ 审查文件: {} 个\n", prefix, files.len()));
                 for (idx, file) in files.iter().enumerate().take(5) {
                     let is_last = idx == files.len().min(5) - 1;
@@ -386,6 +394,7 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
             }
 
             if issues_count > 0 {
+                has_content = true;
                 output.push_str(&format!("{}├─ 发现问题: {} 个\n", prefix, issues_count));
                 for (idx, issue) in issues.iter().take(3).enumerate() {
                     let is_last = idx == 2 || idx == issues.len() - 1;
@@ -398,14 +407,24 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
             }
 
             if let Some(lines) = line_count {
+                has_content = true;
                 output.push_str(&format!("{}├─ 代码行数: {} 行\n", prefix, lines));
             }
 
-            output.push_str(&format!("{}└─ 完整报告 [▸] 展开查看\n", prefix));
+            // 回退：无结构化内容时展示原始输出首行预览
+            if has_content {
+                output.push_str(&format!("{}└─ 完整报告 [▸] 展开查看\n", prefix));
+            } else {
+                let preview = output_preview(&full_output, 70);
+                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+            }
         }
 
-        ParsedContent::Test { files, test_count, coverage, .. } => {
+        ParsedContent::Test { files, test_count, coverage, full_output } => {
+            let mut has_content = false;
+
             if !files.is_empty() {
+                has_content = true;
                 output.push_str(&format!("{}├─ 生成文件: {} 个\n", prefix, files.len()));
                 for file in files.iter().take(3) {
                     output.push_str(&format!("{}│  ├─ {} ({} 个测试)\n", prefix, file.path, file.test_count));
@@ -416,18 +435,28 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
             }
 
             if let Some(count) = test_count {
+                has_content = true;
                 output.push_str(&format!("{}├─ 测试数量: {} 个\n", prefix, count));
             }
 
             if let Some(cov) = coverage {
+                has_content = true;
                 output.push_str(&format!("{}├─ 覆盖率: {}\n", prefix, cov));
             }
 
-            output.push_str(&format!("{}└─ 完整代码 [▸] 展开查看\n", prefix));
+            if has_content {
+                output.push_str(&format!("{}└─ 完整代码 [▸] 展开查看\n", prefix));
+            } else {
+                let preview = output_preview(&full_output, 70);
+                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+            }
         }
 
-        ParsedContent::Refactor { files, changes, line_changes, .. } => {
+        ParsedContent::Refactor { files, changes, line_changes, full_output } => {
+            let mut has_content = false;
+
             if !files.is_empty() {
+                has_content = true;
                 output.push_str(&format!("{}├─ 修改文件: {} 个\n", prefix, files.len()));
                 for file in files.iter().take(3) {
                     output.push_str(&format!("{}│  ├─ {}\n", prefix, file));
@@ -438,6 +467,7 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
             }
 
             if !changes.is_empty() {
+                has_content = true;
                 output.push_str(&format!("{}├─ 改动内容:\n", prefix));
                 for (idx, change) in changes.iter().take(3).enumerate() {
                     let is_last = idx == 2 || idx == changes.len() - 1;
@@ -447,29 +477,39 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
             }
 
             if let Some((added, removed)) = line_changes {
+                has_content = true;
                 output.push_str(&format!("{}├─ 改动统计: +{} -{} 行\n", prefix, added, removed));
             }
 
-            output.push_str(&format!("{}└─ 完整代码 [▸] 展开查看\n", prefix));
+            if has_content {
+                output.push_str(&format!("{}└─ 完整代码 [▸] 展开查看\n", prefix));
+            } else {
+                let preview = output_preview(&full_output, 70);
+                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+            }
         }
 
-        ParsedContent::Explore { files, directories, file_count, .. } => {
-            output.push_str(&format!("{}├─ 发现文件: {} 个\n", prefix, file_count));
-            for file in files.iter().take(5) {
-                output.push_str(&format!("{}│  ├─ {}\n", prefix, file));
-            }
-            if files.len() > 5 {
-                output.push_str(&format!("{}│  │  ... 还有 {} 个文件\n", prefix, files.len() - 5));
-            }
-
-            if !directories.is_empty() {
-                output.push_str(&format!("{}├─ 发现目录: {} 个\n", prefix, directories.len()));
-                for dir in directories.iter().take(3) {
-                    output.push_str(&format!("{}│  ├─ {}\n", prefix, dir));
+        ParsedContent::Explore { files, directories, file_count, full_output } => {
+            if !files.is_empty() {
+                output.push_str(&format!("{}├─ 发现文件: {} 个\n", prefix, file_count));
+                for file in files.iter().take(5) {
+                    output.push_str(&format!("{}│  ├─ {}\n", prefix, file));
                 }
-            }
+                if files.len() > 5 {
+                    output.push_str(&format!("{}│  │  ... 还有 {} 个文件\n", prefix, files.len() - 5));
+                }
 
-            output.push_str(&format!("{}└─ 完整报告 [▸] 展开查看\n", prefix));
+                if !directories.is_empty() {
+                    output.push_str(&format!("{}├─ 发现目录: {} 个\n", prefix, directories.len()));
+                    for dir in directories.iter().take(3) {
+                        output.push_str(&format!("{}│  ├─ {}\n", prefix, dir));
+                    }
+                }
+                output.push_str(&format!("{}└─ 完整报告 [▸] 展开查看\n", prefix));
+            } else {
+                let preview = output_preview(&full_output, 70);
+                output.push_str(&format!("{}└─ {}\n", prefix, preview));
+            }
         }
 
         ParsedContent::Generic { summary, .. } => {
@@ -478,226 +518,158 @@ fn format_parsed_content(output: &mut String, prefix: &str, parsed: ParsedConten
     }
 }
 
-/// 提取文件路径（简单字符串匹配）
+/// 提取输出首行作为预览
+#[cfg(feature = "commercial")]
+fn output_preview(text: &str, max_len: usize) -> String {
+    text.lines()
+        .find(|l| !l.trim().is_empty() && l.len() > 5)
+        .map(|l| truncate(l, max_len))
+        .unwrap_or_else(|| truncate(text, max_len))
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 声明式内容提取器（Pattern as Data）
+// 每个模式编译一次、永久缓存，消除所有命令式字符串匹配
+// ═══════════════════════════════════════════════════════════════
+
+/// 编译一次缓存正则（懒初始化）
+macro_rules! pat {
+    ($re:literal) => {{
+        static PAT: OnceLock<Regex> = OnceLock::new();
+        PAT.get_or_init(|| Regex::new($re).unwrap())
+    }};
+}
+
+/// 提取文件路径 —— 匹配 Markdown 中常见的文件路径格式
+/// 如 `src/auth.rs`、`src/workflow/executor.rs`、- `agentexecutors.rs` 等
 #[cfg(feature = "commercial")]
 fn extract_file_paths(text: &str) -> Vec<String> {
-    let mut files = Vec::new();
-
-    // 常见 Rust/TypeScript/Markdown 文件扩展名
-    let extensions = [".rs", ".md", ".js", ".ts", ".json", ".toml", ".yaml", ".yml"];
-
-    for line in text.lines() {
-        for ext in &extensions {
-            if line.contains(ext) {
-                // 提取文件名部分
-                if let Some(start) = line.find(ext) {
-                    let mut file_start = start;
-                    while file_start > 0 && !line.chars().nth(file_start - 1).map(|c| c.is_whitespace() || c == '"' || c == '(' || c == '[').unwrap_or(true) {
-                        file_start -= 1;
-                    }
-                    let file = line[file_start..start + ext.len()].trim().trim_matches('"').trim_matches('\'').trim_matches('(').trim_matches(')').trim_matches('[').trim_matches(']');
-                    if !files.contains(&file.to_string()) && !file.is_empty() {
-                        files.push(file.to_string());
-                    }
-                }
-            }
-        }
-    }
-
-    files
+    let re = pat!(r"`?[\w./-]+\.(?:rs|md|js|ts|json|toml|yaml|yml)`?");
+    let mut result: Vec<String> = re.find_iter(text)
+        .map(|m| m.as_str().trim_matches('`').to_string())
+        .filter(|s| !s.starts_with('"') && !s.starts_with("task"))
+        .collect();
+    result.dedup();
+    result
 }
 
-/// 提取问题描述
+/// 提取问题/建议行 —— 匹配 Agent 输出中的问题描述
+/// 支持：emoji 标记行、编号列表、`问题`/`issue` 关键词行、`文件:行号` 格式
 #[cfg(feature = "commercial")]
 fn extract_issues(text: &str) -> Vec<String> {
-    let mut issues = Vec::new();
+    let mut result = Vec::new();
 
-    for line in text.lines() {
-        let line_lower = line.to_lowercase();
-        if line_lower.contains("问题") || line_lower.contains("issue") || line.contains("⚠️") || line.contains("❌") || line.contains("error") {
-            let trimmed = line.trim().to_string();
-            if !trimmed.is_empty() && !issues.contains(&trimmed) {
-                issues.push(trimmed);
-            }
-        } else if line.contains(".rs:") || line.contains(".js:") {
-            // 文件路径:行号 格式
-            let trimmed = line.trim().to_string();
-            if !trimmed.is_empty() && !issues.contains(&trimmed) {
-                issues.push(trimmed);
-            }
-        }
+    // 1) emoji 标记行：⚠️ ❌ ✅ 🔴 🟡 🟢 ℹ️
+    let re_emoji = pat!(r"(?m)^\s*(?:[-\d]+\.?\s*)?(?:⚠️|❌|✅|🔴|🟡|🟢|ℹ️)\s*.*$");
+    for m in re_emoji.find_iter(text) {
+        result.push(m.as_str().trim().to_string());
     }
 
-    issues
+    // 2) 包含 `问题`/`issue` 关键词的行
+    let re_issue_keyword = pat!(r"(?m)^\s*(?:[-\d]+\.?\s*)?(?:问题|建议|警告|注意|错误|bug|issue|risk)\s*[:：]?\s*.+$");
+    for m in re_issue_keyword.find_iter(text) {
+        let s = m.as_str().trim().to_string();
+        if !result.contains(&s) { result.push(s); }
+    }
+
+    // 3) `文件.rs:行号` 格式（文件路径+行号引用）
+    let re_file_line = pat!(r"(?m)^\s*(?:[-\d]+\.?\s*)?`?[\w./-]+\.(?:rs|js|ts)`?:\d+\s*.*$");
+    for m in re_file_line.find_iter(text) {
+        let s = m.as_str().trim().to_string();
+        if !result.contains(&s) { result.push(s); }
+    }
+
+    result.truncate(10); // 最多展示 10 条
+    result
 }
 
-/// 提取行数统计
+/// 提取代码行数 —— 匹配 `X 行` `X lines`
 #[cfg(feature = "commercial")]
 fn extract_line_counts(text: &str) -> Option<usize> {
-    for line in text.lines() {
-        if line.contains("行") {
-            // 查找 "xxx 行", "xxx lines" 等模式
-            let words: Vec<&str> = line.split_whitespace().collect();
-            for word in words {
-                if let Ok(num) = word.parse::<usize>() {
-                    return Some(num);
-                }
-            }
-        }
-    }
-    None
+    let re = pat!(r"(\d+)\s*(?:行|lines?|LoC|lines of code)");
+    re.captures(text)
+        .and_then(|c| c[1].parse::<usize>().ok())
 }
 
-/// 提取测试文件信息
+/// 提取测试文件 —— 匹配测试文件路径
 #[cfg(feature = "commercial")]
 fn extract_test_files(text: &str) -> Vec<TestFileInfo> {
-    let mut files = Vec::new();
+    let mut result = Vec::new();
 
-    for line in text.lines() {
-        if line.contains("_test.rs") || line.contains("test.rs") {
-            // 提取文件路径和测试数量
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            let file_path = parts.iter().find(|p| p.contains(".rs")).map(|s| s.trim_matches('"').trim_matches('\'').to_string());
-
-            // 查找测试数量
-            let test_count = parts.iter().find_map(|p| {
-                p.parse::<usize>().ok()
-            }).unwrap_or(1);
-
-            if let Some(path) = file_path {
-                files.push(TestFileInfo { path, test_count });
-            }
+    // 匹配标准测试文件命名：xxx_test.rs, test_xxx.rs, xxx.spec.ts
+    let re = pat!(r"`?([\w./-]+(?:_test|test_|_spec|spec)\.(?:rs|ts|js))`?");
+    for c in re.captures_iter(text) {
+        let path = c[1].to_string();
+        if !result.iter().any(|f: &TestFileInfo| f.path == path) {
+            result.push(TestFileInfo { path, test_count: 1 });
         }
     }
 
-    files
+    result
 }
 
-/// 提取测试数量
+/// 提取测试数量 —— 匹配 `N 个测试` `N tests` `N 个测试用例`
 #[cfg(feature = "commercial")]
 fn extract_test_count(text: &str) -> Option<usize> {
-    for line in text.lines() {
-        let line_lower = line.to_lowercase();
-        if line_lower.contains("test") || line_lower.contains("测试") {
-            let words: Vec<&str> = line.split_whitespace().collect();
-            for word in words {
-                if let Ok(num) = word.parse::<usize>() {
-                    if num > 0 && num < 1000 { // 合理的测试数量范围
-                        return Some(num);
-                    }
-                }
-            }
-        }
-    }
-    None
+    let re = pat!(r"(\d+)\s*(?:个\s*测试(?:用例)?|tests?|单元测试|集成测试)");
+    re.captures(text)
+        .and_then(|c| c[1].parse::<usize>().ok())
 }
 
-/// 提取覆盖率
+/// 提取覆盖率 —— 匹配 `X%` 在覆盖率/coverage 关键词附近
 #[cfg(feature = "commercial")]
 fn extract_coverage(text: &str) -> Option<String> {
-    for line in text.lines() {
-        if line.contains("%") {
-            // 查找百分比
-            let parts: Vec<&str> = line.split("%").collect();
-            for part in parts {
-                let trimmed = part.trim();
-                if let Some(last_char) = trimmed.chars().last() {
-                    if last_char.is_ascii_digit() || last_char == ' ' {
-                        // 提取数字
-                        let num_str = trimmed.split_whitespace().last()?;
-                        if let Ok(_) = num_str.parse::<f64>() {
-                            return Some(format!("{}%", num_str));
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
+    let re = pat!(r"(?i)(?:覆盖|coverage)[^\d]*?(\d+(?:\.\d+)?)\s*%");
+    re.captures(text)
+        .map(|c| format!("{}%", &c[1]))
 }
 
-/// 提取重构改动
+/// 提取重构改动描述
 #[cfg(feature = "commercial")]
 fn extract_refactor_changes(text: &str) -> Vec<String> {
-    let mut changes = Vec::new();
-
-    for line in text.lines() {
-        let line_lower = line.to_lowercase();
-        if line_lower.contains("添加") || line_lower.contains("移除") || line_lower.contains("修改") || line_lower.contains("重构") {
-            let trimmed = line.trim().to_string();
-            if !trimmed.is_empty() && !changes.contains(&trimmed) {
-                changes.push(trimmed);
-            }
-        }
-    }
-
-    changes
+    let re = pat!(r"(?m)^\s*(?:[-\d]+\.?\s*)?(?:添加|移除|删除|修改|重构|重命名|提取|内联|移动)\s*.*$");
+    let mut result: Vec<String> = re.find_iter(text)
+        .map(|m| m.as_str().trim().to_string())
+        .collect();
+    result.dedup();
+    result.truncate(5);
+    result
 }
 
-/// 提取行改动统计
+/// 提取行改动统计 —— 匹配 `+N / -M`
 #[cfg(feature = "commercial")]
 fn extract_line_changes(text: &str) -> Option<(usize, usize)> {
-    let mut added = None;
-    let mut removed = None;
-
-    for line in text.lines() {
-        if line.contains("+") && (line.contains("添加") || line.contains("add")) {
-            if let Some(num) = line.split("+").nth(1).and_then(|s| s.split_whitespace().next()) {
-                if let Ok(n) = num.parse::<usize>() {
-                    added = Some(n);
-                }
-            }
-        }
-        if line.contains("-") && (line.contains("删除") || line.contains("remove") || line.contains("移除")) {
-            if let Some(num) = line.split("-").nth(1).and_then(|s| s.split_whitespace().next()) {
-                if let Ok(n) = num.parse::<usize>() {
-                    removed = Some(n);
-                }
-            }
-        }
-    }
-
-    match (added, removed) {
-        (Some(a), Some(r)) => Some((a, r)),
-        _ => None,
-    }
+    let re = pat!(r"\+\s*(\d+)\s*/?\s*-\s*(\d+)");
+    re.captures(text).and_then(|c| {
+        Some((c[1].parse::<usize>().ok()?, c[2].parse::<usize>().ok()?))
+    })
 }
 
 /// 提取目录路径
 #[cfg(feature = "commercial")]
 fn extract_directories(text: &str) -> Vec<String> {
-    let mut dirs = Vec::new();
-
-    for line in text.lines() {
-        if line.contains('/') && (line.contains("目录") || line.contains("dir")) {
-            let trimmed = line.trim().to_string();
-            if !trimmed.is_empty() && !dirs.contains(&trimmed) {
-                dirs.push(trimmed);
-            }
-        }
-    }
-
-    dirs
+    let re = pat!(r"(?m)^\s*(?:[-\d]+\.?\s*)?([\w./]+)(?=[/\s])[\w./]*(?:/\s|$)");
+    let mut result: Vec<String> = re.captures_iter(text)
+        .map(|c| c[1].to_string())
+        .filter(|s| s.contains('/') && !s.contains(".rs") && !s.contains(".md"))
+        .collect();
+    result.dedup();
+    result.truncate(5);
+    result
 }
 
-/// 提取错误详情
+/// 提取错误详情（从 AgentCallError 中提取有效信息）
 #[cfg(feature = "commercial")]
 fn extract_error_detail(err: &crate::agent_system::macros::AgentCallError) -> String {
-    err.to_string()
-        .split("::")
-        .last()
-        .unwrap_or(&err.to_string())
-        .to_string()
+    let s = err.to_string();
+    s.split("::").last().unwrap_or(&s).to_string()
 }
 
 /// 智能截断文本
 #[cfg(feature = "commercial")]
 fn truncate(text: &str, max_len: usize) -> String {
-    if text.len() <= max_len {
-        text.to_string()
-    } else {
-        format!("{}...", &text[..max_len.max(3) - 3])
-    }
+    if text.len() <= max_len { text.to_string() }
+    else { format!("{}...", &text[..max_len.max(3) - 3]) }
 }
 
 /// 格式化 Agent 类型的友好名称
