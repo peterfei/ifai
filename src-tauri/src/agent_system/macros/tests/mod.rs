@@ -6,4 +6,5 @@ mod registry_tests;
 mod workflow_tests;
 mod agent_call_tests;
 pub mod parallel_tests;  // 公开模块，以便父模块可以访问
+// Phase 1: 消息协议测试已移至 message_types.rs
 
