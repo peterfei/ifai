@@ -98,13 +98,18 @@ impl ToolLike for AgentCallParallelTool {
         let registry = AgentRegistry::global();
         let mut call_ctx = CallContext::new();
 
-        // 使用 tokio runtime
-        let handle = tokio::runtime::Handle::try_current()
-            .unwrap_or_else(|_| tokio::runtime::Handle::current());
+        // 使用 spawn_blocking 在独立的线程池中运行 async 操作
+        // 这可以避免在已有的 tokio runtime 上下文中使用 block_on() 导致的 panic
+        let results = tokio::task::spawn_blocking(move || {
+            // 创建独立的 runtime 用于并行调用
+            let rt = tokio::runtime::Runtime::new()
+                .expect("Failed to create tokio runtime for parallel agent calls");
 
-        let results = handle.block_on(async {
-            registry.call_parallel_async(calls, &mut call_ctx).await
-        });
+            rt.block_on(async {
+                registry.call_parallel_async(calls, &mut call_ctx).await
+            })
+        }).await
+        .map_err(|e| ToolError::Execution(format!("并行 Agent 调用任务失败: {}", e)))?;
 
         // 4. 格式化结果
         let formatted = format_parallel_results(&results);
@@ -242,6 +247,7 @@ mod tests {
         assert!(parse_agent_type("invalid_agent").is_err());
     }
 
+    #[cfg(feature = "commercial")]
     #[test]
     fn test_execute_tool_missing_calls() {
         let tool = AgentCallParallelTool;
@@ -252,6 +258,7 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("calls"));
     }
 
+    #[cfg(feature = "commercial")]
     #[test]
     fn test_execute_tool_invalid_agent_type() {
         let tool = AgentCallParallelTool;

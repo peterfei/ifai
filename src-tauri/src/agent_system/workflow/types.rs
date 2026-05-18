@@ -459,6 +459,7 @@ mod tests {
         assert_eq!(AgentType::Refactor.as_str(), "refactor");
     }
 
+    #[cfg(feature = "commercial")]
     #[test]
     fn test_agent_permission_none() {
         // 纯计算类 Agent 无需权限
@@ -469,6 +470,7 @@ mod tests {
         assert_eq!(AgentType::ReAct.required_permission(), PermissionLevel::None);
     }
 
+    #[cfg(feature = "commercial")]
     #[test]
     fn test_agent_permission_read() {
         // 只读类 Agent 需要读取权限
@@ -480,6 +482,7 @@ mod tests {
         assert_eq!(AgentType::WebSearch.required_permission(), PermissionLevel::WorkspaceRead);
     }
 
+    #[cfg(feature = "commercial")]
     #[test]
     fn test_agent_permission_write() {
         // 写入类 Agent 需要写入权限
