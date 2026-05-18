@@ -136,35 +136,85 @@ fn parse_agent_type(s: &str) -> Result<AgentType, ToolError> {
     }
 }
 
-/// 格式化并行调用结果
+/// 格式化并行调用结果（Minimalist TUI 风格）
 #[cfg(feature = "commercial")]
 fn format_parallel_results(
     results: &[(AgentType, Result<Value, crate::agent_system::macros::AgentCallError>)],
 ) -> String {
-    let mut output = String::from("🚀 并行 Agent 调用结果\n\n");
+    let total = results.len();
+    let successful = results.iter().filter(|(_, r)| r.is_ok()).count();
+    let failed = total - successful;
 
+    let mut output = String::new();
+
+    // 标题行
+    output.push_str("多 Agent 协作执行\n");
+    output.push_str(&format!("└─ {} 个 Agent 并行执行\n\n", total));
+
+    // 结果树状结构
     for (idx, (agent_type, result)) in results.iter().enumerate() {
-        output.push_str(&format!("{}. {:?}\n", idx + 1, agent_type));
+        let is_last = idx == results.len() - 1;
+        let prefix = if is_last { "└─" } else { "├─" };
 
+        let agent_name = format_agent_name(agent_type);
         match result {
             Ok(value) => {
-                output.push_str(&format!("   ✅ 成功\n"));
-                if let Some(task) = value.get("task") {
-                    output.push_str(&format!("   任务: {}\n", task));
+                output.push_str(&format!("{} {} [✔] 成功\n", prefix, agent_name));
+
+                // 提取任务描述
+                if let Some(task) = value.get("task").and_then(|v| v.as_str()) {
+                    let task_preview = if task.len() > 50 {
+                        format!("{}...", &task[..50])
+                    } else {
+                        task.to_string()
+                    };
+                    output.push_str(&format!("   │  任务: {}\n", task_preview));
                 }
-                if let Some(agent) = value.get("agent") {
-                    output.push_str(&format!("   Agent: {}\n", agent));
+
+                // 提取结果摘要
+                if let Some(result) = value.get("result").and_then(|v| v.as_str()) {
+                    let result_preview = if result.len() > 60 {
+                        format!("{}...", &result[..60])
+                    } else {
+                        result.to_string()
+                    };
+                    output.push_str(&format!("   │  结果: {}\n", result_preview));
                 }
             }
-            Err(e) => {
-                output.push_str(&format!("   ❌ 失败: {}\n", e));
+            Err(err) => {
+                output.push_str(&format!("{} {} [✘] 失败\n", prefix, agent_name));
+                output.push_str(&format!("   │  错误: {}\n", err));
             }
         }
-        output.push('\n');
     }
 
-    output.push_str(&format!("总计: {} 个 Agent 并行调用", results.len()));
+    // 统计信息
+    output.push('\n');
+    output.push_str(&format!("✔ Done · {} 成功 · {} 失败 · {} 总计\n",
+        successful, failed, total));
+
     output
+}
+
+/// 格式化 Agent 类型的友好名称
+fn format_agent_name(agent_type: &AgentType) -> &'static str {
+    match agent_type {
+        AgentType::Explore => "explore",
+        AgentType::Review => "review",
+        AgentType::Refactor => "refactor",
+        AgentType::Test => "test",
+        AgentType::Doc => "doc",
+        AgentType::Debug => "debug",
+        AgentType::TaskBreakdown => "plan",
+        AgentType::ProposalGenerator => "proposal",
+        AgentType::WebSearch => "websearch",
+        AgentType::GitCommit => "git_commit",
+        AgentType::ReAct => "react",
+        AgentType::GeneralPurpose => "general",
+        AgentType::Parallel => "parallel",
+        AgentType::Diamond => "diamond",
+        AgentType::KnowledgeChain => "chain",
+    }
 }
 
 #[cfg(test)]

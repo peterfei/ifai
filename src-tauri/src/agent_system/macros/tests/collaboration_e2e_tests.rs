@@ -318,7 +318,7 @@ mod collaboration_e2e_tests {
         });
         let share_result = share_tool.execute_tool(&share_args);
         assert!(share_result.is_ok());
-        assert!(share_result.unwrap().contains("知识已共享"));
+        assert!(share_result.unwrap().contains("知识共享"));
 
         // 测试 aggregate_results 执行（merge 策略）
         let aggregate_tool = AggregateResultsTool;
@@ -328,7 +328,7 @@ mod collaboration_e2e_tests {
         });
         let aggregate_result = aggregate_tool.execute_tool(&aggregate_args);
         assert!(aggregate_result.is_ok());
-        assert!(aggregate_result.unwrap().contains("结果 1"));
+        assert!(aggregate_result.unwrap().contains("结果聚合"));
 
         // 测试 monitor_progress 执行（status 操作）
         let monitor_tool = MonitorProgressTool;
@@ -339,5 +339,6 @@ mod collaboration_e2e_tests {
         let monitor_result = monitor_tool.execute_tool(&monitor_args);
         assert!(monitor_result.is_ok());
         assert!(monitor_result.unwrap().contains("test-workflow-123"));
+        assert!(monitor_result.unwrap().contains("✔ Done"));
     }
 }

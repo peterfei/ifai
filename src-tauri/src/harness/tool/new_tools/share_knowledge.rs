@@ -54,16 +54,22 @@ impl ToolLike for ShareKnowledgeTool {
                 "share_knowledge: 缺少或无效的 'knowledge' 参数".to_string()
             ))?;
 
-        // 在实际实现中，这里应该将知识存储到 MessageBus 或 Workspace
-        // 当前简化版本只返回确认消息
-        let result = format!(
-            "✅ 知识已共享\n\n从: {}\n到: {}\n\n知识内容:\n{}",
-            from_agent,
-            to_agent,
-            knowledge
-        );
+        // 格式化知识内容（限制长度）
+        let knowledge_preview = if knowledge.len() > 100 {
+            format!("{}...", &knowledge[..100])
+        } else {
+            knowledge.to_string()
+        };
 
-        Ok(result)
+        // Minimalist TUI 风格输出
+        let mut output = String::new();
+        output.push_str("知识共享\n");
+        output.push_str(&format!("├─ 从: {}\n", from_agent));
+        output.push_str(&format!("├─ 到: {}\n", to_agent));
+        output.push_str(&format!("└─ 内容: {}\n", knowledge_preview));
+        output.push_str(&format!("\n✔ Done · 知识已传递\n"));
+
+        Ok(output)
     }
 }
 
@@ -82,10 +88,10 @@ mod tests {
         });
 
         let result = tool.execute_tool(&args).unwrap();
-        assert!(result.contains("知识已共享"));
+        assert!(result.contains("知识共享"));
         assert!(result.contains("Agent1"));
         assert!(result.contains("Agent2"));
-        assert!(result.contains("认证模块"));
+        assert!(result.contains("✔ Done"));
     }
 
     #[test]

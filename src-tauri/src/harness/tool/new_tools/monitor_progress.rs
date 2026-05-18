@@ -60,24 +60,33 @@ impl MonitorProgressTool {
     /// 获取工作流状态
     fn get_status(&self, workflow_id: &str) -> Result<String, ToolError> {
         // 在实际实现中，这里应该从 WorkflowRunner 查询实际状态
-        // 当前简化版本返回模拟状态
-        let status = format!(
-            "工作流状态:\n\nID: {}\n状态: 运行中\n总节点数: 5\n已完成: 3\n进行中: 1\n待执行: 1",
-            workflow_id
-        );
+        // 当前简化版本返回模拟状态（Minimalist TUI 风格）
+        let mut output = String::new();
+        output.push_str("工作流状态\n");
+        output.push_str(&format!("├─ ID: {}\n", workflow_id));
+        output.push_str(&format!("├─ 状态: 运行中 [▸]\n"));
+        output.push_str(&format!("├─ 总节点: 5\n"));
+        output.push_str(&format!("├─ 已完成: 3 [✔]\n"));
+        output.push_str(&format!("├─ 进行中: 1 [●]\n"));
+        output.push_str(&format!("├─ 待执行: 1 [○]\n"));
+        output.push_str(&format!("└─ 进度: 60%\n\n"));
+        output.push_str(&format!("[进度条━━━━━━━━━━━━]\n\n"));
+        output.push_str(&format!("✔ Done · 状态已获取\n"));
 
-        Ok(status)
+        Ok(output)
     }
 
     /// 订阅进度更新
     fn subscribe(&self, workflow_id: &str) -> Result<String, ToolError> {
         // 在实际实现中，这里应该订阅 MessageBus 的进度事件
-        let result = format!(
-            "已订阅工作流进度更新:\n\n工作流 ID: {}\n\n将接收以下事件:\n- 节点开始\n- 节点完成\n- 进度更新\n- 错误通知",
-            workflow_id
-        );
+        let mut output = String::new();
+        output.push_str("进度订阅\n");
+        output.push_str(&format!("├─ 工作流 ID: {}\n", workflow_id));
+        output.push_str(&format!("├─ 订阅事件: 节点开始 · 节点完成 · 进度更新 · 错误通知\n"));
+        output.push_str(&format!("└─ 状态: 已订阅 [✔]\n\n"));
+        output.push_str(&format!("✔ Done · 将接收实时进度更新\n"));
 
-        Ok(result)
+        Ok(output)
     }
 }
 
@@ -97,6 +106,8 @@ mod tests {
         let result = tool.execute_tool(&args).unwrap();
         assert!(result.contains("工作流状态"));
         assert!(result.contains("workflow-123"));
+        assert!(result.contains("进度"));
+        assert!(result.contains("✔ Done"));
     }
 
     #[test]
@@ -109,8 +120,10 @@ mod tests {
         });
 
         let result = tool.execute_tool(&args).unwrap();
-        assert!(result.contains("已订阅"));
+        assert!(result.contains("进度订阅"));
         assert!(result.contains("workflow-456"));
+        assert!(result.contains("已订阅"));
+        assert!(result.contains("✔ Done"));
     }
 
     #[test]
