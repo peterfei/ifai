@@ -844,6 +844,8 @@ pub struct App {
     test_size: Option<(u16, u16)>,
     /// 🔥 上次渲染的宽度（用于检测窗口宽度变化，自适应换行）
     last_render_width: Option<u16>,
+    /// 🔥 上次 overlay 的滚动位置（用于检测滚动变化，清除残留）
+    last_overlay_scroll: Option<u16>,
     /// 🔥 当前运行的 workflow ID（用于 ESC 取消）
     pub running_workflow_id: Option<String>,
     /// 🔥 首次运行设置向导
@@ -892,6 +894,7 @@ impl App {
             #[cfg(test)]
             test_size: None,
             last_render_width: None,
+            last_overlay_scroll: None,
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
@@ -928,6 +931,7 @@ impl App {
             #[cfg(test)]
             test_size: None,
             last_render_width: None,
+            last_overlay_scroll: None,
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
@@ -938,6 +942,52 @@ impl App {
     #[cfg(test)]
     pub fn set_test_size(&mut self, width: u16, height: u16) {
         self.test_size = Some((width, height));
+    }
+
+    /// 🔥 清理 resize 后的残留内容（线程感知）
+    ///
+    /// **功能**：
+    /// - 如果当前线程有保存的 `thread.messages`，清除 `content_lines` 并重新加载
+    /// - 如果当前线程没有保存的消息（内容是直接 push 的），保留 `content_lines`
+    /// - 重置 `scroll_offset = 0`
+    ///
+    /// **线程安全**：只清理当前线程的内容，不影响其他线程
+    ///
+    /// **设计理念**：
+    /// - `thread.messages` 存储的是线程切换时保存的内容快照
+    /// - 如果 `thread.messages` 为空，说明内容是实时推送的，不应清除
+    /// - 如果 `thread.messages` 非空，说明内容是从历史加载的，应重新加载以清除残留
+    pub fn clear_resize_artifacts(&mut self) {
+        let current_thread_id = self.current_thread_id();
+
+        // 检查当前线程是否有保存的消息
+        let has_saved_messages = self
+            .thread
+            .messages
+            .get(current_thread_id)
+            .map(|msgs| !msgs.is_empty())
+            .unwrap_or(false);
+
+        if has_saved_messages {
+            // 有保存的消息：清除并重新加载（确保无残留）
+            self.content_lines.clear();
+            self.scroll_offset = 0;
+
+            let messages_to_load: Vec<String> = self
+                .thread
+                .messages
+                .get(current_thread_id)
+                .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
+                .unwrap_or_default();
+
+            for msg in messages_to_load {
+                self.push_line(msg);
+            }
+        } else {
+            // 没有保存的消息：保留 content_lines（实时推送的内容）
+            // 只重置 scroll_offset
+            self.scroll_offset = 0;
+        }
     }
 
     /// 处理终端 resize 事件
@@ -1364,6 +1414,11 @@ impl App {
     pub fn enter_overlay_mode(&mut self, overlay: crate::detail_overlay::DetailOverlay) {
         self.mode = Mode::Overlay;
         self.overlay = Some(overlay);
+
+        // 🔥 清空终端 buffer，确保主 UI 内容残留被完全清除
+        if let Some(terminal) = &mut self.terminal {
+            let _ = terminal.clear();
+        }
     }
 
     /// 退出 overlay 模式
@@ -1758,6 +1813,19 @@ impl App {
         // 取出 terminal 避免借用冲突（self.terminal vs self.draw_frame）
         let mut terminal = self.terminal.take();
         if let Some(term) = &mut terminal {
+            // 🔥 检测 overlay 滚动变化，只在滚动时清空终端 buffer
+            if let Some(ref overlay) = self.overlay {
+                let current_scroll = overlay.view.state.scroll;
+                if self.last_overlay_scroll != Some(current_scroll) {
+                    // 检测到滚动变化，清空终端 buffer
+                    let _ = term.clear();
+                    self.last_overlay_scroll = Some(current_scroll);
+                }
+            } else {
+                // 退出 overlay 模式，重置跟踪
+                self.last_overlay_scroll = None;
+            }
+
             let _ = term.draw(|f| self.draw_frame(f));
         }
         self.terminal = terminal;
@@ -1773,10 +1841,9 @@ impl App {
         if width_changed {
             let previous_width = self.last_render_width.unwrap();
             if size.width < previous_width {
-                // 🔥 宽度变窄：内容会换行占用更多垂直空间
-                // 策略：直接跳到顶部（scroll_offset = 0），确保从顶部开始显示所有内容
-                // 这样虽然会丢失当前阅读位置，但保证内容完整性
-                self.scroll_offset = 0;
+                // 🔥 宽度变窄：清理残留内容并重新加载当前线程内容
+                // 这样可以避免其他线程的内容泄漏到当前视图中
+                self.clear_resize_artifacts();
             }
             // 宽度变宽时，内容会占用更少垂直空间，不需要特殊处理
         }
@@ -5997,6 +6064,108 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
             output_narrow.contains("Short line") || output_narrow.contains("Final line"),
             "窄窗口时应该显示部分内容。\n实际输出:\n{}",
             output_narrow
+        );
+    }
+
+    // === Phase 1: 复现 resize 后线程泄漏问题 ===
+
+    #[test]
+    fn test_resize_shrink_no_thread_leak() {
+        // Bug: 窗口 resize 后出现 main thread 内容残留
+        // 复现场景：在 side thread 中，width_changed 导致 scroll_offset=0，显示出残留内容
+        use ratatui::text::Span;
+        use ratatui::backend::TestBackend;
+        use ratatui::Terminal;
+
+        let mut app = App::new_for_test();
+        let main_id = app.thread.store.primary_id();
+        let side_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("side".to_string()));
+
+        // 切换到 side thread
+        app.switch_thread(side_id);
+        app.push_line("Side thread content line 1".to_string());
+        app.push_line("Side thread content line 2".to_string());
+
+        // 🔥 模拟真实场景：先切换到另一个线程再切换回来
+        // 这样 side thread 的内容会被保存到 thread.messages
+        app.switch_thread(main_id);
+        app.switch_thread(side_id);
+
+        // 🔥 模拟残留：直接向 content_lines 注入 main thread 内容
+        // 这模拟了真实场景中可能出现的线程内容泄漏
+        app.content_lines.push(Line::from(vec![Span::raw("Main thread residue")]));
+
+        // 🔥 为了确保 clear_resize_artifacts() 能重新加载内容，手动保存 side thread 内容
+        // （不包括残留，因为残留是之后才注入的）
+        app.thread.messages.replace(
+            side_id,
+            vec![
+                crate::thread::Message::assistant("Side thread content line 1\nSide thread content line 2".to_string())
+            ]
+        );
+
+        // 第一次渲染：建立 last_render_width = 80
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let _ = terminal.draw(|f| app.draw_frame(f));
+
+        // 第二次渲染：宽度变窄，触发 width_changed 逻辑，scroll_offset 被设为 0
+        let backend = TestBackend::new(40, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let _ = terminal.draw(|f| app.draw_frame(f));
+
+        // 验证：scroll_offset 被重置为 0
+        assert_eq!(app.scroll_offset, 0, "width_changed 应将 scroll_offset 重置为 0");
+
+        // 验证：width_changed 后残留内容应该被清除（期望的行为）
+        // 如果这个断言失败，说明 bug 存在（RED）
+        assert!(
+            !app.content_lines.iter().any(|line| {
+                line.spans.iter().any(|span| span.content.contains("Main thread"))
+            }),
+            "RED: width_changed 后 content_lines 仍有残留，需要修复"
+        );
+    }
+
+    #[test]
+    fn test_resize_concurrent_streaming_isolation() {
+        // Bug: 并发 streaming 时 resize 导致线程内容泄漏
+        let mut app = App::new_for_test();
+        let main_id = app.thread.store.primary_id();
+        let side_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("side".to_string()));
+
+        // main thread streaming
+        app.begin_streaming(main_id);
+        app.append_streaming_output(main_id, "Main streaming line 1\n".to_string());
+        app.push_line_to_thread(main_id, "Main streaming line 1".to_string());
+
+        // 切换到 side thread
+        app.switch_thread(side_id);
+        app.begin_streaming(side_id);
+        app.append_streaming_output(side_id, "Side streaming line 1\n".to_string());
+        app.push_line("Side streaming line 1".to_string());
+
+        // 模拟 resize
+        app.handle_resize(40, 24);
+
+        let buf = render_to_buffer(&mut app, 40, 24);
+        let output = buffer_to_string(&buf);
+
+        // 验证：只显示 side thread 内容
+        assert!(
+            output.contains("Side streaming"),
+            "resize 后应显示 side thread streaming"
+        );
+        assert!(
+            !output.contains("Main streaming"),
+            "resize 后不应泄漏 main thread streaming\n实际输出:\n{}",
+            output
         );
     }
 }

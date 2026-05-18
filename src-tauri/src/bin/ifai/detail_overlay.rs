@@ -40,6 +40,7 @@ pub struct DetailOverlay {
     pub view: ScrollableDiff, // 复用现有滚动视图
     pub search: Option<SearchState>,
     pub is_done: bool, // 用于退出 overlay
+    last_scroll: u16, // 🔥 跟踪上次的滚动位置，用于检测滚动事件
 }
 
 /// 搜索状态（仅 Transcript 和 File 支持）
@@ -124,6 +125,7 @@ impl DetailOverlay {
             view,
             search: None,
             is_done: false,
+            last_scroll: 0,
         }
     }
 
@@ -138,6 +140,7 @@ impl DetailOverlay {
             view,
             search: None,
             is_done: false,
+            last_scroll: 0,
         }
     }
 
@@ -167,6 +170,7 @@ impl DetailOverlay {
             view,
             search: None,
             is_done: false,
+            last_scroll: 0,
         }
     }
 
@@ -376,15 +380,19 @@ pub fn render_overlay_panel_lines(overlay: &DetailOverlay) -> Vec<Line<'static>>
 impl DetailOverlay {
     /// 渲染 Overlay（Clear + Header + Content + Footer）
     pub fn render(&mut self, f: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
-        // 1. 先填充黑色背景（避免"花"屏）
-        let bg = ratatui::widgets::Paragraph::new("")
-            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-        f.render_widget(bg, area);
+        // 🔥 每次渲染都用空格行强制覆盖整个区域（彻底清除残留）
+        let space_line = " ".repeat(area.width as usize);
+        let spaces: Vec<Line> = (0..area.height).map(|_| Line::from(space_line.clone())).collect();
+        let clear_widget = ratatui::widgets::Paragraph::new(spaces)
+            .style(ratatui::style::Style::default()
+                .bg(ratatui::style::Color::Black)
+                .fg(ratatui::style::Color::Black));
+        f.render_widget(clear_widget, area);
 
-        // 2. 清屏（确保无残留）
+        // 再用 Clear 清屏（双重保险）
         f.render_widget(ratatui::widgets::Clear, area);
 
-        // 3. 计算布局：Header + Content + Footer
+        // 计算布局：Header + Content + Footer
         let chunks = ratatui::layout::Layout::default()
             .direction(ratatui::layout::Direction::Vertical)
             .margin(0)
@@ -395,18 +403,23 @@ impl DetailOverlay {
             ])
             .split(area);
 
-        // 4. 渲染 Header
+        // 渲染 Header
         self.render_header(f, chunks[0]);
 
-        // 5. 渲染 Content（带滚动）
+        // 渲染 Content（带滚动）
         self.render_content(f, chunks[1]);
 
-        // 6. 渲染 Footer
+        // 渲染 Footer
         self.render_footer(f, chunks[2]);
     }
 
     /// 渲染顶部标题栏（包含面板信息）
     fn render_header(&self, f: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
+        // 🔥 先用纯黑背景清除（确保无残留）
+        let clear_bg = ratatui::widgets::Paragraph::new("")
+            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+        f.render_widget(clear_bg, area);
+
         // 1. 先用 "/ / / / ..." 填充背景（装饰性，类似 codex）
         let bg_line = "/ ".repeat(area.width as usize / 2);
         let bg = ratatui::widgets::Paragraph::new(bg_line).style(
@@ -431,6 +444,15 @@ impl DetailOverlay {
 
     /// 渲染内容区域（支持滚动和视口裁剪）
     fn render_content(&mut self, f: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
+        // 🔥 先用空格行强制清除整个内容区域（避免滚动时旧内容残留）
+        let space_line = " ".repeat(area.width as usize);
+        let spaces: Vec<Line> = (0..area.height).map(|_| Line::from(space_line.clone())).collect();
+        let clear_widget = ratatui::widgets::Paragraph::new(spaces)
+            .style(ratatui::style::Style::default()
+                .bg(ratatui::style::Color::Black)
+                .fg(ratatui::style::Color::Black));
+        f.render_widget(clear_widget, area);
+
         // 更新视口大小
         self.view.set_viewport(area.height);
         self.view.set_width(area.width);
@@ -454,6 +476,11 @@ impl DetailOverlay {
 
     /// 渲染底部状态栏（滚动百分比 + 按键提示）
     fn render_footer(&self, f: &mut ratatui::Frame<'_>, area: ratatui::layout::Rect) {
+        // 🔥 先清除背景（避免残留）
+        let bg = ratatui::widgets::Paragraph::new("")
+            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+        f.render_widget(bg, area);
+
         let left_hint = self.key_hints();
         let right_hint = if let Some(pct) = self.percent_scrolled() {
             format!("{}%", pct)
