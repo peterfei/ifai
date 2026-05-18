@@ -745,6 +745,10 @@ fn fallback_react_prompt(ctx: &AgentContext) -> String {
 - git_diff: 获取代码变更
 - agent_scan_project: 扫描项目结构
 - bash: 执行命令
+- call_agent_parallel: 并行调用多个 Agent（协作工具）
+- share_knowledge: 在 Agent 之间共享知识（协作工具）
+- aggregate_results: 聚合多个 Agent 的结果（协作工具）
+- monitor_progress: 监控工作流进度（协作工具）
 
 ## 输出要求
 - 推理过程必须展示 Thought → Action/Observation 链
