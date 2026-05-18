@@ -3,6 +3,7 @@
 //! 本模块提供 Agent 互调用的宏生成能力，包括：
 //! - `global_agent_registry!`: 全局 Agent 注册表
 //! - `workflow!`: 工作流 DSL
+//! - `message_protocol!`: 消息协议定义（Phase 1）
 //!
 //! # 设计原则
 //!
@@ -26,6 +27,8 @@
 
 pub mod registry;
 pub mod permission;
+pub mod message_protocol;  // Phase 1: 消息协议宏（声明式宏）
+pub mod message_types;     // Phase 1: 消息类型定义（调用宏生成）
 
 /// 全局 Agent 注册表宏
 ///
@@ -215,4 +218,13 @@ pub use permission::{
     PermissionError,
     AllowAllPermissionChecker,
     ConfigPermissionChecker,
+};
+
+// Phase 1: 重新导出消息类型
+pub use message_types::{
+    CollaborationMessage,
+    BroadcastMessage,
+    ShareKnowledgeMessage,
+    AggregateResultsMessage,
+    ProgressUpdateMessage,
 };
