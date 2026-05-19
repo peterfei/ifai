@@ -2572,6 +2572,32 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 创建 TUI App
     let mut app = tui::App::new().map_err(|e| format!("Failed to initialize TUI: {}", e))?;
 
+    // 🔥 Phase 1.1.5: 初始化事件持久化
+    // 创建必要的目录结构
+    let sessions_base_dir = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions"))
+        .ok_or("Failed to determine sessions directory")?;
+
+    let live_dir = sessions_base_dir.join("live");
+    let auto_dir = sessions_base_dir.join("auto");
+    let archive_dir = sessions_base_dir.join("archive");
+
+    // 创建所有必要的目录
+    std::fs::create_dir_all(&live_dir)
+        .map_err(|e| format!("Failed to create live directory: {}", e))?;
+    std::fs::create_dir_all(&auto_dir)
+        .map_err(|e| format!("Failed to create auto directory: {}", e))?;
+    std::fs::create_dir_all(&archive_dir)
+        .map_err(|e| format!("Failed to create archive directory: {}", e))?;
+
+    // 🔥 创建事件持久化器（但不立即启动后台任务）
+    // 将在 Phase 2 中集成到 tui::App 中
+    let session_id = format!("session-{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs());
+    let _event_persistence = event_persistence::EventPersistence::new(session_id);
+
     // 🔥 首次运行检测和初始化
     let first_run_detector = first_run::FirstRunDetector::new();
     let is_first_run = first_run_detector.is_first_run();
