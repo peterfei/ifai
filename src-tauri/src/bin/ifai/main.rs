@@ -2597,13 +2597,28 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
     std::fs::create_dir_all(&archive_dir)
         .map_err(|e| format!("Failed to create archive directory: {}", e))?;
 
-    // 🔥 创建事件持久化器（但不立即启动后台任务）
-    // 将在 Phase 2 中集成到 tui::App 中
+    // 🔥 Phase 2.3: 创建并启动事件持久化器
     let session_id = format!("session-{}", std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs());
-    let _event_persistence = event_persistence::EventPersistence::new(session_id);
+
+    // 创建事件持久化器并启动后台任务
+    let mut event_persistence = event_persistence::EventPersistence::new(session_id.clone());
+
+    // 🔥 启动后台任务（必须在 async 运行时中）
+    if let Err(e) = event_persistence.start_worker() {
+        // 静默失败，不干扰 TUI
+        if std::env::var("WORKFLOW_DEBUG").is_ok()
+            || std::env::var("IFAI_DEBUG").is_ok()
+        {
+            eprintln!("[IfAI] 警告：启动事件持久化后台任务失败: {}", e);
+        }
+    }
+    // 否则：静默启动，不输出任何消息
+
+    // 🔥 将事件持久化器设置到 TUI app 中
+    app.set_event_persistence(event_persistence);
 
     // 🔥 首次运行检测和初始化
     let first_run_detector = first_run::FirstRunDetector::new();
