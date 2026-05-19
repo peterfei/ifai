@@ -2559,7 +2559,7 @@ impl App {
                 if self.has_event_persistence() && self.event_count > 0 {
                     spans.push(Span::raw(" · "));
                     spans.push(Span::styled(
-                        format!("💾{}", self.event_count),
+                        format!("evt:{}", self.event_count),
                         ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
                     ));
                 }
@@ -2723,7 +2723,7 @@ impl App {
                     if self.has_event_persistence() && self.event_count > 0 {
                         spans.push(Span::raw(" · "));
                         spans.push(Span::styled(
-                            format!("💾{}", self.event_count),
+                            format!("evt:{}", self.event_count),
                             ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
                         ));
                     }
