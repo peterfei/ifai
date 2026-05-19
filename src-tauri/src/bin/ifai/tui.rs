@@ -244,6 +244,8 @@ pub enum Mode {
     ThreadPicker,
     /// 命令弹出框模式
     CommandPopup,
+    /// 🔥 Phase 5: 会话恢复选择器模式
+    ResumePicker,
 }
 
 impl Default for Mode {
@@ -825,6 +827,8 @@ pub struct App {
     pub help_mode: bool,
     /// 命令弹出框
     pub command_popup: super::command_popup::CommandPopup,
+    /// 🔥 Phase 5: 会话恢复选择器
+    pub resume_picker: Option<super::resume_picker::ResumePicker>,
     /// 任务全部完成的时间点（用于延迟自动收起）
     task_all_done_at: Option<Instant>,
     /// 🔥 Per-thread TaskStore（隔离 TodoWrite 任务，避免跨线程泄漏）
@@ -897,6 +901,7 @@ impl App {
             search: SearchSubsystem::new(),
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
+            resume_picker: None,
             task_all_done_at: None,
             task_stores: std::collections::HashMap::new(),
             thread_session_contexts: std::collections::HashMap::new(),
@@ -939,6 +944,7 @@ impl App {
             search: SearchSubsystem::new(),
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
+            resume_picker: None,
             task_all_done_at: None,
             task_stores: std::collections::HashMap::new(),
             thread_session_contexts: std::collections::HashMap::new(),
@@ -2043,6 +2049,14 @@ impl App {
         let popup_visible = self.command_popup.is_visible();
         let (popup_lines, popup_height) = self.command_popup.render();
 
+        // 🔥 Phase 5: ResumePicker 渲染数据
+        let resume_picker_visible = self.resume_picker.is_some() && self.mode == Mode::ResumePicker;
+        let (resume_lines, resume_height) = if resume_picker_visible {
+            self.resume_picker.as_ref().map(|p| p.render()).unwrap_or((vec![], 0))
+        } else {
+            (vec![], 0)
+        };
+
         // 🔥 声明式：只渲染当前线程的任务
         let tasks = self.current_task_store().get_tasks();
         let (task_lines, _) = render_task_lines(&tasks);
@@ -2086,11 +2100,13 @@ impl App {
         let separator_area = chunks[2];
         let input_area = chunks[3];
 
-        // 计算 overlay 高度（task 面板或命令弹出框）
+        // 计算 overlay 高度（task 面板、命令弹出框或 ResumePicker）
         let overlay_height = if show_tasks && task_height > 0 {
             task_height
         } else if popup_visible && popup_height > 0 {
             popup_height
+        } else if resume_picker_visible && resume_height > 0 {
+            resume_height
         } else {
             0
         };
@@ -2513,6 +2529,14 @@ impl App {
                     let popup_content = Paragraph::new(popup_lines)
                         .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                     f.render_widget(popup_content, popup_area);
+                } else if resume_picker_visible && resume_height > 0 {
+                    let picker_y = status_area.y.saturating_sub(resume_height);
+                    let picker_area =
+                        Rect::new(content_area.x, picker_y, content_area.width, resume_height);
+                    f.render_widget(Clear, picker_area);
+                    let picker_content = Paragraph::new(resume_lines.clone())
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(picker_content, picker_area);
                 }
 
                 // === 分隔线 ===
@@ -2680,6 +2704,14 @@ impl App {
                     let popup_content = Paragraph::new(popup_lines)
                         .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                     f.render_widget(popup_content, popup_area);
+                } else if resume_picker_visible && resume_height > 0 {
+                    let picker_y = status_area.y.saturating_sub(resume_height);
+                    let picker_area =
+                        Rect::new(content_area.x, picker_y, content_area.width, resume_height);
+                    f.render_widget(Clear, picker_area);
+                    let picker_content = Paragraph::new(resume_lines.clone())
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(picker_content, picker_area);
                 }
 
                 // === 分隔线（状态栏与输入框之间的视觉分隔） ===
@@ -3036,6 +3068,9 @@ impl App {
                         }
                         ControlFlow::Break(AppResult::Exit) => return AppResult::Exit,
                         ControlFlow::Break(AppResult::Handled) => {} // 事件已消费，继续循环
+                        ControlFlow::Break(AppResult::ResumeSelected(entry)) => {
+                            return AppResult::ResumeSelected(entry)
+                        }
                         ControlFlow::Continue => {}
                     }
                 }
@@ -3172,7 +3207,7 @@ impl App {
                 self.help_mode = false;
                 self.mode = Mode::Normal;
             }
-            Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::Normal => {
+            Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::ResumePicker | Mode::Normal => {
                 // 这些模式会在线程切换后重新计算，不需要重置
             }
         }
