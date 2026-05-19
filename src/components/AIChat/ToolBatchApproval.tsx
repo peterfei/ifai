@@ -100,12 +100,20 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
                 const tool = running.tool.toLowerCase();
                 const args = running.args as any;
                 const path = args?.rel_path || args?.path || '.';
-                const action = tool.includes('read')
-                    ? t('aiChat.toolBatchApproval.actions.read')
-                    : (tool.includes('list') || tool.includes('dir')
-                        ? t('aiChat.toolBatchApproval.actions.list')
-                        : t('aiChat.toolBatchApproval.actions.search'));
-                return { action, path };
+                const action = tool.includes('write')
+                    ? t('aiChat.toolBatchApproval.actions.write')
+                    : (tool.includes('read')
+                        ? t('aiChat.toolBatchApproval.actions.read')
+                        : (tool.includes('list') || tool.includes('dir')
+                            ? t('aiChat.toolBatchApproval.actions.list')
+                            : t('aiChat.toolBatchApproval.actions.search')));
+                // 折叠路径：保留首目录和文件名
+                const shortPath = path.length > 50
+                    ? path.split('/').length > 3
+                        ? path.split('/')[0] + '/.../' + path.split('/').pop()
+                        : path
+                    : path;
+                return { action, path: shortPath };
             }
         }
         return null;
@@ -167,7 +175,7 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
                                 {stats.isRunning ? (
                                     <>
                                         <span className="text-[var(--accent-color)] font-bold">{latestAction?.action}:</span>
-                                        <span className="theme-text-muted truncate max-w-[280px]">{latestAction?.path}</span>
+                                        <span className="theme-text-muted max-w-full break-all">{latestAction?.path}</span>
                                     </>
                                 ) : (
                                     <span className="text-[var(--success-color)] font-bold italic">{t('aiChat.toolBatchApproval.done')}</span>

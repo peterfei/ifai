@@ -377,6 +377,30 @@ pub fn args_preview(req: &ApprovalRequest) -> String {
     }
 }
 
+/// 截断路径：保留文件名 + 父目录，超长时中间用 ...
+/// 如 /Users/mac/project/aieditor/ifainew/src-tauri/test2.log
+/// → .../ifainew/src-tauri/test2.log
+fn truncate_path(path: &str, max_len: usize) -> String {
+    if path.len() <= max_len {
+        return path.to_string();
+    }
+    let path_buf = std::path::Path::new(path);
+    let file_name = path_buf.file_name().and_then(|n| n.to_str()).unwrap_or(path);
+    // 至少保留文件名
+    if file_name.len() >= max_len {
+        return format!("...{}", &file_name[..file_name.len().min(max_len - 3)]);
+    }
+    // 尝试保留父目录最后一部分
+    let parent = path_buf.parent().and_then(|p| p.to_str()).unwrap_or("");
+    let parent_tail = parent.rsplit('/').next().unwrap_or("");
+    let tail = format!("{}/{}", parent_tail, file_name);
+    if tail.len() + 3 <= max_len {
+        return format!(".../{}", tail);
+    }
+    // 只保留文件名
+    format!("...{}", file_name)
+}
+
 /// 格式化工具参数预览（复用 session.rs 的逻辑）
 fn format_tool_args_preview(tool_name: &str, args: &serde_json::Value) -> String {
     match tool_name {
@@ -389,6 +413,7 @@ fn format_tool_args_preview(tool_name: &str, args: &serde_json::Value) -> String
         }
         "write_file" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
+            let display_path = truncate_path(path, 50);
             let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
             let preview = if content.len() > 60 {
                 let truncated: String = content.chars().take(57).collect();
@@ -396,10 +421,11 @@ fn format_tool_args_preview(tool_name: &str, args: &serde_json::Value) -> String
             } else {
                 content.to_string()
             };
-            format!("路径: {}\n内容: {}", path, preview)
+            format!("路径: {}\n内容: {}", display_path, preview)
         }
         "edit_file" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
+            let display_path = truncate_path(path, 50);
             let edit = args.get("edit").and_then(|v| v.as_str()).unwrap_or("?");
             let preview = if edit.len() > 60 {
                 let truncated: String = edit.chars().take(57).collect();
@@ -407,11 +433,12 @@ fn format_tool_args_preview(tool_name: &str, args: &serde_json::Value) -> String
             } else {
                 edit.to_string()
             };
-            format!("编辑文件: {}\n变更: {}", path, preview)
+            format!("编辑文件: {}\n变更: {}", display_path, preview)
         }
         "delete_file" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
-            format!("删除文件: {}", path)
+            let display_path = truncate_path(path, 50);
+            format!("删除文件: {}", display_path)
         }
         _ => {
             let json_str = serde_json::to_string_pretty(args).unwrap_or_default();

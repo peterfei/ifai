@@ -3,7 +3,7 @@ import { useApprovalStore } from '../../core/approval/store/useApprovalStore';
 import { DiffPreview } from './DiffPreview';
 import { useTypewriter } from '../../hooks/useTypewriter';
 import React, { useState, useLayoutEffect, useMemo, useRef } from 'react';
-import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ExternalLink, Copy } from 'lucide-react';
 import { ToolCall, useChatStore } from '../../stores/useChatStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useTranslation } from 'react-i18next';
@@ -291,6 +291,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
     const chatStore = useChatStore();
     const [isExpanded, setIsExpanded] = useState(false);
     const [oldContent, setOldContent] = useState<string | null>(null);
+    const [pathCopied, setPathCopied] = useState<string | null>(null);
 
     // 🐛 DEBUG: 添加 ref 用于追踪 props 引用变化
     const previousNestedStructureRef = useRef<any>(null);
@@ -657,14 +658,43 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
     const riskVisuals = getRiskVisuals(riskLevel);
 
-    // 路径摘要逻辑
-    const formatFilePath = (path: string) => {
+    // 智能路径格式化（三态策略）
+    // 策略 A（短路径 < 40 字符）：完整显示
+    // 策略 B（中路径）：折叠中间，保留首2层和文件名
+    // 策略 C（长路径 > 55 字符）：换行显示
+    const formatFilePathSmart = (path: string) => {
         if (!path) return '';
-        const parts = path.split('/');
-        if (parts.length <= 2) return path;
-        const fileName = parts.pop();
-        const parent = parts.pop();
-        return `.../${parent}/${fileName}`;
+
+        const parts = path.split('/').filter(p => p.length > 0);
+        const fileName = parts[parts.length - 1];
+
+        // 策略 A: 短路径完整显示
+        if (path.length <= 40) return path;
+
+        const isAbsolute = path.startsWith('/');
+        const maxCollapsedLen = 50;
+
+        if (isAbsolute) {
+            // 绝对路径: /Users/mac/.../test2.log
+            const topDirs = parts.slice(0, 2).join('/'); // Users/mac
+            const collapsed = `/${topDirs}/.../${fileName}`;
+            if (collapsed.length <= maxCollapsedLen) return collapsed;
+            // 还是太长就换行
+            return `/${topDirs}/.../\n${fileName}`;
+        }
+
+        // 相对路径
+        if (parts.length <= 3) return path;
+
+        const firstDir = parts[0];
+        const lastDir = parts[parts.length - 2];
+
+        // 策略 B: 折叠中间
+        const collapsed = `${firstDir}/.../${lastDir}/${fileName}`;
+        if (collapsed.length <= maxCollapsedLen) return collapsed;
+
+        // 策略 C: 换行
+        return `${firstDir}/.../${lastDir}/\n${fileName}`;
     };
 
     useLayoutEffect(() => {
@@ -720,8 +750,8 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                     </div>
                                     {filePath ? (
                                         <div className="flex items-center gap-2 group/path">
-                                            <span data-testid="file-path" className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
-                                                {toolCall.tool?.includes('write') ? t('toolApproval.fileTree.write') : t('toolApproval.fileTree.access')} <span className="text-gray-300 font-bold">{formatFilePath(filePath)}</span>
+                                            <span data-testid="file-path" className="text-[10px] text-gray-500 font-mono font-medium max-w-full break-all" title={filePath}>
+                                                {toolCall.tool?.includes('write') ? t('toolApproval.fileTree.write') : t('toolApproval.fileTree.access')} <span className="text-gray-300 font-bold whitespace-pre-wrap">{formatFilePathSmart(filePath)}</span>
                                             </span>
                                             {isWriteFile && !isPartial && (
                                                 <button
@@ -748,6 +778,23 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                                     <ExternalLink size={10} />
                                                 </button>
                                             )}
+                                            {/* 📋 复制路径按钮 */}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigator.clipboard.writeText(filePath).then(() => {
+                                                        setPathCopied(filePath);
+                                                        toast.success(t('toolApproval.copyPathSuccess'));
+                                                        setTimeout(() => setPathCopied(null), 2000);
+                                                    }).catch(() => {
+                                                        toast.error(t('toolApproval.copyPathFailed'));
+                                                    });
+                                                }}
+                                                className="p-1 rounded bg-gray-800 hover:bg-green-500/20 text-gray-500 hover:text-green-400 transition-all opacity-0 group-hover/path:opacity-100"
+                                                title={t('toolApproval.copyPath')}
+                                            >
+                                                {pathCopied === filePath ? <Check size={10} /> : <Copy size={10} />}
+                                            </button>
                                         </div>
                                     ) : (
                                         getToolArg('command') && (
