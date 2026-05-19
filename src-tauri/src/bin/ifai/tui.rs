@@ -846,6 +846,8 @@ pub struct App {
     last_render_width: Option<u16>,
     /// 🔥 上次 overlay 的滚动位置（用于检测滚动变化，清除残留）
     last_overlay_scroll: Option<u16>,
+    /// 🔥 上次 Ctrl+C 按键时间（用于检测两次 Ctrl+C 强制退出）
+    last_ctrlc_time: Option<std::time::Instant>,
     /// 🔥 当前运行的 workflow ID（用于 ESC 取消）
     pub running_workflow_id: Option<String>,
     /// 🔥 首次运行设置向导
@@ -895,6 +897,7 @@ impl App {
             test_size: None,
             last_render_width: None,
             last_overlay_scroll: None,
+            last_ctrlc_time: None,
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
@@ -932,6 +935,7 @@ impl App {
             test_size: None,
             last_render_width: None,
             last_overlay_scroll: None,
+            last_ctrlc_time: None,
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
@@ -1550,6 +1554,20 @@ impl App {
     /// 是否正在处理 AI 请求（向后兼容：检查当前线程）
     pub fn is_busy(&self) -> bool {
         self.is_current_thread_busy()
+    }
+
+    /// 🔥 检测是否是两次 Ctrl+C（2秒内）
+    ///
+    /// 返回 true 表示这是两次 Ctrl+C，应该强制退出
+    /// 返回 false 表示这是单次 Ctrl+C 或第一次 Ctrl+C
+    pub fn is_double_ctrlc(&mut self) -> bool {
+        let now = std::time::Instant::now();
+        let is_double = self
+            .last_ctrlc_time
+            .map(|t| now.duration_since(t).as_secs() < 2)
+            .unwrap_or(false);
+        self.last_ctrlc_time = Some(now);
+        is_double
     }
 
     /// 入队一条消息（自动 trim + 空检查）

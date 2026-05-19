@@ -1624,7 +1624,7 @@ async fn run_streaming_loop(
     approval_tx: tokio::sync::mpsc::UnboundedSender<approval_overlay::ApprovalRequest>,
     approval_rx: &mut tokio::sync::mpsc::UnboundedReceiver<approval_overlay::ApprovalRequest>,
     initial_request: (String, thread::ThreadId),
-) {
+) -> StreamingControl {
     // 处理初始请求
     spawn_stream_request(
         app,
@@ -1633,6 +1633,9 @@ async fn run_streaming_loop(
         approval_tx.clone(),
         initial_request,
     );
+
+    // 🔥 用于跟踪最终的退出原因
+    let mut final_control = StreamingControl::Continue;
 
     // 键盘事件专用线程：持续读取 crossterm 事件，通过 channel 发送
     // 这样 select! 中的 kb_rx.recv() 与 output_rx.recv() 是同类 channel receiver，公平竞争
@@ -1898,9 +1901,11 @@ async fn run_streaming_loop(
             }
             StreamingControl::Interrupted => {
                 // Ctrl+C 中断当前线程
+                final_control = StreamingControl::Interrupted;
                 break;
             }
             StreamingControl::Exit => {
+                final_control = StreamingControl::Exit;
                 break;
             }
             StreamingControl::NewRequest { text, thread_id } => {
@@ -1924,6 +1929,9 @@ async fn run_streaming_loop(
     drop(kb_tx);
     drop(kb_rx); // 必须在 join() 之前 drop receiver，否则线程内的 clone sender 仍能 send 成功，导致 join() 永远阻塞
     let _ = kb_thread.join();
+
+    // 🔥 返回最终的退出原因
+    final_control
 }
 
 /// 为指定线程 spawn AI streaming 请求
@@ -2400,27 +2408,59 @@ fn handle_single_key_event(
 
         // === Ctrl+C：所有模式下都生效（统一清理路径） ===
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-            app.clear_queue();
-            // 中断活跃线程
-            if let Some(mut state) = stream_states.remove(active_id) {
-                if let Some(h) = state.handle.take() {
-                    h.abort();
-                }
-                app.cleanup_after_stream(*active_id);
-                app.push_line_if_active_thread(*active_id, String::new());
-                app.push_line_if_active_thread(*active_id, "^C 已中断 AI 响应".to_string());
-            }
-            // 清理所有后台线程
-            let all_ids: Vec<_> = stream_states.keys().copied().collect();
-            for id in all_ids {
-                if let Some(mut state) = stream_states.remove(&id) {
+            // 🔥 检测是否是两次 Ctrl+C（2秒内）
+            let is_double_ctrlc = app.is_double_ctrlc();
+
+            // 🔥 检查是否有活跃的 streaming（前台或后台）
+            let has_active_streaming = !stream_states.is_empty();
+
+            if is_double_ctrlc {
+                // 🔥 两次 Ctrl+C → 强制退出（清理所有状态并退出）
+                app.clear_queue();
+                // 清理所有 stream_states（包括前台和后台）
+                for (id, mut state) in stream_states.drain() {
                     if let Some(h) = state.handle.take() {
                         h.abort();
                     }
                     app.cleanup_after_stream(id);
                 }
+                return StreamingControl::Exit;
             }
-            return StreamingControl::Interrupted;
+
+            if has_active_streaming {
+                // 🔥 第一次 Ctrl+C，有活跃 streaming → 中断所有请求（前台+后台），回到提示符
+                app.clear_queue();
+
+                // 中断前台线程
+                if let Some(mut state) = stream_states.remove(active_id) {
+                    if let Some(h) = state.handle.take() {
+                        h.abort();
+                    }
+                    app.cleanup_after_stream(*active_id);
+                    app.push_line_if_active_thread(*active_id, String::new());
+                    app.push_line_if_active_thread(*active_id, "^C 已中断 AI 响应".to_string());
+                }
+
+                // 🔥 清理所有后台线程（重要！）
+                let all_ids: Vec<_> = stream_states.keys().copied().collect();
+                for id in all_ids {
+                    if let Some(mut state) = stream_states.remove(&id) {
+                        if let Some(h) = state.handle.take() {
+                            h.abort();
+                        }
+                        app.cleanup_after_stream(id);
+                        // 🔥 显示后台线程也被中断的消息
+                        app.push_line(format!("^C 已中断后台线程 {:?}", id));
+                    }
+                }
+
+                // 回到提示符，不退出
+                return StreamingControl::Interrupted;
+            } else {
+                // 🔥 没有 streaming，但有其他操作（如正在输入）→ 也回到提示符
+                // 或者用户只是想"刷新"提示符
+                return StreamingControl::Interrupted;
+            }
         }
 
         // === Diff 模式：仅由 DiffModeHandler 处理 ===
@@ -2701,7 +2741,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         thread::ThreadId,
                         StreamState,
                     > = std::collections::HashMap::new();
-                    run_streaming_loop(
+                    let streaming_result = run_streaming_loop(
                         &mut app,
                         &session,
                         &mut stream_states,
@@ -2710,6 +2750,77 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         (text, thread_id),
                     )
                     .await;
+
+                    // 🔥 检查 streaming 结果，处理控制信号
+                    match streaming_result {
+                        StreamingControl::Exit => {
+                            // 🔥 两次 Ctrl+C → 异步保存会话并退出主循环
+                            let theme = render::default_theme();
+                            app.push_line(format!(
+                                "{}Ctrl+C 退出，保存会话...{}",
+                                theme.brand,
+                                render::RESET
+                            ));
+                            app.scroll_to_bottom();
+                            app.render();
+
+                            // 🔥 异步保存会话（不阻塞退出）
+                            let session_clone = session.clone();
+                            // 收集所有消息（手动 flatten）
+                            let mut messages_clone = Vec::new();
+                            for (_id, msgs) in app.thread.messages.get_all() {
+                                for msg in msgs {
+                                    messages_clone.push(msg.clone());
+                                }
+                            }
+
+                            tokio::spawn(async move {
+                                // 转换消息格式
+                                let all_thread_messages: Vec<ifainew_lib::harness::api::types::Message> = messages_clone
+                                    .into_iter()
+                                    .filter_map(|msg| {
+                                        let role = match msg.role.as_str() {
+                                            "user" => Some(ifainew_lib::harness::api::types::MessageRole::User),
+                                            "assistant" => Some(ifainew_lib::harness::api::types::MessageRole::Assistant),
+                                            _ => None,
+                                        };
+                                        role.map(|r| ifainew_lib::harness::api::types::Message {
+                                            role: r,
+                                            content: ifainew_lib::harness::api::types::MessageContent::Text(
+                                                msg.content.clone(),
+                                            ),
+                                            tool_calls: None,
+                                            tool_call_id: None,
+                                        })
+                                    })
+                                    .collect();
+
+                                let (provider, model) = {
+                                    let s = session_clone.lock().await;
+                                    (s.provider.clone(), s.model.clone())
+                                };
+
+                                match crate::persistence::SessionPersistence::new() {
+                                    Ok(persistence) => {
+                                        let _ = persistence.save_session_summary(
+                                            &all_thread_messages,
+                                            &provider,
+                                            &model,
+                                            0, 0
+                                        );
+                                    }
+                                    Err(_) => {}
+                                }
+                            });
+
+                            break; // 退出主循环（不等待保存完成）
+                        }
+                        StreamingControl::Interrupted => {
+                            // 🔥 第一次 Ctrl+C → 中断请求，回到提示符，继续运行
+                            // 不退出主循环，让用户可以继续输入
+                        }
+                        _ => {}
+                    }
                 }
             }
             AppResult::Exit => {
@@ -2749,53 +2860,56 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 app.scroll_to_bottom();
                 app.render();
 
-                // 创建持久化管理器并保存
-                match crate::persistence::SessionPersistence::new() {
-                    Ok(persistence) => {
-                        // 获取 provider 和 model
-                        let (provider, model) = {
-                            let s = session.lock().await;
-                            (s.provider.clone(), s.model.clone())
-                        };
-
-                        match persistence.save_session_summary(
-                            &all_thread_messages,
-                            &provider,
-                            &model,
-                            0, // TODO: 从 session 收集实际 token 统计
-                            0,
-                        ) {
-                            Ok(filepath) => {
-                                app.push_line(format!(
-                                    "{}✓ Session summary saved to {}{}",
-                                    theme.success,
-                                    filepath.display(),
-                                    render::RESET
-                                ));
-                            }
-                            Err(e) => {
-                                app.push_line(format!(
-                                    "{}⚠ Failed to save session summary: {}{}",
-                                    theme.warning,
-                                    e,
-                                    render::RESET
-                                ));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        app.push_line(format!(
-                            "{}⚠ Failed to create persistence: {}{}",
-                            theme.warning,
-                            e,
-                            render::RESET
-                        ));
+                // 🔥 异步保存会话（不阻塞退出）
+                let session_clone = session.clone();
+                // 收集所有消息（手动 flatten）
+                let mut messages_clone = Vec::new();
+                for (_id, msgs) in app.thread.messages.get_all() {
+                    for msg in msgs {
+                        messages_clone.push(msg.clone());
                     }
                 }
-                app.scroll_to_bottom();
-                app.render();
 
-                break;
+                tokio::spawn(async move {
+                    // 转换消息格式
+                    let all_thread_messages: Vec<ifainew_lib::harness::api::types::Message> = messages_clone
+                        .into_iter()
+                        .filter_map(|msg| {
+                            let role = match msg.role.as_str() {
+                                "user" => Some(ifainew_lib::harness::api::types::MessageRole::User),
+                                "assistant" => Some(ifainew_lib::harness::api::types::MessageRole::Assistant),
+                                _ => None,
+                            };
+                            role.map(|r| ifainew_lib::harness::api::types::Message {
+                                role: r,
+                                content: ifainew_lib::harness::api::types::MessageContent::Text(
+                                    msg.content.clone(),
+                                ),
+                                tool_calls: None,
+                                tool_call_id: None,
+                            })
+                        })
+                        .collect();
+
+                    let (provider, model) = {
+                        let s = session_clone.lock().await;
+                        (s.provider.clone(), s.model.clone())
+                    };
+
+                    match crate::persistence::SessionPersistence::new() {
+                        Ok(persistence) => {
+                            let _ = persistence.save_session_summary(
+                                &all_thread_messages,
+                                &provider,
+                                &model,
+                                0, 0
+                            );
+                        }
+                        Err(_) => {}
+                    }
+                });
+
+                break; // 立即退出主循环（不等待保存完成）
             }
             AppResult::Handled => {}
         }
@@ -3126,6 +3240,14 @@ mod tests {
         (app, stream_states, thread_id)
     }
 
+    /// Helper: 创建一个空闲的 app（没有 stream_states，用于测试 idle 场景）
+    fn setup_idle_test() -> (tui::App, std::collections::HashMap<thread::ThreadId, StreamState>, thread::ThreadId) {
+        let app = tui::App::new_for_test();
+        let thread_id = app.thread.store.primary_id();
+        let stream_states = std::collections::HashMap::new(); // 空 HashMap
+        (app, stream_states, thread_id)
+    }
+
     /// Helper: 构造 Key event
     fn key_event(
         code: crossterm::event::KeyCode,
@@ -3346,6 +3468,70 @@ mod tests {
         assert!(matches!(result, StreamingControl::Interrupted));
         assert!(!app.is_current_thread_busy());
         assert!(states.is_empty()); // stream_state 被 remove
+    }
+
+    // ========================================================================
+    // Phase 1: Ctrl+C 退出功能测试（RED - 这些测试应该先失败）
+    // ========================================================================
+
+    /// Task 1.1.1: 测试 Ctrl+C 在 idle 时应该中断（回到提示符）
+    #[test]
+    fn test_ctrlc_in_idle_mode_exits() {
+        let (mut app, mut states, id) = setup_idle_test(); // 🔥 使用 idle 测试 helper
+        // 不设置 streaming，保持 idle 状态
+
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('c'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
+
+        // ✅ 期望：idle 时第一次 Ctrl+C 应该返回 Interrupted（回到提示符）
+        // ✅ 第二次 Ctrl+C 才返回 Exit（退出程序）
+        assert!(matches!(result, StreamingControl::Interrupted),
+            "idle 时第一次 Ctrl+C 应该中断（回到提示符），但实际返回不符");
+    }
+
+    /// Task 1.1.3: 测试两次 Ctrl+C 强制退出
+    #[test]
+    fn test_double_ctrlc_forces_exit() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.stream.thread_busy.insert(id, true);
+
+        // 第一次 Ctrl+C
+        let result1 = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('c'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
+
+        // 第一次应该中断请求
+        assert!(matches!(result1, StreamingControl::Interrupted | StreamingControl::Exit));
+
+        // 模拟时间流逝很短（需要实现 last_ctrlc_time 功能后才能真正测试）
+        // 第二次 Ctrl+C（模拟 2 秒内）
+        let result2 = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('c'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
+
+        // ✅ 期望：两次 Ctrl+C 应该强制退出
+        // ❌ 当前：没有两次检测功能
+        assert!(matches!(result2, StreamingControl::Exit),
+            "两次 Ctrl+C 应该强制退出，但实际返回不符");
     }
 
     #[test]
