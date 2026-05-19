@@ -869,6 +869,10 @@ pub struct App {
     collected_events: Vec<crate::session_event::SessionEvent>,
     /// 🔥 上次快照时间（Phase 3: 用于时间触发快照）
     last_snapshot_time: Option<std::time::Instant>,
+    /// 🔥 Phase 6: 持久化配置 - 事件计数阈值（默认 50）
+    persistence_event_threshold: u64,
+    /// 🔥 Phase 6: 持久化配置 - 快照间隔秒数（默认 600）
+    persistence_interval_secs: u64,
 }
 
 impl App {
@@ -921,6 +925,8 @@ impl App {
             event_count: 0,
             collected_events: Vec::new(),
             last_snapshot_time: None,
+            persistence_event_threshold: 50,
+            persistence_interval_secs: 600,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -964,6 +970,8 @@ impl App {
             event_count: 0,
             collected_events: Vec::new(),
             last_snapshot_time: None,
+            persistence_event_threshold: 50,
+            persistence_interval_secs: 600,
         }
     }
 
@@ -1602,6 +1610,12 @@ impl App {
         self.event_persistence = Some(persistence);
     }
 
+    /// 🔥 Phase 6: 设置持久化配置（事件计数阈值和间隔秒数）
+    pub fn set_persistence_config(&mut self, event_count: u64, interval_secs: u64) {
+        self.persistence_event_threshold = event_count;
+        self.persistence_interval_secs = interval_secs;
+    }
+
     /// 🔥 获取事件持久化器（如果已设置）
     pub fn event_persistence(&self) -> Option<&EventPersistence> {
         self.event_persistence.as_ref()
@@ -1617,16 +1631,14 @@ impl App {
             // 发送事件到持久化器
             let _ = persistence.persist_event(event);
 
-            // 🔥 Phase 3: 自动快照创建（每 50 个事件）
-            const SNAPSHOT_EVENT_COUNT: u64 = 50;
-            if self.event_count % SNAPSHOT_EVENT_COUNT == 0 {
+            // 🔥 Phase 3+6: 自动快照创建（使用配置的事件计数阈值）
+            if self.event_count % self.persistence_event_threshold == 0 {
                 self.create_auto_snapshot();
             }
 
-            // 🔥 Phase 3: 时间触发快照（每 10 分钟）
-            const SNAPSHOT_INTERVAL_SECS: u64 = 600; // 10 分钟
+            // 🔥 Phase 3+6: 时间触发快照（使用配置的间隔秒数）
             if let Some(last_time) = self.last_snapshot_time {
-                if last_time.elapsed().as_secs() >= SNAPSHOT_INTERVAL_SECS {
+                if last_time.elapsed().as_secs() >= self.persistence_interval_secs {
                     self.create_auto_snapshot();
                 }
             } else {
@@ -1664,6 +1676,43 @@ impl App {
             // 更新快照时间
             self.last_snapshot_time = Some(std::time::Instant::now());
         }
+    }
+
+    /// 🔥 Phase 4: 会话退出时执行清理（归档增量日志 + 清理过期快照）
+    /// 返回 (archived_count, cleaned_snapshots, cleaned_archives)
+    pub fn session_cleanup(&self) -> (bool, usize, usize) {
+        let sessions_base = dirs::home_dir()
+            .map(|home| home.join(".ifai").join("sessions"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions"));
+
+        let snapshots_dir = sessions_base.join("auto");
+        let live_dir = sessions_base.join("live");
+        let archive_dir = sessions_base.join("archive");
+
+        let manager = crate::snapshot_manager::SnapshotManager::with_defaults(
+            snapshots_dir,
+            live_dir,
+            archive_dir,
+        );
+
+        // 1. 归档增量日志
+        let session_id = self.event_persistence
+            .as_ref()
+            .map(|p| p.session_id().to_string())
+            .unwrap_or_default();
+        let archived = if !session_id.is_empty() {
+            manager.archive_incremental_log(&session_id).is_ok()
+        } else {
+            false
+        };
+
+        // 2. 清理过期快照
+        let cleaned_snapshots = manager.cleanup_old_snapshots().unwrap_or(0);
+
+        // 3. 清理过期归档（超过 30 天）
+        let cleaned_archives = manager.cleanup_old_archives(30).unwrap_or(0);
+
+        (archived, cleaned_snapshots, cleaned_archives)
     }
 
     /// 入队一条消息（自动 trim + 空检查）

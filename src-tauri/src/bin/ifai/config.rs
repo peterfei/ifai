@@ -272,6 +272,10 @@ struct TomlConfig {
     /// Provider 覆盖配置
     #[serde(default)]
     providers: HashMap<String, TomlProviderConfig>,
+
+    /// TUI 配置
+    #[serde(default)]
+    tui: TomlTuiSection,
 }
 
 /// 默认配置段
@@ -297,6 +301,50 @@ struct TomlProviderConfig {
     #[serde(default)]
     base_url: Option<String>,
 }
+
+/// 🔥 Phase 6: TUI 配置段
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+struct TomlTuiSection {
+    /// 事件持久化配置
+    #[serde(default)]
+    event_persistence: TomlEventPersistenceConfig,
+}
+
+/// 🔥 Phase 6: 事件持久化配置
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TomlEventPersistenceConfig {
+    /// 是否启用事件持久化
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// 快照间隔（分钟）
+    #[serde(default = "default_snapshot_interval")]
+    pub snapshot_interval_minutes: u64,
+
+    /// 触发快照的事件数
+    #[serde(default = "default_snapshot_event_count")]
+    pub snapshot_event_count: u64,
+
+    /// 最大快照保留数
+    #[serde(default = "default_max_snapshots")]
+    pub max_snapshots: usize,
+}
+
+impl Default for TomlEventPersistenceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            snapshot_interval_minutes: default_snapshot_interval(),
+            snapshot_event_count: default_snapshot_event_count(),
+            max_snapshots: default_max_snapshots(),
+        }
+    }
+}
+
+fn default_true() -> bool { true }
+fn default_snapshot_interval() -> u64 { 10 }
+fn default_snapshot_event_count() -> u64 { 50 }
+fn default_max_snapshots() -> usize { 10 }
 
 /// 🔥 元编程：从 ProviderSpec 生成 TOML 配置模板
 ///
@@ -381,6 +429,7 @@ fn read_toml_config() -> Result<TomlConfig, String> {
         return Ok(TomlConfig {
             default: TomlDefaultSection::default(),
             providers: HashMap::new(),
+            tui: TomlTuiSection::default(),
         });
     }
 
@@ -446,6 +495,13 @@ fn read_provider_api_key_from_toml(provider_id: &str) -> Option<String> {
 fn read_provider_base_url_from_toml(provider_id: &str) -> Option<String> {
     let config = read_toml_config().ok()?;
     config.providers.get(provider_id)?.base_url.clone()
+}
+
+/// 🔥 Phase 6: 读取事件持久化配置
+pub fn read_event_persistence_config() -> TomlEventPersistenceConfig {
+    read_toml_config()
+        .map(|c| c.tui.event_persistence)
+        .unwrap_or_default()
 }
 
 // ============================================================================

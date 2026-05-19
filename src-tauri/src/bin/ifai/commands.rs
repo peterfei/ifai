@@ -202,6 +202,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         min_permission: PermissionMode::None,
         handler: cmd_note,
     },
+    CommandSpec {
+        name: "cleanup-sessions",
+        summary: "清理过期快照和归档日志",
+        arg_hint: None,
+        min_permission: PermissionMode::None,
+        handler: cmd_cleanup_sessions,
+    },
 ];
 
 // ============================================================================
@@ -983,11 +990,32 @@ fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 }
 
 fn cmd_config(_session: &mut Session, arg: Option<&str>) -> CommandResult {
+    use super::render::{default_theme, RESET};
+    let theme = default_theme();
+
     match arg {
-        Some("init") => Ok(Some("✅ 配置模板已生成: ~/.ifai/config.toml".to_string())),
-        Some("show") | None => Ok(Some(
-            "配置: provider=deepseek, model=deepseek-chat".to_string(),
-        )),
+        Some("init") => {
+            match crate::config::init_config_file() {
+                Ok(path) => Ok(Some(format!(
+                    "{}✅ 配置模板已生成: {}{}",
+                    theme.success, path.display(), RESET
+                ))),
+                Err(e) => Ok(Some(format!(
+                    "{}⚠ {}{}", theme.warning, e, RESET
+                ))),
+            }
+        }
+        Some("show") | None => {
+            let ep_config = crate::config::read_event_persistence_config();
+            let mut output = String::new();
+            output.push_str(&format!("{}⚙ Configuration{}\n", theme.brand, RESET));
+            output.push_str(&format!("  Event Persistence:\n"));
+            output.push_str(&format!("    enabled: {}\n", if ep_config.enabled { "true" } else { "false" }));
+            output.push_str(&format!("    snapshot_interval_minutes: {}\n", ep_config.snapshot_interval_minutes));
+            output.push_str(&format!("    snapshot_event_count: {}\n", ep_config.snapshot_event_count));
+            output.push_str(&format!("    max_snapshots: {}", ep_config.max_snapshots));
+            Ok(Some(output))
+        }
         Some(_) => Ok(Some("用法: /config <init|show>".to_string())),
     }
 }
@@ -1327,6 +1355,59 @@ fn cmd_note(_session: &mut Session, arg: Option<&str>) -> CommandResult {
             }
         }
     }
+}
+
+/// 🔥 Phase 4: /cleanup-sessions - 清理过期快照和归档日志
+fn cmd_cleanup_sessions(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
+    use super::render::{default_theme, RESET};
+    let theme = default_theme();
+
+    let sessions_base = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions"))
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions"));
+
+    let snapshots_dir = sessions_base.join("auto");
+    let live_dir = sessions_base.join("live");
+    let archive_dir = sessions_base.join("archive");
+
+    let manager = crate::snapshot_manager::SnapshotManager::with_defaults(
+        snapshots_dir, live_dir, archive_dir,
+    );
+
+    let mut output = String::new();
+    output.push_str(&format!("{}🧹 Session Cleanup{}\n", theme.brand, RESET));
+
+    // 清理过期快照
+    match manager.cleanup_old_snapshots() {
+        Ok(count) => {
+            output.push_str(&format!("  {}快照清理: 删除 {} 个过期快照{}\n", theme.success, count, RESET));
+        }
+        Err(e) => {
+            output.push_str(&format!("  {}⚠ 快照清理失败: {}{}\n", theme.warning, e, RESET));
+        }
+    }
+
+    // 清理过期归档（超过 30 天）
+    match manager.cleanup_old_archives(30) {
+        Ok(count) => {
+            output.push_str(&format!("  {}归档清理: 删除 {} 个过期归档{}\n", theme.success, count, RESET));
+        }
+        Err(e) => {
+            output.push_str(&format!("  {}⚠ 归档清理失败: {}{}\n", theme.warning, e, RESET));
+        }
+    }
+
+    // 统计当前状态
+    match manager.list_snapshots() {
+        Ok(snapshots) => {
+            output.push_str(&format!("  📊 当前快照数: {}", snapshots.len()));
+        }
+        Err(_) => {
+            output.push_str("  📊 无法读取快照目录");
+        }
+    }
+
+    Ok(Some(output))
 }
 
 // ============================================================================

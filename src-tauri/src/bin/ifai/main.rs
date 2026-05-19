@@ -2668,21 +2668,27 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
         .as_secs());
 
     // 创建事件持久化器并启动后台任务
-    let mut event_persistence = event_persistence::EventPersistence::new(session_id.clone());
+    // 🔥 Phase 6: 从配置文件读取事件持久化设置
+    let ep_config = config::read_event_persistence_config();
 
-    // 🔥 启动后台任务（必须在 async 运行时中）
-    if let Err(e) = event_persistence.start_worker() {
-        // 静默失败，不干扰 TUI
-        if std::env::var("WORKFLOW_DEBUG").is_ok()
-            || std::env::var("IFAI_DEBUG").is_ok()
-        {
-            eprintln!("[IfAI] 警告：启动事件持久化后台任务失败: {}", e);
+    if ep_config.enabled {
+        let mut event_persistence = event_persistence::EventPersistence::new(session_id.clone());
+
+        // 🔥 启动后台任务（必须在 async 运行时中）
+        if let Err(e) = event_persistence.start_worker() {
+            // 静默失败，不干扰 TUI
+            if std::env::var("WORKFLOW_DEBUG").is_ok()
+                || std::env::var("IFAI_DEBUG").is_ok()
+            {
+                eprintln!("[IfAI] 警告：启动事件持久化后台任务失败: {}", e);
+            }
         }
-    }
-    // 否则：静默启动，不输出任何消息
+        // 否则：静默启动，不输出任何消息
 
-    // 🔥 将事件持久化器设置到 TUI app 中
-    app.set_event_persistence(event_persistence);
+        // 🔥 将事件持久化器设置到 TUI app 中（传递配置值）
+        app.set_event_persistence(event_persistence);
+        app.set_persistence_config(ep_config.snapshot_event_count, ep_config.snapshot_interval_minutes * 60);
+    }
 
     // 🔥 首次运行检测和初始化
     let first_run_detector = first_run::FirstRunDetector::new();
@@ -2799,6 +2805,17 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     }
                     app.scroll_to_bottom();
                     app.render();
+
+                    // 🔥 Phase 4: 会话退出清理（归档增量日志 + 清理过期快照）
+                    let (archived, cleaned_snap, cleaned_arch) = app.session_cleanup();
+                    if archived || cleaned_snap > 0 || cleaned_arch > 0 {
+                        app.push_line(format!(
+                            "{}🧹 Cleanup: archived={}, cleaned snapshots={}, cleaned archives={}{}",
+                            theme.brand, archived, cleaned_snap, cleaned_arch, render::RESET
+                        ));
+                        app.scroll_to_bottom();
+                        app.render();
+                    }
 
                     break;
                 }
@@ -3039,6 +3056,9 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         Err(_) => {}
                     }
                 });
+
+                // 🔥 Phase 4: 会话退出清理
+                let _ = app.session_cleanup();
 
                 break; // 立即退出主循环（不等待保存完成）
             }
