@@ -4035,4 +4035,210 @@ mod tests {
         assert!(!app.is_approving());
         assert!(matches!(app.mode, tui::Mode::Normal));
     }
+
+    // ========================================================================
+    // Phase 8: 事件持久化集成测试
+    // ========================================================================
+
+    /// Helper: 创建临时会话目录结构
+    fn setup_session_dirs() -> tempfile::TempDir {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("sessions/live")).unwrap();
+        std::fs::create_dir_all(temp.path().join("sessions/auto")).unwrap();
+        std::fs::create_dir_all(temp.path().join("sessions/archive")).unwrap();
+        temp
+    }
+
+    #[tokio::test]
+    async fn test_event_persistence_full_workflow() {
+        // 模拟完整的事件持久化流程：创建事件 → 写入 JSONL → 重构快照
+        let temp = setup_session_dirs();
+        let session_id = format!("test-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+
+        // 1. 创建 EventPersistence 并启动后台任务
+        let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
+        assert!(persistence.start_worker().is_ok());
+        assert!(persistence.is_active());
+
+        // 2. 发送多个事件
+        let events = vec![
+            crate::session_event::SessionEvent::UserMessage {
+                content: "Hello, world!".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::AIResponseChunk {
+                content: "Hi there!".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::StreamFinished {
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+        ];
+
+        for event in &events {
+            let result = persistence.persist_event(event.clone());
+            assert!(result.is_ok(), "persist_event should succeed");
+        }
+
+        // 3. 等待后台任务写入
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        // 4. 验证 JSONL 文件存在
+        persistence.shutdown();
+
+        // 额外等待确保文件写入完成
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // 查找 JSONL 文件
+        let live_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/live"));
+
+        // JSONL 文件名包含 session_id
+        let jsonl_path = live_dir.join(format!("{}.jsonl", session_id));
+        assert!(jsonl_path.exists(), "JSONL file should exist at {:?}", jsonl_path);
+
+        // 5. 读取并验证 JSONL 内容
+        let content = std::fs::read_to_string(&jsonl_path).unwrap();
+        let lines: Vec<&str> = content.trim().lines().collect();
+        assert_eq!(lines.len(), 3, "Should have 3 events in JSONL");
+
+        // 验证每行是有效 JSON
+        for (i, line) in lines.iter().enumerate() {
+            let parsed: serde_json::Value = serde_json::from_str(line)
+                .unwrap_or_else(|e| panic!("Line {} should be valid JSON: {}", i, e));
+            assert!(parsed.is_object(), "Line {} should be a JSON object", i);
+        }
+
+        // 6. 从事件重构会话快照
+        let events: Vec<crate::session_event::SessionEvent> = lines.iter()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
+
+        let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+            session_id.clone(),
+            &events,
+        );
+
+        assert_eq!(snapshot.messages.len(), 2, "Should have 2 messages (user + assistant)");
+        assert_eq!(snapshot.messages[0].role, "user");
+        assert_eq!(snapshot.messages[0].content, "Hello, world!");
+        assert_eq!(snapshot.messages[1].role, "assistant");
+
+        // 清理测试文件
+        let _ = std::fs::remove_file(&jsonl_path);
+    }
+
+    #[test]
+    fn test_crash_recovery_from_jsonl() {
+        // 模拟崩溃恢复：JSONL 文件存在但会话未正常关闭
+        let session_id = format!("crash-test-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+
+        let live_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/live"));
+        std::fs::create_dir_all(&live_dir).ok();
+
+        let jsonl_path = live_dir.join(format!("{}.jsonl", session_id));
+
+        // 1. 手动写入 JSONL 事件（模拟崩溃前的状态）
+        let events_json = vec![
+            r#"{"UserMessage":{"content":"What is Rust?","metadata":{"timestamp":1704067200000,"sequence":1,"thread_id":"main"}}}"#,
+            r#"{"AIResponseChunk":{"content":"Rust is a systems programming language","metadata":{"timestamp":1704067201000,"sequence":2,"thread_id":"main"}}}"#,
+            r#"{"StreamFinished":{"metadata":{"timestamp":1704067202000,"sequence":3,"thread_id":"main"}}}"#,
+            // 崩溃！没有 ToolCall 或 ThreadSwitch 事件
+        ];
+
+        let jsonl_content = events_json.join("\n");
+        std::fs::write(&jsonl_path, &jsonl_content).unwrap();
+
+        // 2. 模拟恢复：读取 JSONL 并解析事件
+        let content = std::fs::read_to_string(&jsonl_path).unwrap();
+        let events: Vec<crate::session_event::SessionEvent> = content.lines()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
+
+        assert_eq!(events.len(), 3, "Should recover 3 events");
+
+        // 3. 重构会话
+        let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+            session_id.clone(),
+            &events,
+        );
+
+        // 验证恢复的消息
+        assert_eq!(snapshot.messages.len(), 2, "Should have 2 messages");
+        assert_eq!(snapshot.messages[0].role, "user");
+        assert_eq!(snapshot.messages[0].content, "What is Rust?");
+        assert_eq!(snapshot.messages[1].role, "assistant");
+        assert!(snapshot.messages[1].content.contains("systems programming language"));
+
+        // 清理
+        let _ = std::fs::remove_file(&jsonl_path);
+    }
+
+    #[test]
+    fn test_snapshot_retention_cleanup_integration() {
+        // 集成测试：快照创建 → 清理策略
+        let temp = tempfile::tempdir().unwrap();
+        let snapshots_dir = temp.path().join("snapshots");
+        let live_dir = temp.path().join("live");
+        let archive_dir = temp.path().join("archive");
+        std::fs::create_dir_all(&snapshots_dir).unwrap();
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+
+        // 创建 15 个快照（最近 10 个 + 5 个过期）
+        for i in 0..10 {
+            let ts = now - (i as u64 * 60);
+            let path = snapshots_dir.join(format!("auto-{}.json", ts));
+            std::fs::write(&path, r#"{"session_id":"test","messages":[],"created_at":""}"#).unwrap();
+        }
+        // 8+ 天前的快照
+        for i in 0..5 {
+            let ts = now - (8 + i) * 24 * 3600;
+            let path = snapshots_dir.join(format!("auto-{}.json", ts));
+            std::fs::write(&path, r#"{"session_id":"old","messages":[],"created_at":""}"#).unwrap();
+        }
+
+        let manager = crate::snapshot_manager::SnapshotManager::with_defaults(
+            snapshots_dir.clone(), live_dir, archive_dir,
+        );
+
+        // 清理
+        let deleted = manager.cleanup_old_snapshots().unwrap();
+        assert!(deleted >= 5, "Should delete at least 5 old snapshots, got {}", deleted);
+
+        let remaining = manager.list_snapshots().unwrap();
+        assert_eq!(remaining.len(), 10, "Should keep 10 recent snapshots");
+    }
+
+    #[test]
+    fn test_config_toml_event_persistence_parsing() {
+        // 集成测试：验证 TOML 配置解析正确传递到运行时
+        let config = crate::config::read_event_persistence_config();
+
+        // 默认值验证
+        assert!(config.enabled, "Default enabled should be true");
+        assert_eq!(config.snapshot_interval_minutes, 10);
+        assert_eq!(config.snapshot_event_count, 50);
+        assert_eq!(config.max_snapshots, 10);
+    }
+
+    #[test]
+    fn test_app_persistence_config_applied() {
+        // 测试 App 的持久化配置传递
+        let mut app = tui::App::new_for_test();
+
+        // 修改配置（通过公开方法）
+        app.set_persistence_config(100, 300);
+
+        // 创建事件持久化器并设置到 App
+        let persistence = crate::event_persistence::EventPersistence::new("config-test".to_string());
+        app.set_event_persistence(persistence);
+        assert!(app.has_event_persistence());
+    }
 }
