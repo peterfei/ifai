@@ -136,38 +136,96 @@ async fn event_persistence_worker(
 ) {
     log_debug(format!("[EventPersistence] 后台任务启动: session={}", session_id));
 
+    // 🔥 Phase 2.3: 创建 JSONL 写入器
+    let sessions_dir = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions").join("live"))
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/live"));
+
+    // 确保目录存在
+    if let Err(e) = std::fs::create_dir_all(&sessions_dir) {
+        log_debug(format!("[EventPersistence] 创建目录失败: {}", e));
+        return;
+    }
+
+    let jsonl_path = sessions_dir.join(format!("{}.jsonl", session_id));
+    let mut jsonl_writer = crate::jsonl_writer::JsonlWriter::new(jsonl_path.clone());
+
+    // 打开文件
+    if let Err(e) = jsonl_writer.open() {
+        log_debug(format!("[EventPersistence] 打开 JSONL 文件失败: {}", e));
+        return;
+    }
+
+    log_debug(format!("[EventPersistence] JSONL 文件已打开: {:?}", jsonl_path));
+
+    // 事件计数器（用于快照触发）
+    let mut event_count = 0u64;
+    const SNAPSHOT_EVENT_COUNT: u64 = 50; // 每 50 个事件创建快照
+
     while let Some(cmd) = rx.recv().await {
         match cmd {
             PersistenceCommand::AddEvent(event) => {
-                // TODO: 实现事件追加逻辑（Phase 1.1.3）
-                log_debug(format!(
-                    "[EventPersistence] 收到事件: {:?}",
-                    std::mem::discriminant(&event)
-                ));
+                // 🔥 Phase 2.3: 真正写入事件到 JSONL 文件
+                if let Err(e) = jsonl_writer.append_event(&event) {
+                    log_debug(format!(
+                        "[EventPersistence] 写入事件失败: {:?}, 错误: {}",
+                        std::mem::discriminant(&event),
+                        e
+                    ));
+                } else {
+                    log_debug(format!(
+                        "[EventPersistence] ✅ 事件已写入: {:?}",
+                        std::mem::discriminant(&event)
+                    ));
+                }
+
+                event_count += 1;
+
+                // 🔥 自动创建快照（每 SNAPSHOT_EVENT_COUNT 个事件）
+                if event_count % SNAPSHOT_EVENT_COUNT == 0 {
+                    log_debug(format!(
+                        "[EventPersistence] 📸 自动创建快照: event_count={}",
+                        event_count
+                    ));
+                    // TODO: 实现快照创建逻辑（Phase 2.4）
+                }
             }
 
             PersistenceCommand::CreateSnapshot {
                 session_id: sid,
                 messages,
             } => {
-                // TODO: 实现快照创建逻辑（Phase 1.1.4）
+                // 🔥 Phase 2.3: 创建完整快照
                 log_debug(format!(
-                    "[EventPersistence] 创建快照: session={}, messages={}",
+                    "[EventPersistence] 📸 创建快照: session={}, messages={}",
                     sid,
                     messages.len()
                 ));
+
+                // TODO: 实现快照创建逻辑（Phase 2.4）
+                let _ = (sid, messages);
             }
 
             PersistenceCommand::Shutdown { ack } => {
                 log_debug("[EventPersistence] 收到关闭命令".to_string());
-                // TODO: 刷新缓冲区，关闭文件句柄
+
+                // 🔥 Phase 2.3: 刷新缓冲区并关闭文件
+                if let Err(e) = jsonl_writer.close() {
+                    log_debug(format!("[EventPersistence] 关闭文件失败: {}", e));
+                } else {
+                    log_debug("[EventPersistence] ✅ JSONL 文件已关闭".to_string());
+                }
+
                 let _ = ack.send(());
                 break;
             }
         }
     }
 
-    log_debug("[EventPersistence] 后台任务关闭".to_string());
+    log_debug(format!(
+        "[EventPersistence] 后台任务关闭: session={}, 总事件数={}",
+        session_id, event_count
+    ));
 }
 
 /// 🔥 日志辅助函数
