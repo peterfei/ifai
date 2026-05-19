@@ -1737,6 +1737,13 @@ async fn run_streaming_loop(
                         app.render();
                     }
                     if stream_states.is_empty() {
+                        // 🔥 Phase 2.2: 流式会话完成，触发事件持久化
+                        if app.has_event_persistence() {
+                            let finished_event = session_event::SessionEvent::StreamFinished {
+                                metadata: session_event::EventMetadata::default(),
+                            };
+                            app.persist_session_event(finished_event);
+                        }
                         StreamingControl::StreamFinished
                     } else {
                         StreamingControl::Continue
@@ -2758,6 +2765,15 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         }
                     }
                 } else {
+                    // 🔥 Phase 2.2: 用户发送消息，触发事件持久化
+                    if app.has_event_persistence() {
+                        let user_event = session_event::SessionEvent::UserMessage {
+                            content: text.clone(),
+                            metadata: session_event::EventMetadata::default(),
+                        };
+                        app.persist_session_event(user_event);
+                    }
+
                     // AI 调用 — 单层 select! 事件循环（StreamState per-thread）
                     let thread_id = app
                         .thread
