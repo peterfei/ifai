@@ -39,6 +39,10 @@ mod markdown_stream; // 🎨 Markdown 代码块流式渲染器
 mod permission; // 🔥 元编程权限引擎
 mod permission_store; // 🔥 权限规则存储（用户白名单）
 mod persistence; // 🔥 元编程会话持久化
+mod session_event; // 🔥 会话事件定义（事件驱动持久化）
+mod event_persistence; // 🔥 事件持久化核心逻辑（通道+异步任务）
+mod jsonl_writer; // 🔥 JSONL 格式增量写入器
+mod snapshot_manager; // 🔥 快照管理和清理逻辑
 mod pipeline; // 🎨 元编程 Pipeline 可视化
 mod prompt_vars; // 🏛️ 元编程：变量自动收集器
 #[cfg(test)]
