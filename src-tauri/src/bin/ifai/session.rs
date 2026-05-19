@@ -3152,6 +3152,14 @@ impl Session {
                     if tool.name == "web_search" && !result.is_empty() {
                         let _ = output_tx.send(result.clone().into());
                     }
+
+                    // 🔥 Phase 2.2: 发送工具调用事件（用于事件持久化）
+                    let _ = output_tx.send(super::OutputMessage::ToolCall {
+                        tool_name: tool.name.clone(),
+                        args: tool.args.clone(),
+                        result: result.clone(),
+                        success: true,
+                    });
                 }
                 Err(e) => {
                     let duration = start.elapsed();
@@ -3161,7 +3169,15 @@ impl Session {
                         error_msg.clone(),
                         duration,
                     );
-                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, duration));
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg.clone(), duration));
+
+                    // 🔥 Phase 2.2: 发送工具调用事件（用于事件持久化）
+                    let _ = output_tx.send(super::OutputMessage::ToolCall {
+                        tool_name: tool.name.clone(),
+                        args: tool.args.clone(),
+                        result: error_msg,
+                        success: false,
+                    });
                 }
             }
         }

@@ -127,6 +127,13 @@ pub enum AppResult {
 pub enum OutputMessage {
     Text(String),
     Diff(diff_render::DiffFileChange),
+    /// 🔥 Phase 2.2: 工具调用事件（用于事件持久化）
+    ToolCall {
+        tool_name: String,
+        args: String,
+        result: String,
+        success: bool,
+    },
 }
 
 impl From<String> for OutputMessage {
@@ -1714,6 +1721,14 @@ async fn run_streaming_loop(
                     match msg {
                         OutputMessage::Text(line) => {
                             app.append_streaming_output(active_id, line.clone());
+                            // 🔥 Phase 2.2: AI 响应块到达，触发事件持久化
+                            if app.has_event_persistence() {
+                                let chunk_event = session_event::SessionEvent::AIResponseChunk {
+                                    content: line.clone(),
+                                    metadata: session_event::EventMetadata::default(),
+                                };
+                                app.persist_session_event(chunk_event);
+                            }
                             if let Some(tx) = thread_event_tx.as_ref() {
                                 let _ = tx.send(thread::ThreadEvent::NewMessage {
                                     thread_id: active_id,
@@ -1723,6 +1738,34 @@ async fn run_streaming_loop(
                         }
                         OutputMessage::Diff(diff) => {
                             app.push_diff_if_active_thread(active_id, diff);
+                        }
+                        OutputMessage::ToolCall { tool_name, args, result, success } => {
+                            // 🔥 Phase 2.2: 工具调用完成，触发事件持久化
+                            if app.has_event_persistence() {
+                                // 序列化 args 为 JSON
+                                let args_json = serde_json::from_str::<serde_json::Value>(&args)
+                                    .unwrap_or(serde_json::json!({}));
+
+                                // 序列化 result 为 JSON
+                                let result_json = serde_json::to_value(&result)
+                                    .unwrap_or(serde_json::json!(result));
+
+                                // 触发 ToolCall 事件
+                                let tool_call_event = session_event::SessionEvent::ToolCall {
+                                    tool: tool_name.clone(),
+                                    args: args_json,
+                                    metadata: session_event::EventMetadata::default(),
+                                };
+                                app.persist_session_event(tool_call_event);
+
+                                // 触发 ToolResult 事件
+                                let tool_result_event = session_event::SessionEvent::ToolResult {
+                                    tool: tool_name.clone(),
+                                    result: result_json,
+                                    metadata: session_event::EventMetadata::default(),
+                                };
+                                app.persist_session_event(tool_result_event);
+                            }
                         }
                     }
                     app.render();
