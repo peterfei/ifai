@@ -3083,6 +3083,18 @@ impl App {
             self.mode = Mode::Normal;
         }
 
+        // 🔥 Phase 2.2: 线程切换完成，触发事件持久化
+        if let Some(from_id) = old_thread_id {
+            if let Some(persistence) = &self.event_persistence {
+                let switch_event = crate::session_event::SessionEvent::ThreadSwitch {
+                    from_thread_id: from_id.to_string(),
+                    to_thread_id: thread_id.to_string(),
+                    metadata: crate::session_event::EventMetadata::default(),
+                };
+                let _ = persistence.persist_event(switch_event);
+            }
+        }
+
         true  // 切换成功
     }
 
