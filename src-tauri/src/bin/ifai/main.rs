@@ -2688,6 +2688,23 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
         // 🔥 将事件持久化器设置到 TUI app 中（传递配置值）
         app.set_event_persistence(event_persistence);
         app.set_persistence_config(ep_config.snapshot_event_count, ep_config.snapshot_interval_minutes * 60);
+
+        // 🔥 Phase 7: 启动时显示事件持久化状态（简洁暗色）
+        app.push_line(format!(
+            "{}  auto-save · {} events / {} min{}",
+            render::color_256(242),
+            ep_config.snapshot_event_count,
+            ep_config.snapshot_interval_minutes,
+            render::RESET
+        ));
+        app.scroll_to_bottom();
+    } else {
+        app.push_line(format!(
+            "{}  auto-save · off{}",
+            render::color_256(242),
+            render::RESET
+        ));
+        app.scroll_to_bottom();
     }
 
     // 🔥 首次运行检测和初始化

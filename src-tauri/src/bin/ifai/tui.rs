@@ -2555,6 +2555,14 @@ impl App {
                         ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                     ));
                 }
+                // 🔥 Phase 7: 事件持久化状态（线程模式）
+                if self.has_event_persistence() && self.event_count > 0 {
+                    spans.push(Span::raw(" · "));
+                    spans.push(Span::styled(
+                        format!("💾{}", self.event_count),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                    ));
+                }
 
                 let status_line = Line::from(spans);
                 let status = Paragraph::new(status_line)
@@ -2710,6 +2718,14 @@ impl App {
                         ));
                     } else {
                         spans.push(Span::raw(" [Ready] "));
+                    }
+                    // 🔥 Phase 7: 事件持久化状态（事件计数）
+                    if self.has_event_persistence() && self.event_count > 0 {
+                        spans.push(Span::raw(" · "));
+                        spans.push(Span::styled(
+                            format!("💾{}", self.event_count),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                        ));
                     }
                     // 队列计数（自动派生）
                     if !self.stream.queue.is_empty() {
