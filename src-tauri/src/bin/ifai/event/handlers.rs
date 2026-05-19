@@ -269,6 +269,29 @@ impl EventHandler<Event> for CombinedKeyHandler {
                 return ControlFlow::Continue;
             }
 
+            // 🔥 Phase 5: ResumePicker 模式 - 拦截所有按键
+            if app.mode == crate::tui::Mode::ResumePicker {
+                if let Some(ref mut picker) = app.resume_picker {
+                    use crate::resume_picker::PickerAction;
+                    match picker.handle_key(*key) {
+                        Some(PickerAction::Select(entry)) => {
+                            app.resume_picker = None;
+                            app.mode = crate::tui::Mode::Normal;
+                            return ControlFlow::Break(AppResult::ResumeSelected(entry));
+                        }
+                        Some(PickerAction::Cancel) => {
+                            app.resume_picker = None;
+                            app.mode = crate::tui::Mode::Normal;
+                            return ControlFlow::Break(AppResult::Handled);
+                        }
+                        None => {
+                            // 导航键已消费，继续渲染
+                            return ControlFlow::Break(AppResult::Handled);
+                        }
+                    }
+                }
+            }
+
             // 命令弹出框激活时：拦截导航键（不传给 InputComposer 的历史记录）
             if app.command_popup.is_visible() {
                 // 用户已输入参数（空格后有内容）时，不拦截任何键，让 Enter/Tab 直接提交

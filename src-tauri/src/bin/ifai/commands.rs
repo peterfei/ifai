@@ -678,6 +678,48 @@ fn list_live_sessions() -> Result<Vec<String>, String> {
     Ok(sessions)
 }
 
+/// 🔥 Phase 5.2: 收集所有可恢复的会话条目（用于 ResumePicker）
+pub fn collect_resume_entries() -> Vec<crate::resume_picker::ResumeEntry> {
+    let mut entries = Vec::new();
+
+    // 手动保存的会话
+    if let Ok(saved) = list_saved_sessions() {
+        for meta in saved {
+            // saved_at 是 RFC3339 格式，直接使用
+            let time_ago = meta.saved_at.clone();
+            entries.push(crate::resume_picker::ResumeEntry::Saved {
+                name: meta.name.clone(),
+                message_count: meta.message_count,
+                model: meta.model.clone(),
+                time_ago,
+            });
+        }
+    }
+
+    // 自动快照
+    if let Ok(snapshots) = list_auto_snapshots() {
+        for snap in snapshots {
+            let session_id = snap.session_id.clone();
+            entries.push(crate::resume_picker::ResumeEntry::Auto {
+                session_id,
+                message_count: snap.messages.len(),
+                time_ago: format_timestamp_secs(snap.timestamp),
+            });
+        }
+    }
+
+    // 增量日志
+    if let Ok(live_ids) = list_live_sessions() {
+        for id in live_ids {
+            entries.push(crate::resume_picker::ResumeEntry::Live {
+                session_id: id,
+            });
+        }
+    }
+
+    entries
+}
+
 /// 🔥 Phase 5.1.4: 从增量日志恢复会话
 fn resume_from_live_session(session: &mut Session, session_id: &str) -> CommandResult {
     use crate::render::{default_theme, RESET};

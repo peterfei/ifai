@@ -43,6 +43,7 @@ mod session_event; // 🔥 会话事件定义（事件驱动持久化）
 mod event_persistence; // 🔥 事件持久化核心逻辑（通道+异步任务）
 mod jsonl_writer; // 🔥 JSONL 格式增量写入器
 mod session_snapshot; // 🔥 会话快照管理（从事件重构会话状态）
+mod resume_picker; // 🔥 会话恢复交互式选择器
 mod snapshot_manager; // 🔥 快照管理和清理逻辑
 mod pipeline; // 🎨 元编程 Pipeline 可视化
 mod prompt_vars; // 🏛️ 元编程：变量自动收集器
@@ -121,6 +122,8 @@ pub enum AppResult {
     Exit,
     /// 事件已消费，无需额外动作
     Handled,
+    /// 🔥 Phase 5: ResumePicker 选中会话
+    ResumeSelected(resume_picker::ResumeEntry),
 }
 
 /// TUI 输出消息（支持文本和 diff）
@@ -1512,6 +1515,23 @@ async fn handle_agent_command(
     }
 }
 
+/// 🔥 Phase 5.2: /resume 无参数时，收集会话并进入 ResumePicker 模式
+fn handle_resume_picker(app: &mut tui::App) {
+    let entries = commands::collect_resume_entries();
+
+    if entries.is_empty() {
+        app.push_line("没有可恢复的会话".to_string());
+        app.scroll_to_bottom();
+        app.render();
+        return;
+    }
+
+    let picker = resume_picker::ResumePicker::new(entries);
+    app.resume_picker = Some(picker);
+    app.mode = tui::Mode::ResumePicker;
+    app.render();
+}
+
 /// /workflow 命令处理 — 异步执行 + 进度事件路由到 TUI 内容区
 async fn handle_workflow_command(
     app: &mut tui::App,
@@ -2811,6 +2831,12 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         continue;
                     }
 
+                    // === /resume 命令拦截（无参数时进入 ResumePicker 模式） ===
+                    if cmd == "resume" && arg.is_none() {
+                        handle_resume_picker(&mut app);
+                        continue;
+                    }
+
                     let mut s = session.lock().await;
                     match commands::dispatch_command(&mut s, cmd, arg.as_deref()) {
                         Ok(Some(output)) => {
@@ -3017,6 +3043,25 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 break; // 立即退出主循环（不等待保存完成）
             }
             AppResult::Handled => {}
+            AppResult::ResumeSelected(entry) => {
+                // 🔥 Phase 5: ResumePicker 选中会话 → 执行恢复
+                let resume_id = entry.resume_id();
+                let mut s = session.lock().await;
+                match crate::commands::dispatch_command(&mut s, "resume", Some(&resume_id)) {
+                    Ok(Some(output)) => {
+                        for line in output.split('\n') {
+                            app.push_line(line.to_string());
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        app.push_line(format!("Error: {}", e));
+                    }
+                }
+                drop(s);
+                app.scroll_to_bottom();
+                app.render();
+            }
         }
 
         // 🔥 检查配置是否需要更新（向导完成后）
