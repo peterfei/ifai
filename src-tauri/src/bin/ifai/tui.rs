@@ -28,6 +28,9 @@ use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::render;
 use crate::status_bar::{self, StatusKind};
 use crate::AppResult;
+
+// 🔥 Phase 2: 事件持久化相关导入
+use crate::event_persistence::EventPersistence;
 use ifainew_lib::harness::task::{self, TaskStatus};
 
 use super::approval_overlay::{self, ApprovalDecision, ApprovalRequest};
@@ -854,6 +857,8 @@ pub struct App {
     pub setup_wizard: Option<super::wizard::SetupWizard>,
     /// 🔥 配置已更新标志（向导完成后设置，通知主循环更新 session）
     pub config_updated: bool,
+    /// 🔥 事件持久化器（Phase 2: 事件驱动保存）
+    event_persistence: Option<EventPersistence>,
 }
 
 impl App {
@@ -901,6 +906,7 @@ impl App {
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
+            event_persistence: None,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -939,6 +945,7 @@ impl App {
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
+            event_persistence: None,
         }
     }
 
@@ -1568,6 +1575,32 @@ impl App {
             .unwrap_or(false);
         self.last_ctrlc_time = Some(now);
         is_double
+    }
+
+    // 🔥 Phase 2.1: 事件持久化相关方法
+
+    /// 🔥 设置事件持久化器
+    pub fn set_event_persistence(&mut self, persistence: EventPersistence) {
+        self.event_persistence = Some(persistence);
+    }
+
+    /// 🔥 获取事件持久化器（如果已设置）
+    pub fn event_persistence(&self) -> Option<&EventPersistence> {
+        self.event_persistence.as_ref()
+    }
+
+    /// 🔥 触发事件持久化（如果事件持久化器已设置）
+    pub fn persist_session_event(&self, event: crate::session_event::SessionEvent) {
+        if let Some(persistence) = &self.event_persistence {
+            let _ = persistence.persist_event(event);
+            // 注意：我们忽略错误，因为后台任务可能已关闭
+            // 在生产环境中，可能需要记录错误
+        }
+    }
+
+    /// 🔥 检查事件持久化器是否激活
+    pub fn has_event_persistence(&self) -> bool {
+        self.event_persistence.as_ref().map(|p| p.is_active()).unwrap_or(false)
     }
 
     /// 入队一条消息（自动 trim + 空检查）
