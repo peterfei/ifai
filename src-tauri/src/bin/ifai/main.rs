@@ -42,6 +42,7 @@ mod persistence; // 🔥 元编程会话持久化
 mod session_event; // 🔥 会话事件定义（事件驱动持久化）
 mod event_persistence; // 🔥 事件持久化核心逻辑（通道+异步任务）
 mod jsonl_writer; // 🔥 JSONL 格式增量写入器
+mod session_snapshot; // 🔥 会话快照管理（从事件重构会话状态）
 mod snapshot_manager; // 🔥 快照管理和清理逻辑
 mod pipeline; // 🎨 元编程 Pipeline 可视化
 mod prompt_vars; // 🏛️ 元编程：变量自动收集器

@@ -859,6 +859,12 @@ pub struct App {
     pub config_updated: bool,
     /// 🔥 事件持久化器（Phase 2: 事件驱动保存）
     event_persistence: Option<EventPersistence>,
+    /// 🔥 事件计数器（Phase 3: 用于自动快照创建）
+    event_count: u64,
+    /// 🔥 收集的事件（Phase 3: 用于重构会话快照）
+    collected_events: Vec<crate::session_event::SessionEvent>,
+    /// 🔥 上次快照时间（Phase 3: 用于时间触发快照）
+    last_snapshot_time: Option<std::time::Instant>,
 }
 
 impl App {
@@ -907,6 +913,9 @@ impl App {
             setup_wizard: None,
             config_updated: false,
             event_persistence: None,
+            event_count: 0,
+            collected_events: Vec::new(),
+            last_snapshot_time: None,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -946,6 +955,9 @@ impl App {
             setup_wizard: None,
             config_updated: false,
             event_persistence: None,
+            event_count: 0,
+            collected_events: Vec::new(),
+            last_snapshot_time: None,
         }
     }
 
@@ -1590,17 +1602,62 @@ impl App {
     }
 
     /// 🔥 触发事件持久化（如果事件持久化器已设置）
-    pub fn persist_session_event(&self, event: crate::session_event::SessionEvent) {
+    pub fn persist_session_event(&mut self, event: crate::session_event::SessionEvent) {
         if let Some(persistence) = &self.event_persistence {
+            // 🔥 Phase 3: 收集事件并计数
+            self.collected_events.push(event.clone());
+            self.event_count += 1;
+
+            // 发送事件到持久化器
             let _ = persistence.persist_event(event);
-            // 注意：我们忽略错误，因为后台任务可能已关闭
-            // 在生产环境中，可能需要记录错误
+
+            // 🔥 Phase 3: 自动快照创建（每 50 个事件）
+            const SNAPSHOT_EVENT_COUNT: u64 = 50;
+            if self.event_count % SNAPSHOT_EVENT_COUNT == 0 {
+                self.create_auto_snapshot();
+            }
+
+            // 🔥 Phase 3: 时间触发快照（每 10 分钟）
+            const SNAPSHOT_INTERVAL_SECS: u64 = 600; // 10 分钟
+            if let Some(last_time) = self.last_snapshot_time {
+                if last_time.elapsed().as_secs() >= SNAPSHOT_INTERVAL_SECS {
+                    self.create_auto_snapshot();
+                }
+            } else {
+                // 首次快照：从启动开始计算
+                if self.event_count >= 10 {
+                    self.create_auto_snapshot();
+                }
+            }
         }
     }
 
     /// 🔥 检查事件持久化器是否激活
     pub fn has_event_persistence(&self) -> bool {
         self.event_persistence.as_ref().map(|p| p.is_active()).unwrap_or(false)
+    }
+
+    /// 🔥 Phase 3: 创建自动快照（从收集的事件重构会话状态）
+    fn create_auto_snapshot(&mut self) {
+        if let Some(persistence) = &self.event_persistence {
+            // 使用 session_snapshot 从事件重构会话
+            let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+                persistence.session_id().to_string(),
+                &self.collected_events,
+            );
+
+            // 转换为 JSON 值列表
+            let messages: Vec<serde_json::Value> = snapshot.messages
+                .into_iter()
+                .map(|msg| serde_json::to_value(msg).unwrap_or_default())
+                .collect();
+
+            // 创建快照
+            let _ = persistence.create_snapshot(messages);
+
+            // 更新快照时间
+            self.last_snapshot_time = Some(std::time::Instant::now());
+        }
     }
 
     /// 入队一条消息（自动 trim + 空检查）

@@ -7,6 +7,8 @@
 
 use crate::session_event::SessionEvent;
 use tokio::sync::{mpsc, oneshot};
+use std::fs;
+use std::path::PathBuf;
 
 /// 🔥 持久化命令
 ///
@@ -74,6 +76,11 @@ impl EventPersistence {
             .send(PersistenceCommand::AddEvent(event))
             .map_err(|_| PersistenceError::ChannelClosed)?;
         Ok(())
+    }
+
+    /// 🔥 获取会话 ID
+    pub fn session_id(&self) -> &str {
+        &self.session_id
     }
 
     /// 🔥 创建完整快照
@@ -195,15 +202,22 @@ async fn event_persistence_worker(
                 session_id: sid,
                 messages,
             } => {
-                // 🔥 Phase 2.3: 创建完整快照
+                // 🔥 Phase 3: 创建完整快照
                 log_debug(format!(
                     "[EventPersistence] 📸 创建快照: session={}, messages={}",
                     sid,
                     messages.len()
                 ));
 
-                // TODO: 实现快照创建逻辑（Phase 2.4）
-                let _ = (sid, messages);
+                // 创建快照目录路径
+                let snapshots_dir = dirs::home_dir()
+                    .map(|home| home.join(".ifai").join("sessions").join("auto"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
+
+                // 调用快照创建函数
+                if let Err(e) = create_snapshot_file(&snapshots_dir, &sid, &messages) {
+                    log_debug(format!("[EventPersistence] 创建快照失败: {}", e));
+                }
             }
 
             PersistenceCommand::Shutdown { ack } => {
@@ -226,6 +240,48 @@ async fn event_persistence_worker(
         "[EventPersistence] 后台任务关闭: session={}, 总事件数={}",
         session_id, event_count
     ));
+}
+
+/// 🔥 创建会话快照
+///
+/// 将会话消息保存为完整的 JSON 快照文件
+fn create_snapshot_file(
+    snapshots_dir: &PathBuf,
+    session_id: &str,
+    messages: &[serde_json::Value],
+) -> Result<(), PersistenceError> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    // 确保快照目录存在
+    fs::create_dir_all(snapshots_dir)?;
+
+    // 生成快照文件名：auto-{timestamp}.json
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let snapshot_filename = format!("auto-{}.json", timestamp);
+    let snapshot_path = snapshots_dir.join(&snapshot_filename);
+
+    // 构建快照数据结构
+    let snapshot_data = serde_json::json!({
+        "session_id": session_id,
+        "timestamp": timestamp,
+        "message_count": messages.len(),
+        "messages": messages,
+    });
+
+    // 写入快照文件
+    let snapshot_json = serde_json::to_string_pretty(&snapshot_data)?;
+    fs::write(&snapshot_path, snapshot_json)?;
+
+    log_debug(format!(
+        "[EventPersistence] ✅ 快照已创建: {} (messages={})",
+        snapshot_filename,
+        messages.len()
+    ));
+
+    Ok(())
 }
 
 /// 🔥 日志辅助函数（受 WORKFLOW_DEBUG/IFAI_DEBUG 控制）
