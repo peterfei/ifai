@@ -15,7 +15,7 @@ test_suite:
       when: {}
       then:
         assert_success: true
-        assert_contains: "v0.4"
+        assert_contains: "v0.5"
 
     - name: "短参数版本"
       description: "测试 -V 参数显示版本"
@@ -24,7 +24,7 @@ test_suite:
       when: {}
       then:
         assert_success: true
-        assert_contains: "v0.4"
+        assert_contains: "v0.5"
 
     - name: "错误提示包含使用信息"
       description: "测试错误参数时显示使用提示"

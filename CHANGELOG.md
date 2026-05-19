@@ -1,5 +1,83 @@
 # 更新日志
 
+## [0.5.1] - 2026-05-19
+### TUI 事件驱动自动保存 & 交互式会话恢复
+
+基于 Codex 设计理念实现完整的 TUI 会话持久化系统，支持崩溃恢复和配置化自动保存。
+
+#### 1. 事件驱动持久化架构
+- **SessionEvent 枚举**：定义 6 种会话事件（UserMessage、AIResponseChunk、StreamFinished、ToolCall、ToolResult、ThreadSwitch）
+- **EventMetadata**：时间戳 + 序列号 + 线程 ID 元数据
+- **异步写入通道**：tokio::sync::mpsc（容量 256）+ 后台 worker 任务
+- **JsonlWriter**：JSONL 增量日志写入，文件锁定保证并发安全
+
+#### 2. 增量日志与快照
+- **JSONL 实时写入**：每个事件异步追加到 `sessions/live/{session-id}.jsonl`
+- **自动快照创建**：每 N 个事件或 M 分钟触发（可配置，默认 50/10min）
+- **SessionSnapshot**：从事件序列重构完整会话状态
+- **4 级快照保留策略**：最近 10 个 + 1 小时全保留 + 24 小时每小时 + 7 天过期
+- **归档机制**：会话结束时增量日志移至 `sessions/archive/`，30 天后清理
+
+#### 3. 交互式会话恢复（ResumePicker）
+- **`/resume` 无参数**：弹出交互式选择器，键盘上下键 + 回车恢复
+- **三类会话来源**：手动保存、自动快照 `[auto]`、实时日志 `[live]`
+- **合并恢复**：自动合并最新快照 + 增量日志，重构完整会话历史
+- **UI 渲染**：参照 CommandPopup 模式，声明式按键映射 + 弹出框
+
+#### 4. 配置管理
+- **`~/.ifai/config.toml`** 新增 `[tui.event_persistence]` 段：
+  ```toml
+  [tui.event_persistence]
+  enabled = true
+  snapshot_interval_minutes = 10
+  snapshot_event_count = 50
+  max_snapshots = 10
+  ```
+- **`/config show`**：查看事件持久化配置
+- **`/config init`**：生成配置文件模板
+
+#### 5. 会话管理命令
+- **`/cleanup-sessions`**：手动清理过期快照和归档，显示释放空间
+
+#### 6. UI 改进
+- **状态栏**：`evt:N` 显示已持久化事件计数（文本风格，匹配 TUI 设计语言）
+- **启动提示**：`auto-save · 50 events / 10 min`（灰色，不干扰主要信息）
+
+#### 7. 新增模块（6 个文件）
+| 模块 | 功能 |
+|------|------|
+| `session_event.rs` | 会话事件定义和序列化 |
+| `event_persistence.rs` | 异步持久化通道和 worker |
+| `jsonl_writer.rs` | JSONL 增量日志写入器 |
+| `snapshot_manager.rs` | 快照保留策略和归档管理 |
+| `resume_picker.rs` | 交互式会话选择器 |
+| `config.rs`（扩展） | TOML 事件持久化配置解析 |
+
+#### 8. 测试覆盖
+- **单元测试**：session_event 11 个 + snapshot_manager 11 个 + config 20 个
+- **集成测试**：
+  - 事件驱动保存完整流程（EventPersistence → JSONL → 快照重构）
+  - 崩溃恢复（模拟 JSONL 残留 → 事件重放 → 会话恢复）
+  - 快照清理集成（15 个快照 → 保留策略过滤 → 5 个过期删除）
+  - 配置解析 + App 集成（TOML 解析 → 配置传递 → 字段应用）
+- **总计**：47+ 新增测试用例
+
+#### 9. 修改文件清单
+| 文件 | 变更类型 |
+|------|---------|
+| `session_event.rs` | 新增 |
+| `event_persistence.rs` | 新增 |
+| `jsonl_writer.rs` | 新增 |
+| `snapshot_manager.rs` | 新增 |
+| `resume_picker.rs` | 新增 |
+| `main.rs` | 修改（持久化初始化、ResumePicker、集成测试） |
+| `tui.rs` | 修改（Mode::ResumePicker、状态栏、配置字段） |
+| `commands.rs` | 修改（/resume 交互式、/cleanup-sessions、/config 增强） |
+| `config.rs` | 修改（TOML 事件持久化配置） |
+| `event/handlers.rs` | 修改（ResumePicker 键盘处理） |
+
+---
+
 ## [0.4.1] - 2026-04-14
 ### 🚀 多智能体协作系统 & 消息稳定性修复
 

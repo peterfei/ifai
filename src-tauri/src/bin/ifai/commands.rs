@@ -1536,7 +1536,13 @@ mod tests {
 
         let output = result.unwrap();
         assert!(output.is_some());
-        assert!(output.unwrap().contains("✅"));
+        let output_text = output.unwrap();
+        // 配置文件不存在时输出 "✅ 配置模板已生成"，已存在时输出 "⚠ Config file already exists"
+        assert!(
+            output_text.contains("✅") || output_text.contains("⚠"),
+            "Expected config init output to contain success or warning indicator, got: {}",
+            output_text
+        );
     }
 
     #[test]
@@ -1577,8 +1583,8 @@ mod tests {
 
     #[test]
     fn test_command_registry_size() {
-        // 验证注册表包含所有 21 个命令
-        assert_eq!(COMMAND_SPECS.len(), 21);
+        // 验证注册表包含所有 22 个命令
+        assert_eq!(COMMAND_SPECS.len(), 22);
     }
 
     #[test]

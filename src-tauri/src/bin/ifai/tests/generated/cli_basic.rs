@@ -12,7 +12,7 @@ async fn test_ban_benxin_xixian_shi() {
     let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["--version"]).await.unwrap();
     output.assert_success();
-    output.assert_contains("v0.4");
+    output.assert_contains("v0.5");
 }
 
 #[tokio::test]
@@ -22,7 +22,7 @@ async fn test_ban_ben() {
     let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["-V"]).await.unwrap();
     output.assert_success();
-    output.assert_contains("v0.4");
+    output.assert_contains("v0.5");
 }
 
 #[tokio::test]
