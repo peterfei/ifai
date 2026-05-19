@@ -423,48 +423,107 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
     let theme = default_theme();
 
     match arg {
-        Some("list") => {
-            // 🔥 列出所有保存的会话
-            let persistence = SessionPersistence::new()
-                .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
-
-            let sessions = persistence
-                .list_sessions()
-                .map_err(|e| format!("Failed to list sessions: {}", e))?;
-
-            if sessions.is_empty() {
-                return Ok(Some(format!(
-                    "{}未找到已保存的会话。使用 /save <name> 保存当前会话。{}",
-                    theme.muted, RESET
-                )));
-            }
-
+        Some("list") | None => {
+            // 🔥 Phase 5.1: 无参数时默认列出所有会话（符合 CLI 惯例）
             let mut output = format!(
-                "{}已保存的会话（{}）：{}\n",
+                "{}📋 可恢复的会话{}{}\n",
                 theme.heading,
-                sessions.len(),
+                RESET,
                 RESET
             );
 
-            for (i, meta) in sessions.iter().enumerate() {
+            // 1. 手动保存的会话
+            if let Ok(manual_sessions) = list_saved_sessions() {
+                if !manual_sessions.is_empty() {
+                    output.push_str(&format!(
+                        "\n{}手动保存（{}）：{}\n",
+                        theme.brand,
+                        manual_sessions.len(),
+                        RESET
+                    ));
+                    for (i, meta) in manual_sessions.iter().enumerate() {
+                        output.push_str(&format!(
+                            "  {}. {}{}{} - {} 条消息 - {} - {}{}{}\n",
+                            i + 1,
+                            theme.brand,
+                            meta.name,
+                            RESET,
+                            meta.message_count,
+                            meta.model,
+                            RESET,
+                            format_time_ago(meta.saved_at.clone()),
+                            RESET
+                        ));
+                    }
+                }
+            }
+
+            // 2. 自动快照
+            if let Ok(auto_snapshots) = list_auto_snapshots() {
+                if !auto_snapshots.is_empty() {
+                    output.push_str(&format!(
+                        "\n{}[auto] 自动快照（{}）：{}\n",
+                        theme.brand,
+                        auto_snapshots.len(),
+                        RESET
+                    ));
+                    for (i, snapshot) in auto_snapshots.iter().enumerate() {
+                        let time_ago = format_timestamp_secs(snapshot.timestamp);
+                        output.push_str(&format!(
+                            "  {}. {}[auto]{} {} - {} 条消息 - {}{}{}\n",
+                            i + 1,
+                            theme.muted,
+                            RESET,
+                            snapshot.session_id,
+                            snapshot.message_count,
+                            RESET,
+                            time_ago,
+                            RESET
+                        ));
+                    }
+                }
+            }
+
+            // 3. 增量日志
+            if let Ok(live_sessions) = list_live_sessions() {
+                if !live_sessions.is_empty() {
+                    output.push_str(&format!(
+                        "\n{}[live] 增量日志（{}）：{}\n",
+                        theme.brand,
+                        live_sessions.len(),
+                        RESET
+                    ));
+                    for (i, session_id) in live_sessions.iter().enumerate() {
+                        output.push_str(&format!(
+                            "  {}. {}[live]{} {} - 使用 /resume {} 恢复{}{}\n",
+                            i + 1,
+                            theme.success,
+                            RESET,
+                            session_id,
+                            session_id,
+                            RESET,
+                            RESET
+                        ));
+                    }
+                }
+            }
+
+            if output.ends_with("\n\n") {
                 output.push_str(&format!(
-                    "  {}. {}{}{} - {} 条消息 - {} - {}{}{}\n",
-                    i + 1,
-                    theme.brand,
-                    meta.name,
-                    RESET,
-                    meta.message_count,
-                    meta.model,
-                    RESET,
-                    format_time_ago(meta.saved_at.clone()),
-                    RESET
+                    "{}未找到可恢复的会话。开始新对话将自动创建增量日志。{}",
+                    theme.muted, RESET
                 ));
             }
 
             Ok(Some(output))
         }
         Some(name) => {
-            // 🔥 恢复指定会话
+            // 🔥 Phase 5.1.4: 支持从增量日志恢复
+            if name.starts_with("session-") || name.starts_with("live-") {
+                return resume_from_live_session(session, name);
+            }
+
+            // 从手动保存的会话恢复
             let persistence = SessionPersistence::new()
                 .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
 
@@ -472,7 +531,6 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
                 .load_session(name)
                 .map_err(|e| format!("Failed to load session '{}': {}", name, e))?;
 
-            // 🔥 恢复会话状态
             session.default_ctx.messages = snapshot.messages;
             session.provider = snapshot.provider;
             session.model = snapshot.model;
@@ -487,10 +545,6 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
                 session.default_ctx.messages.len()
             )))
         }
-        None => Ok(Some(format!(
-            "{}用法: /resume <name> 恢复会话，或 /resume list 列出所有会话{}",
-            theme.muted, RESET
-        ))),
     }
 }
 
@@ -515,6 +569,242 @@ fn format_time_ago(timestamp: String) -> String {
     } else {
         format!("{}", saved_at.format("%Y-%m-%d"))
     }
+}
+
+/// 🔥 Phase 5: 格式化 Unix 时间戳（秒）
+fn format_timestamp_secs(timestamp: u64) -> String {
+    let now = chrono::Utc::now().timestamp() as u64;
+    let diff = now.saturating_sub(timestamp);
+
+    if diff < 60 {
+        format!("{}秒前", diff)
+    } else if diff < 3600 {
+        format!("{}分钟前", diff / 60)
+    } else if diff < 86400 {
+        format!("{}小时前", diff / 3600)
+    } else if diff < 604800 {
+        format!("{}天前", diff / 86400)
+    } else {
+        // 格式化为日期
+        let datetime = chrono::DateTime::from_timestamp(timestamp as i64, 0)
+            .unwrap_or_else(|| chrono::Utc::now());
+        format!("{}", datetime.format("%Y-%m-%d"))
+    }
+}
+
+/// 🔥 Phase 5.1: 列出手动保存的会话
+fn list_saved_sessions() -> Result<Vec<crate::persistence::SessionMetadata>, String> {
+    use crate::persistence::SessionPersistence;
+    SessionPersistence::new()
+        .and_then(|p| p.list_sessions())
+        .map_err(|e| format!("Failed to list sessions: {}", e))
+}
+
+/// 🔥 Phase 5.1: 列出自动快照
+fn list_auto_snapshots() -> Result<Vec<crate::session_snapshot::SessionSnapshot>, String> {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let snapshots_dir = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions").join("auto"))
+        .unwrap_or_else(|| PathBuf::from("/tmp/ifai/sessions/auto"));
+
+    if !snapshots_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut snapshots = Vec::new();
+
+    for entry in fs::read_dir(&snapshots_dir)
+        .map_err(|e| format!("Failed to read snapshots directory: {}", e))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+
+        if path.extension().and_then(|s| s.to_str()) == Some("json") {
+            // 读取快照文件
+            let content = fs::read_to_string(&path)
+                .map_err(|e| format!("Failed to read snapshot file: {}", e))?;
+
+            // 解析 JSON
+            let value: serde_json::Value = serde_json::from_str(&content)
+                .map_err(|e| format!("Failed to parse snapshot JSON: {}", e))?;
+
+            // 转换为 SessionSnapshot
+            let snapshot = crate::session_snapshot::SessionSnapshot::from_json_value(value)
+                .map_err(|e| format!("Failed to parse snapshot: {}", e))?;
+
+            snapshots.push(snapshot);
+        }
+    }
+
+    // 按时间戳降序排序
+    snapshots.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+    Ok(snapshots)
+}
+
+/// 🔥 Phase 5.1: 列出增量日志会话
+fn list_live_sessions() -> Result<Vec<String>, String> {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let live_dir = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions").join("live"))
+        .unwrap_or_else(|| PathBuf::from("/tmp/ifai/sessions/live"));
+
+    if !live_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut sessions = Vec::new();
+
+    for entry in fs::read_dir(&live_dir)
+        .map_err(|e| format!("Failed to read live directory: {}", e))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+
+        if path.extension().and_then(|s| s.to_str()) == Some("jsonl") {
+            if let Some(file_name) = path.file_stem().and_then(|s| s.to_str()) {
+                sessions.push(file_name.to_string());
+            }
+        }
+    }
+
+    sessions.sort();
+    sessions.reverse(); // 最新的在前
+
+    Ok(sessions)
+}
+
+/// 🔥 Phase 5.1.4: 从增量日志恢复会话
+fn resume_from_live_session(session: &mut Session, session_id: &str) -> CommandResult {
+    use crate::render::{default_theme, RESET};
+    use std::fs;
+    use std::path::PathBuf;
+
+    let theme = default_theme();
+
+    let live_dir = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions").join("live"))
+        .unwrap_or_else(|| PathBuf::from("/tmp/ifai/sessions/live"));
+
+    let jsonl_path = live_dir.join(format!("{}.jsonl", session_id));
+
+    if !jsonl_path.exists() {
+        return Ok(Some(format!(
+            "{}❌ 未找到增量日志：{}{}",
+            theme.error, session_id, RESET
+        )));
+    }
+
+    // 读取增量日志
+    let content = fs::read_to_string(&jsonl_path)
+        .map_err(|e| format!("Failed to read live session: {}", e))?;
+
+    // 解析事件
+    let mut events = Vec::new();
+    for line in content.lines() {
+        if let Ok(event) = serde_json::from_str::<crate::session_event::SessionEvent>(line) {
+            events.push(event);
+        }
+    }
+
+    if events.is_empty() {
+        return Ok(Some(format!(
+            "{}⚠️  增量日志为空：{}{}",
+            theme.warning, session_id, RESET
+        )));
+    }
+
+    // 🔥 Phase 5.1.5: 从事件重构会话
+    let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+        session_id.to_string(),
+        &events,
+    );
+
+    // 转换为 Session 格式
+    use ifainew_lib::harness::api::types::{Message, MessageContent, MessageRole};
+
+    let messages: Vec<Message> = snapshot
+        .messages
+        .into_iter()
+        .map(|msg| {
+            let role = match msg.role.as_str() {
+                "user" => MessageRole::User,
+                "assistant" => MessageRole::Assistant,
+                "system" => MessageRole::System,
+                "tool" => MessageRole::Tool,
+                _ => MessageRole::User,
+            };
+
+            let tool_calls = if let Some(calls) = msg.tool_calls {
+                let calls: Vec<ifainew_lib::harness::api::types::ToolCall> = calls
+                    .into_iter()
+                    .map(|tc| ifainew_lib::harness::api::types::ToolCall {
+                        id: tc.id,
+                        call_type: tc.call_type,
+                        function: ifainew_lib::harness::api::types::ToolCallFunction {
+                            name: tc.function.name,
+                            arguments: tc.function.arguments,
+                        },
+                    })
+                    .collect();
+                Some(calls)
+            } else {
+                None
+            };
+
+            Message {
+                role,
+                content: MessageContent::Text(msg.content),
+                tool_calls,
+                tool_call_id: msg.tool_call_id,
+            }
+        })
+        .collect();
+
+    // 恢复会话状态
+    session.default_ctx.messages = messages;
+
+    // 🔥 Phase 5.1.4: 构建包含历史消息的输出，让 TUI 显示恢复的内容
+    let mut output = format!(
+        "{}✓ 会话已恢复：{}{}（{} 条消息，来自增量日志）",
+        theme.success,
+        session_id,
+        RESET,
+        session.default_ctx.messages.len()
+    );
+
+    // 输出恢复的历史消息（用户和 AI 消息）
+    for msg in &session.default_ctx.messages {
+        use ifainew_lib::harness::api::types::MessageRole;
+
+        let role_label = match msg.role {
+            MessageRole::User => format!("\n{}👤 You{}", theme.brand, RESET),
+            MessageRole::Assistant => format!("\n{}🤖 AI{}", theme.success, RESET),
+            MessageRole::System | MessageRole::Tool => continue,
+        };
+
+        let content = match &msg.content {
+            ifainew_lib::harness::api::types::MessageContent::Text(text) => text.clone(),
+            _ => continue,
+        };
+
+        // 截断过长的消息
+        let preview = if content.len() > 500 {
+            format!("{}...", &content[..500])
+        } else {
+            content
+        };
+
+        if !preview.trim().is_empty() {
+            output.push_str(&format!("{}: {}", role_label, preview));
+        }
+    }
+
+    Ok(Some(output))
 }
 
 fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
