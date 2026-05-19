@@ -228,10 +228,17 @@ async fn event_persistence_worker(
     ));
 }
 
-/// 🔥 日志辅助函数
+/// 🔥 日志辅助函数（受 WORKFLOW_DEBUG/IFAI_DEBUG 控制）
 fn log_debug(msg: String) {
-    // 简单的日志输出，生产环境应该使用 proper logging
-    eprintln!("🔄 [DEBUG] {}", msg);
+    // 🔥 使用环境变量控制日志，避免干扰 TUI
+    // 只有在设置了 WORKFLOW_DEBUG=1 或 IFAI_DEBUG=1 时才输出
+    if std::env::var("WORKFLOW_DEBUG").is_ok()
+        || std::env::var("IFAI_DEBUG").is_ok()
+    {
+        // 🔥 使用异步日志：不直接输出，而是通过 channel 发送
+        // 这里简化处理：使用 stderr 但不换行，减少对 TUI 的干扰
+        eprint!("[DEBUG] {}\n", msg);
+    }
 }
 
 #[cfg(test)]
