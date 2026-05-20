@@ -2915,6 +2915,74 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         continue;
                     }
 
+                    // === /resume <session-id> 命令拦截（需要重置 EventPersistence） ===
+                    if cmd == "resume" && arg.is_some() {
+                        let resume_id = arg.clone().unwrap();
+                        let mut s = session.lock().await;
+                        let resume_ok = match commands::dispatch_command(&mut s, "resume", Some(&resume_id)) {
+                            Ok(Some(output)) => {
+                                for line in output.split('\n') {
+                                    app.push_line(line.to_string());
+                                }
+                                true
+                            }
+                            Ok(None) => false,
+                            Err(e) => {
+                                app.push_line(format!("Error: {}", e));
+                                false
+                            }
+                        };
+
+                        // 🔥 Phase 10.10: 从 session 提取恢复的消息，用于快照合并
+                        let base_messages: Vec<crate::session_snapshot::SessionMessage> = if resume_ok {
+                            s.default_ctx.messages.iter().filter_map(|msg| {
+                                match msg.role {
+                                    ifainew_lib::harness::api::types::MessageRole::User
+                                    | ifainew_lib::harness::api::types::MessageRole::Assistant => {
+                                        let content = match &msg.content {
+                                            ifainew_lib::harness::api::types::MessageContent::Text(text) => text.clone(),
+                                            _ => return None,
+                                        };
+                                        Some(crate::session_snapshot::SessionMessage {
+                                            role: match msg.role {
+                                                ifainew_lib::harness::api::types::MessageRole::User => "user".to_string(),
+                                                _ => "assistant".to_string(),
+                                            },
+                                            content,
+                                            tool_calls: None,
+                                            tool_call_id: None,
+                                        })
+                                    }
+                                    _ => None,
+                                }
+                            }).collect()
+                        } else {
+                            Vec::new()
+                        };
+
+                        drop(s);
+
+                        // 🔥 Phase 10.10: 恢复成功后，沿用恢复的 session_id 并重置事件持久化
+                        if resume_ok {
+                            if let Some(old_persistence) = app.take_event_persistence() {
+                                let _ = old_persistence.shutdown().await;
+                            }
+                            let mut new_persistence = event_persistence::EventPersistence::new(resume_id.clone());
+                            if let Err(e) = new_persistence.start_worker() {
+                                app.push_line(format!(
+                                    "{}⚠️ auto-save 重新启动失败: {}{}",
+                                    render::color_256(214), e, render::RESET
+                                ));
+                            }
+                            app.set_event_persistence(new_persistence);
+                            app.reset_for_resume(base_messages);
+                        }
+
+                        app.scroll_to_bottom();
+                        app.render();
+                        continue;
+                    }
+
                     let mut s = session.lock().await;
                     match commands::dispatch_command(&mut s, cmd, arg.as_deref()) {
                         Ok(Some(output)) => {
@@ -3138,18 +3206,68 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 // 🔥 Phase 5: ResumePicker 选中会话 → 执行恢复
                 let resume_id = entry.resume_id();
                 let mut s = session.lock().await;
-                match crate::commands::dispatch_command(&mut s, "resume", Some(&resume_id)) {
+                let resume_ok = match crate::commands::dispatch_command(&mut s, "resume", Some(&resume_id)) {
                     Ok(Some(output)) => {
                         for line in output.split('\n') {
                             app.push_line(line.to_string());
                         }
+                        true
                     }
-                    Ok(None) => {}
+                    Ok(None) => false,
                     Err(e) => {
                         app.push_line(format!("Error: {}", e));
+                        false
                     }
-                }
+                };
+
+                // 🔥 Phase 10.9: 从 session 提取恢复的消息，用于快照合并
+                let base_messages: Vec<crate::session_snapshot::SessionMessage> = if resume_ok {
+                    s.default_ctx.messages.iter().filter_map(|msg| {
+                        // 只保留 user 和 assistant 消息
+                        match msg.role {
+                            ifainew_lib::harness::api::types::MessageRole::User
+                            | ifainew_lib::harness::api::types::MessageRole::Assistant => {
+                                let content = match &msg.content {
+                                    ifainew_lib::harness::api::types::MessageContent::Text(text) => text.clone(),
+                                    _ => return None,
+                                };
+                                Some(crate::session_snapshot::SessionMessage {
+                                    role: match msg.role {
+                                        ifainew_lib::harness::api::types::MessageRole::User => "user".to_string(),
+                                        _ => "assistant".to_string(),
+                                    },
+                                    content,
+                                    tool_calls: None,
+                                    tool_call_id: None,
+                                })
+                            }
+                            _ => None,
+                        }
+                    }).collect()
+                } else {
+                    Vec::new()
+                };
+
                 drop(s);
+
+                // 🔥 Phase 10.7: 恢复成功后，沿用恢复的 session_id
+                // 避免同一对话的消息散落在不同 session 中
+                if resume_ok {
+                    if let Some(old_persistence) = app.take_event_persistence() {
+                        let _ = old_persistence.shutdown().await;
+                    }
+                    let mut new_persistence = event_persistence::EventPersistence::new(resume_id.clone());
+                    if let Err(e) = new_persistence.start_worker() {
+                        app.push_line(format!(
+                            "{}⚠️ auto-save 重新启动失败: {}{}",
+                            render::color_256(214), e, render::RESET
+                        ));
+                    }
+                    app.set_event_persistence(new_persistence);
+                    // 🔥 Phase 10.9: 重置事件计数，并保存恢复的旧消息用于快照合并
+                    app.reset_for_resume(base_messages);
+                }
+
                 app.scroll_to_bottom();
                 app.render();
             }

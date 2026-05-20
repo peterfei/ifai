@@ -650,7 +650,21 @@ fn list_auto_snapshots() -> Result<Vec<crate::session_snapshot::SessionSnapshot>
         }
     }
 
-    // 按时间戳降序排序
+    // 🔥 Phase 10.8: 按 session_id 去重，保留每个 session 最完整的快照（最大 message_count）
+    // 先按 message_count 降序排序，这样 retain 时最先保留的就是最完整的快照
+    snapshots.sort_by(|a, b| b.message_count.cmp(&a.message_count).then(b.timestamp.cmp(&a.timestamp)));
+
+    let mut seen_session_ids = std::collections::HashSet::new();
+    snapshots.retain(|snapshot| {
+        if seen_session_ids.contains(&snapshot.session_id) {
+            false
+        } else {
+            seen_session_ids.insert(snapshot.session_id.clone());
+            true
+        }
+    });
+
+    // 最终按时间戳降序排序（最新的排在前面）
     snapshots.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
     Ok(snapshots)
@@ -791,8 +805,10 @@ fn resume_from_auto_snapshot(session: &mut Session, session_id: &str) -> Command
         };
 
         if snapshot.session_id == session_id {
+            // 🔥 Phase 10.10: 选择消息数最多的快照（最完整状态），而非最新时间戳
+            // 这样与 list_auto_snapshots 的去重策略一致
             match &latest_snapshot {
-                Some((_, prev)) if prev.timestamp >= snapshot.timestamp => {}
+                Some((_, prev)) if prev.message_count >= snapshot.message_count => {}
                 _ => latest_snapshot = Some((path, snapshot)),
             }
         }
@@ -874,7 +890,7 @@ fn resume_from_auto_snapshot(session: &mut Session, session_id: &str) -> Command
         };
 
         let preview = if content.len() > 500 {
-            format!("{}...", &content[..500])
+            format!("{}...", &content[..content.char_indices().take_while(|(i, _)| *i < 500).last().map(|(i, c)| i + c.len_utf8()).unwrap_or(0)])
         } else {
             content
         };
@@ -1003,7 +1019,7 @@ fn resume_from_live_session(session: &mut Session, session_id: &str) -> CommandR
 
         // 截断过长的消息
         let preview = if content.len() > 500 {
-            format!("{}...", &content[..500])
+            format!("{}...", &content[..content.char_indices().take_while(|(i, _)| *i < 500).last().map(|(i, c)| i + c.len_utf8()).unwrap_or(0)])
         } else {
             content
         };
@@ -2146,5 +2162,211 @@ mod tests {
 
         // 清理
         let _ = std::fs::remove_file("/tmp/test_tools.md");
+    }
+
+    // === Phase 10.8: list_auto_snapshots 去重 红绿测试 ===
+
+    /// 🔴 RED: 同一 session_id 的多个快照只保留最完整的
+    #[test]
+    fn test_phase10_8_auto_snapshots_dedup_by_session_id() {
+        use std::io::Write;
+
+        let auto_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("auto"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
+        std::fs::create_dir_all(&auto_dir).unwrap();
+
+        let test_session = format!("test-dedup-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+
+        // 创建 3 个快照文件，同一 session_id，不同消息数
+        let snapshots = vec![
+            (2, 1000),  // 2 条消息，最早
+            (7, 2000),  // 7 条消息，中间
+            (3, 3000),  // 3 条消息，最新
+        ];
+
+        let mut test_files = Vec::new();
+        for (msg_count, ts) in &snapshots {
+            let filename = format!("auto-{}-{}.json", test_session, ts);
+            let path = auto_dir.join(&filename);
+            let messages: Vec<serde_json::Value> = (0..*msg_count)
+                .map(|i| serde_json::json!({
+                    "role": if i % 2 == 0 { "user" } else { "assistant" },
+                    "content": format!("msg-{}", i)
+                }))
+                .collect();
+            let snapshot = serde_json::json!({
+                "session_id": test_session,
+                "timestamp": ts,
+                "message_count": msg_count,
+                "messages": messages
+            });
+            let mut file = std::fs::File::create(&path).unwrap();
+            writeln!(file, "{}", serde_json::to_string_pretty(&snapshot).unwrap()).unwrap();
+            test_files.push(path);
+        }
+
+        // 调用 list_auto_snapshots
+        let result = list_auto_snapshots();
+        assert!(result.is_ok(), "list_auto_snapshots 应成功");
+
+        let snapshots = result.unwrap();
+
+        // 🔴 RED 验证：同一 session_id 只保留一个
+        let matching: Vec<_> = snapshots.iter()
+            .filter(|s| s.session_id == test_session)
+            .collect();
+
+        assert_eq!(matching.len(), 1,
+            "同一 session_id 应只出现一次（实际 {} 次）",
+            matching.len()
+        );
+
+        // 🔴 RED 验证：保留的是 message_count 最大的（7条）
+        assert_eq!(matching[0].message_count, 7,
+            "应保留最完整的快照（期望 7 条消息，实际 {} 条）",
+            matching[0].message_count
+        );
+
+        // 清理
+        for path in test_files {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    /// 🔴 RED: 不同 session_id 的快照应全部保留
+    #[test]
+    fn test_phase10_8_different_sessions_not_deduped() {
+        use std::io::Write;
+
+        let auto_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("auto"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
+        std::fs::create_dir_all(&auto_dir).unwrap();
+
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+
+        let session_a = format!("test-diff-a-{}", ts);
+        let session_b = format!("test-diff-b-{}", ts);
+
+        let mut test_files = Vec::new();
+        for (session_id, idx) in [(&session_a, 1u64), (&session_b, 2u64)] {
+            let filename = format!("auto-diff-{}-{}.json", idx, ts);
+            let path = auto_dir.join(&filename);
+            let snapshot = serde_json::json!({
+                "session_id": session_id,
+                "timestamp": ts as u64 + idx,
+                "message_count": 5,
+                "messages": [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "world"}
+                ]
+            });
+            let mut file = std::fs::File::create(&path).unwrap();
+            writeln!(file, "{}", serde_json::to_string_pretty(&snapshot).unwrap()).unwrap();
+            test_files.push(path);
+        }
+
+        let result = list_auto_snapshots();
+        assert!(result.is_ok());
+
+        let snapshots = result.unwrap();
+        let count_a = snapshots.iter().filter(|s| s.session_id == session_a).count();
+        let count_b = snapshots.iter().filter(|s| s.session_id == session_b).count();
+
+        assert_eq!(count_a, 1, "session_a 应出现 1 次");
+        assert_eq!(count_b, 1, "session_b 应出现 1 次");
+
+        // 清理
+        for path in test_files {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    /// 🔥 Phase 10.10: resume_from_auto_snapshot 应选择 message_count 最高的快照
+    #[test]
+    fn test_phase10_10_resume_selects_highest_count_snapshot() {
+        // 创建测试场景：同一 session_id 有多个快照
+        // - 早期快照: message_count=7 (最完整)
+        // - 晚期快照: message_count=2 (只有新事件)
+        // resume 应选择 count=7 的快照
+        let auto_dir = dirs::home_dir()
+            .map(|home| home.join(".ifai").join("sessions").join("auto"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
+        std::fs::create_dir_all(&auto_dir).unwrap();
+
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+
+        let session_id = format!("test-select-{}", ts);
+
+        let mut test_files = Vec::new();
+
+        // 早期快照（时间戳小，但消息数多）
+        let early_filename = format!("auto-select-early-{}.json", ts);
+        let early_path = auto_dir.join(&early_filename);
+        let early_snapshot = serde_json::json!({
+            "session_id": session_id,
+            "timestamp": ts as u64 - 100,
+            "message_count": 7,
+            "messages": [
+                {"role": "user", "content": "msg1"},
+                {"role": "assistant", "content": "msg2"},
+                {"role": "user", "content": "msg3"},
+                {"role": "assistant", "content": "msg4"},
+                {"role": "user", "content": "msg5"},
+                {"role": "assistant", "content": "msg6"},
+                {"role": "user", "content": "msg7"}
+            ]
+        });
+        std::fs::write(&early_path, serde_json::to_string_pretty(&early_snapshot).unwrap()).unwrap();
+        test_files.push(early_path);
+
+        // 晚期快照（时间戳大，但消息数少 — 模拟 resume 后 base_messages 未合并的情况）
+        let late_filename = format!("auto-select-late-{}.json", ts);
+        let late_path = auto_dir.join(&late_filename);
+        let late_snapshot = serde_json::json!({
+            "session_id": session_id,
+            "timestamp": ts as u64,
+            "message_count": 2,
+            "messages": [
+                {"role": "user", "content": "new msg1"},
+                {"role": "assistant", "content": "new msg2"}
+            ]
+        });
+        std::fs::write(&late_path, serde_json::to_string_pretty(&late_snapshot).unwrap()).unwrap();
+        test_files.push(late_path);
+
+        // 创建 session 并调用 resume_from_auto_snapshot
+        use super::super::session::Session;
+        let mut session = Session::new("test".to_string(), "test-model".to_string());
+        let result = super::resume_from_auto_snapshot(&mut session, &session_id);
+
+        // 验证 resume 成功
+        assert!(result.is_ok(), "resume 应成功: {:?}", result);
+        let output = result.unwrap();
+        assert!(output.is_some(), "应找到快照");
+
+        // 验证加载了 7 条消息（最完整的快照），而非 2 条（最新的快照）
+        assert_eq!(
+            session.default_ctx.messages.len(), 7,
+            "应加载 message_count=7 的快照（最完整），实际加载了 {} 条",
+            session.default_ctx.messages.len()
+        );
+
+        // 验证第一条消息内容来自早期快照
+        match &session.default_ctx.messages[0].content {
+            ifainew_lib::harness::api::types::MessageContent::Text(text) => {
+                assert_eq!(text, "msg1", "第一条消息内容应来自早期快照");
+            }
+            _ => panic!("消息内容应为 Text 类型"),
+        }
+
+        // 清理
+        for path in test_files {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }
