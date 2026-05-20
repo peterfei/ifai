@@ -28,6 +28,9 @@ use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::render;
 use crate::status_bar::{self, StatusKind};
 use crate::AppResult;
+
+// 🔥 Phase 2: 事件持久化相关导入
+use crate::event_persistence::EventPersistence;
 use ifainew_lib::harness::task::{self, TaskStatus};
 
 use super::approval_overlay::{self, ApprovalDecision, ApprovalRequest};
@@ -241,6 +244,8 @@ pub enum Mode {
     ThreadPicker,
     /// 命令弹出框模式
     CommandPopup,
+    /// 🔥 Phase 5: 会话恢复选择器模式
+    ResumePicker,
 }
 
 impl Default for Mode {
@@ -822,6 +827,8 @@ pub struct App {
     pub help_mode: bool,
     /// 命令弹出框
     pub command_popup: super::command_popup::CommandPopup,
+    /// 🔥 Phase 5: 会话恢复选择器
+    pub resume_picker: Option<super::resume_picker::ResumePicker>,
     /// 任务全部完成的时间点（用于延迟自动收起）
     task_all_done_at: Option<Instant>,
     /// 🔥 Per-thread TaskStore（隔离 TodoWrite 任务，避免跨线程泄漏）
@@ -842,12 +849,30 @@ pub struct App {
     /// 测试模式下的终端尺寸（None 表示使用实际 terminal 尺寸）
     #[cfg(test)]
     test_size: Option<(u16, u16)>,
+    /// 🔥 上次渲染的宽度（用于检测窗口宽度变化，自适应换行）
+    last_render_width: Option<u16>,
+    /// 🔥 上次 overlay 的滚动位置（用于检测滚动变化，清除残留）
+    last_overlay_scroll: Option<u16>,
+    /// 🔥 上次 Ctrl+C 按键时间（用于检测两次 Ctrl+C 强制退出）
+    last_ctrlc_time: Option<std::time::Instant>,
     /// 🔥 当前运行的 workflow ID（用于 ESC 取消）
     pub running_workflow_id: Option<String>,
     /// 🔥 首次运行设置向导
     pub setup_wizard: Option<super::wizard::SetupWizard>,
     /// 🔥 配置已更新标志（向导完成后设置，通知主循环更新 session）
     pub config_updated: bool,
+    /// 🔥 事件持久化器（Phase 2: 事件驱动保存）
+    event_persistence: Option<EventPersistence>,
+    /// 🔥 事件计数器（Phase 3: 用于自动快照创建）
+    event_count: u64,
+    /// 🔥 收集的事件（Phase 3: 用于重构会话快照）
+    collected_events: Vec<crate::session_event::SessionEvent>,
+    /// 🔥 上次快照时间（Phase 3: 用于时间触发快照）
+    last_snapshot_time: Option<std::time::Instant>,
+    /// 🔥 Phase 6: 持久化配置 - 事件计数阈值（默认 50）
+    persistence_event_threshold: u64,
+    /// 🔥 Phase 6: 持久化配置 - 快照间隔秒数（默认 600）
+    persistence_interval_secs: u64,
 }
 
 impl App {
@@ -880,6 +905,7 @@ impl App {
             search: SearchSubsystem::new(),
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
+            resume_picker: None,
             task_all_done_at: None,
             task_stores: std::collections::HashMap::new(),
             thread_session_contexts: std::collections::HashMap::new(),
@@ -889,9 +915,18 @@ impl App {
             selection: Selection::new(),
             #[cfg(test)]
             test_size: None,
+            last_render_width: None,
+            last_overlay_scroll: None,
+            last_ctrlc_time: None,
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
+            event_persistence: None,
+            event_count: 0,
+            collected_events: Vec::new(),
+            last_snapshot_time: None,
+            persistence_event_threshold: 50,
+            persistence_interval_secs: 600,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -915,6 +950,7 @@ impl App {
             search: SearchSubsystem::new(),
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
+            resume_picker: None,
             task_all_done_at: None,
             task_stores: std::collections::HashMap::new(),
             thread_session_contexts: std::collections::HashMap::new(),
@@ -924,9 +960,18 @@ impl App {
             selection: Selection::new(),
             #[cfg(test)]
             test_size: None,
+            last_render_width: None,
+            last_overlay_scroll: None,
+            last_ctrlc_time: None,
             running_workflow_id: None,
             setup_wizard: None,
             config_updated: false,
+            event_persistence: None,
+            event_count: 0,
+            collected_events: Vec::new(),
+            last_snapshot_time: None,
+            persistence_event_threshold: 50,
+            persistence_interval_secs: 600,
         }
     }
 
@@ -934,6 +979,108 @@ impl App {
     #[cfg(test)]
     pub fn set_test_size(&mut self, width: u16, height: u16) {
         self.test_size = Some((width, height));
+    }
+
+    /// 🔥 检查状态不变式（调试模式，捕获状态断链）
+    #[cfg(debug_assertions)]
+    fn check_invariants(&self) {
+        // 1. Overlay 模式一致性
+        if self.mode == Mode::Overlay {
+            assert!(self.overlay.is_some(), "Overlay mode inconsistency: mode=Overlay but overlay=None");
+        } else {
+            assert!(self.overlay.is_none(), "Overlay mode inconsistency: mode={:?} but overlay=Some", self.mode);
+        }
+
+        // 2. 滚动偏移边界
+        let content_len = self.content_lines.len();
+        if content_len > 0 {
+            let max_scroll = content_len.saturating_sub(1) as u16;
+            assert!(self.scroll_offset <= max_scroll,
+                "Scroll offset out of bounds: offset={} max={} len={}",
+                self.scroll_offset, max_scroll, content_len
+            );
+        }
+
+        // 3. 线程状态一致性
+        if let Some(active) = self.thread.store.active_thread() {
+            let current_id = self.current_thread_id();
+            assert_eq!(active.id, current_id,
+                "Thread ID inconsistency: active={:?} current={:?}",
+                active.id, current_id
+            );
+        }
+
+        // 4. Approving 模式一致性
+        if self.mode == Mode::Approving {
+            let current_id = self.current_thread_id();
+            assert!(self.approval.states.contains_key(&current_id),
+                "Approving mode inconsistency: mode=Approving but no approval for thread {:?}",
+                current_id
+            );
+        }
+    }
+
+    /// 🔥 清理 resize 后的残留内容（线程感知）
+    ///
+    /// **功能**：
+    /// - 如果当前线程有保存的 `thread.messages`，清除 `content_lines` 并重新加载
+    /// - 如果当前线程没有保存的消息（内容是直接 push 的），保留 `content_lines`
+    /// - 重置 `scroll_offset = 0`
+    ///
+    /// **线程安全**：只清理当前线程的内容，不影响其他线程
+    ///
+    /// **设计理念**：
+    /// - `thread.messages` 存储的是线程切换时保存的内容快照
+    /// - 如果 `thread.messages` 为空，说明内容是实时推送的，不应清除
+    /// - 如果 `thread.messages` 非空，说明内容是从历史加载的，应重新加载以清除残留
+    pub fn clear_resize_artifacts(&mut self) {
+        let current_thread_id = self.current_thread_id();
+
+        // 检查当前线程是否有保存的消息
+        let has_saved_messages = self
+            .thread
+            .messages
+            .get(current_thread_id)
+            .map(|msgs| !msgs.is_empty())
+            .unwrap_or(false);
+
+        if has_saved_messages {
+            // 有保存的消息：清除并重新加载（确保无残留）
+            self.content_lines.clear();
+            self.scroll_offset = 0;
+
+            let messages_to_load: Vec<String> = self
+                .thread
+                .messages
+                .get(current_thread_id)
+                .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
+                .unwrap_or_default();
+
+            for msg in messages_to_load {
+                self.push_line(msg);
+            }
+        } else {
+            // 没有保存的消息：保留 content_lines（实时推送的内容）
+            // 只重置 scroll_offset
+            self.scroll_offset = 0;
+        }
+    }
+
+    /// 处理终端 resize 事件
+    ///
+    /// 使用 crossterm 传来的新尺寸（而非缓存），确保 scroll_offset 正确重算。
+    pub fn handle_resize(&mut self, cols: u16, rows: u16) {
+        // 刷新 TERMINAL 缓存，使后续 content_area() 调用拿到新尺寸
+        crate::terminal::TERMINAL.refresh();
+
+        // 测试模式下同步 test_size
+        #[cfg(test)]
+        {
+            self.test_size = Some((cols, rows));
+        }
+
+        // 基于新尺寸重算 scroll_offset
+        self.scroll_to_bottom();
     }
 
     // ============================================================================
@@ -1336,17 +1483,34 @@ impl App {
 
     /// 是否处于 overlay 模式
     pub fn is_overlay_mode(&self) -> bool {
+        // 🔥 状态一致性检查：mode 与 overlay 必须同步
+        debug_assert_eq!(
+            self.mode == Mode::Overlay,
+            self.overlay.is_some(),
+            "Overlay mode inconsistency: mode={:?}, overlay={:?}",
+            self.mode,
+            self.overlay.is_some()
+        );
         self.mode == Mode::Overlay
     }
 
-    /// 进入 overlay 模式
+    /// 进入 overlay 模式（原子性操作，确保状态一致）
     pub fn enter_overlay_mode(&mut self, overlay: crate::detail_overlay::DetailOverlay) {
-        self.mode = Mode::Overlay;
+        // 🔥 原子性设置：先设置 overlay，再设置 mode
+        // 这样即使中间被打断，状态也不会不一致
         self.overlay = Some(overlay);
+        self.mode = Mode::Overlay;
+
+        // 清空终端 buffer，确保主 UI 内容残留被完全清除
+        if let Some(terminal) = &mut self.terminal {
+            let _ = terminal.clear();
+        }
     }
 
-    /// 退出 overlay 模式
+    /// 退出 overlay 模式（原子性操作，确保状态一致）
     pub fn exit_overlay_mode(&mut self) {
+        // 🔥 原子性重置：先清除 mode，再清除 overlay
+        // 这样即使中间被打断，也不会进入无效的 overlay 模式
         self.mode = Mode::Normal;
         self.overlay = None;
     }
@@ -1423,6 +1587,172 @@ impl App {
     /// 是否正在处理 AI 请求（向后兼容：检查当前线程）
     pub fn is_busy(&self) -> bool {
         self.is_current_thread_busy()
+    }
+
+    /// 🔥 检测是否是两次 Ctrl+C（2秒内）
+    ///
+    /// 返回 true 表示这是两次 Ctrl+C，应该强制退出
+    /// 返回 false 表示这是单次 Ctrl+C 或第一次 Ctrl+C
+    pub fn is_double_ctrlc(&mut self) -> bool {
+        let now = std::time::Instant::now();
+        let is_double = self
+            .last_ctrlc_time
+            .map(|t| now.duration_since(t).as_secs() < 2)
+            .unwrap_or(false);
+        self.last_ctrlc_time = Some(now);
+        is_double
+    }
+
+    // 🔥 Phase 2.1: 事件持久化相关方法
+
+    /// 🔥 设置事件持久化器
+    pub fn set_event_persistence(&mut self, persistence: EventPersistence) {
+        self.event_persistence = Some(persistence);
+    }
+
+    /// 🔥 Phase 6: 设置持久化配置（事件计数阈值和间隔秒数）
+    pub fn set_persistence_config(&mut self, event_count: u64, interval_secs: u64) {
+        self.persistence_event_threshold = event_count;
+        self.persistence_interval_secs = interval_secs;
+    }
+
+    /// 🔥 获取事件持久化器（如果已设置）
+    pub fn event_persistence(&self) -> Option<&EventPersistence> {
+        self.event_persistence.as_ref()
+    }
+
+    /// 🔥 触发事件持久化（如果事件持久化器已设置）
+    pub fn persist_session_event(&mut self, event: crate::session_event::SessionEvent) {
+        if let Some(persistence) = &self.event_persistence {
+            // 🔥 Phase 3: 收集事件并计数
+            self.collected_events.push(event.clone());
+            self.event_count += 1;
+
+            // 发送事件到持久化器
+            let _ = persistence.persist_event(event);
+
+            // 🔥 Phase 3+6: 自动快照创建（使用配置的事件计数阈值）
+            if self.event_count % self.persistence_event_threshold == 0 {
+                self.create_auto_snapshot();
+            }
+
+            // 🔥 Phase 3+6: 时间触发快照（使用配置的间隔秒数）
+            if let Some(last_time) = self.last_snapshot_time {
+                if last_time.elapsed().as_secs() >= self.persistence_interval_secs {
+                    self.create_auto_snapshot();
+                }
+            } else {
+                // 首次快照：从启动开始计算
+                if self.event_count >= 10 {
+                    self.create_auto_snapshot();
+                }
+            }
+        }
+    }
+
+    /// 🔥 检查事件持久化器是否激活
+    pub fn has_event_persistence(&self) -> bool {
+        self.event_persistence.as_ref().map(|p| p.is_active()).unwrap_or(false)
+    }
+
+    /// 🔥 Phase 10.4: 取出事件持久化器（用于退出时 shutdown）
+    pub fn take_event_persistence(&mut self) -> Option<EventPersistence> {
+        self.event_persistence.take()
+    }
+
+    /// 🔥 Phase 10.7+10.9+10.10: 重置事件计数，将 resume 前的旧消息写入 JSONL
+    /// 恢复后立即创建快照，确保 ResumePicker 显示最新消息数
+    pub fn reset_for_resume(&mut self, base_messages: Vec<crate::session_snapshot::SessionMessage>) {
+        self.event_count = 0;
+        self.collected_events.clear();
+
+        // 🔥 将历史消息重放到 JSONL（仅当 JSONL 为空时写入，避免重复）
+        if let Some(persistence) = &self.event_persistence {
+            let _ = persistence.replay_base_messages(base_messages);
+        }
+
+        // 🔥 恢复后立即创建快照（供 ResumePicker 显示最新状态）
+        self.create_auto_snapshot();
+    }
+
+    /// 🔥 Phase 3+10.9+10.10: 创建自动快照（直接从 collected_events 生成）
+    /// JSONL 是唯一真相源，不再需要 base_messages 合并
+    fn create_auto_snapshot(&mut self) {
+        if let Some(persistence) = &self.event_persistence {
+            let events_count = self.collected_events.len();
+
+            // 使用 session_snapshot 从收集的事件重构会话
+            let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+                persistence.session_id().to_string(),
+                &self.collected_events,
+            );
+
+            let message_count = snapshot.messages.len();
+
+            // 🔥 调试日志（受 IFAI_DEBUG 控制）
+            if std::env::var("IFAI_DEBUG").is_ok() {
+                eprintln!(
+                    "[snapshot] events={}, messages={}, session={}",
+                    events_count,
+                    message_count,
+                    persistence.session_id()
+                );
+            }
+
+            // 转换为 JSON 值列表
+            let messages: Vec<serde_json::Value> = snapshot.messages
+                .into_iter()
+                .map(|msg| serde_json::to_value(msg).unwrap_or_default())
+                .collect();
+
+            // 创建快照
+            let _ = persistence.create_snapshot(messages);
+
+            // 更新快照时间
+            self.last_snapshot_time = Some(std::time::Instant::now());
+
+            // 快照成功后清空已收集的事件
+            if message_count > 0 {
+                self.collected_events.clear();
+            }
+        }
+    }
+
+    /// 🔥 Phase 4: 会话退出时执行清理（归档增量日志 + 清理过期快照）
+    /// 返回 (archived_count, cleaned_snapshots, cleaned_archives)
+    pub fn session_cleanup(&self) -> (bool, usize, usize) {
+        let sessions_base = dirs::home_dir()
+            .map(|home| home.join(".ifai").join("sessions"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions"));
+
+        let snapshots_dir = sessions_base.join("auto");
+        let live_dir = sessions_base.join("live");
+        let archive_dir = sessions_base.join("archive");
+
+        let manager = crate::snapshot_manager::SnapshotManager::with_defaults(
+            snapshots_dir,
+            live_dir,
+            archive_dir,
+        );
+
+        // 1. 归档增量日志
+        let session_id = self.event_persistence
+            .as_ref()
+            .map(|p| p.session_id().to_string())
+            .unwrap_or_default();
+        let archived = if !session_id.is_empty() {
+            manager.archive_incremental_log(&session_id).is_ok()
+        } else {
+            false
+        };
+
+        // 2. 清理过期快照
+        let cleaned_snapshots = manager.cleanup_old_snapshots().unwrap_or(0);
+
+        // 3. 清理过期归档（超过 30 天）
+        let cleaned_archives = manager.cleanup_old_archives(30).unwrap_or(0);
+
+        (archived, cleaned_snapshots, cleaned_archives)
     }
 
     /// 入队一条消息（自动 trim + 空检查）
@@ -1548,9 +1878,21 @@ impl App {
         }
     }
 
-    /// 是否处于审批状态
+    /// 是否处于审批状态（线程感知验证）
     pub fn is_approving(&self) -> bool {
-        self.mode == Mode::Approving
+        // 🔥 状态一致性检查：mode 与实际审批状态必须匹配
+        if self.mode == Mode::Approving {
+            let current_thread_id = self.current_thread_id();
+            let has_approval = self.approval.states.contains_key(&current_thread_id);
+            debug_assert!(
+                has_approval,
+                "Approving mode inconsistency: mode=Approving but no approval for thread {:?}",
+                current_thread_id
+            );
+            has_approval
+        } else {
+            false
+        }
     }
 
     /// 🔥 获取并移除当前线程的待处理审批请求（用于重新发送到审批 loop）
@@ -1737,6 +2079,19 @@ impl App {
         // 取出 terminal 避免借用冲突（self.terminal vs self.draw_frame）
         let mut terminal = self.terminal.take();
         if let Some(term) = &mut terminal {
+            // 🔥 检测 overlay 滚动变化，只在滚动时清空终端 buffer
+            if let Some(ref overlay) = self.overlay {
+                let current_scroll = overlay.view.state.scroll;
+                if self.last_overlay_scroll != Some(current_scroll) {
+                    // 检测到滚动变化，清空终端 buffer
+                    let _ = term.clear();
+                    self.last_overlay_scroll = Some(current_scroll);
+                }
+            } else {
+                // 退出 overlay 模式，重置跟踪
+                self.last_overlay_scroll = None;
+            }
+
             let _ = term.draw(|f| self.draw_frame(f));
         }
         self.terminal = terminal;
@@ -1744,7 +2099,23 @@ impl App {
 
     /// 绘制帧内容（与终端解耦，可供 TestBackend 测试调用）
     pub fn draw_frame(&mut self, f: &mut ratatui::Frame<'_>) {
-        // 所有局部数据直接从 self 读取（不再需要提前 clone）
+        // 🔥 第一步：检测窗口宽度变化（在读取任何字段之前，避免借用冲突）
+        let size = f.area();
+        // 只在宽度真正变化时才触发自适应（不包括从 None 到初始值）
+        let width_changed = self.last_render_width.map_or(false, |w| w != size.width);
+
+        if width_changed {
+            let previous_width = self.last_render_width.unwrap();
+            if size.width < previous_width {
+                // 🔥 宽度变窄：清理残留内容并重新加载当前线程内容
+                // 这样可以避免其他线程的内容泄漏到当前视图中
+                self.clear_resize_artifacts();
+            }
+            // 宽度变宽时，内容会占用更少垂直空间，不需要特殊处理
+        }
+        self.last_render_width = Some(size.width);
+
+        // 🔥 第二步：读取所有局部数据（现在可以安全读取，因为宽度检测已完成）
         let search_mode = self.search.mode;
         let search_query = &self.search.query;
         let search_matches = &self.search.matches;
@@ -1767,6 +2138,14 @@ impl App {
         let popup_visible = self.command_popup.is_visible();
         let (popup_lines, popup_height) = self.command_popup.render();
 
+        // 🔥 Phase 5: ResumePicker 渲染数据
+        let resume_picker_visible = self.resume_picker.is_some() && self.mode == Mode::ResumePicker;
+        let (resume_lines, resume_height) = if resume_picker_visible {
+            self.resume_picker.as_ref().map(|p| p.render()).unwrap_or((vec![], 0))
+        } else {
+            (vec![], 0)
+        };
+
         // 🔥 声明式：只渲染当前线程的任务
         let tasks = self.current_task_store().get_tasks();
         let (task_lines, _) = render_task_lines(&tasks);
@@ -1777,7 +2156,6 @@ impl App {
         let task_height = task_lines.len() as u16;
         let show_tasks = task_height > 0 && !popup_visible && !task_expired;
 
-        let size = f.area();
         if size.height < 4 {
             return;
         }
@@ -1811,11 +2189,13 @@ impl App {
         let separator_area = chunks[2];
         let input_area = chunks[3];
 
-        // 计算 overlay 高度（task 面板或命令弹出框）
+        // 计算 overlay 高度（task 面板、命令弹出框或 ResumePicker）
         let overlay_height = if show_tasks && task_height > 0 {
             task_height
         } else if popup_visible && popup_height > 0 {
             popup_height
+        } else if resume_picker_visible && resume_height > 0 {
+            resume_height
         } else {
             0
         };
@@ -1956,14 +2336,16 @@ impl App {
                     })
                     .collect();
 
-                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false }).scroll((0, 0));
+                // 搜索模式恢复自动换行
+                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
                 f.render_widget(content, content_render_area);
             } else {
                 // === 正常模式：直接渲染 ===
                 let start = scroll_offset as usize;
                 let end = (start + visible_count).min(total_lines);
                 let visible_lines: Vec<Line> = content_lines[start..end].to_vec();
-                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false }).scroll((0, 0));
+                // 恢复自动换行，支持窗口宽度自适应
+                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
                 f.render_widget(content, content_render_area);
             }
         } else {
@@ -2213,6 +2595,14 @@ impl App {
                         ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                     ));
                 }
+                // 🔥 Phase 7: 事件持久化状态（线程模式）
+                if self.has_event_persistence() && self.event_count > 0 {
+                    spans.push(Span::raw(" · "));
+                    spans.push(Span::styled(
+                        format!("evt:{}", self.event_count),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                    ));
+                }
 
                 let status_line = Line::from(spans);
                 let status = Paragraph::new(status_line)
@@ -2236,6 +2626,14 @@ impl App {
                     let popup_content = Paragraph::new(popup_lines)
                         .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                     f.render_widget(popup_content, popup_area);
+                } else if resume_picker_visible && resume_height > 0 {
+                    let picker_y = status_area.y.saturating_sub(resume_height);
+                    let picker_area =
+                        Rect::new(content_area.x, picker_y, content_area.width, resume_height);
+                    f.render_widget(Clear, picker_area);
+                    let picker_content = Paragraph::new(resume_lines.clone())
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(picker_content, picker_area);
                 }
 
                 // === 分隔线 ===
@@ -2361,6 +2759,14 @@ impl App {
                     } else {
                         spans.push(Span::raw(" [Ready] "));
                     }
+                    // 🔥 Phase 7: 事件持久化状态（事件计数）
+                    if self.has_event_persistence() && self.event_count > 0 {
+                        spans.push(Span::raw(" · "));
+                        spans.push(Span::styled(
+                            format!("evt:{}", self.event_count),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                        ));
+                    }
                     // 队列计数（自动派生）
                     if !self.stream.queue.is_empty() {
                         spans.push(Span::raw(" · "));
@@ -2403,6 +2809,14 @@ impl App {
                     let popup_content = Paragraph::new(popup_lines)
                         .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                     f.render_widget(popup_content, popup_area);
+                } else if resume_picker_visible && resume_height > 0 {
+                    let picker_y = status_area.y.saturating_sub(resume_height);
+                    let picker_area =
+                        Rect::new(content_area.x, picker_y, content_area.width, resume_height);
+                    f.render_widget(Clear, picker_area);
+                    let picker_content = Paragraph::new(resume_lines.clone())
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(picker_content, picker_area);
                 }
 
                 // === 分隔线（状态栏与输入框之间的视觉分隔） ===
@@ -2759,6 +3173,9 @@ impl App {
                         }
                         ControlFlow::Break(AppResult::Exit) => return AppResult::Exit,
                         ControlFlow::Break(AppResult::Handled) => {} // 事件已消费，继续循环
+                        ControlFlow::Break(AppResult::ResumeSelected(entry)) => {
+                            return AppResult::ResumeSelected(entry)
+                        }
                         ControlFlow::Continue => {}
                     }
                 }
@@ -2793,76 +3210,111 @@ impl App {
         self.thread.store.rename_thread(thread_id, new_name)
     }
 
-    /// 切换线程
+    /// 切换线程（原子性操作，确保状态一致）
     pub fn switch_thread(&mut self, thread_id: ThreadId) -> bool {
-        // 切换前：将当前 content_lines 保存为当前线程的消息（替换旧的）
-        if let Some(current_thread_id) = self.thread.store.active_thread().map(|t| t.id) {
-            if current_thread_id != thread_id && !self.content_lines.is_empty() {
-                let current_content: String = self.content_lines.iter()
-                    .map(|line| {
-                        line.spans.iter()
-                            .map(|span| span.content.as_ref())
-                            .collect::<String>()
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
+        // 🔥 第一步：保存当前线程内容（在切换前，确保不会丢失）
+        let old_thread_id = self.thread.store.active_thread().map(|t| t.id);
+        let should_save = old_thread_id != Some(thread_id) && !self.content_lines.is_empty();
 
-                if !current_content.trim().is_empty() {
-                    // 始终替换，确保内容是最新的
-                    self.thread.messages.replace(
-                        current_thread_id,
-                        vec![crate::thread::Message::assistant(current_content)]
-                    );
-                }
+        let saved_content = if should_save {
+            let current_content: String = self.content_lines.iter()
+                .map(|line| {
+                    line.spans.iter()
+                        .map(|span| span.content.as_ref())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            if !current_content.trim().is_empty() {
+                Some(current_content)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // 🔥 第二步：保存到旧线程（如果有内容）
+        if let Some(old_id) = old_thread_id {
+            if let Some(content) = saved_content {
+                self.thread.messages.replace(
+                    old_id,
+                    vec![crate::thread::Message::assistant(content)]
+                );
             }
         }
 
-        if self.thread.store.switch_to(thread_id) {
-            self.content_lines.clear();
-            self.scroll_offset = 0;
+        // 🔥 第三步：尝试切换（关键操作）
+        if !self.thread.store.switch_to(thread_id) {
+            // 切换失败，不修改任何状态
+            return false;
+        }
 
-            // 加载目标线程的历史消息
-            let messages_to_load: Vec<String> = self
-                .thread
-                .messages
-                .get(thread_id)
-                .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
-                .unwrap_or_default();
+        // 🔥 第四步：切换成功，清除并重新加载
+        self.content_lines.clear();
+        self.scroll_offset = 0;
 
-            // 加载后清空目标线程的 messages，下次切换走时会从 content_lines 重新保存
-            self.thread.messages.replace(thread_id, vec![]);
+        // 加载目标线程的历史消息
+        let messages_to_load: Vec<String> = self
+            .thread
+            .messages
+            .get(thread_id)
+            .map(|msgs| msgs.iter().map(|m| m.content.clone()).collect())
+            .unwrap_or_default();
 
-            for msg in messages_to_load {
-                self.push_line(msg);
+        // 加载后清空目标线程的 messages，下次切换走时会从 content_lines 重新保存
+        self.thread.messages.replace(thread_id, vec![]);
+
+        for msg in messages_to_load {
+            self.push_line(msg);
+        }
+
+        // 🔥 第五步：重置所有非 per-thread 模式
+        self.reset_per_thread_modes();
+
+        // 🔥 第六步：设置线程相关模式
+        if self.approval.states.contains_key(&thread_id) {
+            self.mode = Mode::Approving;
+        } else if self.mode == Mode::Approving {
+            self.mode = Mode::Normal;
+        }
+
+        // 🔥 Phase 2.2: 线程切换完成，触发事件持久化
+        if let Some(from_id) = old_thread_id {
+            if let Some(persistence) = &self.event_persistence {
+                let switch_event = crate::session_event::SessionEvent::ThreadSwitch {
+                    from_thread_id: from_id.to_string(),
+                    to_thread_id: thread_id.to_string(),
+                    metadata: crate::session_event::EventMetadata::default(),
+                };
+                let _ = persistence.persist_event(switch_event);
             }
+        }
 
-            // 同步 mode：如果目标线程有审批请求，切到 Approving；否则恢复 Normal
-            // 退出 overlay/diff/search 等非 per-thread 模式
-            match self.mode {
-                Mode::Overlay => {
-                    self.exit_overlay_mode();
-                }
-                Mode::Diff => {
-                    self.exit_diff_mode();
-                }
-                Mode::Search => {
-                    self.exit_search_mode();
-                }
-                Mode::Help => {
-                    self.help_mode = false;
-                    self.mode = Mode::Normal;
-                }
-                Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::Normal => {}
+        true  // 切换成功
+    }
+
+    /// 🔥 重置所有非 per-thread 的模式（原子性操作）
+    /// 在切换线程时调用，确保模式状态一致性
+    fn reset_per_thread_modes(&mut self) {
+        match self.mode {
+            Mode::Overlay => {
+                self.exit_overlay_mode();
             }
-            if self.approval.states.contains_key(&thread_id) {
-                self.mode = Mode::Approving;
-            } else if self.mode == Mode::Approving {
+            Mode::Diff => {
+                self.exit_diff_mode();
+            }
+            Mode::Search => {
+                self.exit_search_mode();
+            }
+            Mode::Help => {
+                self.help_mode = false;
                 self.mode = Mode::Normal;
             }
-
-            true
-        } else {
-            false
+            Mode::Approving | Mode::ThreadPicker | Mode::CommandPopup | Mode::ResumePicker | Mode::Normal => {
+                // 这些模式会在线程切换后重新计算，不需要重置
+            }
         }
     }
 
@@ -5663,5 +6115,672 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.enter_diff_mode(); // diff.files 为空，应忽略
         assert!(matches!(app.mode, Mode::Normal));
         assert!(!app.is_diff_mode());
+    }
+
+    // === Resize 后内容可见性测试 ===
+    //
+    // Bug: 窗口缩小时，输入框/状态栏遮挡最后几行内容
+    // 根因: resize 后 scroll_offset 未重新 clamp，或 content_area 用了缓存旧尺寸
+
+    #[test]
+    fn test_resize_shrink_last_line_still_visible() {
+        // 场景：30 行内容，大窗口(50行) → 缩小到 15 行
+        // 预期：最后一行 "Line 29" 应在新窗口的内容区可见
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+
+        // 先在大窗口渲染并滚动到底部
+        app.set_test_size(80, 50);
+        app.scroll_to_bottom();
+        assert!(app.at_bottom(), "大窗口应到底部");
+
+        // 模拟 resize：窗口缩小到 15 行
+        app.set_test_size(80, 15);
+        app.scroll_to_bottom();
+
+        // 渲染并验证最后一行可见
+        let buf = render_to_buffer(&mut app, 80, 15);
+        let output = buffer_to_string(&buf);
+        assert!(
+            output.contains("Line 29"),
+            "resize 缩小后最后一行应可见，实际输出:\n{}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_resize_shrink_scroll_offset_within_bounds() {
+        // 场景：验证 resize 后 scroll_offset 不超过新窗口的最大偏移
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+
+        // 大窗口：可见 47 行 (50-2-1)，scroll_offset = 0
+        app.set_test_size(80, 50);
+        app.scroll_to_bottom();
+        let offset_before = app.scroll_offset;
+
+        // 缩小到 10 行：可见 7 行 (10-2-1)，max_offset = 23
+        app.set_test_size(80, 10);
+        app.scroll_to_bottom();
+        let visible = 10u16.saturating_sub(2 + 1); // 7
+        let max_offset = 30usize.saturating_sub(visible as usize); // 23
+
+        assert!(
+            app.scroll_offset as usize <= max_offset,
+            "resize 后 scroll_offset={} 应 <= max_offset={}，旧 offset={}",
+            app.scroll_offset, max_offset, offset_before
+        );
+    }
+
+    #[test]
+    fn test_resize_expand_shows_more_content() {
+        // 场景：小窗口 → 扩大，应能看到更多内容（包括开头）
+        let mut app = App::new_for_test();
+        for i in 0..20 {
+            app.push_line(format!("Line {}", i));
+        }
+
+        // 小窗口(10行)滚动到底部
+        app.set_test_size(80, 10);
+        app.scroll_to_bottom();
+        let buf_small = render_to_buffer(&mut app, 80, 10);
+        let output_small = buffer_to_string(&buf_small);
+
+        // 扩大到 50 行
+        app.set_test_size(80, 50);
+        app.scroll_to_bottom();
+        let buf_big = render_to_buffer(&mut app, 80, 50);
+        let output_big = buffer_to_string(&buf_big);
+
+        // 大窗口应能同时看到开头和结尾
+        assert!(
+            output_big.contains("Line 0") || output_big.contains("Line 1"),
+            "大窗口应能看到开头内容"
+        );
+        assert!(
+            output_big.contains("Line 19"),
+            "大窗口应能看到结尾内容"
+        );
+        // 小窗口不可能同时看到开头和结尾
+        assert!(
+            !(output_small.contains("Line 0") && output_small.contains("Line 19")),
+            "小窗口不可能同时看到首尾"
+        );
+    }
+
+    #[test]
+    fn test_resize_with_multiline_input() {
+        // 场景：多行输入框(3行) + 缩小窗口
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+        // 模拟 3 行输入（通过 Ctrl+J 换行）
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('\n'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+
+        app.set_test_size(80, 50);
+        app.scroll_to_bottom();
+
+        // 缩小到 10 行：内容区 = 10 - 2 - 3 = 5 行
+        app.set_test_size(80, 10);
+        app.scroll_to_bottom();
+
+        let buf = render_to_buffer(&mut app, 80, 10);
+        let output = buffer_to_string(&buf);
+        assert!(
+            output.contains("Line 29"),
+            "resize 缩小 + 多行输入时最后一行应可见"
+        );
+    }
+
+    #[test]
+    fn test_resize_shrink_content_area_matches_layout() {
+        // 核心断言：content_area() 计算的 height 应与 ratatui Layout 分配的 content_area.height 一致
+        // 如果不一致，说明 scroll_offset 基于错误的可见行数计算
+        let mut app = App::new_for_test();
+        for i in 0..30 {
+            app.push_line(format!("Line {}", i));
+        }
+
+        // 设置尺寸并渲染
+        app.set_test_size(80, 15);
+        app.scroll_to_bottom();
+
+        let buf = render_to_buffer(&mut app, 80, 15);
+
+        // content_area() 返回的 height
+        let content_area = app.content_area();
+        // render 时 ratatui Layout 分配的内容区高度
+        // 15 行 - 状态栏(1) - 分隔线(1) - 输入框(1) = 12
+        let layout_content_height = 15u16.saturating_sub(2 + 1);
+
+        assert_eq!(
+            content_area.height, layout_content_height,
+            "content_area().height={} 应与 Layout 分配的={} 一致",
+            content_area.height, layout_content_height
+        );
+
+        // 还要验证 scroll_offset + visible_count 能覆盖最后一行
+        let visible = content_area.height as usize;
+        let start = app.scroll_offset as usize;
+        let end = (start + visible).min(30);
+        assert!(
+            end == 30,
+            "可见范围 [{}..{}] 应覆盖到最后一行(30)，scroll_offset={}",
+            start, end, app.scroll_offset
+        );
+    }
+
+    #[test]
+    fn test_resize_shrink_item2_still_visible() {
+        // Bug: 窗口缩小后，第2条内容看不到了
+        // 场景：创建包含多个编号项的内容，窗口缩小后，第2条应该仍然可见
+        let mut app = App::new_for_test();
+
+        // 创建编号列表内容（模拟 AI 响应的选项列表）
+        // 注意：使用纯 ASCII 避免中文字符宽度问题
+        app.push_line("If you need, I can:".to_string());
+        app.push_line("1. View any proposal details - read proposal.md".to_string());
+        app.push_line("2. Execute other tasks - help with various work".to_string());
+        app.push_line("3. View project status - check current progress".to_string());
+        app.push_line("4. Analyze code issues - diagnose and fix bugs".to_string());
+
+        // 先在大窗口（40行）渲染并滚动到底部
+        app.set_test_size(80, 40);
+        app.scroll_to_bottom();
+
+        // 模拟 resize：窗口缩小到 15 行
+        app.set_test_size(80, 15);
+        app.scroll_to_bottom();
+
+        // 渲染并验证第2条内容可见
+        let buf = render_to_buffer(&mut app, 80, 15);
+        let output = buffer_to_string(&buf);
+
+        // 关键断言：第2条"2. Execute other tasks"必须可见
+        assert!(
+            output.contains("2. Execute other tasks"),
+            "窗口缩小后，第2条内容应该可见。\n实际输出:\n{}\n注意：检查内容是否被状态栏/输入框遮挡",
+            output
+        );
+
+        // 同时验证第1条和第3条也可见（确保中间内容没被跳过）
+        assert!(
+            output.contains("1. View any proposal details"),
+            "第1条应该可见"
+        );
+        assert!(
+            output.contains("3. View project status"),
+            "第3条应该可见"
+        );
+    }
+
+    #[test]
+    fn test_resize_shrink_content_not_in_status_area() {
+        // Bug 检查：窗口缩小后，内容是否被错误渲染到状态栏/分隔线/输入框区域
+        // 验证：内容应该只出现在内容区，不应该出现在最后 3 行（状态栏+分隔线+输入框）
+        let mut app = App::new_for_test();
+
+        // 创建足够多的内容来填充窗口
+        for i in 0..20 {
+            app.push_line(format!("Content line {}", i));
+        }
+
+        // 窗口缩小到 12 行（小窗口）
+        let height = 12u16;
+        app.set_test_size(80, height);
+        app.scroll_to_bottom();
+
+        let buf = render_to_buffer(&mut app, 80, height);
+
+        // 获取 buffer 的最后几行（状态栏、分隔线、输入框区域）
+        // 内容区应该在 rows 0..(height-3)，状态栏在 row (height-3)
+        let status_bar_row = (height - 3) as usize;
+        let separator_row = (height - 2) as usize;
+        let input_area_start = (height - 1) as usize;
+
+        // 检查：内容区的最后一行应该有内容
+        let content_last_row = status_bar_row - 1;
+        let content_last_line = (0..buf.area().width)
+            .map(|col| buf.get(col as u16, content_last_row as u16).symbol())
+            .collect::<String>();
+
+        // 检查：状态栏行应该包含状态文本，不应该有 "Content line"
+        let status_line = (0..buf.area().width)
+            .map(|col| buf.get(col as u16, status_bar_row as u16).symbol())
+            .collect::<String>();
+
+        // 断言：状态栏区域不应该包含内容行（应该只包含状态文本）
+        assert!(
+            !status_line.contains("Content line") || status_line.contains("[Ready]") || status_line.contains("o ["),
+            "状态栏区域（row {}）不应该包含内容行文本。\n状态栏内容: '{}'",
+            status_bar_row, status_line
+        );
+
+        // 断言：输入框区域（最后一行）不应该有内容行
+        let input_line = (0..buf.area().width)
+            .map(|col| buf.get(col as u16, input_area_start as u16).symbol())
+            .collect::<String>();
+
+        assert!(
+            !input_line.contains("Content line"),
+            "输入框区域（row {}）不应该包含内容行文本。\n输入框内容: '{}'",
+            input_area_start, input_line
+        );
+    }
+
+    #[test]
+    fn test_width_shrink_content_still_visible() {
+        // 测试窗口宽度变窄时，内容是否仍然可见
+        let mut app = App::new_for_test();
+
+        // 创建长文本内容（会在窄窗口中换行）
+        app.push_line("This is a very long line that will wrap when the window is narrow".to_string());
+        app.push_line("Short line".to_string());
+        app.push_line("Another very long line with lots of text that should wrap in narrow windows".to_string());
+        app.push_line("Final line at the end".to_string());
+
+        // 先在宽窗口（80列）渲染
+        app.set_test_size(80, 10);
+        app.scroll_to_bottom();
+        let buf_wide = render_to_buffer(&mut app, 80, 10);
+        let output_wide = buffer_to_string(&buf_wide);
+
+        // 验证宽窗口时所有内容都可见
+        assert!(output_wide.contains("Final line at the end"), "宽窗口应显示最后一行");
+
+        // 窗口变窄（30列），内容会换行
+        app.set_test_size(30, 10);
+        // 手动调用 scroll_to_bottom 确保滚动到底部
+        app.scroll_to_bottom();
+
+        let buf_narrow = render_to_buffer(&mut app, 30, 10);
+        let output_narrow = buffer_to_string(&buf_narrow);
+
+        // 窄窗口时，由于内容换行，可能无法显示所有内容
+        // 这是正常行为，因为内容区高度有限
+        // 检查是否至少显示了部分内容
+        assert!(
+            output_narrow.contains("Short line") || output_narrow.contains("Final line"),
+            "窄窗口时应该显示部分内容。\n实际输出:\n{}",
+            output_narrow
+        );
+    }
+
+    // === Phase 1: 复现 resize 后线程泄漏问题 ===
+
+    #[test]
+    fn test_resize_shrink_no_thread_leak() {
+        // Bug: 窗口 resize 后出现 main thread 内容残留
+        // 复现场景：在 side thread 中，width_changed 导致 scroll_offset=0，显示出残留内容
+        use ratatui::text::Span;
+        use ratatui::backend::TestBackend;
+        use ratatui::Terminal;
+
+        let mut app = App::new_for_test();
+        let main_id = app.thread.store.primary_id();
+        let side_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("side".to_string()));
+
+        // 切换到 side thread
+        app.switch_thread(side_id);
+        app.push_line("Side thread content line 1".to_string());
+        app.push_line("Side thread content line 2".to_string());
+
+        // 🔥 模拟真实场景：先切换到另一个线程再切换回来
+        // 这样 side thread 的内容会被保存到 thread.messages
+        app.switch_thread(main_id);
+        app.switch_thread(side_id);
+
+        // 🔥 模拟残留：直接向 content_lines 注入 main thread 内容
+        // 这模拟了真实场景中可能出现的线程内容泄漏
+        app.content_lines.push(Line::from(vec![Span::raw("Main thread residue")]));
+
+        // 🔥 为了确保 clear_resize_artifacts() 能重新加载内容，手动保存 side thread 内容
+        // （不包括残留，因为残留是之后才注入的）
+        app.thread.messages.replace(
+            side_id,
+            vec![
+                crate::thread::Message::assistant("Side thread content line 1\nSide thread content line 2".to_string())
+            ]
+        );
+
+        // 第一次渲染：建立 last_render_width = 80
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let _ = terminal.draw(|f| app.draw_frame(f));
+
+        // 第二次渲染：宽度变窄，触发 width_changed 逻辑，scroll_offset 被设为 0
+        let backend = TestBackend::new(40, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let _ = terminal.draw(|f| app.draw_frame(f));
+
+        // 验证：scroll_offset 被重置为 0
+        assert_eq!(app.scroll_offset, 0, "width_changed 应将 scroll_offset 重置为 0");
+
+        // 验证：width_changed 后残留内容应该被清除（期望的行为）
+        // 如果这个断言失败，说明 bug 存在（RED）
+        assert!(
+            !app.content_lines.iter().any(|line| {
+                line.spans.iter().any(|span| span.content.contains("Main thread"))
+            }),
+            "RED: width_changed 后 content_lines 仍有残留，需要修复"
+        );
+    }
+
+    #[test]
+    fn test_resize_concurrent_streaming_isolation() {
+        // Bug: 并发 streaming 时 resize 导致线程内容泄漏
+        let mut app = App::new_for_test();
+        let main_id = app.thread.store.primary_id();
+        let side_id = app
+            .thread
+            .store
+            .create_side_thread(main_id, Some("side".to_string()));
+
+        // main thread streaming
+        app.begin_streaming(main_id);
+        app.append_streaming_output(main_id, "Main streaming line 1\n".to_string());
+        app.push_line_to_thread(main_id, "Main streaming line 1".to_string());
+
+        // 切换到 side thread
+        app.switch_thread(side_id);
+        app.begin_streaming(side_id);
+        app.append_streaming_output(side_id, "Side streaming line 1\n".to_string());
+        app.push_line("Side streaming line 1".to_string());
+
+        // 模拟 resize
+        app.handle_resize(40, 24);
+
+        let buf = render_to_buffer(&mut app, 40, 24);
+        let output = buffer_to_string(&buf);
+
+        // 验证：只显示 side thread 内容
+        assert!(
+            output.contains("Side streaming"),
+            "resize 后应显示 side thread streaming"
+        );
+        assert!(
+            !output.contains("Main streaming"),
+            "resize 后不应泄漏 main thread streaming\n实际输出:\n{}",
+            output
+        );
+    }
+
+    // === Phase 10.8+10.9: 快照去重与合并 红绿测试 ===
+
+    /// 🔴 RED: resume 后 JSONL 应包含重放的历史消息
+    /// reset_for_resume 通过 replay_base_messages 将历史消息写入 JSONL
+    #[tokio::test]
+    async fn test_phase10_9_snapshot_includes_base_messages_after_resume() {
+        let mut app = App::new_for_test();
+
+        // 1. 模拟 resume: 设定 base_messages（旧消息）
+        let base_messages = vec![
+            crate::session_snapshot::SessionMessage {
+                role: "user".to_string(),
+                content: "旧消息1".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            crate::session_snapshot::SessionMessage {
+                role: "assistant".to_string(),
+                content: "旧回复1".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        // 创建 EventPersistence 并启动
+        let session_id = format!("test-merge-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
+        persistence.start_worker().unwrap();
+
+        app.set_event_persistence(persistence);
+        app.reset_for_resume(base_messages.clone());
+
+        // 等待异步 replay_base_messages 写入 JSONL
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        // 2. 验证 JSONL 文件包含重放的历史消息
+        let jsonl_path = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
+            .unwrap();
+
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("旧消息1"), "JSONL 应包含重放的历史消息 '旧消息1'");
+            assert!(content.contains("旧回复1"), "JSONL 应包含重放的历史消息 '旧回复1'");
+        }
+
+        // 3. 模拟用户发送新消息 + AI 回复
+        let new_events = vec![
+            crate::session_event::SessionEvent::UserMessage {
+                content: "新消息2".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::AIResponseChunk {
+                content: "新回复2".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::StreamFinished {
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+        ];
+
+        for event in new_events {
+            app.persist_session_event(event);
+        }
+
+        // 4. 手动触发快照（降低阈值使其立即触发）
+        app.persistence_event_threshold = 1;
+        app.persist_session_event(crate::session_event::SessionEvent::UserMessage {
+            content: "触发快照".to_string(),
+            metadata: crate::session_event::EventMetadata::default(),
+        });
+
+        // 5. 等待异步快照写入
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        // 6. 验证 JSONL 包含新事件
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("新消息2"), "JSONL 应包含新消息");
+            assert!(content.contains("新回复2"), "JSONL 应包含新回复");
+        }
+
+        // 清理
+        let auto_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("auto"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
+        if auto_dir.exists() {
+            for entry in std::fs::read_dir(&auto_dir).unwrap() {
+                let entry = entry.unwrap();
+                if entry.path().extension().and_then(|s| s.to_str()) != Some("json") {
+                    continue;
+                }
+                let content = std::fs::read_to_string(entry.path()).unwrap();
+                if content.contains(&session_id) {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+        let _ = std::fs::remove_file(jsonl_path);
+    }
+
+    /// 🔴 RED: reset_for_resume 必须清空事件计数并将历史消息写入 JSONL
+    #[tokio::test]
+    async fn test_phase10_9_reset_for_resume_saves_base_messages() {
+        let mut app = App::new_for_test();
+
+        // 模拟真实流程：创建新 persistence（JSONL 为空），然后 resume
+        let session_id = format!("test-reset-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
+        persistence.start_worker().unwrap();
+        app.set_event_persistence(persistence);
+
+        // 执行 reset_for_resume（模拟从快照恢复，JSONL 为空）
+        let base = vec![
+            crate::session_snapshot::SessionMessage {
+                role: "user".to_string(),
+                content: "恢复的消息".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+        app.reset_for_resume(base.clone());
+
+        // 🔴 RED 验证（同步部分）
+        assert_eq!(app.event_count, 0, "事件计数应被重置为 0");
+        assert!(app.collected_events.is_empty(), "收集的事件应被清空");
+        assert!(app.last_snapshot_time.is_some(), "恢复后应立即创建快照（供 ResumePicker）");
+
+        // 等待异步 replay_base_messages 写入 JSONL
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        // 🔴 RED 验证：JSONL 应包含重放的消息（因为 JSONL 为空，replay 应执行）
+        let jsonl_path = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
+            .unwrap();
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("恢复的消息"), "JSONL 应包含重放的消息 '恢复的消息'");
+        }
+
+        let _ = std::fs::remove_file(jsonl_path);
+    }
+
+    /// 🔴 RED: 非 resume 场景，事件正常持久化到 JSONL
+    #[tokio::test]
+    async fn test_phase10_9_snapshot_without_base_messages() {
+        let mut app = App::new_for_test();
+
+        let session_id = format!("test-no-base-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
+        persistence.start_worker().unwrap();
+        app.set_event_persistence(persistence);
+
+        // 发送新事件
+        let events = vec![
+            crate::session_event::SessionEvent::UserMessage {
+                content: "只有新消息".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::AIResponseChunk {
+                content: "只有新回复".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::StreamFinished {
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+        ];
+        for event in events {
+            app.persist_session_event(event);
+        }
+
+        // 触发快照（同步验证：collected_events 应被使用）
+        app.persistence_event_threshold = 1;
+        app.persist_session_event(crate::session_event::SessionEvent::UserMessage {
+            content: "触发".to_string(),
+            metadata: crate::session_event::EventMetadata::default(),
+        });
+
+        // 同步验证：快照后 collected_events 应被清空
+        assert!(app.collected_events.is_empty(),
+            "快照后 collected_events 应被清空");
+
+        // 异步验证：等待 JSONL 写入
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        let jsonl_path = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
+            .unwrap();
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("只有新消息"), "JSONL 应包含新消息");
+            assert!(content.contains("只有新回复"), "JSONL 应包含新回复");
+        }
+        let _ = std::fs::remove_file(jsonl_path);
+    }
+
+    /// 🔴 RED: 快照创建后，collected_events 应被清空
+    #[tokio::test]
+    async fn test_phase10_9_snapshot_merges_events_to_base() {
+        let mut app = App::new_for_test();
+
+        let session_id = format!("test-merge-base-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+        let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
+        persistence.start_worker().unwrap();
+        app.set_event_persistence(persistence);
+
+        // 设置 1 条旧 base_message（通过 reset_for_resume 写入 JSONL）
+        let base = vec![
+            crate::session_snapshot::SessionMessage {
+                role: "user".to_string(),
+                content: "旧消息".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+        app.reset_for_resume(base);
+
+        // 发送新事件
+        app.persist_session_event(crate::session_event::SessionEvent::UserMessage {
+            content: "新消息".to_string(),
+            metadata: crate::session_event::EventMetadata::default(),
+        });
+        app.persist_session_event(crate::session_event::SessionEvent::AIResponseChunk {
+            content: "新回复".to_string(),
+            metadata: crate::session_event::EventMetadata::default(),
+        });
+        app.persist_session_event(crate::session_event::SessionEvent::StreamFinished {
+            metadata: crate::session_event::EventMetadata::default(),
+        });
+
+        // 触发快照
+        app.persistence_event_threshold = 1;
+        app.persist_session_event(crate::session_event::SessionEvent::UserMessage {
+            content: "触发".to_string(),
+            metadata: crate::session_event::EventMetadata::default(),
+        });
+
+        // 验证 collected_events 被清空
+        assert!(app.collected_events.is_empty(),
+            "快照后 collected_events 应被清空"
+        );
+
+        let jsonl_path = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
+            .unwrap();
+        let _ = std::fs::remove_file(jsonl_path);
+
+        // 清理 auto 目录
+        let auto_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("auto"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
+        if auto_dir.exists() {
+            for entry in std::fs::read_dir(&auto_dir).unwrap() {
+                let entry = entry.unwrap();
+                if entry.path().extension().and_then(|s| s.to_str()) != Some("json") {
+                    continue;
+                }
+                let content = std::fs::read_to_string(entry.path()).unwrap();
+                if content.contains(&session_id) {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
     }
 }

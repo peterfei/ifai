@@ -84,7 +84,7 @@ export const ApprovalToolbar: React.FC = () => {
           {t('approvalToolbar.previewing')}
         </div>
         <div className="h-4 w-[1px] bg-current opacity-20 mx-1" />
-        <div className="text-xs font-mono opacity-90 truncate max-w-[300px]">
+        <div className="text-xs font-mono opacity-90 max-w-full break-all">
           {filePath}
         </div>
       </div>

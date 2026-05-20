@@ -2172,7 +2172,10 @@
       "symbolDescription": "Глубокий анализ семантики кода: {{fileName}}",
       "symbolTitle": "{{toolType}}Предпросмотр",
       "inlinePreviewOpened": "Открыто устройство Редактирование. Встроенный Предпросмотр.",
-      "previewInEditor": "На главную Редактирование ПредпросмотрИзменение"
+      "previewInEditor": "На главную Редактирование ПредпросмотрИзменение",
+      "copyPath": "Копировать путь",
+      "copyPathSuccess": "Путь скопирован",
+      "copyPathFailed": "Ошибка копирования"
     },
     "result": {
       "failedStatus": "Ошибка",
@@ -2381,6 +2384,7 @@
       },
       "actions": {
         "read": "Чтение",
+        "write": "Запись",
         "list": "Список",
         "search": "Поиск"
       },

@@ -2172,7 +2172,10 @@
       "symbolDescription": "正在深度解析代码语义：{{fileName}}",
       "symbolTitle": "{{toolType}}预览",
       "inlinePreviewOpened": "已开启编辑器内联预览",
-      "previewInEditor": "在主编辑器中预览变更"
+      "previewInEditor": "在主编辑器中预览变更",
+      "copyPath": "复制文件路径",
+      "copyPathSuccess": "路径已复制",
+      "copyPathFailed": "复制失败"
     },
     "result": {
       "failedStatus": "失败",
@@ -2381,6 +2384,7 @@
       },
       "actions": {
         "read": "读取",
+        "write": "写入",
         "list": "列出",
         "search": "搜索"
       },

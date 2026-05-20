@@ -16,6 +16,34 @@
 
 ---
 
+### 🌟 v0.5.1 Highlights: Agent Collaboration Orchestration + Session Persistence Engine + Terminal Improvements
+
+**I. Agent Collaboration Orchestration System ⭐ Core Highlight**
+- **Metaprogramming Infrastructure**: Message protocol definition macros + `workflow!` DSL macro, zero boilerplate for defining agent collaboration flows
+- **Agent Inter-calls + Parallel Execution**: `call_agent_parallel` tool, supports multiple agents executing tasks in parallel
+- **JSONPath Conditional Execution**: Workflow nodes support JSONPath-based conditional branching
+- **Permission System**: Fine-grained permission control for collaboration tools, community/commercial conditional compilation
+
+**II. Session Persistence & Recovery Engine 💾**
+- **JSONL Append-only Log**: Incremental event log at `~/.ifai/sessions/live/`
+- **WAL + Checkpoint Model**: JSONL (incremental log) + Auto Snapshot (periodic checkpoint) dual-path fault tolerance
+- **History Message Replay**: On resume, historical messages are automatically written to JSONL, making JSONL the single source of truth
+- **Interactive ResumePicker**: `/resume` command opens a visual recovery selector supporting auto snapshot / live JSONL / saved session sources
+- **Session Cleanup**: Auto-archive incremental logs + cleanup expired snapshots on exit
+- **Event Persistence Indicator**: TUI bottom bar shows `evt:N` real-time event count
+
+**III. Terminal Improvements ⌨️**
+- **Terminal resize adaptation**: Handle window size changes, eliminate artifacts
+- **Double Ctrl+C force exit**: First Ctrl+C shows friendly hint, second force exits with async session save
+- **File cache optimization**: Parallel agents share file reads, reduced duplicate I/O
+
+**IV. Bug Fixes 🛡️**
+- Fixed OpenAI-compatible API streaming tool_calls support and 401 errors
+- Fixed TOML provider config short name matching, api_key missing warning
+- Fixed tool call echo filtering and output display
+
+---
+
 ### 🌟 v0.5.0 Highlights: Multi-Agent System Maturity + Intent Routing + TUI Markdown Rendering Engine
 
 **I. 9 Dedicated Agents Fully Online ⭐ Core Highlight**
@@ -133,6 +161,7 @@ We maintain rapid iteration, committed to building the most professional AI pair
 
 | Version | Theme | Core Breakthroughs |
 | :--- | :--- | :--- |
+| **v0.5.1** | **Agent Collaboration Orchestration + Session Persistence** | **Metaprogramming collaboration infrastructure (message protocol macros + workflow! DSL), Agent inter-calls + parallel execution (call_agent_parallel), JSONPath conditional execution, JSONL append-only log + Auto Snapshot (WAL + Checkpoint), history message replay to JSONL (single source of truth), interactive ResumePicker, session cleanup archival, event persistence indicator, terminal resize adaptation, double Ctrl+C exit, OpenAI streaming tool_calls fix** |
 | **v0.5.0** | **Multi-Agent System Maturity + Intent Routing + TUI Rendering** | **9 dedicated Agents (Refactor/Git Commit/Plan/ReAct/Review/Test/Doc/Debug/Explore), declarative intent routing (O(1) lookup), TUI Markdown rendering engine (dual-path + adaptive wrapping), Bracketed Paste Mode, SIGINT safe exit, 1032 tests passing** |
 | **v0.4.8** | **Autonomous Conversation Leap + WebSearch + Metaprogramming + Performance** | **100% trust model (tool limits 100→1000, 10x boost), eradicated break chain issues (Agentic Loop + infinite Continuing + HTTP 400), smart compression system (integrated into AI service layer + Mid-turn fix), Bocha AI integration (three-layer protection + LRU cache), #[derive(Tool)] metaprogramming (zero boilerplate), Explore performance optimization (79s→13s, 6x boost), TUI first-run wizard, declarative status bar animation, dedicated Agent tools, prompt reference resolution** |
 | **v0.4.7** | **Persistent Memory System** | **Zero-dependency pure Markdown two-layer memory (hot injection + cold archiving), MemorySave tool (AI proactive save + auto dedup), LLM batch extraction, externalized prompts, 18μs injection latency, session archiving, smart compression, TUI+GUI sharing, 10 bug fixes** |

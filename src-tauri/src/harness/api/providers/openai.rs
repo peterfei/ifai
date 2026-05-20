@@ -4,13 +4,14 @@ use async_stream::stream;
 use futures_core::Stream;
 use futures_util::StreamExt;
 use reqwest::Client as HttpClient;
+use std::collections::HashMap;
 use std::pin::Pin;
 
 use super::super::client::ApiClient;
 use super::super::client_factory::{create_standard_client, normalize_base_url};
 use super::super::message_builder::{MessageBuilder, MultimodalDetector};
 use super::super::provider_metadata; // 🔥 元编程：从元数据获取模型列表
-use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+use super::super::types::{ApiError, ModelInfo, StreamEvent, StreamRequest};
 use super::openai_format::parse_openai_frame;
 
 pub struct OpenAIClient {
@@ -104,6 +105,10 @@ impl ApiClient for OpenAIClient {
         let mut buffer = Vec::new();
 
         Ok(Box::pin(stream! {
+            // 🔥 tool_calls 流式累积状态
+            let mut tool_args_buffer: HashMap<i32, (String, String)> = HashMap::new();
+            let mut tool_started: HashMap<i32, bool> = HashMap::new();
+
             for await chunk_result in byte_stream {
                 match chunk_result {
                     Ok(chunk) => {
@@ -126,7 +131,72 @@ impl ApiClient for OpenAIClient {
 
                             let frame = String::from_utf8_lossy(&frame_bytes);
                             if let Ok(Some(data)) = parse_openai_frame(&frame) {
-                                if let Some(event) = convert_openai_data(&data) {
+                                // 🔥 处理 tool_calls 增量（参照 deepseek.rs）
+                                if let Some(tool_calls) = data.choices.first().and_then(|c| c.delta.tool_calls.as_ref()) {
+                                    for tc in tool_calls {
+                                        let index = tc.index;
+
+                                        // 初始化 buffer
+                                        if !tool_args_buffer.contains_key(&index) {
+                                            let temp_id = tc.id.clone()
+                                                .unwrap_or_else(|| format!("idx_{}", index));
+                                            tool_args_buffer.insert(index, (temp_id, String::new()));
+                                        }
+
+                                        // ToolStart（等 id+name 到齐）
+                                        if !tool_started.get(&index).unwrap_or(&false) {
+                                            if let (Some(id), Some(name)) = (&tc.id, tc.function.as_ref().and_then(|f| f.name.as_ref())) {
+                                                if let Some((ref mut buf_id, _)) = tool_args_buffer.get_mut(&index) {
+                                                    *buf_id = id.clone();
+                                                }
+                                                yield Ok(StreamEvent::ToolStart {
+                                                    tool_id: id.clone(),
+                                                    name: name.clone(),
+                                                    input: String::new(),
+                                                });
+                                                tool_started.insert(index, true);
+                                            }
+                                        }
+
+                                        // 累积 arguments
+                                        if let Some(func) = &tc.function {
+                                            if let Some(args) = &func.arguments {
+                                                if let Some((_, current)) = tool_args_buffer.get_mut(&index) {
+                                                    current.push_str(args);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // finish_reason 处理：flush 所有 tool_calls，然后发送 MessageDone
+                                if let Some(choice) = data.choices.first() {
+                                    if choice.finish_reason.is_some() {
+                                        // 先 flush 所有累积的 tool_calls
+                                        for (_index, (tool_id, args)) in tool_args_buffer.iter() {
+                                            yield Ok(StreamEvent::ToolDone {
+                                                tool_id: tool_id.clone(),
+                                                result: args.clone(),
+                                            });
+                                        }
+                                        tool_args_buffer.clear();
+                                        tool_started.clear();
+
+                                        // 再发送 MessageDone
+                                        let (input_tokens, output_tokens) = if let Some(usage) = &data.usage {
+                                            (usage.prompt_tokens, usage.completion_tokens)
+                                        } else {
+                                            (0, 0)
+                                        };
+                                        yield Ok(StreamEvent::MessageDone {
+                                            input_tokens,
+                                            output_tokens,
+                                            finish_reason: choice.finish_reason.clone(),
+                                        });
+                                    } else if let Some(event) = convert_openai_text_delta(&data) {
+                                        yield Ok(event);
+                                    }
+                                } else if let Some(event) = convert_openai_text_delta(&data) {
                                     yield Ok(event);
                                 }
                             }
@@ -134,6 +204,17 @@ impl ApiClient for OpenAIClient {
                     }
                     Err(e) => yield Err(ApiError::Network(e.to_string())),
                 }
+            }
+
+            // 流结束兜底：flush 残留的工具调用
+            if !tool_args_buffer.is_empty() {
+                for (_index, (tool_id, args)) in tool_args_buffer.iter() {
+                    yield Ok(StreamEvent::ToolDone {
+                        tool_id: tool_id.clone(),
+                        result: args.clone(),
+                    });
+                }
+                tool_args_buffer.clear();
             }
         }))
     }
@@ -170,31 +251,16 @@ fn find_separator(buffer: &[u8]) -> usize {
     0
 }
 
-/// 🔥 转换 OpenAI 格式的数据为统一事件（支持 usage 追踪）
-fn convert_openai_data(data: &super::openai_format::OpenAiSseData) -> Option<StreamEvent> {
+/// 🔥 转换 OpenAI 格式的文本增量（finish_reason 和 tool_calls 已在 stream! 中处理）
+fn convert_openai_text_delta(data: &super::openai_format::OpenAiSseData) -> Option<StreamEvent> {
     if let Some(choice) = data.choices.first() {
-        // 检查是否有内容
+        // 检查是否有文本内容
         if let Some(content) = &choice.delta.content {
             if !content.is_empty() {
                 return Some(StreamEvent::TextDelta {
                     text: content.clone(),
                 });
             }
-        }
-
-        // 检查是否完成
-        if choice.finish_reason.is_some() {
-            // 🔥 提取 token 使用量
-            let (input_tokens, output_tokens) = if let Some(usage) = &data.usage {
-                (usage.prompt_tokens, usage.completion_tokens)
-            } else {
-                (0, 0)
-            };
-            return Some(StreamEvent::MessageDone {
-                input_tokens,
-                output_tokens,
-                finish_reason: choice.finish_reason.clone(),
-            });
         }
     }
 

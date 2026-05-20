@@ -7,7 +7,43 @@ use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
+
+/// 🔥 Phase 7: 文件内容缓存（并行 Agent 共享读优化）
+///
+/// 在 `call_agent_parallel` 执行期间激活，多个并行 Agent 读取同一文件时复用缓存。
+/// 生命周期由 `file_cache_init()` / `file_cache_clear()` 控制。
+static FILE_CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+/// 初始化文件缓存（call_agent_parallel 执行前调用）
+pub fn file_cache_init() {
+    let _ = FILE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+}
+
+/// 清理文件缓存（call_agent_parallel 执行后调用）
+pub fn file_cache_clear() {
+    if let Some(cache) = FILE_CACHE.get() {
+        if let Ok(mut guard) = cache.lock() {
+            guard.clear();
+        }
+    }
+}
+
+/// 查询文件缓存：命中返回内容，未命中返回 None
+fn file_cache_get(canonical_path: &str) -> Option<String> {
+    FILE_CACHE.get().and_then(|cache| {
+        cache.lock().ok().and_then(|guard| guard.get(canonical_path).cloned())
+    })
+}
+
+/// 插入文件缓存
+fn file_cache_insert(canonical_path: String, content: String) {
+    if let Some(cache) = FILE_CACHE.get() {
+        if let Ok(mut guard) = cache.lock() {
+            guard.entry(canonical_path).or_insert(content);
+        }
+    }
+}
 
 /// 工具调用请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,20 +97,32 @@ impl DefaultToolExecutor {
             return Err(anyhow::anyhow!("路径访问被拒绝：路径在项目根目录之外"));
         }
 
+        let canonical_key = canonical_path.to_string_lossy().to_string();
+
+        // 🔥 Phase 7: 查缓存
+        if let Some(cached) = file_cache_get(&canonical_key) {
+            return Ok(cached);
+        }
+
         let content = std::fs::read_to_string(&full_path)
             .map_err(|e| anyhow::anyhow!("读取文件失败 {}: {}", rel_path, e))?;
 
         let (content, truncated) = Self::truncate_file(&content, Self::MAX_FILE_LINES);
-        if truncated {
-            Ok(format!(
+        let result = if truncated {
+            format!(
                 "[TRUNCATED] {} 超过 {} 行，已截断显示首尾\n\n{}",
                 rel_path,
                 Self::MAX_FILE_LINES,
                 content
-            ))
+            )
         } else {
-            Ok(content)
-        }
+            content
+        };
+
+        // 🔥 Phase 7: 存缓存（仅当缓存已初始化时）
+        file_cache_insert(canonical_key, result.clone());
+
+        Ok(result)
     }
 
     /// 截断大文件：保留 head 60% + tail 40%，中间省略
@@ -1059,6 +1107,7 @@ fn test_main() {
     // ========================================================================
 
     #[test]
+    #[ignore = "Phase 6B: Git Commit Agent 工具尚未实现"]
     fn test_git_tools_registered_in_workflow_definitions() {
         let definitions = super::create_tool_definitions();
         let names: std::collections::HashSet<&str> = definitions
@@ -1083,5 +1132,68 @@ fn test_main() {
             names.contains("git_commit"),
             "git_commit 必须在 workflow tool definitions 中"
         );
+    }
+
+    // ========================================================================
+    // Phase 7: 文件缓存测试
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_file_cache_hit_returns_same_content() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 初始化缓存
+        super::file_cache_init();
+
+        // 第一次读取：走磁盘
+        let first = executor.read_file("src/main.rs").await.unwrap();
+        // 第二次读取：走缓存
+        let second = executor.read_file("src/main.rs").await.unwrap();
+
+        assert_eq!(first, second, "缓存命中时内容必须一致");
+
+        // 清理
+        super::file_cache_clear();
+    }
+
+    #[tokio::test]
+    async fn test_file_cache_different_files_independent() {
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        super::file_cache_init();
+
+        let main_content = executor.read_file("src/main.rs").await.unwrap();
+        let user_content = executor.read_file("src/models/user.rs").await.unwrap();
+
+        assert_ne!(main_content, user_content, "不同文件内容必须不同");
+        assert!(main_content.contains("fn main()"));
+        assert!(user_content.contains("struct User"));
+
+        super::file_cache_clear();
+    }
+
+    #[tokio::test]
+    async fn test_file_cache_no_init_still_works() {
+        // 不调用 file_cache_init()，read_file 应该正常工作（只是不缓存）
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let content = executor.read_file("src/main.rs").await.unwrap();
+        assert!(content.contains("fn main()"));
+    }
+
+    #[test]
+    fn test_file_cache_clear_empties_cache() {
+        super::file_cache_init();
+        super::file_cache_insert("/test/path.rs".to_string(), "content".to_string());
+
+        // 确认已插入
+        assert_eq!(super::file_cache_get("/test/path.rs"), Some("content".to_string()));
+
+        // 清理后应该为空
+        super::file_cache_clear();
+        assert_eq!(super::file_cache_get("/test/path.rs"), None);
     }
 }

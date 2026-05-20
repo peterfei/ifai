@@ -185,8 +185,8 @@ pub struct ResizeHandler;
 
 impl EventHandler<Event> for ResizeHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        if let Event::Resize(_, _) = event {
-            app.scroll_to_bottom();
+        if let Event::Resize(cols, rows) = event {
+            app.handle_resize(*cols, *rows);
             ControlFlow::Continue
         } else {
             ControlFlow::Continue
@@ -267,6 +267,29 @@ impl EventHandler<Event> for CombinedKeyHandler {
             // 如果是 ? 键，跳过（由 HelpEnterHandler 处理）
             if key.code == KeyCode::Char('?') {
                 return ControlFlow::Continue;
+            }
+
+            // 🔥 Phase 5: ResumePicker 模式 - 拦截所有按键
+            if app.mode == crate::tui::Mode::ResumePicker {
+                if let Some(ref mut picker) = app.resume_picker {
+                    use crate::resume_picker::PickerAction;
+                    match picker.handle_key(*key) {
+                        Some(PickerAction::Select(entry)) => {
+                            app.resume_picker = None;
+                            app.mode = crate::tui::Mode::Normal;
+                            return ControlFlow::Break(AppResult::ResumeSelected(entry));
+                        }
+                        Some(PickerAction::Cancel) => {
+                            app.resume_picker = None;
+                            app.mode = crate::tui::Mode::Normal;
+                            return ControlFlow::Break(AppResult::Handled);
+                        }
+                        None => {
+                            // 导航键已消费，继续渲染
+                            return ControlFlow::Break(AppResult::Handled);
+                        }
+                    }
+                }
             }
 
             // 命令弹出框激活时：拦截导航键（不传给 InputComposer 的历史记录）

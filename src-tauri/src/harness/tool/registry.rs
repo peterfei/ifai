@@ -443,6 +443,112 @@ impl ToolRegistry {
             }),
             required_permission: ToolPermissionMode::ReadOnly,
         });
+
+        // 🆕 Phase 3: 协作工具（v0.5.2）
+
+        // call_agent_parallel - 并行调用多个 Agent
+        self.register(ToolSpec {
+            name: "call_agent_parallel",
+            description: "并行调用多个 Agent 执行任务。当需要同时执行多个独立任务时使用此工具，如同时审查代码和生成测试。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "calls": {
+                        "type": "array",
+                        "description": "要并行调用的 Agent 列表",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "agent_type": {
+                                    "type": "string",
+                                    "enum": ["explore_agent", "review_agent", "refactor_agent", "test_agent", "doc_agent", "debug_agent", "plan_agent", "git_commit_agent"],
+                                    "description": "Agent 类型"
+                                },
+                                "task": {
+                                    "type": "string",
+                                    "description": "要传递给 Agent 的任务描述"
+                                }
+                            },
+                            "required": ["agent_type", "task"]
+                        }
+                    }
+                },
+                "required": ["calls"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        // share_knowledge - 在 Agent 之间共享知识
+        self.register(ToolSpec {
+            name: "share_knowledge",
+            description: "在 Agent 之间传递知识和中间结果。当需要将一个 Agent 的发现传递给下一个 Agent 时使用此工具。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "from_agent": {
+                        "type": "string",
+                        "description": "发送知识的 Agent ID"
+                    },
+                    "to_agent": {
+                        "type": "string",
+                        "description": "接收知识的 Agent ID"
+                    },
+                    "knowledge": {
+                        "type": "string",
+                        "description": "要共享的知识内容"
+                    }
+                },
+                "required": ["from_agent", "to_agent", "knowledge"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        // aggregate_results - 聚合多个 Agent 的结果
+        self.register(ToolSpec {
+            name: "aggregate_results",
+            description: "聚合多个 Agent 的执行结果。支持三种策略：merge（合并所有结果）、vote（多数投票）、first（返回第一个成功结果）。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "description": "要聚合的结果列表",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "strategy": {
+                        "type": "string",
+                        "enum": ["merge", "vote", "first"],
+                        "description": "聚合策略：merge-合并所有结果，vote-多数投票，first-返回第一个成功结果"
+                    }
+                },
+                "required": ["results", "strategy"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        // monitor_progress - 监控工作流进度
+        self.register(ToolSpec {
+            name: "monitor_progress",
+            description: "监控协作任务的执行进度。支持获取当前状态和订阅进度更新。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "workflow_id": {
+                        "type": "string",
+                        "description": "要监控的工作流 ID"
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": ["status", "subscribe"],
+                        "description": "操作类型：status-获取当前状态，subscribe-订阅进度更新"
+                    }
+                },
+                "required": ["workflow_id", "action"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
     }
 
     /// 获取工具白名单（用于子 Agent）

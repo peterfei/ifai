@@ -93,6 +93,12 @@ pub struct WorkflowNode {
     /// 节点标签（用于显示）
     #[serde(default)]
     pub label: Option<String>,
+
+    /// 条件表达式（JSONPath 语法）
+    ///
+    /// 如果指定，只有条件满足时才会执行此节点
+    #[serde(rename = "condition", default)]
+    pub condition: Option<String>,
 }
 
 impl WorkflowNode {
@@ -103,6 +109,7 @@ impl WorkflowNode {
             agent_type,
             config: AgentConfig::default(),
             label: None,
+            condition: None,
         }
     }
 
@@ -117,12 +124,29 @@ impl WorkflowNode {
         self.config = config;
         self
     }
+
+    /// 设置条件表达式
+    pub fn with_condition(mut self, condition: impl Into<String>) -> Self {
+        self.condition = Some(condition.into());
+        self
+    }
+
+    /// 检查节点是否应该执行（基于条件和输出）
+    pub fn should_execute(&self, output: &serde_json::Value) -> Result<bool, String> {
+        if let Some(ref condition_expr) = self.condition {
+            use crate::agent_system::workflow::condition::eval_condition;
+            eval_condition(output, condition_expr)
+                .map_err(|e| format!("条件评估失败: {}", e))
+        } else {
+            Ok(true)
+        }
+    }
 }
 
 /// 智能体类型
 ///
 /// 支持的智能体类型枚举
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentType {
     /// 代码探索智能体
@@ -160,6 +184,32 @@ pub enum AgentType {
 
     /// 通用智能体
     GeneralPurpose,
+
+    // Phase 2: 协作模式智能体类型
+    //
+    // 这些不是真正的智能体，而是协作模式的语法糖
+    // 在 workflow! 宏中使用，展开时会转换为多个智能体节点
+
+    /// 并行执行模式
+    ///
+    /// 在 workflow! 中使用：`Parallel("node_id", [Review, Test])`
+    /// 展开为多个并行执行的智能体节点
+    /// custom_params 中存储：`agents: ["review", "test"]`
+    Parallel,
+
+    /// 菱形协作模式
+    ///
+    /// 在 workflow! 中使用：`Diamond("node_id", [Review, Refactor])`
+    /// 展开为：split → (Review || Refactor) → merge
+    /// custom_params 中存储：`agents: ["review", "refactor"]`
+    Diamond,
+
+    /// 知识共享链模式
+    ///
+    /// 在 workflow! 中使用：`KnowledgeChain("node_id", [Review, Refactor, Test])`
+    /// 展开为串行执行，每个节点共享前一个节点的知识
+    /// custom_params 中存储：`agents: ["review", "refactor", "test"]`
+    KnowledgeChain,
 }
 
 impl AgentType {
@@ -178,6 +228,48 @@ impl AgentType {
             AgentType::GitCommit => "git_commit",
             AgentType::ReAct => "react",
             AgentType::GeneralPurpose => "general_purpose",
+            // Phase 2: 协作模式
+            AgentType::Parallel => "parallel",
+            AgentType::Diamond => "diamond",
+            AgentType::KnowledgeChain => "knowledge_chain",
+        }
+    }
+
+    /// 获取此 Agent 所需的权限级别
+    ///
+    /// # 权限分级
+    ///
+    /// - `None`: 纯计算类 Agent（Plan, TaskBreakdown）
+    /// - `WorkspaceRead`: 只读操作（Explore, Review, Doc, WebSearch）
+    /// - `WorkspaceWrite`: 修改操作（Refactor, Test, GitCommit, Debug）
+    #[cfg(feature = "commercial")]
+    pub fn required_permission(&self) -> crate::agent_system::macros::PermissionLevel {
+        use crate::agent_system::macros::PermissionLevel;
+
+        match self {
+            // 纯计算类 - 无需工作区访问
+            AgentType::TaskBreakdown |
+            AgentType::ProposalGenerator |
+            AgentType::ReAct => PermissionLevel::None,
+
+            // 只读类 - 需要读取工作区
+            AgentType::Explore |
+            AgentType::Review |
+            AgentType::Doc |
+            AgentType::WebSearch |
+            AgentType::GeneralPurpose => PermissionLevel::WorkspaceRead,
+
+            // 写入类 - 需要修改工作区
+            AgentType::Refactor |
+            AgentType::Test |
+            AgentType::GitCommit |
+            AgentType::Debug => PermissionLevel::WorkspaceWrite,
+
+            // Phase 2: 协作模式 - 取决于包含的 Agent
+            // 使用最大权限确保安全性
+            AgentType::Parallel |
+            AgentType::Diamond |
+            AgentType::KnowledgeChain => PermissionLevel::WorkspaceWrite,
         }
     }
 }
@@ -278,6 +370,44 @@ mod tests {
     }
 
     #[test]
+    fn test_workflow_node_with_condition() {
+        // 测试节点条件表达式
+        let node = WorkflowNode::new("fix", AgentType::Refactor)
+            .with_condition("$.severity > 5");
+
+        assert_eq!(node.id, "fix");
+        assert_eq!(node.condition, Some("$.severity > 5".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_node_should_execute() {
+        // 测试节点是否应该执行
+        let node_with_condition = WorkflowNode::new("fix", AgentType::Refactor)
+            .with_condition("$.severity > 5");
+
+        let output = serde_json::json!({
+            "severity": 8
+        });
+
+        // 暂时总是返回 true
+        let result = node_with_condition.should_execute(&output);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+    }
+
+    #[test]
+    fn test_workflow_node_no_condition() {
+        // 测试无条件节点（总是执行）
+        let node = WorkflowNode::new("scan", AgentType::Explore);
+
+        let output = serde_json::json!({});
+        let result = node.should_execute(&output);
+
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+    }
+
+    #[test]
     fn test_workflow_builder() {
         let mut workflow = Workflow::new("test", "Test");
 
@@ -327,5 +457,40 @@ mod tests {
         assert_eq!(AgentType::Explore.as_str(), "explore");
         assert_eq!(AgentType::Review.as_str(), "review");
         assert_eq!(AgentType::Refactor.as_str(), "refactor");
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn test_agent_permission_none() {
+        // 纯计算类 Agent 无需权限
+        use crate::agent_system::macros::PermissionLevel;
+
+        assert_eq!(AgentType::TaskBreakdown.required_permission(), PermissionLevel::None);
+        assert_eq!(AgentType::ProposalGenerator.required_permission(), PermissionLevel::None);
+        assert_eq!(AgentType::ReAct.required_permission(), PermissionLevel::None);
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn test_agent_permission_read() {
+        // 只读类 Agent 需要读取权限
+        use crate::agent_system::macros::PermissionLevel;
+
+        assert_eq!(AgentType::Explore.required_permission(), PermissionLevel::WorkspaceRead);
+        assert_eq!(AgentType::Review.required_permission(), PermissionLevel::WorkspaceRead);
+        assert_eq!(AgentType::Doc.required_permission(), PermissionLevel::WorkspaceRead);
+        assert_eq!(AgentType::WebSearch.required_permission(), PermissionLevel::WorkspaceRead);
+    }
+
+    #[cfg(feature = "commercial")]
+    #[test]
+    fn test_agent_permission_write() {
+        // 写入类 Agent 需要写入权限
+        use crate::agent_system::macros::PermissionLevel;
+
+        assert_eq!(AgentType::Refactor.required_permission(), PermissionLevel::WorkspaceWrite);
+        assert_eq!(AgentType::Test.required_permission(), PermissionLevel::WorkspaceWrite);
+        assert_eq!(AgentType::GitCommit.required_permission(), PermissionLevel::WorkspaceWrite);
+        assert_eq!(AgentType::Debug.required_permission(), PermissionLevel::WorkspaceWrite);
     }
 }

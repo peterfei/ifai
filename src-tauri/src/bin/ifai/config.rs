@@ -272,6 +272,10 @@ struct TomlConfig {
     /// Provider 覆盖配置
     #[serde(default)]
     providers: HashMap<String, TomlProviderConfig>,
+
+    /// TUI 配置
+    #[serde(default)]
+    tui: TomlTuiSection,
 }
 
 /// 默认配置段
@@ -297,6 +301,50 @@ struct TomlProviderConfig {
     #[serde(default)]
     base_url: Option<String>,
 }
+
+/// 🔥 Phase 6: TUI 配置段
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+struct TomlTuiSection {
+    /// 事件持久化配置
+    #[serde(default)]
+    event_persistence: TomlEventPersistenceConfig,
+}
+
+/// 🔥 Phase 6: 事件持久化配置
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TomlEventPersistenceConfig {
+    /// 是否启用事件持久化
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// 快照间隔（分钟）
+    #[serde(default = "default_snapshot_interval")]
+    pub snapshot_interval_minutes: u64,
+
+    /// 触发快照的事件数
+    #[serde(default = "default_snapshot_event_count")]
+    pub snapshot_event_count: u64,
+
+    /// 最大快照保留数
+    #[serde(default = "default_max_snapshots")]
+    pub max_snapshots: usize,
+}
+
+impl Default for TomlEventPersistenceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            snapshot_interval_minutes: default_snapshot_interval(),
+            snapshot_event_count: default_snapshot_event_count(),
+            max_snapshots: default_max_snapshots(),
+        }
+    }
+}
+
+fn default_true() -> bool { true }
+fn default_snapshot_interval() -> u64 { 10 }
+fn default_snapshot_event_count() -> u64 { 50 }
+fn default_max_snapshots() -> usize { 10 }
 
 /// 🔥 元编程：从 ProviderSpec 生成 TOML 配置模板
 ///
@@ -343,13 +391,16 @@ pub fn generate_toml_template() -> String {
     toml.push_str("\n");
 
     for (provider_id, spec) in provider_metadata::get_all_provider_specs() {
-        toml.push_str(&format!("[providers.{}]\n", provider_id));
+        // 使用短名称（如 "openai" 而非 "openai-official"），匹配用户直觉
+        let short_id = provider_id
+            .strip_suffix("-official")
+            .unwrap_or(provider_id);
+        toml.push_str(&format!("[providers.{}]\n", short_id));
 
         // API key hint
         let env_var_name = format!(
             "{}_API_KEY",
-            provider_id
-                .replace("-official", "")
+            short_id
                 .replace("-", "_")
                 .to_uppercase()
         );
@@ -381,6 +432,7 @@ fn read_toml_config() -> Result<TomlConfig, String> {
         return Ok(TomlConfig {
             default: TomlDefaultSection::default(),
             providers: HashMap::new(),
+            tui: TomlTuiSection::default(),
         });
     }
 
@@ -437,15 +489,58 @@ fn read_model_from_toml() -> Option<String> {
 }
 
 /// 🔥 从 TOML 配置读取 provider 的 API Key
+/// 支持短名称 fallback: "[providers.openai]" 和 "[providers.openai-official]" 均可匹配
 fn read_provider_api_key_from_toml(provider_id: &str) -> Option<String> {
     let config = read_toml_config().ok()?;
-    config.providers.get(provider_id)?.api_key.clone()
+
+    // 1. 精确匹配完整 ID（如 "openai-official"）
+    if let Some(provider_cfg) = config.providers.get(provider_id) {
+        if let Some(key) = &provider_cfg.api_key {
+            return Some(key.clone());
+        }
+    }
+
+    // 2. Fallback: 去除 "-official" 后缀再试（"openai-official" → "openai"）
+    if let Some(short_id) = provider_id.strip_suffix("-official") {
+        if let Some(provider_cfg) = config.providers.get(short_id) {
+            if let Some(key) = &provider_cfg.api_key {
+                return Some(key.clone());
+            }
+        }
+    }
+
+    None
 }
 
 /// 🔥 从 TOML 配置读取 provider 的 base URL
+/// 支持短名称 fallback: "[providers.openai]" 和 "[providers.openai-official]" 均可匹配
 fn read_provider_base_url_from_toml(provider_id: &str) -> Option<String> {
     let config = read_toml_config().ok()?;
-    config.providers.get(provider_id)?.base_url.clone()
+
+    // 1. 精确匹配完整 ID（如 "openai-official"）
+    if let Some(provider_cfg) = config.providers.get(provider_id) {
+        if let Some(url) = &provider_cfg.base_url {
+            return Some(url.clone());
+        }
+    }
+
+    // 2. Fallback: 去除 "-official" 后缀再试（"openai-official" → "openai"）
+    if let Some(short_id) = provider_id.strip_suffix("-official") {
+        if let Some(provider_cfg) = config.providers.get(short_id) {
+            if let Some(url) = &provider_cfg.base_url {
+                return Some(url.clone());
+            }
+        }
+    }
+
+    None
+}
+
+/// 🔥 Phase 6: 读取事件持久化配置
+pub fn read_event_persistence_config() -> TomlEventPersistenceConfig {
+    read_toml_config()
+        .map(|c| c.tui.event_persistence)
+        .unwrap_or_default()
 }
 
 // ============================================================================
@@ -737,5 +832,182 @@ base_url = "https://api.custom.com"
             std::env::remove_var("IFAI_CONFIG_PATH");
         }
         let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_short_name_fallback_api_key() {
+        let _lock = ENV_LOCK.lock().unwrap();
+
+        // 用户在 TOML 中使用短名称 [providers.openai]
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_short_name_apikey_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("config.toml");
+
+        let toml_content = r#"
+[default]
+provider = "openai"
+
+[providers.openai]
+api_key = "sk-test-short-name"
+base_url = "https://api.custom.com"
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let original = std::env::var("IFAI_CONFIG_PATH").ok();
+        std::env::set_var("IFAI_CONFIG_PATH", &config_path);
+
+        // 使用完整 ID "openai-official" 查找，应 fallback 到短名 "openai"
+        let key = read_provider_api_key_from_toml("openai-official");
+        assert_eq!(key, Some("sk-test-short-name".to_string()),
+            "应通过短名称 fallback 找到 api_key");
+
+        let url = read_provider_base_url_from_toml("openai-official");
+        assert_eq!(url, Some("https://api.custom.com".to_string()),
+            "应通过短名称 fallback 找到 base_url");
+
+        // 恢复
+        if let Some(val) = original {
+            std::env::set_var("IFAI_CONFIG_PATH", val);
+        } else {
+            std::env::remove_var("IFAI_CONFIG_PATH");
+        }
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_full_id_api_key_still_works() {
+        let _lock = ENV_LOCK.lock().unwrap();
+
+        // 用户在 TOML 中使用完整 ID [providers.openai-official]
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_full_id_apikey_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("config.toml");
+
+        let toml_content = r#"
+[providers.openai-official]
+api_key = "sk-test-full-id"
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let original = std::env::var("IFAI_CONFIG_PATH").ok();
+        std::env::set_var("IFAI_CONFIG_PATH", &config_path);
+
+        // 精确匹配完整 ID
+        let key = read_provider_api_key_from_toml("openai-official");
+        assert_eq!(key, Some("sk-test-full-id".to_string()),
+            "完整 ID 匹配应正常工作");
+
+        // 恢复
+        if let Some(val) = original {
+            std::env::set_var("IFAI_CONFIG_PATH", val);
+        } else {
+            std::env::remove_var("IFAI_CONFIG_PATH");
+        }
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_short_name_exact_match_priority() {
+        let _lock = ENV_LOCK.lock().unwrap();
+
+        // 同时配置短名和完整 ID 时，完整 ID 优先
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_priority_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("config.toml");
+
+        let toml_content = r#"
+[providers.openai]
+api_key = "sk-short-name"
+
+[providers.openai-official]
+api_key = "sk-full-id"
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let original = std::env::var("IFAI_CONFIG_PATH").ok();
+        std::env::set_var("IFAI_CONFIG_PATH", &config_path);
+
+        let key = read_provider_api_key_from_toml("openai-official");
+        assert_eq!(key, Some("sk-full-id".to_string()),
+            "完整 ID 精确匹配应优先于短名 fallback");
+
+        // 恢复
+        if let Some(val) = original {
+            std::env::set_var("IFAI_CONFIG_PATH", val);
+        } else {
+            std::env::remove_var("IFAI_CONFIG_PATH");
+        }
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_all_providers_short_name_fallback() {
+        let _lock = ENV_LOCK.lock().unwrap();
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ifai_test_all_providers_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("config.toml");
+
+        let toml_content = r#"
+[providers.openai]
+api_key = "sk-openai"
+
+[providers.deepseek]
+api_key = "sk-deepseek"
+
+[providers.zhipu]
+api_key = "sk-zhipu"
+
+[providers.kimi]
+api_key = "sk-kimi"
+
+[providers.gemini]
+api_key = "sk-gemini"
+"#;
+        std::fs::write(&config_path, toml_content).unwrap();
+
+        let original = std::env::var("IFAI_CONFIG_PATH").ok();
+        std::env::set_var("IFAI_CONFIG_PATH", &config_path);
+
+        // 验证所有 provider 的短名 fallback
+        assert_eq!(read_provider_api_key_from_toml("openai-official"), Some("sk-openai".to_string()));
+        assert_eq!(read_provider_api_key_from_toml("deepseek-official"), Some("sk-deepseek".to_string()));
+        assert_eq!(read_provider_api_key_from_toml("zhipu-official"), Some("sk-zhipu".to_string()));
+        assert_eq!(read_provider_api_key_from_toml("kimi-official"), Some("sk-kimi".to_string()));
+        assert_eq!(read_provider_api_key_from_toml("gemini-official"), Some("sk-gemini".to_string()));
+
+        // 恢复
+        if let Some(val) = original {
+            std::env::set_var("IFAI_CONFIG_PATH", val);
+        } else {
+            std::env::remove_var("IFAI_CONFIG_PATH");
+        }
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_toml_template_uses_short_names() {
+        // 模板应使用短名称如 [providers.openai]，而非 [providers.openai-official]
+        let template = generate_toml_template();
+        assert!(template.contains("[providers.openai]"), "模板应使用短名称 [providers.openai]");
+        assert!(template.contains("[providers.deepseek]"), "模板应使用短名称 [providers.deepseek]");
+        assert!(!template.contains("[providers.openai-official]"), "模板不应使用完整 ID");
+        assert!(!template.contains("[providers.deepseek-official]"), "模板不应使用完整 ID");
     }
 }

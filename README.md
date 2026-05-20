@@ -16,6 +16,34 @@
 
 ---
 
+### 🌟 v0.5.1 新特性：Agent 协作编排 + 会话持久化引擎 + 终端体验优化
+
+**一、Agent 协作编排系统 ⭐ 核心亮点**
+- **元编程基础设施**：消息协议定义宏 + `workflow!` DSL 宏，零样板代码定义 Agent 协作流程
+- **Agent 互调用 + 并行调用**：`call_agent_parallel` 工具，支持多个 Agent 并行执行任务
+- **JSONPath 条件执行**：工作流节点支持基于 JSONPath 的条件分支
+- **权限检查系统**：协作工具细粒度权限控制，社区版/商业版条件编译
+
+**二、事件持久化与会话恢复引擎 💾**
+- **JSONL 增量日志**：append-only 事件日志，`~/.ifai/sessions/live/` 目录
+- **WAL + Checkpoint 模型**：JSONL（增量日志）+ Auto Snapshot（周期快照）双路径容错
+- **历史消息重放**：resume 时自动将历史消息写入 JSONL，JSONL 成为唯一真相源
+- **交互式 ResumePicker**：`/resume` 命令弹出可视化恢复选择器，支持从 auto snapshot / live JSONL / saved session 三种来源恢复
+- **会话清理**：退出时自动归档增量日志 + 清理过期快照
+- **事件持久化状态指示器**：TUI 底部显示 `evt:N` 实时事件计数
+
+**三、终端体验优化 ⌨️**
+- **终端 resize 自适应**：处理窗口大小变化，消除伪影
+- **两次 Ctrl+C 强制退出**：首次 Ctrl+C 友好提示，二次强制退出并异步保存会话
+- **文件缓存优化**：并行 Agent 共享文件读取，减少重复 I/O
+
+**四、Bug 修复 🛡️**
+- 修复 OpenAI 兼容 API 流式 tool_calls 支持及 401 错误
+- 修复 TOML provider 配置短名称匹配，api_key 缺失时输出警告
+- 修复工具调用回显过滤与输出展示
+
+---
+
 ### 🌟 v0.5.0 新特性：多智能体系统成型 + 意图路由 + TUI Markdown 渲染引擎
 
 **一、9 个专用 Agent 全面上线 ⭐ 核心亮点**
@@ -204,6 +232,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.5.1** | **Agent 协作编排 + 会话持久化引擎** | **元编程协作基础设施（消息协议宏 + workflow! DSL）、Agent 互调用 + 并行调用（call_agent_parallel）、JSONPath 条件执行、JSONL append-only 日志 + Auto Snapshot（WAL + Checkpoint）、历史消息重放到 JSONL（唯一真相源）、交互式 ResumePicker、会话清理归档、事件持久化指示器、终端 resize 自适应、双 Ctrl+C 退出、OpenAI 流式 tool_calls 修复** |
 | **v0.5.0** | **多智能体系统成型 + 意图路由 + TUI 渲染优化** | **9 个专用 Agent（Refactor/Git Commit/Plan/ReAct/Review/Test/Doc/Debug/Explore）、声明式意图路由（O(1) 查表）、TUI Markdown 渲染引擎（双路径+自适应换行）、Bracketed Paste Mode、SIGINT 安全退出、1032 测试通过** |
 | **v0.4.8** | **自主会话飞跃 + WebSearch + 元编程 + 性能优化** | **100% 信任模型（工具限制 100→1000，10倍提升）、根治断链问题（Agentic Loop + 无限 Continuing + HTTP 400）、智能压缩系统（集成 AI 服务层 + Mid-turn 修复）、博查 AI 集成（三层防护 + LRU 缓存）、#[derive(Tool)] 元编程（零样板代码）、Explore 性能优化（79s→13s，6倍提升）、TUI 首次运行向导、声明式状态栏动画、专用 Agent 工具、提示词引用解析** |
 | **v0.4.7** | **持久化记忆系统** | **零依赖纯 Markdown 两层记忆（热记忆注入 + 冷记忆归档）、MemorySave 工具（AI 主动保存 + 自动去重）、LLM 批量提取、外部化提示词、18μs 注入延迟、会话归档、智能压缩系统、TUI+GUI 共享、10 项 Bug 修复** |

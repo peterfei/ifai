@@ -81,6 +81,7 @@ pub async fn execute_with_tools(
 
     let mut iterations = 0;
     let mut final_response = String::new();
+    let mut collected_tool_summary: Vec<(String, String, usize)> = Vec::new(); // (tool_name, input_preview, output_len)
 
     loop {
         iterations += 1;
@@ -135,6 +136,31 @@ pub async fn execute_with_tools(
         let tool_calls = extract_tool_calls(&response)?;
 
         if tool_calls.is_empty() {
+            let trimmed = response.trim();
+
+            // 兜底：过滤工具调用回显（tool_call: 和 [已执行工具:] 格式）
+            if trimmed.starts_with("tool_call:") || trimmed.starts_with("[已执行工具:") {
+                wf_log!(
+                    "[ToolLoop] ⚠️ 检测到工具调用回显，使用工具执行结果汇总: {}",
+                    &trimmed[..trimmed.len().min(50)]
+                );
+                // 用收集的工具执行摘要替代回显
+                if !collected_tool_summary.is_empty() {
+                    let mut summary = format!("已执行 {} 个工具:\n", collected_tool_summary.len());
+                    for (name, path, len) in &collected_tool_summary {
+                        if path.is_empty() {
+                            summary.push_str(&format!("- {} ({} 字符)\n", name, len));
+                        } else {
+                            summary.push_str(&format!("- {} {}\n", name, path));
+                        }
+                    }
+                    final_response = summary;
+                } else {
+                    final_response = String::new();
+                }
+                break;
+            }
+
             // 没有工具调用，返回 AI 响应
             final_response = response;
             wf_log!(
@@ -313,9 +339,17 @@ pub async fn execute_with_tools(
 
         // 将工具结果添加到消息历史
         for (tool_call, result) in results {
+            // 收集工具执行摘要用于回显回退（只记工具名+输入摘要+输出长度）
+            let input_preview = tool_call.input
+                .get("rel_path").or(tool_call.input.get("path")).or(tool_call.input.get("dir"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            collected_tool_summary.push((tool_call.name.clone(), input_preview, result.output.len()));
+
             messages.push(Message {
                 role: "assistant".to_string(),
-                content: Content::Text(format!("tool_call:{}", tool_call.name)),
+                content: Content::Text(format!("[已执行工具: {}]", tool_call.name)),
                 tool_calls: None,
                 tool_call_id: None,
             });
@@ -1438,7 +1472,7 @@ async fn execute_with_tools_filtered(
             messages.push(crate::core_traits::ai::Message {
                 role: "assistant".to_string(),
                 content: crate::core_traits::ai::Content::Text(format!(
-                    "tool_call:{}",
+                    "[已执行工具: {}]",
                     tool_call.name
                 )),
                 tool_calls: None,

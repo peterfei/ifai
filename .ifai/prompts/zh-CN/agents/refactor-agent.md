@@ -89,3 +89,23 @@ tools:
 ✅ **正确做法**：直接调用 `agent_write_file` 传入重构后的代码。
 
 任务描述：{{TASK_DESCRIPTION}}
+
+## 并行 Agent 调用（v0.5.2 新功能）
+
+当需要调用多个 Agent 时，可以使用 `call_agent_parallel` 工具并行调用：
+
+**可用 Agent**：
+- `explore_agent`: 探索和分析代码
+- `review_agent`: 审查代码质量
+- `test_agent`: 生成测试
+- `doc_agent`: 生成文档
+- `debug_agent`: 调试分析
+- `plan_agent`: 任务规划
+- `react_agent`: 深度推理
+- `git_commit_agent`: 智能提交
+
+**使用场景**：
+- ✅ 重构前并行审查和生成测试
+- ✅ 重构后并行生成文档和测试
+
+**限制**：单次最多并行调用 5 个 Agent

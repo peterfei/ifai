@@ -147,14 +147,17 @@ fn build_agent_workflow(agent_type: AgentType, task: &str) -> Workflow {
             agent_type,
             config: Default::default(),
             label: None,
+            condition: None,
         }],
         edges: vec![],
         variables,
     }
 }
 
-/// 执行 agent 并返回结果
-fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolError> {
+/// 🔥 Phase 0.1.1: 执行 agent 并返回结果（公开函数）
+///
+/// 此函数被 AgentRegistry::call() 调用，用于实现 Agent 互调用
+pub fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolError> {
     wf_log!("[AgentExecutor] 🚀 execute_agent_sync() - agent_type={:?}, task={}", agent_type, task);
 
     // 设置 task_description 到节点 config 和 workflow variables
@@ -169,7 +172,10 @@ fn execute_agent_sync(agent_type: AgentType, task: &str) -> Result<String, ToolE
 
     wf_log!("[AgentExecutor] 📋 Workflow created: id={}, variables={:?}", workflow.id, workflow.variables.keys().collect::<Vec<_>>());
 
-    let config = RunnerConfig::default();
+    let config = RunnerConfig {
+        node_timeout_secs: 300,
+        ..Default::default()
+    };
     let mut runner = WorkflowRunner::new(workflow, config)
         .map_err(|e| ToolError::Execution(format!("工作流初始化失败: {}", e)))?;
 

@@ -2291,7 +2291,10 @@
       "symbolDescription": "Deep semantic analysis in progress: {{fileName}}",
       "symbolTitle": "{{toolType}} preview",
       "inlinePreviewOpened": "Inline preview opened in editor",
-      "previewInEditor": "Preview changes in main editor"
+      "previewInEditor": "Preview changes in main editor",
+      "copyPath": "Copy file path",
+      "copyPathSuccess": "Path copied",
+      "copyPathFailed": "Copy failed"
     },
     "result": {
       "failedStatus": "Failed",
@@ -2500,6 +2503,7 @@
       },
       "actions": {
         "read": "Read",
+        "write": "Write",
         "list": "List",
         "search": "Search"
       },

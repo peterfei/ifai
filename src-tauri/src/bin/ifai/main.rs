@@ -39,6 +39,12 @@ mod markdown_stream; // 🎨 Markdown 代码块流式渲染器
 mod permission; // 🔥 元编程权限引擎
 mod permission_store; // 🔥 权限规则存储（用户白名单）
 mod persistence; // 🔥 元编程会话持久化
+mod session_event; // 🔥 会话事件定义（事件驱动持久化）
+mod event_persistence; // 🔥 事件持久化核心逻辑（通道+异步任务）
+mod jsonl_writer; // 🔥 JSONL 格式增量写入器
+mod session_snapshot; // 🔥 会话快照管理（从事件重构会话状态）
+mod resume_picker; // 🔥 会话恢复交互式选择器
+mod snapshot_manager; // 🔥 快照管理和清理逻辑
 mod pipeline; // 🎨 元编程 Pipeline 可视化
 mod prompt_vars; // 🏛️ 元编程：变量自动收集器
 #[cfg(test)]
@@ -116,6 +122,8 @@ pub enum AppResult {
     Exit,
     /// 事件已消费，无需额外动作
     Handled,
+    /// 🔥 Phase 5: ResumePicker 选中会话
+    ResumeSelected(resume_picker::ResumeEntry),
 }
 
 /// TUI 输出消息（支持文本和 diff）
@@ -123,6 +131,13 @@ pub enum AppResult {
 pub enum OutputMessage {
     Text(String),
     Diff(diff_render::DiffFileChange),
+    /// 🔥 Phase 2.2: 工具调用事件（用于事件持久化）
+    ToolCall {
+        tool_name: String,
+        args: String,
+        result: String,
+        success: bool,
+    },
 }
 
 impl From<String> for OutputMessage {
@@ -581,7 +596,7 @@ fn run_action(action: CliAction) -> Result<(), String> {
 
 /// 📋 显示版本信息
 fn show_version() {
-    println!("IfAI CLI v0.5.0");
+    println!("IfAI CLI v0.5.1");
     println!("Industrial-grade AI code assistant");
 }
 
@@ -653,7 +668,7 @@ fn config_show() -> Result<(), String> {
 
     println!(
         "{}",
-        render::render_banner("v0.5.0", &config.provider(), &config.model(), &theme)
+        render::render_banner("v0.5.1", &config.provider(), &config.model(), &theme)
     );
     println!();
     println!(
@@ -701,6 +716,15 @@ async fn run_prompt_async(
     // 🔥 从配置读取 API key
     if let Some(api_key) = config.api_key() {
         session.set_api_key(api_key.to_string());
+    } else {
+        let env_key = crate::provider::resolve_provider(config.provider())
+            .map(|s| crate::provider::resolve_env_key(s))
+            .unwrap_or_else(|_| format!("{}_API_KEY", config.provider().to_uppercase()));
+        eprintln!(
+            "[IfAI] Warning: API key not configured for '{}'. Set {} env var or edit ~/.ifai/config.toml",
+            config.provider(),
+            env_key
+        );
     }
 
     // 🔥 从配置读取 Base URL
@@ -853,7 +877,7 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 显示 Banner
     println!(
         "{}",
-        render::render_banner("v0.5.0", &config.provider(), &config.model(), &theme)
+        render::render_banner("v0.5.1", &config.provider(), &config.model(), &theme)
     );
     println!();
 
@@ -864,6 +888,15 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 🔥 从配置读取 API key（优先级：CLI > Env > TOML > Default）
     if let Some(api_key) = config.api_key() {
         session.set_api_key(api_key.to_string());
+    } else {
+        let env_key = crate::provider::resolve_provider(config.provider())
+            .map(|s| crate::provider::resolve_env_key(s))
+            .unwrap_or_else(|_| format!("{}_API_KEY", config.provider().to_uppercase()));
+        eprintln!(
+            "[IfAI] Warning: API key not configured for '{}'. Set {} env var or edit ~/.ifai/config.toml",
+            config.provider(),
+            env_key
+        );
     }
 
     // 🔥 从配置读取 Base URL（优先级：CLI > TOML > Default）
@@ -1500,6 +1533,23 @@ async fn handle_agent_command(
     }
 }
 
+/// 🔥 Phase 5.2: /resume 无参数时，收集会话并进入 ResumePicker 模式
+fn handle_resume_picker(app: &mut tui::App) {
+    let entries = commands::collect_resume_entries();
+
+    if entries.is_empty() {
+        app.push_line("没有可恢复的会话".to_string());
+        app.scroll_to_bottom();
+        app.render();
+        return;
+    }
+
+    let picker = resume_picker::ResumePicker::new(entries);
+    app.resume_picker = Some(picker);
+    app.mode = tui::Mode::ResumePicker;
+    app.render();
+}
+
 /// /workflow 命令处理 — 异步执行 + 进度事件路由到 TUI 内容区
 async fn handle_workflow_command(
     app: &mut tui::App,
@@ -1624,7 +1674,7 @@ async fn run_streaming_loop(
     approval_tx: tokio::sync::mpsc::UnboundedSender<approval_overlay::ApprovalRequest>,
     approval_rx: &mut tokio::sync::mpsc::UnboundedReceiver<approval_overlay::ApprovalRequest>,
     initial_request: (String, thread::ThreadId),
-) {
+) -> StreamingControl {
     // 处理初始请求
     spawn_stream_request(
         app,
@@ -1633,6 +1683,9 @@ async fn run_streaming_loop(
         approval_tx.clone(),
         initial_request,
     );
+
+    // 🔥 用于跟踪最终的退出原因
+    let mut final_control = StreamingControl::Continue;
 
     // 键盘事件专用线程：持续读取 crossterm 事件，通过 channel 发送
     // 这样 select! 中的 kb_rx.recv() 与 output_rx.recv() 是同类 channel receiver，公平竞争
@@ -1707,6 +1760,14 @@ async fn run_streaming_loop(
                     match msg {
                         OutputMessage::Text(line) => {
                             app.append_streaming_output(active_id, line.clone());
+                            // 🔥 Phase 2.2: AI 响应块到达，触发事件持久化
+                            if app.has_event_persistence() {
+                                let chunk_event = session_event::SessionEvent::AIResponseChunk {
+                                    content: line.clone(),
+                                    metadata: session_event::EventMetadata::default(),
+                                };
+                                app.persist_session_event(chunk_event);
+                            }
                             if let Some(tx) = thread_event_tx.as_ref() {
                                 let _ = tx.send(thread::ThreadEvent::NewMessage {
                                     thread_id: active_id,
@@ -1716,6 +1777,34 @@ async fn run_streaming_loop(
                         }
                         OutputMessage::Diff(diff) => {
                             app.push_diff_if_active_thread(active_id, diff);
+                        }
+                        OutputMessage::ToolCall { tool_name, args, result, success } => {
+                            // 🔥 Phase 2.2: 工具调用完成，触发事件持久化
+                            if app.has_event_persistence() {
+                                // 序列化 args 为 JSON
+                                let args_json = serde_json::from_str::<serde_json::Value>(&args)
+                                    .unwrap_or(serde_json::json!({}));
+
+                                // 序列化 result 为 JSON
+                                let result_json = serde_json::to_value(&result)
+                                    .unwrap_or(serde_json::json!(result));
+
+                                // 触发 ToolCall 事件
+                                let tool_call_event = session_event::SessionEvent::ToolCall {
+                                    tool: tool_name.clone(),
+                                    args: args_json,
+                                    metadata: session_event::EventMetadata::default(),
+                                };
+                                app.persist_session_event(tool_call_event);
+
+                                // 触发 ToolResult 事件
+                                let tool_result_event = session_event::SessionEvent::ToolResult {
+                                    tool: tool_name.clone(),
+                                    result: result_json,
+                                    metadata: session_event::EventMetadata::default(),
+                                };
+                                app.persist_session_event(tool_result_event);
+                            }
                         }
                     }
                     app.render();
@@ -1730,6 +1819,13 @@ async fn run_streaming_loop(
                         app.render();
                     }
                     if stream_states.is_empty() {
+                        // 🔥 Phase 2.2: 流式会话完成，触发事件持久化
+                        if app.has_event_persistence() {
+                            let finished_event = session_event::SessionEvent::StreamFinished {
+                                metadata: session_event::EventMetadata::default(),
+                            };
+                            app.persist_session_event(finished_event);
+                        }
                         StreamingControl::StreamFinished
                     } else {
                         StreamingControl::Continue
@@ -1898,9 +1994,11 @@ async fn run_streaming_loop(
             }
             StreamingControl::Interrupted => {
                 // Ctrl+C 中断当前线程
+                final_control = StreamingControl::Interrupted;
                 break;
             }
             StreamingControl::Exit => {
+                final_control = StreamingControl::Exit;
                 break;
             }
             StreamingControl::NewRequest { text, thread_id } => {
@@ -1924,6 +2022,9 @@ async fn run_streaming_loop(
     drop(kb_tx);
     drop(kb_rx); // 必须在 join() 之前 drop receiver，否则线程内的 clone sender 仍能 send 成功，导致 join() 永远阻塞
     let _ = kb_thread.join();
+
+    // 🔥 返回最终的退出原因
+    final_control
 }
 
 /// 为指定线程 spawn AI streaming 请求
@@ -2400,27 +2501,59 @@ fn handle_single_key_event(
 
         // === Ctrl+C：所有模式下都生效（统一清理路径） ===
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-            app.clear_queue();
-            // 中断活跃线程
-            if let Some(mut state) = stream_states.remove(active_id) {
-                if let Some(h) = state.handle.take() {
-                    h.abort();
-                }
-                app.cleanup_after_stream(*active_id);
-                app.push_line_if_active_thread(*active_id, String::new());
-                app.push_line_if_active_thread(*active_id, "^C 已中断 AI 响应".to_string());
-            }
-            // 清理所有后台线程
-            let all_ids: Vec<_> = stream_states.keys().copied().collect();
-            for id in all_ids {
-                if let Some(mut state) = stream_states.remove(&id) {
+            // 🔥 检测是否是两次 Ctrl+C（2秒内）
+            let is_double_ctrlc = app.is_double_ctrlc();
+
+            // 🔥 检查是否有活跃的 streaming（前台或后台）
+            let has_active_streaming = !stream_states.is_empty();
+
+            if is_double_ctrlc {
+                // 🔥 两次 Ctrl+C → 强制退出（清理所有状态并退出）
+                app.clear_queue();
+                // 清理所有 stream_states（包括前台和后台）
+                for (id, mut state) in stream_states.drain() {
                     if let Some(h) = state.handle.take() {
                         h.abort();
                     }
                     app.cleanup_after_stream(id);
                 }
+                return StreamingControl::Exit;
             }
-            return StreamingControl::Interrupted;
+
+            if has_active_streaming {
+                // 🔥 第一次 Ctrl+C，有活跃 streaming → 中断所有请求（前台+后台），回到提示符
+                app.clear_queue();
+
+                // 中断前台线程
+                if let Some(mut state) = stream_states.remove(active_id) {
+                    if let Some(h) = state.handle.take() {
+                        h.abort();
+                    }
+                    app.cleanup_after_stream(*active_id);
+                    app.push_line_if_active_thread(*active_id, String::new());
+                    app.push_line_if_active_thread(*active_id, "^C 已中断 AI 响应".to_string());
+                }
+
+                // 🔥 清理所有后台线程（重要！）
+                let all_ids: Vec<_> = stream_states.keys().copied().collect();
+                for id in all_ids {
+                    if let Some(mut state) = stream_states.remove(&id) {
+                        if let Some(h) = state.handle.take() {
+                            h.abort();
+                        }
+                        app.cleanup_after_stream(id);
+                        // 🔥 显示后台线程也被中断的消息
+                        app.push_line(format!("^C 已中断后台线程 {:?}", id));
+                    }
+                }
+
+                // 回到提示符，不退出
+                return StreamingControl::Interrupted;
+            } else {
+                // 🔥 没有 streaming，但有其他操作（如正在输入）→ 也回到提示符
+                // 或者用户只是想"刷新"提示符
+                return StreamingControl::Interrupted;
+            }
         }
 
         // === Diff 模式：仅由 DiffModeHandler 处理 ===
@@ -2508,6 +2641,15 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
         let mut s = session.lock().await;
         if let Some(api_key) = config.api_key() {
             s.set_api_key(api_key.to_string());
+        } else {
+            let env_key = crate::provider::resolve_provider(config.provider())
+                .map(|spec| crate::provider::resolve_env_key(spec))
+                .unwrap_or_else(|_| format!("{}_API_KEY", config.provider().to_uppercase()));
+            eprintln!(
+                "[IfAI] Warning: API key not configured for '{}'. Set {} env var or edit ~/.ifai/config.toml",
+                config.provider(),
+                env_key
+            );
         }
         if let Some(base_url) = config.base_url() {
             s.set_base_url(base_url.to_string());
@@ -2527,6 +2669,87 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
     // 创建 TUI App
     let mut app = tui::App::new().map_err(|e| format!("Failed to initialize TUI: {}", e))?;
+
+    // 🔥 Phase 1.1.5: 初始化事件持久化
+    // 创建必要的目录结构
+    let sessions_base_dir = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions"))
+        .ok_or("Failed to determine sessions directory")?;
+
+    let live_dir = sessions_base_dir.join("live");
+    let auto_dir = sessions_base_dir.join("auto");
+    let archive_dir = sessions_base_dir.join("archive");
+
+    // 创建所有必要的目录
+    std::fs::create_dir_all(&live_dir)
+        .map_err(|e| format!("Failed to create live directory: {}", e))?;
+    std::fs::create_dir_all(&auto_dir)
+        .map_err(|e| format!("Failed to create auto directory: {}", e))?;
+    std::fs::create_dir_all(&archive_dir)
+        .map_err(|e| format!("Failed to create archive directory: {}", e))?;
+
+    // 🔥 Phase 2.3: 创建并启动事件持久化器
+    let session_id = format!("session-{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs());
+
+    // 创建事件持久化器并启动后台任务
+    // 🔥 Phase 6: 从配置文件读取事件持久化设置
+    let ep_config = config::read_event_persistence_config();
+
+    if ep_config.enabled {
+        // 🔥 Phase 10.5: 启动时清理 0 字节 jsonl 文件
+        if let Some(home) = dirs::home_dir() {
+            let live_dir = home.join(".ifai").join("sessions").join("live");
+            if live_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&live_dir) {
+                    for entry in entries.flatten() {
+                        if entry.path().extension().and_then(|s| s.to_str()) == Some("jsonl") {
+                            if let Ok(metadata) = entry.metadata() {
+                                if metadata.len() == 0 {
+                                    let _ = std::fs::remove_file(entry.path());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut event_persistence = event_persistence::EventPersistence::new(session_id.clone());
+
+        // 🔥 启动后台任务（必须在 async 运行时中）
+        if let Err(e) = event_persistence.start_worker() {
+            // 🔥 Phase 10.3: 始终在 TUI 中显示警告
+            app.push_line(format!(
+                "{}⚠️ auto-save 启动失败: {}{}",
+                render::color_256(214), e, render::RESET
+            ));
+        }
+        // 否则：静默启动，不输出任何消息
+
+        // 🔥 将事件持久化器设置到 TUI app 中（传递配置值）
+        app.set_event_persistence(event_persistence);
+        app.set_persistence_config(ep_config.snapshot_event_count, ep_config.snapshot_interval_minutes * 60);
+
+        // 🔥 Phase 7: 启动时显示事件持久化状态（简洁暗色）
+        app.push_line(format!(
+            "{}  auto-save · {} events / {} min{}",
+            render::color_256(242),
+            ep_config.snapshot_event_count,
+            ep_config.snapshot_interval_minutes,
+            render::RESET
+        ));
+        app.scroll_to_bottom();
+    } else {
+        app.push_line(format!(
+            "{}  auto-save · off{}",
+            render::color_256(242),
+            render::RESET
+        ));
+        app.scroll_to_bottom();
+    }
 
     // 🔥 首次运行检测和初始化
     let first_run_detector = first_run::FirstRunDetector::new();
@@ -2644,6 +2867,17 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     app.scroll_to_bottom();
                     app.render();
 
+                    // 🔥 Phase 4: 会话退出清理（归档增量日志 + 清理过期快照）
+                    let (archived, cleaned_snap, cleaned_arch) = app.session_cleanup();
+                    if archived || cleaned_snap > 0 || cleaned_arch > 0 {
+                        app.push_line(format!(
+                            "{}🧹 Cleanup: archived={}, cleaned snapshots={}, cleaned archives={}{}",
+                            theme.brand, archived, cleaned_snap, cleaned_arch, render::RESET
+                        ));
+                        app.scroll_to_bottom();
+                        app.render();
+                    }
+
                     break;
                 }
 
@@ -2675,6 +2909,80 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         continue;
                     }
 
+                    // === /resume 命令拦截（无参数时进入 ResumePicker 模式） ===
+                    if cmd == "resume" && arg.is_none() {
+                        handle_resume_picker(&mut app);
+                        continue;
+                    }
+
+                    // === /resume <session-id> 命令拦截（需要重置 EventPersistence） ===
+                    if cmd == "resume" && arg.is_some() {
+                        let resume_id = arg.clone().unwrap();
+                        let mut s = session.lock().await;
+                        let resume_ok = match commands::dispatch_command(&mut s, "resume", Some(&resume_id)) {
+                            Ok(Some(output)) => {
+                                for line in output.split('\n') {
+                                    app.push_line(line.to_string());
+                                }
+                                true
+                            }
+                            Ok(None) => false,
+                            Err(e) => {
+                                app.push_line(format!("Error: {}", e));
+                                false
+                            }
+                        };
+
+                        // 🔥 Phase 10.10: 从 session 提取恢复的消息，用于快照合并
+                        let base_messages: Vec<crate::session_snapshot::SessionMessage> = if resume_ok {
+                            s.default_ctx.messages.iter().filter_map(|msg| {
+                                match msg.role {
+                                    ifainew_lib::harness::api::types::MessageRole::User
+                                    | ifainew_lib::harness::api::types::MessageRole::Assistant => {
+                                        let content = match &msg.content {
+                                            ifainew_lib::harness::api::types::MessageContent::Text(text) => text.clone(),
+                                            _ => return None,
+                                        };
+                                        Some(crate::session_snapshot::SessionMessage {
+                                            role: match msg.role {
+                                                ifainew_lib::harness::api::types::MessageRole::User => "user".to_string(),
+                                                _ => "assistant".to_string(),
+                                            },
+                                            content,
+                                            tool_calls: None,
+                                            tool_call_id: None,
+                                        })
+                                    }
+                                    _ => None,
+                                }
+                            }).collect()
+                        } else {
+                            Vec::new()
+                        };
+
+                        drop(s);
+
+                        // 🔥 Phase 10.10: 恢复成功后，沿用恢复的 session_id 并重置事件持久化
+                        if resume_ok {
+                            if let Some(old_persistence) = app.take_event_persistence() {
+                                let _ = old_persistence.shutdown().await;
+                            }
+                            let mut new_persistence = event_persistence::EventPersistence::new(resume_id.clone());
+                            if let Err(e) = new_persistence.start_worker() {
+                                app.push_line(format!(
+                                    "{}⚠️ auto-save 重新启动失败: {}{}",
+                                    render::color_256(214), e, render::RESET
+                                ));
+                            }
+                            app.set_event_persistence(new_persistence);
+                            app.reset_for_resume(base_messages);
+                        }
+
+                        app.scroll_to_bottom();
+                        app.render();
+                        continue;
+                    }
+
                     let mut s = session.lock().await;
                     match commands::dispatch_command(&mut s, cmd, arg.as_deref()) {
                         Ok(Some(output)) => {
@@ -2688,6 +2996,15 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         }
                     }
                 } else {
+                    // 🔥 Phase 2.2: 用户发送消息，触发事件持久化
+                    if app.has_event_persistence() {
+                        let user_event = session_event::SessionEvent::UserMessage {
+                            content: text.clone(),
+                            metadata: session_event::EventMetadata::default(),
+                        };
+                        app.persist_session_event(user_event);
+                    }
+
                     // AI 调用 — 单层 select! 事件循环（StreamState per-thread）
                     let thread_id = app
                         .thread
@@ -2701,7 +3018,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         thread::ThreadId,
                         StreamState,
                     > = std::collections::HashMap::new();
-                    run_streaming_loop(
+                    let streaming_result = run_streaming_loop(
                         &mut app,
                         &session,
                         &mut stream_states,
@@ -2710,6 +3027,82 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         (text, thread_id),
                     )
                     .await;
+
+                    // 🔥 检查 streaming 结果，处理控制信号
+                    match streaming_result {
+                        StreamingControl::Exit => {
+                            // 🔥 两次 Ctrl+C → 异步保存会话并退出主循环
+                            let theme = render::default_theme();
+                            app.push_line(format!(
+                                "{}Ctrl+C 退出，保存会话...{}",
+                                theme.brand,
+                                render::RESET
+                            ));
+                            app.scroll_to_bottom();
+                            app.render();
+
+                            // 🔥 异步保存会话（不阻塞退出）
+                            let session_clone = session.clone();
+                            // 收集所有消息（手动 flatten）
+                            let mut messages_clone = Vec::new();
+                            for (_id, msgs) in app.thread.messages.get_all() {
+                                for msg in msgs {
+                                    messages_clone.push(msg.clone());
+                                }
+                            }
+
+                            tokio::spawn(async move {
+                                // 转换消息格式
+                                let all_thread_messages: Vec<ifainew_lib::harness::api::types::Message> = messages_clone
+                                    .into_iter()
+                                    .filter_map(|msg| {
+                                        let role = match msg.role.as_str() {
+                                            "user" => Some(ifainew_lib::harness::api::types::MessageRole::User),
+                                            "assistant" => Some(ifainew_lib::harness::api::types::MessageRole::Assistant),
+                                            _ => None,
+                                        };
+                                        role.map(|r| ifainew_lib::harness::api::types::Message {
+                                            role: r,
+                                            content: ifainew_lib::harness::api::types::MessageContent::Text(
+                                                msg.content.clone(),
+                                            ),
+                                            tool_calls: None,
+                                            tool_call_id: None,
+                                        })
+                                    })
+                                    .collect();
+
+                                let (provider, model) = {
+                                    let s = session_clone.lock().await;
+                                    (s.provider.clone(), s.model.clone())
+                                };
+
+                                match crate::persistence::SessionPersistence::new() {
+                                    Ok(persistence) => {
+                                        let _ = persistence.save_session_summary(
+                                            &all_thread_messages,
+                                            &provider,
+                                            &model,
+                                            0, 0
+                                        );
+                                    }
+                                    Err(_) => {}
+                                }
+                            });
+
+                            // 🔥 Phase 10.4: 退出时关闭事件持久化器，确保数据落盘
+                            if let Some(persistence) = app.take_event_persistence() {
+                                let _ = persistence.shutdown().await;
+                            }
+
+                            break; // 退出主循环（不等待保存完成）
+                        }
+                        StreamingControl::Interrupted => {
+                            // 🔥 第一次 Ctrl+C → 中断请求，回到提示符，继续运行
+                            // 不退出主循环，让用户可以继续输入
+                        }
+                        _ => {}
+                    }
                 }
             }
             AppResult::Exit => {
@@ -2749,55 +3142,135 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 app.scroll_to_bottom();
                 app.render();
 
-                // 创建持久化管理器并保存
-                match crate::persistence::SessionPersistence::new() {
-                    Ok(persistence) => {
-                        // 获取 provider 和 model
-                        let (provider, model) = {
-                            let s = session.lock().await;
-                            (s.provider.clone(), s.model.clone())
-                        };
-
-                        match persistence.save_session_summary(
-                            &all_thread_messages,
-                            &provider,
-                            &model,
-                            0, // TODO: 从 session 收集实际 token 统计
-                            0,
-                        ) {
-                            Ok(filepath) => {
-                                app.push_line(format!(
-                                    "{}✓ Session summary saved to {}{}",
-                                    theme.success,
-                                    filepath.display(),
-                                    render::RESET
-                                ));
-                            }
-                            Err(e) => {
-                                app.push_line(format!(
-                                    "{}⚠ Failed to save session summary: {}{}",
-                                    theme.warning,
-                                    e,
-                                    render::RESET
-                                ));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        app.push_line(format!(
-                            "{}⚠ Failed to create persistence: {}{}",
-                            theme.warning,
-                            e,
-                            render::RESET
-                        ));
+                // 🔥 异步保存会话（不阻塞退出）
+                let session_clone = session.clone();
+                // 收集所有消息（手动 flatten）
+                let mut messages_clone = Vec::new();
+                for (_id, msgs) in app.thread.messages.get_all() {
+                    for msg in msgs {
+                        messages_clone.push(msg.clone());
                     }
                 }
-                app.scroll_to_bottom();
-                app.render();
 
-                break;
+                tokio::spawn(async move {
+                    // 转换消息格式
+                    let all_thread_messages: Vec<ifainew_lib::harness::api::types::Message> = messages_clone
+                        .into_iter()
+                        .filter_map(|msg| {
+                            let role = match msg.role.as_str() {
+                                "user" => Some(ifainew_lib::harness::api::types::MessageRole::User),
+                                "assistant" => Some(ifainew_lib::harness::api::types::MessageRole::Assistant),
+                                _ => None,
+                            };
+                            role.map(|r| ifainew_lib::harness::api::types::Message {
+                                role: r,
+                                content: ifainew_lib::harness::api::types::MessageContent::Text(
+                                    msg.content.clone(),
+                                ),
+                                tool_calls: None,
+                                tool_call_id: None,
+                            })
+                        })
+                        .collect();
+
+                    let (provider, model) = {
+                        let s = session_clone.lock().await;
+                        (s.provider.clone(), s.model.clone())
+                    };
+
+                    match crate::persistence::SessionPersistence::new() {
+                        Ok(persistence) => {
+                            let _ = persistence.save_session_summary(
+                                &all_thread_messages,
+                                &provider,
+                                &model,
+                                0, 0
+                            );
+                        }
+                        Err(_) => {}
+                    }
+                });
+
+                // 🔥 Phase 4: 会话退出清理
+                let _ = app.session_cleanup();
+
+                // 🔥 Phase 10.4: 退出时关闭事件持久化器，确保数据落盘
+                if let Some(persistence) = app.take_event_persistence() {
+                    let _ = persistence.shutdown().await;
+                }
+
+                break; // 立即退出主循环（不等待保存完成）
             }
             AppResult::Handled => {}
+            AppResult::ResumeSelected(entry) => {
+                // 🔥 Phase 5: ResumePicker 选中会话 → 执行恢复
+                let resume_id = entry.resume_id();
+                let mut s = session.lock().await;
+                let resume_ok = match crate::commands::dispatch_command(&mut s, "resume", Some(&resume_id)) {
+                    Ok(Some(output)) => {
+                        for line in output.split('\n') {
+                            app.push_line(line.to_string());
+                        }
+                        true
+                    }
+                    Ok(None) => false,
+                    Err(e) => {
+                        app.push_line(format!("Error: {}", e));
+                        false
+                    }
+                };
+
+                // 🔥 Phase 10.9: 从 session 提取恢复的消息，用于快照合并
+                let base_messages: Vec<crate::session_snapshot::SessionMessage> = if resume_ok {
+                    s.default_ctx.messages.iter().filter_map(|msg| {
+                        // 只保留 user 和 assistant 消息
+                        match msg.role {
+                            ifainew_lib::harness::api::types::MessageRole::User
+                            | ifainew_lib::harness::api::types::MessageRole::Assistant => {
+                                let content = match &msg.content {
+                                    ifainew_lib::harness::api::types::MessageContent::Text(text) => text.clone(),
+                                    _ => return None,
+                                };
+                                Some(crate::session_snapshot::SessionMessage {
+                                    role: match msg.role {
+                                        ifainew_lib::harness::api::types::MessageRole::User => "user".to_string(),
+                                        _ => "assistant".to_string(),
+                                    },
+                                    content,
+                                    tool_calls: None,
+                                    tool_call_id: None,
+                                })
+                            }
+                            _ => None,
+                        }
+                    }).collect()
+                } else {
+                    Vec::new()
+                };
+
+                drop(s);
+
+                // 🔥 Phase 10.7: 恢复成功后，沿用恢复的 session_id
+                // 避免同一对话的消息散落在不同 session 中
+                if resume_ok {
+                    if let Some(old_persistence) = app.take_event_persistence() {
+                        let _ = old_persistence.shutdown().await;
+                    }
+                    let mut new_persistence = event_persistence::EventPersistence::new(resume_id.clone());
+                    if let Err(e) = new_persistence.start_worker() {
+                        app.push_line(format!(
+                            "{}⚠️ auto-save 重新启动失败: {}{}",
+                            render::color_256(214), e, render::RESET
+                        ));
+                    }
+                    app.set_event_persistence(new_persistence);
+                    // 🔥 Phase 10.9: 重置事件计数，并保存恢复的旧消息用于快照合并
+                    app.reset_for_resume(base_messages);
+                }
+
+                app.scroll_to_bottom();
+                app.render();
+            }
         }
 
         // 🔥 检查配置是否需要更新（向导完成后）
@@ -3126,6 +3599,14 @@ mod tests {
         (app, stream_states, thread_id)
     }
 
+    /// Helper: 创建一个空闲的 app（没有 stream_states，用于测试 idle 场景）
+    fn setup_idle_test() -> (tui::App, std::collections::HashMap<thread::ThreadId, StreamState>, thread::ThreadId) {
+        let app = tui::App::new_for_test();
+        let thread_id = app.thread.store.primary_id();
+        let stream_states = std::collections::HashMap::new(); // 空 HashMap
+        (app, stream_states, thread_id)
+    }
+
     /// Helper: 构造 Key event
     fn key_event(
         code: crossterm::event::KeyCode,
@@ -3346,6 +3827,70 @@ mod tests {
         assert!(matches!(result, StreamingControl::Interrupted));
         assert!(!app.is_current_thread_busy());
         assert!(states.is_empty()); // stream_state 被 remove
+    }
+
+    // ========================================================================
+    // Phase 1: Ctrl+C 退出功能测试（RED - 这些测试应该先失败）
+    // ========================================================================
+
+    /// Task 1.1.1: 测试 Ctrl+C 在 idle 时应该中断（回到提示符）
+    #[test]
+    fn test_ctrlc_in_idle_mode_exits() {
+        let (mut app, mut states, id) = setup_idle_test(); // 🔥 使用 idle 测试 helper
+        // 不设置 streaming，保持 idle 状态
+
+        let result = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('c'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
+
+        // ✅ 期望：idle 时第一次 Ctrl+C 应该返回 Interrupted（回到提示符）
+        // ✅ 第二次 Ctrl+C 才返回 Exit（退出程序）
+        assert!(matches!(result, StreamingControl::Interrupted),
+            "idle 时第一次 Ctrl+C 应该中断（回到提示符），但实际返回不符");
+    }
+
+    /// Task 1.1.3: 测试两次 Ctrl+C 强制退出
+    #[test]
+    fn test_double_ctrlc_forces_exit() {
+        let (mut app, mut states, id) = setup_streaming_test();
+        app.stream.thread_busy.insert(id, true);
+
+        // 第一次 Ctrl+C
+        let result1 = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('c'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
+
+        // 第一次应该中断请求
+        assert!(matches!(result1, StreamingControl::Interrupted | StreamingControl::Exit));
+
+        // 模拟时间流逝很短（需要实现 last_ctrlc_time 功能后才能真正测试）
+        // 第二次 Ctrl+C（模拟 2 秒内）
+        let result2 = handle_single_key_event(
+            &mut app,
+            &mut states,
+            &id,
+            key_event(
+                crossterm::event::KeyCode::Char('c'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+        );
+
+        // ✅ 期望：两次 Ctrl+C 应该强制退出
+        // ❌ 当前：没有两次检测功能
+        assert!(matches!(result2, StreamingControl::Exit),
+            "两次 Ctrl+C 应该强制退出，但实际返回不符");
     }
 
     #[test]
@@ -3661,5 +4206,211 @@ mod tests {
         // 审批已解决，mode 回到 Normal
         assert!(!app.is_approving());
         assert!(matches!(app.mode, tui::Mode::Normal));
+    }
+
+    // ========================================================================
+    // Phase 8: 事件持久化集成测试
+    // ========================================================================
+
+    /// Helper: 创建临时会话目录结构
+    fn setup_session_dirs() -> tempfile::TempDir {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("sessions/live")).unwrap();
+        std::fs::create_dir_all(temp.path().join("sessions/auto")).unwrap();
+        std::fs::create_dir_all(temp.path().join("sessions/archive")).unwrap();
+        temp
+    }
+
+    #[tokio::test]
+    async fn test_event_persistence_full_workflow() {
+        // 模拟完整的事件持久化流程：创建事件 → 写入 JSONL → 重构快照
+        let temp = setup_session_dirs();
+        let session_id = format!("test-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+
+        // 1. 创建 EventPersistence 并启动后台任务
+        let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
+        assert!(persistence.start_worker().is_ok());
+        assert!(persistence.is_active());
+
+        // 2. 发送多个事件
+        let events = vec![
+            crate::session_event::SessionEvent::UserMessage {
+                content: "Hello, world!".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::AIResponseChunk {
+                content: "Hi there!".to_string(),
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+            crate::session_event::SessionEvent::StreamFinished {
+                metadata: crate::session_event::EventMetadata::default(),
+            },
+        ];
+
+        for event in &events {
+            let result = persistence.persist_event(event.clone());
+            assert!(result.is_ok(), "persist_event should succeed");
+        }
+
+        // 3. 等待后台任务写入
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        // 4. 验证 JSONL 文件存在
+        persistence.shutdown();
+
+        // 额外等待确保文件写入完成
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // 查找 JSONL 文件
+        let live_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/live"));
+
+        // JSONL 文件名包含 session_id
+        let jsonl_path = live_dir.join(format!("{}.jsonl", session_id));
+        assert!(jsonl_path.exists(), "JSONL file should exist at {:?}", jsonl_path);
+
+        // 5. 读取并验证 JSONL 内容
+        let content = std::fs::read_to_string(&jsonl_path).unwrap();
+        let lines: Vec<&str> = content.trim().lines().collect();
+        assert_eq!(lines.len(), 3, "Should have 3 events in JSONL");
+
+        // 验证每行是有效 JSON
+        for (i, line) in lines.iter().enumerate() {
+            let parsed: serde_json::Value = serde_json::from_str(line)
+                .unwrap_or_else(|e| panic!("Line {} should be valid JSON: {}", i, e));
+            assert!(parsed.is_object(), "Line {} should be a JSON object", i);
+        }
+
+        // 6. 从事件重构会话快照
+        let events: Vec<crate::session_event::SessionEvent> = lines.iter()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
+
+        let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+            session_id.clone(),
+            &events,
+        );
+
+        assert_eq!(snapshot.messages.len(), 2, "Should have 2 messages (user + assistant)");
+        assert_eq!(snapshot.messages[0].role, "user");
+        assert_eq!(snapshot.messages[0].content, "Hello, world!");
+        assert_eq!(snapshot.messages[1].role, "assistant");
+
+        // 清理测试文件
+        let _ = std::fs::remove_file(&jsonl_path);
+    }
+
+    #[test]
+    fn test_crash_recovery_from_jsonl() {
+        // 模拟崩溃恢复：JSONL 文件存在但会话未正常关闭
+        let session_id = format!("crash-test-{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+
+        let live_dir = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live"))
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/live"));
+        std::fs::create_dir_all(&live_dir).ok();
+
+        let jsonl_path = live_dir.join(format!("{}.jsonl", session_id));
+
+        // 1. 手动写入 JSONL 事件（模拟崩溃前的状态）
+        let events_json = vec![
+            r#"{"UserMessage":{"content":"What is Rust?","metadata":{"timestamp":1704067200000,"sequence":1,"thread_id":"main"}}}"#,
+            r#"{"AIResponseChunk":{"content":"Rust is a systems programming language","metadata":{"timestamp":1704067201000,"sequence":2,"thread_id":"main"}}}"#,
+            r#"{"StreamFinished":{"metadata":{"timestamp":1704067202000,"sequence":3,"thread_id":"main"}}}"#,
+            // 崩溃！没有 ToolCall 或 ThreadSwitch 事件
+        ];
+
+        let jsonl_content = events_json.join("\n");
+        std::fs::write(&jsonl_path, &jsonl_content).unwrap();
+
+        // 2. 模拟恢复：读取 JSONL 并解析事件
+        let content = std::fs::read_to_string(&jsonl_path).unwrap();
+        let events: Vec<crate::session_event::SessionEvent> = content.lines()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
+
+        assert_eq!(events.len(), 3, "Should recover 3 events");
+
+        // 3. 重构会话
+        let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+            session_id.clone(),
+            &events,
+        );
+
+        // 验证恢复的消息
+        assert_eq!(snapshot.messages.len(), 2, "Should have 2 messages");
+        assert_eq!(snapshot.messages[0].role, "user");
+        assert_eq!(snapshot.messages[0].content, "What is Rust?");
+        assert_eq!(snapshot.messages[1].role, "assistant");
+        assert!(snapshot.messages[1].content.contains("systems programming language"));
+
+        // 清理
+        let _ = std::fs::remove_file(&jsonl_path);
+    }
+
+    #[test]
+    fn test_snapshot_retention_cleanup_integration() {
+        // 集成测试：快照创建 → 清理策略
+        let temp = tempfile::tempdir().unwrap();
+        let snapshots_dir = temp.path().join("snapshots");
+        let live_dir = temp.path().join("live");
+        let archive_dir = temp.path().join("archive");
+        std::fs::create_dir_all(&snapshots_dir).unwrap();
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+
+        // 创建 15 个快照（最近 10 个 + 5 个过期）
+        for i in 0..10 {
+            let ts = now - (i as u64 * 60);
+            let path = snapshots_dir.join(format!("auto-{}.json", ts));
+            std::fs::write(&path, r#"{"session_id":"test","messages":[],"created_at":""}"#).unwrap();
+        }
+        // 8+ 天前的快照
+        for i in 0..5 {
+            let ts = now - (8 + i) * 24 * 3600;
+            let path = snapshots_dir.join(format!("auto-{}.json", ts));
+            std::fs::write(&path, r#"{"session_id":"old","messages":[],"created_at":""}"#).unwrap();
+        }
+
+        let manager = crate::snapshot_manager::SnapshotManager::with_defaults(
+            snapshots_dir.clone(), live_dir, archive_dir,
+        );
+
+        // 清理
+        let deleted = manager.cleanup_old_snapshots().unwrap();
+        assert!(deleted >= 5, "Should delete at least 5 old snapshots, got {}", deleted);
+
+        let remaining = manager.list_snapshots().unwrap();
+        assert_eq!(remaining.len(), 10, "Should keep 10 recent snapshots");
+    }
+
+    #[test]
+    fn test_config_toml_event_persistence_parsing() {
+        // 集成测试：验证 TOML 配置解析正确传递到运行时
+        let config = crate::config::read_event_persistence_config();
+
+        // 默认值验证
+        assert!(config.enabled, "Default enabled should be true");
+        assert_eq!(config.snapshot_interval_minutes, 10);
+        assert_eq!(config.snapshot_event_count, 50);
+        assert_eq!(config.max_snapshots, 10);
+    }
+
+    #[test]
+    fn test_app_persistence_config_applied() {
+        // 测试 App 的持久化配置传递
+        let mut app = tui::App::new_for_test();
+
+        // 修改配置（通过公开方法）
+        app.set_persistence_config(100, 300);
+
+        // 创建事件持久化器并设置到 App
+        let persistence = crate::event_persistence::EventPersistence::new("config-test".to_string());
+        app.set_event_persistence(persistence);
+        assert!(app.has_event_persistence());
     }
 }

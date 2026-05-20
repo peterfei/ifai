@@ -233,6 +233,23 @@ impl AgentPromptLoader {
                 variable_names: &["PROJECT_ROOT", "TASK_DESCRIPTION"],
                 fallback_template: fallback_react_prompt,
             },
+            // Phase 2: 协作模式 - 这些会在运行时展开为多个 Agent
+            // 使用通用配置，实际上不会被直接使用
+            AgentType::Parallel => AgentPromptConfig {
+                prompt_file: "parallel.md",
+                variable_names: &["PROJECT_ROOT", "TASK_DESCRIPTION"],
+                fallback_template: fallback_parallel_prompt,
+            },
+            AgentType::Diamond => AgentPromptConfig {
+                prompt_file: "diamond.md",
+                variable_names: &["PROJECT_ROOT", "TASK_DESCRIPTION"],
+                fallback_template: fallback_diamond_prompt,
+            },
+            AgentType::KnowledgeChain => AgentPromptConfig {
+                prompt_file: "knowledge-chain.md",
+                variable_names: &["PROJECT_ROOT", "TASK_DESCRIPTION"],
+                fallback_template: fallback_knowledge_chain_prompt,
+            },
         }
     }
 
@@ -728,12 +745,53 @@ fn fallback_react_prompt(ctx: &AgentContext) -> String {
 - git_diff: 获取代码变更
 - agent_scan_project: 扫描项目结构
 - bash: 执行命令
+- call_agent_parallel: 并行调用多个 Agent（协作工具）
+- share_knowledge: 在 Agent 之间共享知识（协作工具）
+- aggregate_results: 聚合多个 Agent 的结果（协作工具）
+- monitor_progress: 监控工作流进度（协作工具）
 
 ## 输出要求
 - 推理过程必须展示 Thought → Action/Observation 链
 - 最终回答必须从 "Final Answer: " 开始
 - 使用中文回答用户"#,
         ctx.task_description)
+}
+
+// Phase 2: 协作模式 fallback prompt 函数
+
+fn fallback_parallel_prompt(_ctx: &AgentContext) -> String {
+    "你是并行协作协调器。你的任务是使用 call_agent_parallel 工具同时调用多个 Agent。
+
+使用方法：
+1. 确定需要并行调用的 Agent 类型
+2. 为每个 Agent 准备独立的任务描述
+3. 调用 call_agent_parallel 工具，传入 Agent 列表和对应任务
+4. 等待所有 Agent 完成
+5. 汇总所有 Agent 的结果
+
+示例：调用 call_agent_parallel，参数为 calls 列表，每个元素包含 agent_type 和 task 字段。".to_string()
+}
+
+fn fallback_diamond_prompt(_ctx: &AgentContext) -> String {
+    "你是菱形协作协调器。你的任务是：
+1. 使用 call_agent_parallel 工具并行调用多个 Agent
+2. 收集所有 Agent 的结果
+3. 使用 aggregate_results 工具聚合结果（策略：merge/vote/first）
+
+菱形协作流程：split → (Agent1 || Agent2) → merge".to_string()
+}
+
+fn fallback_knowledge_chain_prompt(_ctx: &AgentContext) -> String {
+    "你是知识链协调器。你的任务是串行调用多个 Agent，每个 Agent 共享前一个 Agent 的知识。
+
+知识链流程：Agent1 → Agent2 → Agent3
+
+每个 Agent 获得的上下文包含：
+- 原始任务描述
+- 前一个 Agent 的输出结果
+- 需要在前一个结果基础上继续工作
+
+使用 share_knowledge 工具在 Agent 之间传递知识。".to_string()
 }
 
 #[cfg(test)]

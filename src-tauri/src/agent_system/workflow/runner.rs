@@ -351,20 +351,7 @@ impl WorkflowRunner {
                 .iter()
                 .map(|node| {
                     // 将 AgentType 转换为字符串
-                    let agent_type_str = match node.agent_type {
-                        AgentType::Explore => "explore".to_string(),
-                        AgentType::Review => "review".to_string(),
-                        AgentType::Refactor => "refactor".to_string(),
-                        AgentType::Test => "test".to_string(),
-                        AgentType::Doc => "doc".to_string(),
-                        AgentType::Debug => "debug".to_string(),
-                        AgentType::TaskBreakdown => "task_breakdown".to_string(),
-                        AgentType::ProposalGenerator => "proposal_generator".to_string(),
-                        AgentType::WebSearch => "websearch".to_string(),
-                        AgentType::GitCommit => "git_commit".to_string(),
-                        AgentType::ReAct => "react".to_string(),
-                        AgentType::GeneralPurpose => "general_purpose".to_string(),
-                    };
+                    let agent_type_str = node.agent_type.as_str().to_string();
 
                     PlannedNode {
                         id: node.id.clone(),
@@ -951,6 +938,10 @@ impl WorkflowRunner {
                     AgentType::GitCommit => "Git 提交",
                     AgentType::ReAct => "深度推理",
                     AgentType::GeneralPurpose => "处理",
+                    // Phase 2: 协作模式
+                    AgentType::Parallel => "并行协作",
+                    AgentType::Diamond => "菱形协作",
+                    AgentType::KnowledgeChain => "知识链协作",
                 },
                 target_path,
                 file_list_info // 🔥 添加实际的文件列表信息
@@ -1242,6 +1233,10 @@ impl WorkflowRunner {
                 AgentType::GitCommit => "Git 提交",
                 AgentType::ReAct => "深度推理",
                 AgentType::GeneralPurpose => "处理",
+                // Phase 2: 协作模式
+                AgentType::Parallel => "并行协作",
+                AgentType::Diamond => "菱形协作",
+                AgentType::KnowledgeChain => "知识链协作",
             },
             target_path,
             file_list_info // 🔥 添加实际的文件列表信息
@@ -1303,20 +1298,7 @@ impl WorkflowRunner {
             .nodes
             .iter()
             .map(|node| {
-                let agent_type_str = match node.agent_type {
-                    AgentType::Explore => "explore".to_string(),
-                    AgentType::Review => "review".to_string(),
-                    AgentType::Refactor => "refactor".to_string(),
-                    AgentType::Test => "test".to_string(),
-                    AgentType::Doc => "doc".to_string(),
-                    AgentType::Debug => "debug".to_string(),
-                    AgentType::TaskBreakdown => "task_breakdown".to_string(),
-                    AgentType::ProposalGenerator => "proposal_generator".to_string(),
-                    AgentType::WebSearch => "websearch".to_string(),
-                    AgentType::GitCommit => "git_commit".to_string(),
-                    AgentType::ReAct => "react".to_string(),
-                    AgentType::GeneralPurpose => "general_purpose".to_string(),
-                };
+                let agent_type_str = node.agent_type.as_str().to_string();
                 PlannedNode {
                     id: node.id.clone(),
                     label: node.label.clone().unwrap_or_else(|| node.id.clone()),
