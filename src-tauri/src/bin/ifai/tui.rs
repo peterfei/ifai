@@ -1661,7 +1661,7 @@ impl App {
     }
 
     /// 🔥 Phase 10.7+10.9+10.10: 重置事件计数，将 resume 前的旧消息写入 JSONL
-    /// JSONL 成为唯一真相源，不再需要 base_messages 字段
+    /// 恢复后立即创建快照，确保 ResumePicker 显示最新消息数
     pub fn reset_for_resume(&mut self, base_messages: Vec<crate::session_snapshot::SessionMessage>) {
         self.event_count = 0;
         self.collected_events.clear();
@@ -1671,7 +1671,7 @@ impl App {
             let _ = persistence.replay_base_messages(base_messages);
         }
 
-        // 🔥 恢复后立即创建初始快照
+        // 🔥 恢复后立即创建快照（供 ResumePicker 显示最新状态）
         self.create_auto_snapshot();
     }
 
@@ -6643,7 +6643,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         // 🔴 RED 验证（同步部分）
         assert_eq!(app.event_count, 0, "事件计数应被重置为 0");
         assert!(app.collected_events.is_empty(), "收集的事件应被清空");
-        assert!(app.last_snapshot_time.is_some(), "恢复后应立即创建初始快照");
+        assert!(app.last_snapshot_time.is_some(), "恢复后应立即创建快照（供 ResumePicker）");
 
         // 等待异步 replay_base_messages 写入 JSONL
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
