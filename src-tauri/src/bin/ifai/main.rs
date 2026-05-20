@@ -2699,16 +2699,33 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
     let ep_config = config::read_event_persistence_config();
 
     if ep_config.enabled {
+        // 🔥 Phase 10.5: 启动时清理 0 字节 jsonl 文件
+        if let Some(home) = dirs::home_dir() {
+            let live_dir = home.join(".ifai").join("sessions").join("live");
+            if live_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&live_dir) {
+                    for entry in entries.flatten() {
+                        if entry.path().extension().and_then(|s| s.to_str()) == Some("jsonl") {
+                            if let Ok(metadata) = entry.metadata() {
+                                if metadata.len() == 0 {
+                                    let _ = std::fs::remove_file(entry.path());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let mut event_persistence = event_persistence::EventPersistence::new(session_id.clone());
 
         // 🔥 启动后台任务（必须在 async 运行时中）
         if let Err(e) = event_persistence.start_worker() {
-            // 静默失败，不干扰 TUI
-            if std::env::var("WORKFLOW_DEBUG").is_ok()
-                || std::env::var("IFAI_DEBUG").is_ok()
-            {
-                eprintln!("[IfAI] 警告：启动事件持久化后台任务失败: {}", e);
-            }
+            // 🔥 Phase 10.3: 始终在 TUI 中显示警告
+            app.push_line(format!(
+                "{}⚠️ auto-save 启动失败: {}{}",
+                render::color_256(214), e, render::RESET
+            ));
         }
         // 否则：静默启动，不输出任何消息
 
@@ -3005,6 +3022,11 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                 }
                             });
 
+                            // 🔥 Phase 10.4: 退出时关闭事件持久化器，确保数据落盘
+                            if let Some(persistence) = app.take_event_persistence() {
+                                let _ = persistence.shutdown().await;
+                            }
+
                             break; // 退出主循环（不等待保存完成）
                         }
                         StreamingControl::Interrupted => {
@@ -3103,6 +3125,11 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                 // 🔥 Phase 4: 会话退出清理
                 let _ = app.session_cleanup();
+
+                // 🔥 Phase 10.4: 退出时关闭事件持久化器，确保数据落盘
+                if let Some(persistence) = app.take_event_persistence() {
+                    let _ = persistence.shutdown().await;
+                }
 
                 break; // 立即退出主循环（不等待保存完成）
             }

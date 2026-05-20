@@ -525,8 +525,13 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
             Ok(Some(output))
         }
         Some(name) => {
-            // 🔥 Phase 5.1.4: 支持从增量日志恢复
+            // 🔥 Phase 5.1.4: 支持从自动快照或增量日志恢复
             if name.starts_with("session-") || name.starts_with("live-") {
+                // 优先从自动快照恢复（auto 目录下包含 session_id 的 JSON 文件）
+                if let Ok(Some(output)) = resume_from_auto_snapshot(session, name) {
+                    return Ok(Some(output));
+                }
+                // 回退到增量日志恢复
                 return resume_from_live_session(session, name);
             }
 
@@ -673,6 +678,12 @@ fn list_live_sessions() -> Result<Vec<String>, String> {
         let path = entry.path();
 
         if path.extension().and_then(|s| s.to_str()) == Some("jsonl") {
+            // 🔥 Phase 10.1: 跳过 0 字节文件（空会话无恢复价值）
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.len() == 0 {
+                    continue;
+                }
+            }
             if let Some(file_name) = path.file_stem().and_then(|s| s.to_str()) {
                 sessions.push(file_name.to_string());
             }
@@ -727,6 +738,155 @@ pub fn collect_resume_entries() -> Vec<crate::resume_picker::ResumeEntry> {
     entries
 }
 
+/// 🔥 Phase 10.6: 从自动快照恢复会话
+///
+/// 在 auto 目录中查找包含指定 session_id 的最新快照文件并恢复
+fn resume_from_auto_snapshot(session: &mut Session, session_id: &str) -> CommandResult {
+    use crate::render::{default_theme, RESET};
+    use std::fs;
+    use std::path::PathBuf;
+
+    let theme = default_theme();
+
+    let snapshots_dir = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("sessions").join("auto"))
+        .unwrap_or_else(|| PathBuf::from("/tmp/ifai/sessions/auto"));
+
+    if !snapshots_dir.exists() {
+        return Ok(None);
+    }
+
+    // 查找包含该 session_id 的最新快照
+    let mut latest_snapshot: Option<(std::path::PathBuf, crate::session_snapshot::SessionSnapshot)> = None;
+
+    let entries = match fs::read_dir(&snapshots_dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(None),
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let value: serde_json::Value = match serde_json::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let snapshot = match crate::session_snapshot::SessionSnapshot::from_json_value(value) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        if snapshot.session_id == session_id {
+            match &latest_snapshot {
+                Some((_, prev)) if prev.timestamp >= snapshot.timestamp => {}
+                _ => latest_snapshot = Some((path, snapshot)),
+            }
+        }
+    }
+
+    let (_, snapshot) = match latest_snapshot {
+        Some(s) => s,
+        None => return Ok(None), // 没有找到匹配的快照
+    };
+
+    if snapshot.messages.is_empty() {
+        return Ok(None);
+    }
+
+    // 转换为 Session 格式
+    use ifainew_lib::harness::api::types::{Message, MessageContent, MessageRole};
+
+    let messages: Vec<Message> = snapshot
+        .messages
+        .into_iter()
+        .map(|msg| {
+            let role = match msg.role.as_str() {
+                "user" => MessageRole::User,
+                "assistant" => MessageRole::Assistant,
+                "system" => MessageRole::System,
+                "tool" => MessageRole::Tool,
+                _ => MessageRole::User,
+            };
+
+            let tool_calls = if let Some(calls) = msg.tool_calls {
+                let calls: Vec<ifainew_lib::harness::api::types::ToolCall> = calls
+                    .into_iter()
+                    .map(|tc| ifainew_lib::harness::api::types::ToolCall {
+                        id: tc.id,
+                        call_type: tc.call_type,
+                        function: ifainew_lib::harness::api::types::ToolCallFunction {
+                            name: tc.function.name,
+                            arguments: tc.function.arguments,
+                        },
+                    })
+                    .collect();
+                Some(calls)
+            } else {
+                None
+            };
+
+            Message {
+                role,
+                content: MessageContent::Text(msg.content),
+                tool_calls,
+                tool_call_id: msg.tool_call_id,
+            }
+        })
+        .collect();
+
+    session.default_ctx.messages = messages;
+
+    // 构建输出
+    let mut output = format!(
+        "{}✓ 会话已恢复：{}{}（{} 条消息，来自自动快照）",
+        theme.success,
+        session_id,
+        RESET,
+        session.default_ctx.messages.len()
+    );
+
+    for msg in &session.default_ctx.messages {
+        use ifainew_lib::harness::api::types::MessageRole;
+
+        let role_label = match msg.role {
+            MessageRole::User => format!("\n{}👤 You{}", theme.brand, RESET),
+            MessageRole::Assistant => format!("\n{}🤖 AI{}", theme.success, RESET),
+            MessageRole::System | MessageRole::Tool => continue,
+        };
+
+        let content = match &msg.content {
+            ifainew_lib::harness::api::types::MessageContent::Text(text) => text.clone(),
+            _ => continue,
+        };
+
+        let preview = if content.len() > 500 {
+            format!("{}...", &content[..500])
+        } else {
+            content
+        };
+
+        if !preview.trim().is_empty() {
+            output.push_str(&format!("{}: {}", role_label, preview));
+        }
+    }
+
+    Ok(Some(output))
+}
+
 /// 🔥 Phase 5.1.4: 从增量日志恢复会话
 fn resume_from_live_session(session: &mut Session, session_id: &str) -> CommandResult {
     use crate::render::{default_theme, RESET};
@@ -743,8 +903,8 @@ fn resume_from_live_session(session: &mut Session, session_id: &str) -> CommandR
 
     if !jsonl_path.exists() {
         return Ok(Some(format!(
-            "{}❌ 未找到增量日志：{}{}",
-            theme.error, session_id, RESET
+            "{}❌ 未找到增量日志：{}{}\n  {}提示: 使用 /resume 查看所有可恢复的会话{}",
+            theme.error, session_id, RESET, theme.muted, RESET
         )));
     }
 

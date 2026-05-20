@@ -1655,6 +1655,11 @@ impl App {
         self.event_persistence.as_ref().map(|p| p.is_active()).unwrap_or(false)
     }
 
+    /// 🔥 Phase 10.4: 取出事件持久化器（用于退出时 shutdown）
+    pub fn take_event_persistence(&mut self) -> Option<EventPersistence> {
+        self.event_persistence.take()
+    }
+
     /// 🔥 Phase 3: 创建自动快照（从收集的事件重构会话状态）
     fn create_auto_snapshot(&mut self) {
         if let Some(persistence) = &self.event_persistence {
