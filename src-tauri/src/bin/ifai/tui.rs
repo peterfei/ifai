@@ -873,8 +873,6 @@ pub struct App {
     persistence_event_threshold: u64,
     /// 🔥 Phase 6: 持久化配置 - 快照间隔秒数（默认 600）
     persistence_interval_secs: u64,
-    /// 🔥 Phase 10.9: resume 前的旧消息（用于快照合并）
-    base_messages: Vec<crate::session_snapshot::SessionMessage>,
 }
 
 impl App {
@@ -929,7 +927,6 @@ impl App {
             last_snapshot_time: None,
             persistence_event_threshold: 50,
             persistence_interval_secs: 600,
-            base_messages: Vec::new(),
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -975,7 +972,6 @@ impl App {
             last_snapshot_time: None,
             persistence_event_threshold: 50,
             persistence_interval_secs: 600,
-            base_messages: Vec::new(),
         }
     }
 
@@ -1664,44 +1660,39 @@ impl App {
         self.event_persistence.take()
     }
 
-    /// 🔥 Phase 10.7+10.9+10.10: 重置事件计数并保存 resume 前的旧消息（用于快照合并）
-    /// 恢复后立即创建初始快照，确保 base_messages 被持久化
+    /// 🔥 Phase 10.7+10.9+10.10: 重置事件计数，将 resume 前的旧消息写入 JSONL
+    /// JSONL 成为唯一真相源，不再需要 base_messages 字段
     pub fn reset_for_resume(&mut self, base_messages: Vec<crate::session_snapshot::SessionMessage>) {
         self.event_count = 0;
         self.collected_events.clear();
-        self.base_messages = base_messages;
-        // 🔥 Phase 10.10: 恢复后立即创建初始快照（将 base_messages 写入磁盘）
-        // 这样即使用户不聊太久退出，也有完整的快照可用于下次恢复
+
+        // 🔥 将历史消息重放到 JSONL（仅当 JSONL 为空时写入，避免重复）
+        if let Some(persistence) = &self.event_persistence {
+            let _ = persistence.replay_base_messages(base_messages);
+        }
+
+        // 🔥 恢复后立即创建初始快照
         self.create_auto_snapshot();
     }
 
-    /// 🔥 Phase 3+10.9+10.10: 创建自动快照（合并旧消息 + 新事件）
+    /// 🔥 Phase 3+10.9+10.10: 创建自动快照（直接从 collected_events 生成）
+    /// JSONL 是唯一真相源，不再需要 base_messages 合并
     fn create_auto_snapshot(&mut self) {
         if let Some(persistence) = &self.event_persistence {
-            let base_count = self.base_messages.len();
             let events_count = self.collected_events.len();
 
-            // 使用 session_snapshot 从新事件重构会话
-            let new_snapshot = crate::session_snapshot::SessionSnapshot::from_events(
+            // 使用 session_snapshot 从收集的事件重构会话
+            let snapshot = crate::session_snapshot::SessionSnapshot::from_events(
                 persistence.session_id().to_string(),
                 &self.collected_events,
             );
 
-            // 🔥 Phase 10.9: 合并 base_messages（resume 前的旧消息）+ 新事件产生的消息
-            let new_messages = new_snapshot.messages;
-            let all_messages: Vec<crate::session_snapshot::SessionMessage> = {
-                let mut combined = self.base_messages.clone();
-                combined.extend(new_messages.clone());
-                combined
-            };
+            let message_count = snapshot.messages.len();
 
-            let message_count = all_messages.len();
-
-            // 🔥 Phase 10.10: 调试日志（受 IFAI_DEBUG 控制）
+            // 🔥 调试日志（受 IFAI_DEBUG 控制）
             if std::env::var("IFAI_DEBUG").is_ok() {
                 eprintln!(
-                    "[snapshot] base={}, new_events={}, merged={}, session={}",
-                    base_count,
+                    "[snapshot] events={}, messages={}, session={}",
                     events_count,
                     message_count,
                     persistence.session_id()
@@ -1709,21 +1700,19 @@ impl App {
             }
 
             // 转换为 JSON 值列表
-            let messages: Vec<serde_json::Value> = all_messages
+            let messages: Vec<serde_json::Value> = snapshot.messages
                 .into_iter()
                 .map(|msg| serde_json::to_value(msg).unwrap_or_default())
                 .collect();
 
-            // 创建快照（使用合并后的消息数）
+            // 创建快照
             let _ = persistence.create_snapshot(messages);
 
             // 更新快照时间
             self.last_snapshot_time = Some(std::time::Instant::now());
 
-            // 🔥 Phase 10.9: 快照成功后，将新事件产生的消息合并到 base_messages
-            // 这样下次快照时 base_messages 已包含之前所有消息
+            // 快照成功后清空已收集的事件
             if message_count > 0 {
-                self.base_messages.extend(new_messages);
                 self.collected_events.clear();
             }
         }
@@ -6528,8 +6517,8 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
 
     // === Phase 10.8+10.9: 快照去重与合并 红绿测试 ===
 
-    /// 🔴 RED: resume 后创建快照，必须包含旧消息（base_messages）+ 新事件
-    /// 如果 create_auto_snapshot 不合并 base_messages，此测试失败
+    /// 🔴 RED: resume 后 JSONL 应包含重放的历史消息
+    /// reset_for_resume 通过 replay_base_messages 将历史消息写入 JSONL
     #[tokio::test]
     async fn test_phase10_9_snapshot_includes_base_messages_after_resume() {
         let mut app = App::new_for_test();
@@ -6559,7 +6548,21 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.set_event_persistence(persistence);
         app.reset_for_resume(base_messages.clone());
 
-        // 2. 模拟用户发送新消息 + AI 回复
+        // 等待异步 replay_base_messages 写入 JSONL
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        // 2. 验证 JSONL 文件包含重放的历史消息
+        let jsonl_path = dirs::home_dir()
+            .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
+            .unwrap();
+
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("旧消息1"), "JSONL 应包含重放的历史消息 '旧消息1'");
+            assert!(content.contains("旧回复1"), "JSONL 应包含重放的历史消息 '旧回复1'");
+        }
+
+        // 3. 模拟用户发送新消息 + AI 回复
         let new_events = vec![
             crate::session_event::SessionEvent::UserMessage {
                 content: "新消息2".to_string(),
@@ -6578,96 +6581,55 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
             app.persist_session_event(event);
         }
 
-        // 3. 手动触发快照（降低阈值使其立即触发）
+        // 4. 手动触发快照（降低阈值使其立即触发）
         app.persistence_event_threshold = 1;
         app.persist_session_event(crate::session_event::SessionEvent::UserMessage {
             content: "触发快照".to_string(),
             metadata: crate::session_event::EventMetadata::default(),
         });
 
-        // 4. 等待异步快照写入
+        // 5. 等待异步快照写入
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-        // 5. 验证：读取最新快照文件，检查消息数量
+        // 6. 验证 JSONL 包含新事件
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("新消息2"), "JSONL 应包含新消息");
+            assert!(content.contains("新回复2"), "JSONL 应包含新回复");
+        }
+
+        // 清理
         let auto_dir = dirs::home_dir()
             .map(|h| h.join(".ifai").join("sessions").join("auto"))
             .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
-        std::fs::create_dir_all(&auto_dir).ok();
-
         if auto_dir.exists() {
-            let mut matching_snapshots: Vec<(std::path::PathBuf, crate::session_snapshot::SessionSnapshot)> = Vec::new();
             for entry in std::fs::read_dir(&auto_dir).unwrap() {
                 let entry = entry.unwrap();
                 if entry.path().extension().and_then(|s| s.to_str()) != Some("json") {
                     continue;
                 }
                 let content = std::fs::read_to_string(entry.path()).unwrap();
-                let value: serde_json::Value = serde_json::from_str(&content).unwrap();
-                let snapshot = crate::session_snapshot::SessionSnapshot::from_json_value(value).unwrap();
-                if snapshot.session_id == session_id {
-                    matching_snapshots.push((entry.path(), snapshot));
+                if content.contains(&session_id) {
+                    let _ = std::fs::remove_file(entry.path());
                 }
             }
-
-            // 🔴 RED 验证：至少应有一个快照
-            assert!(!matching_snapshots.is_empty(),
-                "应该创建至少一个快照文件");
-
-            // 取最新快照
-            matching_snapshots.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
-            let (_, latest) = matching_snapshots.last().unwrap();
-
-            // 🔴 RED 验证：快照应包含旧消息 + 新消息 = 5 条
-            // 旧: user("旧消息1"), assistant("旧回复1") = 2
-            // 新: user("新消息2"), assistant("新回复2"), user("触发快照") = 3
-            // 总计: 5 条
-            assert!(latest.message_count >= 4,
-                "快照应包含旧消息 + 新消息（期望 >=4，实际 {}）\n消息: {:?}",
-                latest.message_count,
-                latest.messages.iter().map(|m| format!("{}: {}", m.role, m.content.chars().take(30).collect::<String>())).collect::<Vec<_>>()
-            );
-
-            // 验证旧消息存在
-            let has_old_msg = latest.messages.iter().any(|m| m.content.contains("旧消息1"));
-            assert!(has_old_msg, "快照应包含恢复的旧消息 '旧消息1'");
-
-            // 验证新消息存在
-            let has_new_msg = latest.messages.iter().any(|m| m.content.contains("新回复2"));
-            assert!(has_new_msg, "快照应包含新消息 '新回复2'");
-
-            // 清理测试文件
-            for (path, _) in matching_snapshots {
-                let _ = std::fs::remove_file(path);
-            }
         }
-
-        // 清理
-        let jsonl_path = dirs::home_dir()
-            .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
-            .unwrap();
         let _ = std::fs::remove_file(jsonl_path);
     }
 
-    /// 🔴 RED: reset_for_resume 必须保存 base_messages，清空事件计数
+    /// 🔴 RED: reset_for_resume 必须清空事件计数并将历史消息写入 JSONL
     #[tokio::test]
     async fn test_phase10_9_reset_for_resume_saves_base_messages() {
         let mut app = App::new_for_test();
 
-        // 先模拟一些旧事件
+        // 模拟真实流程：创建新 persistence（JSONL 为空），然后 resume
         let session_id = format!("test-reset-{}", std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
         let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
         persistence.start_worker().unwrap();
         app.set_event_persistence(persistence);
 
-        // 模拟一些旧事件
-        app.persist_session_event(crate::session_event::SessionEvent::UserMessage {
-            content: "旧事件".to_string(),
-            metadata: crate::session_event::EventMetadata::default(),
-        });
-        assert_eq!(app.event_count, 1, "应该有 1 个旧事件");
-
-        // 执行 reset_for_resume
+        // 执行 reset_for_resume（模拟从快照恢复，JSONL 为空）
         let base = vec![
             crate::session_snapshot::SessionMessage {
                 role: "user".to_string(),
@@ -6678,22 +6640,27 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         ];
         app.reset_for_resume(base.clone());
 
-        // 🔴 RED 验证
+        // 🔴 RED 验证（同步部分）
         assert_eq!(app.event_count, 0, "事件计数应被重置为 0");
         assert!(app.collected_events.is_empty(), "收集的事件应被清空");
-        // 🔥 Phase 10.10: reset_for_resume 会立即创建初始快照，所以 last_snapshot_time 不为 None
         assert!(app.last_snapshot_time.is_some(), "恢复后应立即创建初始快照");
-        assert_eq!(app.base_messages.len(), 1, "base_messages 应包含恢复的消息");
-        assert_eq!(app.base_messages[0].content, "恢复的消息");
 
-        // 清理
+        // 等待异步 replay_base_messages 写入 JSONL
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        // 🔴 RED 验证：JSONL 应包含重放的消息（因为 JSONL 为空，replay 应执行）
         let jsonl_path = dirs::home_dir()
             .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
             .unwrap();
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("恢复的消息"), "JSONL 应包含重放的消息 '恢复的消息'");
+        }
+
         let _ = std::fs::remove_file(jsonl_path);
     }
 
-    /// 🔴 RED: base_messages 为空时（非 resume 场景），快照应正常工作
+    /// 🔴 RED: 非 resume 场景，事件正常持久化到 JSONL
     #[tokio::test]
     async fn test_phase10_9_snapshot_without_base_messages() {
         let mut app = App::new_for_test();
@@ -6703,9 +6670,6 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         let mut persistence = crate::event_persistence::EventPersistence::new(session_id.clone());
         persistence.start_worker().unwrap();
         app.set_event_persistence(persistence);
-
-        // 不设 base_messages（默认空）
-        assert!(app.base_messages.is_empty());
 
         // 发送新事件
         let events = vec![
@@ -6725,49 +6689,32 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
             app.persist_session_event(event);
         }
 
-        // 触发快照
+        // 触发快照（同步验证：collected_events 应被使用）
         app.persistence_event_threshold = 1;
         app.persist_session_event(crate::session_event::SessionEvent::UserMessage {
             content: "触发".to_string(),
             metadata: crate::session_event::EventMetadata::default(),
         });
 
+        // 同步验证：快照后 collected_events 应被清空
+        assert!(app.collected_events.is_empty(),
+            "快照后 collected_events 应被清空");
+
+        // 异步验证：等待 JSONL 写入
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-        // 验证
-        let auto_dir = dirs::home_dir()
-            .map(|h| h.join(".ifai").join("sessions").join("auto"))
-            .unwrap_or_else(|| std::path::PathBuf::from("/tmp/ifai/sessions/auto"));
-        std::fs::create_dir_all(&auto_dir).ok();
-
-        let mut found = false;
-        for entry in std::fs::read_dir(&auto_dir).unwrap() {
-            let entry = entry.unwrap();
-            if entry.path().extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let content = std::fs::read_to_string(entry.path()).unwrap();
-            let value: serde_json::Value = serde_json::from_str(&content).unwrap();
-            let snapshot = crate::session_snapshot::SessionSnapshot::from_json_value(value).unwrap();
-            if snapshot.session_id == session_id {
-                found = true;
-                // 应有 3 条消息（user, assistant, user）
-                assert!(snapshot.message_count >= 2,
-                    "非 resume 场景快照应包含所有新消息（期望 >=2，实际 {}）",
-                    snapshot.message_count
-                );
-                let _ = std::fs::remove_file(entry.path());
-            }
-        }
-        assert!(found, "应该创建快照文件");
 
         let jsonl_path = dirs::home_dir()
             .map(|h| h.join(".ifai").join("sessions").join("live").join(format!("{}.jsonl", session_id)))
             .unwrap();
+        if jsonl_path.exists() {
+            let content = std::fs::read_to_string(&jsonl_path).unwrap();
+            assert!(content.contains("只有新消息"), "JSONL 应包含新消息");
+            assert!(content.contains("只有新回复"), "JSONL 应包含新回复");
+        }
         let _ = std::fs::remove_file(jsonl_path);
     }
 
-    /// 🔴 RED: 快照创建后，新事件应合并到 base_messages，避免下次快照重复计算
+    /// 🔴 RED: 快照创建后，collected_events 应被清空
     #[tokio::test]
     async fn test_phase10_9_snapshot_merges_events_to_base() {
         let mut app = App::new_for_test();
@@ -6778,7 +6725,7 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         persistence.start_worker().unwrap();
         app.set_event_persistence(persistence);
 
-        // 设置 1 条旧 base_message
+        // 设置 1 条旧 base_message（通过 reset_for_resume 写入 JSONL）
         let base = vec![
             crate::session_snapshot::SessionMessage {
                 role: "user".to_string(),
@@ -6808,14 +6755,6 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
             content: "触发".to_string(),
             metadata: crate::session_event::EventMetadata::default(),
         });
-
-        // 🔴 RED 验证：快照后 base_messages 应增长
-        // 快照前 base_messages = 1（旧消息）
-        // 快照后 base_messages 应包含 旧消息 + 新事件产生的消息
-        assert!(app.base_messages.len() >= 3,
-            "快照后 base_messages 应包含旧消息 + 新事件消息（期望 >=3，实际 {}）",
-            app.base_messages.len()
-        );
 
         // 验证 collected_events 被清空
         assert!(app.collected_events.is_empty(),

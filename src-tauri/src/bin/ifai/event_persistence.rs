@@ -24,6 +24,12 @@ pub enum PersistenceCommand {
         messages: Vec<serde_json::Value>,
     },
 
+    /// 重放历史消息到 JSONL（仅当 JSONL 为空时写入）
+    /// 用于 resume 场景，将历史消息转为 SessionEvent 追加到 JSONL
+    ReplayMessages {
+        messages: Vec<crate::session_snapshot::SessionMessage>,
+    },
+
     /// 关闭后台任务
     Shutdown {
         ack: oneshot::Sender<()>,
@@ -115,6 +121,20 @@ impl EventPersistence {
     /// 🔥 检查通道是否仍然有效
     pub fn is_active(&self) -> bool {
         !self.tx.is_closed()
+    }
+
+    /// 🔥 重放历史消息到 JSONL（仅当 JSONL 为空时写入）
+    ///
+    /// resume 时调用：将历史消息转为 SessionEvent 追加到 JSONL 文件。
+    /// 如果 JSONL 已有内容（从 live JSONL resume），跳过重放以避免重复。
+    pub fn replay_base_messages(
+        &self,
+        messages: Vec<crate::session_snapshot::SessionMessage>,
+    ) -> Result<(), PersistenceError> {
+        self.tx
+            .send(PersistenceCommand::ReplayMessages { messages })
+            .map_err(|_| PersistenceError::ChannelClosed)?;
+        Ok(())
     }
 }
 
@@ -217,6 +237,57 @@ async fn event_persistence_worker(
                 // 调用快照创建函数
                 if let Err(e) = create_snapshot_file(&snapshots_dir, &sid, &messages) {
                     log_debug(format!("[EventPersistence] 创建快照失败: {}", e));
+                }
+            }
+
+            PersistenceCommand::ReplayMessages { messages } => {
+                // 🔥 Resume 时重放历史消息到 JSONL
+                // 仅当 JSONL 文件为空时写入，避免从 live JSONL resume 时重复
+                let should_replay = match jsonl_writer.file_size() {
+                    Ok(0) => true,
+                    Ok(_) => {
+                        log_debug("[EventPersistence] JSONL 已有内容，跳过重放".to_string());
+                        false
+                    }
+                    Err(_) => true, // 文件不存在或无法读取，需要重放
+                };
+
+                if should_replay {
+                    log_debug(format!(
+                        "[EventPersistence] 重放 {} 条历史消息到 JSONL",
+                        messages.len()
+                    ));
+
+                    for msg in &messages {
+                        let event = match msg.role.as_str() {
+                            "user" => SessionEvent::UserMessage {
+                                content: msg.content.clone(),
+                                metadata: Default::default(),
+                            },
+                            "assistant" => SessionEvent::AIResponseChunk {
+                                content: msg.content.clone(),
+                                metadata: Default::default(),
+                            },
+                            _ => continue,
+                        };
+                        if let Err(e) = jsonl_writer.append_event(&event) {
+                            log_debug(format!("[EventPersistence] 重放消息失败: {}", e));
+                        }
+                    }
+
+                    // 标记重放历史结束
+                    if !messages.is_empty() {
+                        if let Err(e) = jsonl_writer.append_event(&SessionEvent::StreamFinished {
+                            metadata: Default::default(),
+                        }) {
+                            log_debug(format!("[EventPersistence] 写入 StreamFinished 失败: {}", e));
+                        }
+                    }
+
+                    log_debug(format!(
+                        "[EventPersistence] ✅ 重放完成: {} 条消息",
+                        messages.len()
+                    ));
                 }
             }
 
