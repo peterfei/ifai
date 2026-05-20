@@ -716,6 +716,15 @@ async fn run_prompt_async(
     // 🔥 从配置读取 API key
     if let Some(api_key) = config.api_key() {
         session.set_api_key(api_key.to_string());
+    } else {
+        let env_key = crate::provider::resolve_provider(config.provider())
+            .map(|s| crate::provider::resolve_env_key(s))
+            .unwrap_or_else(|_| format!("{}_API_KEY", config.provider().to_uppercase()));
+        eprintln!(
+            "[IfAI] Warning: API key not configured for '{}'. Set {} env var or edit ~/.ifai/config.toml",
+            config.provider(),
+            env_key
+        );
     }
 
     // 🔥 从配置读取 Base URL
@@ -879,6 +888,15 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 🔥 从配置读取 API key（优先级：CLI > Env > TOML > Default）
     if let Some(api_key) = config.api_key() {
         session.set_api_key(api_key.to_string());
+    } else {
+        let env_key = crate::provider::resolve_provider(config.provider())
+            .map(|s| crate::provider::resolve_env_key(s))
+            .unwrap_or_else(|_| format!("{}_API_KEY", config.provider().to_uppercase()));
+        eprintln!(
+            "[IfAI] Warning: API key not configured for '{}'. Set {} env var or edit ~/.ifai/config.toml",
+            config.provider(),
+            env_key
+        );
     }
 
     // 🔥 从配置读取 Base URL（优先级：CLI > TOML > Default）
@@ -2623,6 +2641,15 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
         let mut s = session.lock().await;
         if let Some(api_key) = config.api_key() {
             s.set_api_key(api_key.to_string());
+        } else {
+            let env_key = crate::provider::resolve_provider(config.provider())
+                .map(|spec| crate::provider::resolve_env_key(spec))
+                .unwrap_or_else(|_| format!("{}_API_KEY", config.provider().to_uppercase()));
+            eprintln!(
+                "[IfAI] Warning: API key not configured for '{}'. Set {} env var or edit ~/.ifai/config.toml",
+                config.provider(),
+                env_key
+            );
         }
         if let Some(base_url) = config.base_url() {
             s.set_base_url(base_url.to_string());
