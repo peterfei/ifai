@@ -1,8 +1,57 @@
 //! TUI 欢迎页组件
 //!
-//! 当内容区为空时显示欢迎信息，采用极简设计（无 ASCII art）
+//! 当内容区为空时显示欢迎信息，底部显示 36 帧有机变形 ASCII 动画。
 
+use std::f32::consts::PI;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
+
+/// 动画帧数
+const FRAME_COUNT: usize = 36;
+/// 帧间隔（毫秒），与 amp 一致
+const FRAME_TICK_MS: u64 = 80;
+
+/// 编译时嵌入 36 帧动画数据
+const ANIMATION_FRAMES: [&str; FRAME_COUNT] = [
+    include_str!("welcome_frames/frame_0.txt"),
+    include_str!("welcome_frames/frame_1.txt"),
+    include_str!("welcome_frames/frame_2.txt"),
+    include_str!("welcome_frames/frame_3.txt"),
+    include_str!("welcome_frames/frame_4.txt"),
+    include_str!("welcome_frames/frame_5.txt"),
+    include_str!("welcome_frames/frame_6.txt"),
+    include_str!("welcome_frames/frame_7.txt"),
+    include_str!("welcome_frames/frame_8.txt"),
+    include_str!("welcome_frames/frame_9.txt"),
+    include_str!("welcome_frames/frame_10.txt"),
+    include_str!("welcome_frames/frame_11.txt"),
+    include_str!("welcome_frames/frame_12.txt"),
+    include_str!("welcome_frames/frame_13.txt"),
+    include_str!("welcome_frames/frame_14.txt"),
+    include_str!("welcome_frames/frame_15.txt"),
+    include_str!("welcome_frames/frame_16.txt"),
+    include_str!("welcome_frames/frame_17.txt"),
+    include_str!("welcome_frames/frame_18.txt"),
+    include_str!("welcome_frames/frame_19.txt"),
+    include_str!("welcome_frames/frame_20.txt"),
+    include_str!("welcome_frames/frame_21.txt"),
+    include_str!("welcome_frames/frame_22.txt"),
+    include_str!("welcome_frames/frame_23.txt"),
+    include_str!("welcome_frames/frame_24.txt"),
+    include_str!("welcome_frames/frame_25.txt"),
+    include_str!("welcome_frames/frame_26.txt"),
+    include_str!("welcome_frames/frame_27.txt"),
+    include_str!("welcome_frames/frame_28.txt"),
+    include_str!("welcome_frames/frame_29.txt"),
+    include_str!("welcome_frames/frame_30.txt"),
+    include_str!("welcome_frames/frame_31.txt"),
+    include_str!("welcome_frames/frame_32.txt"),
+    include_str!("welcome_frames/frame_33.txt"),
+    include_str!("welcome_frames/frame_34.txt"),
+    include_str!("welcome_frames/frame_35.txt"),
+];
 
 /// 欢迎页组件
 pub struct WelcomeWidget {
@@ -21,110 +70,189 @@ impl WelcomeWidget {
         }
     }
 
-    /// 渲染欢迎页内容（使用静态字符串以满足 'static 生命周期）
+    /// 时间驱动帧索引
+    /// 测试模式固定返回 0，保证快照确定性
+    fn current_frame_index() -> usize {
+        #[cfg(test)]
+        {
+            return 0;
+        }
+        let ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        ((ms / FRAME_TICK_MS) % FRAME_COUNT as u64) as usize
+    }
+
+    /// Shimmer 着色：时间驱动的 Cyan 扫描带
+    /// 参考 amp 的 shimmer.rs 实现
+    fn shimmer_line(line: &str) -> Vec<Span<'static>> {
+        let chars: Vec<char> = line.chars().collect();
+        if chars.is_empty() {
+            return vec![Span::default()];
+        }
+
+        let ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as f32;
+
+        // 扫描参数
+        let sweep_secs = 2.0_f32;
+        let padding = 10.0_f32;
+        let period = chars.len() as f32 + padding * 2.0;
+        let pos = ((ms / 1000.0) % sweep_secs) / sweep_secs * period;
+        let band_half_width = 5.0_f32;
+
+        chars
+            .iter()
+            .enumerate()
+            .map(|(i, &ch)| {
+                if ch == ' ' {
+                    return Span::styled(" ".to_string(), Style::default());
+                }
+
+                let i_pos = i as f32 + padding;
+                let dist = (i_pos - pos).abs();
+                let t = if dist <= band_half_width {
+                    0.5 * (1.0 + (PI * dist / band_half_width).cos())
+                } else {
+                    0.0
+                };
+
+                let style = if t > 0.3 {
+                    // 高光区：品牌蓝 + 粗体
+                    Style::default()
+                        .fg(Color::Rgb(75, 137, 255))
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    // 基础色：暗灰
+                    Style::default().fg(Color::DarkGray)
+                };
+                Span::styled(ch.to_string(), style)
+            })
+            .collect()
+    }
+
+    /// 渲染动画帧
+    fn render_animation() -> Vec<Line<'static>> {
+        let idx = Self::current_frame_index();
+        ANIMATION_FRAMES[idx]
+            .lines()
+            .map(|line| Line::from(Self::shimmer_line(line)))
+            .collect()
+    }
+
+    /// 渲染欢迎页内容
     pub fn render(&self) -> Vec<Line<'static>> {
-        vec![
-            Line::from(""),
-            Line::from(vec![
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::styled(
-                    "Welcome to IfAI",
-                    ratatui::style::Style::default()
-                        .fg(ratatui::style::Color::Cyan)
-                        .add_modifier(ratatui::style::Modifier::BOLD),
-                ),
-            ]),
-            Line::from(vec![
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::styled(
-                    "AI 驱动的命令行代码编辑助手",
-                    ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(""),
-            Line::from(vec![
-                Span::default(),
-                Span::default(),
-                Span::styled(
-                    "快捷键：",
-                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-                ),
-            ]),
-            Line::from(vec![
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::styled(
-                    "Ctrl+F  搜索内容      Ctrl+O  查看详情",
-                    ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
-                ),
-            ]),
-            Line::from(vec![
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::styled(
-                    "Ctrl+D  退出程序      Ctrl+J   换行输入",
-                    ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
-                ),
-            ]),
-            Line::from(vec![
-                Span::default(),
-                Span::default(),
-                Span::default(),
-                Span::styled(
-                    "Ctrl+C  清空/退出      Enter    提交输入",
-                    ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(""),
-            Line::from(""),
-            Line::from(vec![
-                Span::default(),
-                Span::default(),
-                Span::styled(
-                    "开始输入您的任务...",
-                    ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                ),
-            ]),
-        ]
+        let mut lines = vec![];
+
+        // === 原有标题/快捷键区域（不变） ===
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::styled(
+                "Welcome to IfAI",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::styled(
+                "AI 驱动的命令行代码编辑助手",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::default(),
+            Span::default(),
+            Span::styled(
+                "快捷键：",
+                Style::default().fg(Color::Yellow),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::styled(
+                "Ctrl+F  搜索内容      Ctrl+O  查看详情",
+                Style::default().fg(Color::Gray),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::styled(
+                "Ctrl+D  退出程序      Ctrl+J   换行输入",
+                Style::default().fg(Color::Gray),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::default(),
+            Span::default(),
+            Span::default(),
+            Span::styled(
+                "Ctrl+C  清空/退出      Enter    提交输入",
+                Style::default().fg(Color::Gray),
+            ),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(""));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::default(),
+            Span::default(),
+            Span::styled(
+                "开始输入您的任务...",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]));
+
+        // === 动画区域（替换原来的空白行） ===
+        let animation_lines = Self::render_animation();
+        lines.extend(animation_lines);
+
+        lines
     }
 }
 
@@ -164,11 +292,56 @@ mod tests {
                 .any(|span| span.content.contains("Ctrl+O"))
         });
         assert!(has_ctrl_o, "应该包含 Ctrl+O 快捷键");
+
+        // 验证动画帧存在（测试模式固定为 frame_0）
+        // 原始 12 行 + 12 行动画 = 24 行
+        assert!(
+            lines.len() > 15,
+            "应该包含动画帧行，实际 {} 行",
+            lines.len()
+        );
     }
 
     #[test]
     fn test_welcome_widget_default() {
         let widget = WelcomeWidget::default();
         assert_eq!(widget.title, "Welcome to IfAI");
+    }
+
+    #[test]
+    fn test_current_frame_index_deterministic_in_test() {
+        // 测试模式下应始终返回 0
+        assert_eq!(WelcomeWidget::current_frame_index(), 0);
+        assert_eq!(WelcomeWidget::current_frame_index(), 0);
+    }
+
+    #[test]
+    fn test_animation_frames_loaded() {
+        // 验证所有 36 帧已嵌入
+        assert_eq!(ANIMATION_FRAMES.len(), 36);
+        // 验证帧内容非空
+        for (i, frame) in ANIMATION_FRAMES.iter().enumerate() {
+            assert!(!frame.is_empty(), "frame_{} 不应为空", i);
+        }
+    }
+
+    #[test]
+    fn test_shimmer_line() {
+        let spans = WelcomeWidget::shimmer_line("::+**=##");
+        assert_eq!(spans.len(), 8);
+        // 空格行
+        let empty_spans = WelcomeWidget::shimmer_line("   ");
+        assert_eq!(empty_spans.len(), 3);
+    }
+
+    #[test]
+    fn test_render_animation() {
+        let lines = WelcomeWidget::render_animation();
+        // Frame 0 有 12 行（生成工具 ROWS=12）
+        assert!(
+            lines.len() >= 10,
+            "动画帧应有 12 行，实际 {} 行",
+            lines.len()
+        );
     }
 }

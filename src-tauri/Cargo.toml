@@ -58,6 +58,10 @@ path = "src/bin/test_websearch_tool.rs"
 name = "test_websearch_cache"
 path = "src/bin/test_websearch_cache.rs"
 
+[[bin]]
+name = "gen_welcome_frames"
+path = "src/bin/gen_welcome_frames.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 serde_yaml = "0.9"
