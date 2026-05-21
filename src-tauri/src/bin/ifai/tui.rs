@@ -734,11 +734,10 @@ pub struct App {
     pub content_lines: Vec<Line<'static>>,
     /// 内容区滚动偏移（视觉行）
     pub scroll_offset: u16,
-    /// 视觉行缓存：避免每帧重算 total_visual_rows
-    cached_total_visual: std::cell::Cell<usize>,
-    cached_visual_width: std::cell::Cell<u16>,
-    /// 缓存的 content_lines 长度（检测内容变化，自动失效）
-    cached_content_len: std::cell::Cell<usize>,
+    /// 视觉行总数缓存（增量维护，push_line 时追加，clear 时重置）
+    visual_row_cache: std::cell::Cell<usize>,
+    /// 缓存对应的宽度（resize 时重置）
+    visual_row_cache_width: std::cell::Cell<u16>,
     /// 输入框
     pub input: InputComposer,
     /// 状态栏文本
@@ -827,9 +826,8 @@ impl App {
             terminal: Some(terminal),
             content_lines: Vec::new(),
             scroll_offset: 0,
-            cached_total_visual: std::cell::Cell::new(0),
-            cached_visual_width: std::cell::Cell::new(0),
-            cached_content_len: std::cell::Cell::new(0),
+            visual_row_cache: std::cell::Cell::new(0),
+            visual_row_cache_width: std::cell::Cell::new(0),
             input: InputComposer::new(""),
             status_text: String::new(),
             status_kind: StatusKind::default(),
@@ -876,9 +874,8 @@ impl App {
             terminal: None,
             content_lines: Vec::new(),
             scroll_offset: 0,
-            cached_total_visual: std::cell::Cell::new(0),
-            cached_visual_width: std::cell::Cell::new(0),
-            cached_content_len: std::cell::Cell::new(0),
+            visual_row_cache: std::cell::Cell::new(0),
+            visual_row_cache_width: std::cell::Cell::new(0),
             input: InputComposer::new(""),
             status_text: String::new(),
             status_kind: StatusKind::default(),
@@ -985,6 +982,7 @@ impl App {
         if has_saved_messages {
             // 有保存的消息：清除并重新加载（确保无残留）
             self.content_lines.clear();
+            self.reset_visual_cache();
             self.scroll_offset = 0;
 
             let messages_to_load: Vec<String> = self
@@ -1102,10 +1100,12 @@ impl App {
         let data = &rows[1..];
         let rendered = crate::render::render_table(&headers, data);
         let style = Style::default().fg(Color::Indexed(252));
+        let area = self.content_area();
         for line in rendered.lines() {
             if !line.is_empty() {
-                self.content_lines
-                    .push(Line::from(vec![Span::styled(line.to_string(), style)]));
+                let rendered_line = Line::from(vec![Span::styled(line.to_string(), style)]);
+                self.update_visual_cache_on_push(&rendered_line, area.width);
+                self.content_lines.push(rendered_line);
             }
         }
     }
@@ -1113,6 +1113,7 @@ impl App {
     /// 推送一行文本到内容区（ANSI 转样式 + Markdown 渲染 + 表格缓冲）
     pub fn push_line(&mut self, text: String) {
         let was_at_bottom = self.at_bottom();
+        let area = self.content_area();
         for line in text.split('\n') {
             // 表格行 → 缓冲（延迟刷出，避免流式场景刷出残表）
             if is_table_row(line) {
@@ -1129,7 +1130,10 @@ impl App {
             } else {
                 crate::markdown_render::markdown_line_to_spans(line)
             };
-            self.content_lines.push(Line::from(spans));
+            let rendered_line = Line::from(spans);
+            // 增量更新视觉行缓存（O(1) — 只算这一行）
+            self.update_visual_cache_on_push(&rendered_line, area.width);
+            self.content_lines.push(rendered_line);
         }
         if was_at_bottom {
             self.scroll_to_bottom();
@@ -1349,9 +1353,6 @@ impl App {
         // 渲染所有 diff 的摘要（显示完整的文件列表）
         let was_at_bottom = self.at_bottom();
         let summary_lines = diff_render::render_diff_summary(&self.diff.files);
-        // 清除之前的摘要（如果需要，可以添加标记来追踪）
-        // 这里简化处理：每次都重新渲染所有摘要
-        // TODO: 优化为增量更新
         self.content_lines.push(Line::from(""));
         for line in summary_lines {
             self.content_lines.push(line);
@@ -1362,6 +1363,8 @@ impl App {
         self.content_lines
             .push(Line::from("按 Ctrl+D 查看 diff 详情"));
         self.content_lines.push(Line::from(""));
+        // 直接 push 的行绕过了增量缓存，重置后由 scroll_to_bottom 触发重算
+        self.reset_visual_cache();
 
         // 自动滚到底部
         if was_at_bottom {
@@ -1993,53 +1996,82 @@ impl App {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 声明式滚动引擎 v2：缓存 + 切片渲染
+    // 声明式滚动引擎 v3：增量缓存
     // ═══════════════════════════════════════════════════════════
     //
-    // 性能关键路径：
-    //   - cached_total_visual: 避免每帧重算，内容变化时失效
-    //   - 切片渲染：只渲染可见行，不克隆全量内容
-    //   - Paragraph::line_count(): 精确匹配 WordWrapper 行为
+    // 设计原则：
+    //   1. visual_row_cache 增量维护 — push_line 追加，clear 重置
+    //   2. 宽度变化时全量重算（resize 罕见，可接受）
+    //   3. get_total_visual() 读缓存 O(1)，零克隆
+    //   4. 切片渲染：只渲染 visible 行，不克隆全量
     //
-    // ┌─────────────────────────────────────────────┐
-    // │  get_cached_total_visual(width)              │
-    // │     ↓ Cell 缓存，自动检测 content 变化/宽度变化│
-    // │     ↓ 只在失效时调用 Paragraph::line_count()  │
-    // │  at_bottom/scroll_down 等全部使用缓存值        │
-    // └─────────────────────────────────────────────┘
+    // ┌───────────────────────────────────────────────┐
+    // │  push_line(line)                               │
+    // │     → cache += line_count(line, width)         │
+    // │     → O(1) per line, no full recompute         │
+    // │                                                │
+    // │  content_lines.clear() / resize                │
+    // │     → cache = 0 → next get rebuilds once       │
+    // │                                                │
+    // │  get_total_visual() → O(1) cache hit (常见)    │
+    // │                   → O(n) full rebuild (罕见)   │
+    // └───────────────────────────────────────────────┘
 
-    /// 使视觉行缓存失效（在 content_lines 改变时调用）
-    fn invalidate_visual_cache(&self) {
-        self.cached_total_visual.set(0);
-        self.cached_visual_width.set(0);
-        self.cached_content_len.set(0);
+    /// 获取总视觉行数（O(1) 缓存读取，宽度变化时 O(n) 重算）
+    fn get_total_visual(&self, lines: &[ratatui::text::Line<'_>], width: u16) -> usize {
+        if width == 0 || lines.is_empty() {
+            return 0;
+        }
+        // 宽度没变 → 缓存有效（incremental 维护保证正确性）
+        if self.visual_row_cache_width.get() == width && self.visual_row_cache.get() > 0 {
+            return self.visual_row_cache.get();
+        }
+        // 宽度变化（resize）→ 全量重算（罕见）
+        let total = Self::compute_total_visual(lines, width);
+        self.visual_row_cache.set(total);
+        self.visual_row_cache_width.set(width);
+        total
     }
 
-    /// 获取缓存的视觉行总数（只在内容/宽度变化时重算）
-    fn get_cached_total_visual(&self, lines: &[ratatui::text::Line<'_>], width: u16) -> usize {
-        let cached_len = self.cached_content_len.get();
-        let cached_w = self.cached_visual_width.get();
-        let cached_v = self.cached_total_visual.get();
-
-        // 缓存命中：长度和宽度都没变
-        if cached_len == lines.len() && cached_w == width && cached_v > 0 {
-            return cached_v;
+    /// 单行折行后的视觉行数（O(line_length)）
+    fn line_visual_height(line: &ratatui::text::Line<'_>, width: u16) -> usize {
+        if width == 0 {
+            return 1;
         }
+        let text: ratatui::text::Text = vec![line.clone()].into();
+        Paragraph::new(text)
+            .wrap(Wrap { trim: false })
+            .line_count(width)
+            .max(1)
+    }
 
-        // 缓存失效：重算
-        let total = if width == 0 || lines.is_empty() {
-            0
-        } else {
-            let text: ratatui::text::Text = lines.iter().cloned().collect();
-            Paragraph::new(text)
-                .wrap(Wrap { trim: false })
-                .line_count(width)
-        };
+    /// 全量计算总视觉行数（仅在 resize 时调用）
+    fn compute_total_visual(lines: &[ratatui::text::Line<'_>], width: u16) -> usize {
+        if width == 0 || lines.is_empty() {
+            return 0;
+        }
+        let text: ratatui::text::Text = lines.iter().cloned().collect();
+        Paragraph::new(text)
+            .wrap(Wrap { trim: false })
+            .line_count(width)
+    }
 
-        self.cached_total_visual.set(total);
-        self.cached_visual_width.set(width);
-        self.cached_content_len.set(lines.len());
-        total
+    /// push_line 后增量更新缓存（O(1) — 只算新增行）
+    fn update_visual_cache_on_push(&self, line: &ratatui::text::Line<'_>, width: u16) {
+        let cached_width = self.visual_row_cache_width.get();
+        if cached_width == width {
+            // 增量追加
+            let added = Self::line_visual_height(line, width);
+            let prev = self.visual_row_cache.get();
+            self.visual_row_cache.set(prev + added);
+        }
+        // 宽度不同 → 不更新，下次 get_total_visual 会全量重算
+    }
+
+    /// 清空缓存（content_lines.clear / 线程切换时调用）
+    fn reset_visual_cache(&self) {
+        self.visual_row_cache.set(0);
+        self.visual_row_cache_width.set(0);
     }
 
     /// 用 Paragraph::line_count() 计算从底部取 N 个视觉行对应的起始逻辑行索引
@@ -2094,15 +2126,15 @@ impl App {
     /// 滚动到底部（基于视觉行）
     pub fn scroll_to_bottom(&mut self) {
         let area = self.content_area();
-        let total_visual = self.get_cached_total_visual(&self.content_lines, area.width);
+        let total_visual = self.get_total_visual(&self.content_lines, area.width);
         let visible = area.height as usize;
         self.scroll_offset = total_visual.saturating_sub(visible) as u16;
     }
 
-    /// 判断当前是否在内容底部（基于视觉行，使用缓存）
+    /// 判断当前是否在内容底部（基于视觉行，O(1) 缓存读取）
     pub fn at_bottom(&self) -> bool {
         let area = self.content_area();
-        let total_visual = self.get_cached_total_visual(&self.content_lines, area.width);
+        let total_visual = self.get_total_visual(&self.content_lines, area.width);
         let max_offset = total_visual.saturating_sub(area.height as usize) as u16;
         self.scroll_offset >= max_offset
     }
@@ -2115,7 +2147,7 @@ impl App {
     /// 向下滚动 n 个视觉行（基于视觉行上限）
     pub fn scroll_down(&mut self, n: u16) {
         let area = self.content_area();
-        let total_visual = self.get_cached_total_visual(&self.content_lines, area.width);
+        let total_visual = self.get_total_visual(&self.content_lines, area.width);
         let max_offset = total_visual.saturating_sub(area.height as usize) as u16;
         self.scroll_offset = (self.scroll_offset + n).min(max_offset);
     }
@@ -2477,8 +2509,8 @@ impl App {
             }
         }
 
-        // === 滚动指示器（基于视觉行，使用缓存） ===
-        let total_visual = self.get_cached_total_visual(content_lines, content_render_area.width);
+        // === 滚动指示器（基于视觉行，O(1) 缓存读取） ===
+        let total_visual = self.get_total_visual(content_lines, content_render_area.width);
         let max_offset = total_visual.saturating_sub(visible_count) as u16;
         if max_offset > 0 && user_scrolled {
             let pct = if max_offset > 0 {
@@ -3357,6 +3389,7 @@ impl App {
 
         // 🔥 第四步：切换成功，清除并重新加载
         self.content_lines.clear();
+        self.reset_visual_cache();
         self.scroll_offset = 0;
 
         // 加载目标线程的历史消息
