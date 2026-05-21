@@ -27,13 +27,14 @@ struct DensityLevel {
     ch: char,
 }
 
+/// 密度字符集：使用 "ifai" 品牌字母，密度梯度 i → f → a
 const DENSITY_LEVELS: &[DensityLevel] = &[
-    DensityLevel { threshold: 0.40, ch: '.' },
-    DensityLevel { threshold: 0.70, ch: ':' },
-    DensityLevel { threshold: 1.10, ch: '+' },
-    DensityLevel { threshold: 1.60, ch: '*' },
-    DensityLevel { threshold: 2.50, ch: '=' },
-    DensityLevel { threshold: 4.00, ch: '#' },
+    DensityLevel { threshold: 0.40, ch: 'i' },
+    DensityLevel { threshold: 0.70, ch: 'f' },
+    DensityLevel { threshold: 1.10, ch: 'a' },
+    DensityLevel { threshold: 1.60, ch: 'i' },
+    DensityLevel { threshold: 2.50, ch: 'f' },
+    DensityLevel { threshold: 4.00, ch: 'a' },
 ];
 
 fn field_to_char(field: f32) -> char {

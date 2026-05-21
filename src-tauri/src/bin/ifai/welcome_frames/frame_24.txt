@@ -1,12 +1,12 @@
-     ..............      .....         
-    ...::::::::::.... ..........       
-   ...::++++++++::........::::...      
-   ..:+****++*=*+:.......::+++:...     
-  ..::*===****==*::.....:+****+:...    
-  ..:+*=##=*****+:.....::+*==*+::..    
-  ..:+*=##=*++++::.....::+*##=*+:..    
-   .::*===*++::::......::+*===*+:..    
-   ..:+***++:::........::+*=##=*::.    
-   ...::++:::...........:+*=##=*:..    
-    ...::::.......  ....::+*==*+:..    
-     ..........       ...::+**+::..    
+     iiiiiiiiiiiiii      iiiii         
+    iiiffffffffffiiii iiiiiiiiii       
+   iiiffaaaaaaaaffiiiiiiiiffffiii      
+   iifaiiiiaaifiafiiiiiiiffaaafiii     
+  iiffifffiiiiffiffiiiiifaiiiiafiii    
+  iifaifaafiiiiiafiiiiiffaiffiaffii    
+  iifaifaafiaaaaffiiiiiffaiaafiafii    
+   iffifffiaaffffiiiiiiffaifffiafii    
+   iifaiiiaafffiiiiiiiiffaifaafiffi    
+   iiiffaafffiiiiiiiiiiifaifaafifii    
+    iiiffffiiiiiii  iiiiffaiffiafii    
+     iiiiiiiiii       iiiffaiiaffii    
