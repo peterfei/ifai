@@ -2791,7 +2791,7 @@ impl App {
                         width = self.input.prompt().len() + 2
                     ));
                     let lines: Vec<Line<'_>> = input_value
-                        .lines()
+                        .split('\n')
                         .enumerate()
                         .map(|(i, line_text)| {
                             if i == 0 {
@@ -4260,6 +4260,186 @@ mod tests {
         assert!(app.is_busy(), "busy 状态应正确反映");
         app.set_busy(false);
         assert!(!app.is_busy(), "解除 busy 后应返回 false");
+    }
+
+    // === 输入框粘贴多行 + Backspace 集成测试 ===
+    //
+    // 目标：确认粘贴多行文本和 Backspace 在完整的 App → render 路径下是否正常工作。
+
+    #[test]
+    fn test_input_paste_multiline_rendered() {
+        // 验证：粘贴多行文本后，渲染输出中应显示多行内容
+        let mut app = App::new_for_test();
+        app.input.insert_paste("hello\nworld");
+        assert_eq!(app.input.value(), "hello\nworld");
+        assert_eq!(app.input.line_count(), 2);
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+
+        // 输入区域（最后几行）应包含 "hello" 和 "world"
+        let last_lines: Vec<&str> = output.lines().rev().take(3).collect();
+        let joined = last_lines.join("\n");
+        assert!(
+            joined.contains("hello") && joined.contains("world"),
+            "粘贴多行文本后输入区应同时显示 'hello' 和 'world'\n实际输出:\n{}",
+            joined
+        );
+    }
+
+    #[test]
+    fn test_input_paste_three_lines_snapshot() {
+        // 快照测试：粘贴 3 行文本后的输入框渲染
+        let mut app = App::new_for_test();
+        app.input.insert_paste("line1\nline2\nline3");
+
+        let buf = render_to_buffer(&mut app, 40, 24);
+        assert_tui_snapshot!("input_paste_three_lines", &buf);
+    }
+
+    #[test]
+    fn test_input_paste_trailing_newline_snapshot() {
+        // 快照测试：粘贴以换行结尾的文本，验证空行是否渲染
+        let mut app = App::new_for_test();
+        app.input.insert_paste("hello\n");
+
+        let buf = render_to_buffer(&mut app, 40, 24);
+        let output = buffer_to_string(&buf);
+
+        // line_count 应为 2，input_area 高度应为 2
+        assert_eq!(app.input.line_count(), 2);
+        assert_tui_snapshot!("input_paste_trailing_newline", &buf);
+    }
+
+    #[test]
+    fn test_input_backspace_then_render() {
+        // 验证：输入文字后按 Backspace，渲染输出中应反映删除
+        let mut app = App::new_for_test();
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('!'), KeyModifiers::NONE));
+
+        // 渲染删除前
+        let buf_before = render_to_buffer(&mut app, 40, 24);
+        let output_before = buffer_to_string(&buf_before);
+        assert!(
+            output_before.contains("hi!"),
+            "删除前应显示 'hi!'\n实际: {}",
+            output_before
+        );
+
+        // 按 Backspace
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+        assert_eq!(app.input.value(), "hi");
+
+        // 渲染删除后
+        let buf_after = render_to_buffer(&mut app, 40, 24);
+        let output_after = buffer_to_string(&buf_after);
+        // 输入框最后一行应显示 "hi" 而不是 "hi!"
+        let last_line = output_after.lines().last().unwrap();
+        assert!(
+            last_line.contains("hi") && !last_line.contains("hi!"),
+            "Backspace 后输入框应显示 'hi'（无 '!'）\n最后一行: '{}'",
+            last_line
+        );
+    }
+
+    #[test]
+    fn test_input_backspace_multiline_render() {
+        // 验证：多行输入中按 Backspace 跨越换行符
+        let mut app = App::new_for_test();
+        // 输入 "ab\ncd"
+        for c in "ab".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL)); // Ctrl+J = \n
+        for c in "cd".chars() {
+            app.input
+                .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        assert_eq!(app.input.value(), "ab\ncd");
+
+        // 渲染多行输入
+        let buf_multi = render_to_buffer(&mut app, 40, 24);
+        assert_tui_snapshot!("input_multiline_before_backspace", &buf_multi);
+
+        // 移到 'c' 前然后 Backspace → 删除 '\n'，变成 "abcd"
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+        assert_eq!(app.input.value(), "abcd");
+
+        let buf_merged = render_to_buffer(&mut app, 40, 24);
+        let output = buffer_to_string(&buf_merged);
+        // 合并后 line_count 应为 1
+        assert_eq!(app.input.line_count(), 1);
+        // 输入框应显示 "abcd"
+        let last_line = output.lines().last().unwrap();
+        assert!(
+            last_line.contains("abcd"),
+            "Backspace 合并行后应显示 'abcd'\n最后一行: '{}'",
+            last_line
+        );
+    }
+
+    #[test]
+    fn test_event_dispatch_backspace_via_router() {
+        // 端到端测试：通过 EventRouter 派发 Backspace 事件，
+        // 验证 CombinedKeyHandler 正确传递到 InputComposer
+        let mut app = App::new_for_test();
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        app.input
+            .handle_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+        assert_eq!(app.input.value(), "ab");
+
+        // 通过路由器派发 Backspace
+        let mut router = App::build_event_router();
+        let backspace_event =
+            crossterm::event::Event::Key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+        let flow = router.dispatch(&backspace_event, &mut app);
+
+        // CombinedKeyHandler 处理后返回 Continue（语义上不正确，但功能上无害）
+        assert!(
+            matches!(flow, ControlFlow::Continue),
+            "CombinedKeyHandler 对 Backspace 应返回 Continue（当前行为）"
+        );
+        // 但 InputComposer 状态应已更新
+        assert_eq!(
+            app.input.value(),
+            "a",
+            "Backspace 通过路由器派发后应删除最后一个字符"
+        );
+    }
+
+    #[test]
+    fn test_event_dispatch_paste_via_router() {
+        // 端到端测试：通过 EventRouter 派发 Paste 事件
+        let mut app = App::new_for_test();
+        let mut router = App::build_event_router();
+
+        let paste_event = crossterm::event::Event::Paste("hello\nworld".to_string());
+        let flow = router.dispatch(&paste_event, &mut app);
+
+        assert!(
+            matches!(flow, ControlFlow::Continue),
+            "PasteHandler 应返回 Continue（当前行为）"
+        );
+        assert_eq!(
+            app.input.value(),
+            "hello\nworld",
+            "Paste 通过路由器派发后应插入多行文本"
+        );
+        assert_eq!(app.input.line_count(), 2);
     }
 
     /// 快照测试：streaming 期间界面完整状态

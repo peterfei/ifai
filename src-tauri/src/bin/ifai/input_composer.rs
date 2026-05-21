@@ -287,7 +287,9 @@ impl InputComposer {
     ///
     /// 将完整文本（含多行）插入 buffer，不触发提交。
     pub fn insert_paste(&mut self, text: &str) {
-        for c in text.chars() {
+        // 标准化换行符：\r\n → \n，\r → \n（macOS 终端粘贴时可能用 \r）
+        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+        for c in normalized.chars() {
             self.buffer.insert(self.cursor_pos, c);
             self.cursor_pos += c.len_utf8();
         }
@@ -350,7 +352,7 @@ impl Widget for &mut InputComposer {
 
         if self.buffer.contains('\n') {
             // 多行模式：逐行渲染
-            let lines: Vec<&str> = self.buffer.lines().collect();
+            let lines: Vec<&str> = self.buffer.split('\n').collect();
             for (i, line_text) in lines.iter().enumerate() {
                 if i as u16 >= area.height {
                     break;
@@ -1034,5 +1036,140 @@ mod tests {
         assert_eq!(byte_offset_at_display_col("你好", 2), 3); // 一个中文字符宽度 2
         assert_eq!(byte_offset_at_display_col("你好", 3), 3); // 不到第二个中文字符
         assert_eq!(byte_offset_at_display_col("你好", 4), 6); // 两个中文字符
+    }
+
+    // === 粘贴测试（Bug 确认：粘贴多行文本能否正确换行）===
+
+    #[test]
+    fn test_insert_paste_single_line() {
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("hello world");
+        assert_eq!(ic.value(), "hello world");
+        assert_eq!(ic.cursor_pos, 11);
+    }
+
+    #[test]
+    fn test_insert_paste_multiline() {
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("hello\nworld");
+        assert_eq!(ic.value(), "hello\nworld");
+        assert_eq!(ic.cursor_pos, 11);
+        assert_eq!(ic.line_count(), 2);
+    }
+
+    #[test]
+    fn test_insert_paste_three_lines() {
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("line1\nline2\nline3");
+        assert_eq!(ic.value(), "line1\nline2\nline3");
+        assert_eq!(ic.line_count(), 3);
+    }
+
+    #[test]
+    fn test_insert_paste_trailing_newline() {
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("hello\n");
+        assert_eq!(ic.value(), "hello\n");
+        assert_eq!(ic.cursor_pos, 6);
+        // line_count: \n count + 1 = 2
+        assert_eq!(ic.line_count(), 2);
+    }
+
+    #[test]
+    fn test_insert_paste_at_middle_position() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        // cursor at pos 2, move to pos 1
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 1);
+        // paste at middle position
+        ic.insert_paste("XY");
+        assert_eq!(ic.value(), "aXYb");
+    }
+
+    #[test]
+    fn test_insert_paste_multiline_with_cjk() {
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("你好\n世界\n测试");
+        assert_eq!(ic.value(), "你好\n世界\n测试");
+        assert_eq!(ic.line_count(), 3);
+        // 光标在末尾：3 chars * 3 bytes + 2 newlines = 11 bytes
+        assert_eq!(ic.cursor_pos, "你好\n世界\n测试".len());
+    }
+
+    #[test]
+    fn test_insert_paste_normalizes_crlf() {
+        // Windows 风格 \r\n → \n
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("line1\r\nline2\r\nline3");
+        assert_eq!(ic.value(), "line1\nline2\nline3");
+        assert_eq!(ic.line_count(), 3);
+    }
+
+    #[test]
+    fn test_insert_paste_normalizes_cr() {
+        // macOS 终端（如 iTerm2）粘贴时可能只发 \r
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("Ctrl+F  搜索内容\rCtrl+O  查看详情\rCtrl+D  退出程序");
+        assert_eq!(
+            ic.value(),
+            "Ctrl+F  搜索内容\nCtrl+O  查看详情\nCtrl+D  退出程序"
+        );
+        assert_eq!(ic.line_count(), 3);
+    }
+
+    #[test]
+    fn test_insert_paste_mixed_line_endings() {
+        let mut ic = InputComposer::new("");
+        ic.insert_paste("a\r\nb\rc");
+        assert_eq!(ic.value(), "a\nb\nc");
+        assert_eq!(ic.line_count(), 3);
+    }
+
+    // === Backspace 在各种场景下 ===
+
+    #[test]
+    fn test_backspace_multiline_deletes_char_not_newline() {
+        let mut ic = InputComposer::new("");
+        // 输入 "hello\nworld"
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('e'));
+        ic.handle_key(char_key('l'));
+        ic.handle_key(char_key('l'));
+        ic.handle_key(char_key('o'));
+        ic.handle_key(ctrl_j_key()); // \n
+        ic.handle_key(char_key('w'));
+        ic.handle_key(char_key('o'));
+        ic.handle_key(char_key('r'));
+        ic.handle_key(char_key('l'));
+        ic.handle_key(char_key('d'));
+        assert_eq!(ic.value(), "hello\nworld");
+
+        // Backspace 应删除 'd'，不是 '\n'
+        ic.handle_key(code_key(KeyCode::Backspace));
+        assert_eq!(ic.value(), "hello\nworl");
+        assert_eq!(ic.cursor_pos, 10);
+    }
+
+    #[test]
+    fn test_backspace_across_newline() {
+        let mut ic = InputComposer::new("");
+        // "ab\ncd" → 光标在 'c' 前 → backspace 应删除 '\n'
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        ic.handle_key(ctrl_j_key());
+        ic.handle_key(char_key('c'));
+        ic.handle_key(char_key('d'));
+        // 移到 'c' 前
+        ic.handle_key(code_key(KeyCode::Left));
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 3); // "ab\n" 的末尾 + 'c' 前 = pos 3
+        // wait, "ab\ncd" → pos: a=0, b=1, \n=2, c=3, d=4
+        // cursor at pos 3 is at 'c'. move left twice from end(5): 4 → 3 → now cursor at 'c'
+        // Actually cursor at 3 means before 'c'. Backspace should delete '\n'
+        ic.handle_key(code_key(KeyCode::Backspace));
+        assert_eq!(ic.value(), "abcd");
+        assert_eq!(ic.cursor_pos, 2); // cursor now at pos 2 (after 'b', before 'c')
     }
 }

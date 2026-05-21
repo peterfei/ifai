@@ -1,0 +1,27 @@
+---
+source: src/bin/ifai/tui.rs
+expression: text
+---
+                                        
+             Welcome to IfAI            
+       AI 驱 动 的 命 令 行 代 码 编 辑 助 手       
+                                        
+                                        
+                快 捷 键 ：                 
+ Ctrl+F  搜 索 内 容       Ctrl+O  查 看 详 情  
+ Ctrl+D  退 出 程 序       Ctrl+J   换 行 输 入 
+Ctrl+C  清 空 /退 出       Enter    提 交 输 入 
+                                        
+                                        
+                                        
+           开 始 输 入 您 的 任 务 ...          
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+○ [Ready]                               
+────────────────────────────────────────
+⟩ hello
