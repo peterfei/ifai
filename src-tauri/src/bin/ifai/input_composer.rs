@@ -340,6 +340,9 @@ use std::io::Write;
 /// ratatui Widget 渲染
 impl Widget for &mut InputComposer {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // 清除旧渲染残留（新输入可能比旧输入短）
+        buf.set_style(area, ratatui::style::Style::default());
+
         let prompt_span = Span::styled(
             format!("{}⟩ ", self.prompt),
             ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),

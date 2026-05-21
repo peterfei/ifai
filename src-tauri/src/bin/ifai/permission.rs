@@ -285,7 +285,7 @@ impl ToolApprovalEngine {
     ///   - 节点超时（5 分钟）
     ///   - AI 服务的循环检测（连续相同工具签名）
     pub fn max_iterations(&self, _category: ToolCategory) -> usize {
-        50 // 安全上限，防止无限循环
+        1000 // 安全上限，防止无限循环
     }
 
     /// 获取工具完整配置
@@ -458,15 +458,15 @@ mod tests {
 
     #[test]
     fn test_max_iterations() {
-        // 安全上限：所有类别统一限制为 50 次
+        // 安全上限：所有类别统一限制为 1000 次
         let safe_max = max_iterations(ToolCategory::Safe);
         let destructive_max = max_iterations(ToolCategory::Destructive);
         let dangerous_max = max_iterations(ToolCategory::Dangerous);
 
-        // 验证返回的是安全上限 50
-        assert_eq!(safe_max, 50);
-        assert_eq!(destructive_max, 50);
-        assert_eq!(dangerous_max, 50);
+        // 验证返回的是安全上限 1000
+        assert_eq!(safe_max, 1000);
+        assert_eq!(destructive_max, 1000);
+        assert_eq!(dangerous_max, 1000);
 
         // 验证所有类别返回相同的值
         assert_eq!(safe_max, destructive_max);

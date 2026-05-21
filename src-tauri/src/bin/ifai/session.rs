@@ -1901,15 +1901,10 @@ impl Session {
                 break;
             }
 
-            // 🔥 继续续播（如果 max_iterations 是 usize::MAX，则不显示总数）
-            let progress_msg = if dynamic_max == usize::MAX {
-                format!("Continuing... ({})", continuation_count)
-            } else {
-                format!("Continuing... ({}/{})", continuation_count, dynamic_max)
-            };
+            // 🔥 继续续播（不显示计数器，避免用户困惑）
             println!(
-                "\n{}{}{}",
-                theme.dim, progress_msg, RESET
+                "\n{}Continuing...{}",
+                theme.dim, RESET
             );
         }
 
@@ -2735,13 +2730,8 @@ impl Session {
                 break;
             }
 
-            // 🔥 显示续播计数（如果 max_iterations 是 usize::MAX，则不显示总数）
-            let progress_msg = if dynamic_max == usize::MAX {
-                format!("Continuing... ({})", continuation_count)
-            } else {
-                format!("Continuing... ({}/{})", continuation_count, dynamic_max)
-            };
-            let _ = output_tx.send(progress_msg.into());
+            // 🔥 继续续播（不显示计数器，避免用户困惑）
+            let _ = output_tx.send("Continuing...".to_string().into());
         }
 
         // 🎯 循环结束时清空任务列表，避免遮挡视窗
@@ -2752,6 +2742,71 @@ impl Session {
 
         let _ = output_tx.send(String::new().into());
         Ok(full_response)
+    }
+
+    /// 🔧 流式执行 bash 命令（Fix 6: 实时推送 stdout/stderr 到 TUI）
+    async fn execute_bash_streaming(
+        command: &str,
+        working_dir: Option<&str>,
+        output_tx: &tokio::sync::mpsc::UnboundedSender<super::OutputMessage>,
+    ) -> Result<String, String> {
+        use std::process::Stdio;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        let mut cmd = tokio::process::Command::new("bash");
+        cmd.arg("-c")
+            .arg(command)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        if let Some(dir) = working_dir {
+            cmd.current_dir(dir);
+        }
+
+        let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn: {}", e))?;
+        let stdout = child.stdout.take().ok_or("stdout capture failed")?;
+        let stderr = child.stderr.take().ok_or("stderr capture failed")?;
+
+        // 实时推送 stdout
+        let tx_out = output_tx.clone();
+        let stdout_task = tokio::spawn(async move {
+            let mut lines = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx_out.send(line.to_string().into());
+            }
+        });
+
+        // 实时推送 stderr
+        let tx_err = output_tx.clone();
+        let stderr_task = tokio::spawn(async move {
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx_err.send(format!("stderr: {}", line).into());
+            }
+        });
+
+        // 超时等待（默认 120 秒）
+        let timeout = std::time::Duration::from_secs(120);
+        let status = tokio::time::timeout(timeout, child.wait()).await;
+
+        let _ = stdout_task.await;
+        let _ = stderr_task.await;
+
+        match status {
+            Ok(Ok(s)) => {
+                let code = s.code().unwrap_or(-1);
+                if code == 0 {
+                    Ok(String::new())
+                } else {
+                    Ok(format!("Exit code: {}", code))
+                }
+            }
+            Ok(Err(e)) => Err(format!("Execution error: {}", e)),
+            Err(_) => {
+                let _ = child.kill().await;
+                Err(format!("Command timed out after {}s", timeout.as_secs()))
+            }
+        }
     }
 
     /// 🔧 TUI 模式执行工具（通过审批 channel 交互确认）
@@ -3060,7 +3115,20 @@ impl Session {
                 );
             }
 
-            let execution_result = self.tool_router.execute(&tool.name, &args_json);
+            // 🔥 Fix 6: bash 工具分流 — 流式执行（实时推送 stdout/stderr）
+            let execution_result = if tool.name == "bash" {
+                let command = args_json.get("command")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let working_dir = args_json.get("working_dir")
+                    .and_then(|v| v.as_str());
+                match Self::execute_bash_streaming(command, working_dir, output_tx).await {
+                    Ok(output) => Ok(output),
+                    Err(e) => Err(ifainew_lib::harness::tool::ToolError::Execution(e)),
+                }
+            } else {
+                self.tool_router.execute(&tool.name, &args_json)
+            };
 
             // 🔥 清理全局进度回调（确保在 finally 块中执行）
             if needs_progress {
@@ -4777,5 +4845,63 @@ mod tests {
         sorted.sort();
         sorted.dedup();
         assert_eq!(tools.len(), sorted.len(), "AGENT_INTENT_RULES 中存在重复的 tool 名称");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Fix 6: execute_bash_streaming 回归测试
+    // ═══════════════════════════════════════════════════════════
+
+    /// Fix 6: 快速命令应正常完成并收集输出
+    #[tokio::test]
+    async fn test_fix6_bash_streaming_fast_command() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+
+        let result = Session::execute_bash_streaming("echo hello", None, &tx).await;
+        assert!(result.is_ok(), "fast command should succeed: {:?}", result);
+
+        // 收集所有 channel 消息
+        let mut messages = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            messages.push(msg);
+        }
+        assert!(!messages.is_empty(), "should have received stdout output");
+
+        let text: String = messages
+            .iter()
+            .filter_map(|m| match m {
+                crate::OutputMessage::Text(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("hello"), "stdout should contain 'hello', got: {}", text);
+    }
+
+    /// Fix 6: 多行输出应逐行推送
+    #[tokio::test]
+    async fn test_fix6_bash_streaming_multiline() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+
+        let result = Session::execute_bash_streaming("echo line1 && echo line2 && echo line3", None, &tx).await;
+        assert!(result.is_ok(), "multiline command should succeed: {:?}", result);
+
+        let mut text_messages = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            if let crate::OutputMessage::Text(s) = msg {
+                text_messages.push(s);
+            }
+        }
+        assert!(text_messages.len() >= 3, "should receive at least 3 lines, got {}: {:?}", text_messages.len(), text_messages);
+    }
+
+    /// Fix 6: 非零退出码应返回错误信息
+    #[tokio::test]
+    async fn test_fix6_bash_streaming_nonzero_exit() {
+        let (tx, _) = tokio::sync::mpsc::unbounded_channel::<crate::OutputMessage>();
+
+        let result = Session::execute_bash_streaming("exit 42", None, &tx).await;
+        assert!(result.is_ok(), "should return Ok even for non-zero exit");
+        let output = result.unwrap();
+        assert!(output.contains("42"), "should report exit code 42, got: {}", output);
     }
 }

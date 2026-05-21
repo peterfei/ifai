@@ -123,7 +123,7 @@ md5 = "0.7"
 # CLI dependencies
 rustyline = "14"
 base64 = "0.22"
-ratatui = "0.29"
+ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
 pulldown-cmark = "0.10"
 crossterm = { version = "0.28", features = ["event-stream"] }
 arboard = { version = "3.2", default-features = false, features = ["wayland-data-control"] }

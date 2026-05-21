@@ -1946,22 +1946,29 @@ impl App {
         self.scroll_to_match(self.search.current_index);
     }
 
-    /// 滚动到指定匹配项
+    /// 滚动到指定匹配项（基于视觉行）
     fn scroll_to_match(&mut self, match_index: usize) {
         if match_index >= self.search.matches.len() {
             return;
         }
-        let target_line = self.search.matches[match_index];
+        let target_logical = self.search.matches[match_index];
         let area = self.content_area();
-        let visible_lines = area.height as usize;
 
-        // 确保目标行在可见区域内
-        if target_line >= self.scroll_offset as usize + visible_lines {
-            // 目标行在下方，向下滚动
-            self.scroll_offset = (target_line.saturating_sub(visible_lines / 2)) as u16;
-        } else if target_line < self.scroll_offset as usize {
-            // 目标行在上方，向上滚动
-            self.scroll_offset = target_line.saturating_sub(2) as u16;
+        // 计算目标逻辑行之前的视觉行数
+        if target_logical > 0 {
+            let before_lines = &self.content_lines[..target_logical];
+            let target_visual = Self::total_visual_rows(before_lines, area.width);
+            let visible = area.height as usize;
+            let half_visible = visible / 2;
+
+            if target_visual < self.scroll_offset as usize
+                || target_visual >= self.scroll_offset as usize + visible
+            {
+                // 目标不在可视区，滚动使目标居中
+                self.scroll_offset = target_visual.saturating_sub(half_visible) as u16;
+            }
+        } else {
+            self.scroll_offset = 0;
         }
     }
 
@@ -1970,40 +1977,83 @@ impl App {
         highlight_search_term_static(line, &self.search.query, is_current, is_other)
     }
 
-    /// 滚动到底部
-    pub fn scroll_to_bottom(&mut self) {
-        let area = self.content_area();
-        let visible_lines = area.height as usize;
-        let total_lines = self.content_lines.len();
-        if total_lines > visible_lines {
-            self.scroll_offset = (total_lines - visible_lines) as u16;
-        } else {
-            self.scroll_offset = 0;
+    // ═══════════════════════════════════════════════════════════
+    // 声明式滚动引擎：Paragraph::line_count() 作为唯一真相源
+    // ═══════════════════════════════════════════════════════════
+    //
+    // 核心原则：
+    //   - scroll_offset 语义 = 视觉行偏移（非逻辑行）
+    //   - 所有视觉行计数委托给 ratatui 的 Paragraph::line_count()
+    //   - 零手动折行计算，消除 Line::width() 与 WordWrapper 的不一致
+    //
+    // ┌──────────────────────────────────────────────────────┐
+    // │  ratatui::Paragraph::line_count(width)               │
+    // │     ↓ 使用 WordWrapper（按词折行）                     │
+    // │     ↓ 精确匹配实际渲染行为                              │
+    // │  所有滚动 API 直接使用此值                              │
+    // └──────────────────────────────────────────────────────┘
+
+    /// 用 Paragraph::line_count() 计算内容在给定宽度下的总视觉行数
+    fn total_visual_rows(lines: &[ratatui::text::Line<'_>], width: u16) -> usize {
+        if width == 0 || lines.is_empty() {
+            return 0;
         }
+        let text: ratatui::text::Text = lines.iter().cloned().collect();
+        Paragraph::new(text)
+            .wrap(Wrap { trim: false })
+            .line_count(width)
     }
 
-    /// 判断当前是否在内容底部
+    /// 用 Paragraph::line_count() 计算从底部取 N 个视觉行对应的起始逻辑行索引
+    fn visual_start_from_bottom(
+        lines: &[ratatui::text::Line<'_>],
+        width: u16,
+        available_visual_rows: usize,
+    ) -> usize {
+        if width == 0 || lines.is_empty() || available_visual_rows == 0 {
+            return 0;
+        }
+        // 声明式：用 line_count 逐行累积，从末尾反向填充
+        let mut used = 0usize;
+        for (i, line) in lines.iter().enumerate().rev() {
+            let text: ratatui::text::Text = vec![line.clone()].into();
+            let wrapped = Paragraph::new(text)
+                .wrap(Wrap { trim: false })
+                .line_count(width);
+            if used + wrapped > available_visual_rows {
+                return i + 1;
+            }
+            used += wrapped;
+        }
+        0
+    }
+
+    /// 滚动到底部（基于视觉行）
+    pub fn scroll_to_bottom(&mut self) {
+        let area = self.content_area();
+        let total_visual = Self::total_visual_rows(&self.content_lines, area.width);
+        let visible = area.height as usize;
+        self.scroll_offset = total_visual.saturating_sub(visible) as u16;
+    }
+
+    /// 判断当前是否在内容底部（基于视觉行）
     pub fn at_bottom(&self) -> bool {
         let area = self.content_area();
-        let max_offset = self
-            .content_lines
-            .len()
-            .saturating_sub(area.height as usize) as u16;
+        let total_visual = Self::total_visual_rows(&self.content_lines, area.width);
+        let max_offset = total_visual.saturating_sub(area.height as usize) as u16;
         self.scroll_offset >= max_offset
     }
 
-    /// 向上滚动 n 行
+    /// 向上滚动 n 个视觉行
     pub fn scroll_up(&mut self, n: u16) {
         self.scroll_offset = self.scroll_offset.saturating_sub(n);
     }
 
-    /// 向下滚动 n 行
+    /// 向下滚动 n 个视觉行（基于视觉行上限）
     pub fn scroll_down(&mut self, n: u16) {
         let area = self.content_area();
-        let max_offset = self
-            .content_lines
-            .len()
-            .saturating_sub(area.height as usize) as u16;
+        let total_visual = Self::total_visual_rows(&self.content_lines, area.width);
+        let max_offset = total_visual.saturating_sub(area.height as usize) as u16;
         self.scroll_offset = (self.scroll_offset + n).min(max_offset);
     }
 
@@ -2082,6 +2132,11 @@ impl App {
         self.last_render_width = Some(size.width);
 
         // 🔥 第二步：读取所有局部数据（现在可以安全读取，因为宽度检测已完成）
+        // 修正：如果之前在底部，基于当前 frame 的实际 content_area 重新计算 scroll
+        if self.at_bottom() {
+            self.scroll_to_bottom();
+        }
+
         let search_mode = self.search.mode;
         let search_query = &self.search.query;
         let search_matches = &self.search.matches;
@@ -2183,10 +2238,25 @@ impl App {
         f.render_widget(Clear, content_area);
 
         // 计算内容区域信息（用于滚动指示器）
+        // visible_count = 实际可用的视觉行数（扣除 overlay）
         let visible_count = (content_area.height as usize)
             .saturating_sub(overlay_height as usize)
             .saturating_sub(if overlay_height > 0 { 2 } else { 0 });
         let total_lines = content_lines.len();
+
+        // ═══ 声明式渲染：scroll_y 基于视觉行 ═══
+        // 不再按逻辑行切片，而是渲染全量 Paragraph + Paragraph::scroll()
+        // ratatui 的 scroll 会精确跳过前 N 个视觉行
+        //
+        // 关键：当在底部时，用 Paragraph::line_count() 重新计算精确的 scroll_y，
+        // 而不是依赖可能过时的 scroll_offset（例如窗口大小改变后）。
+        let scroll_y = if user_scrolled {
+            scroll_offset
+        } else {
+            // 声明式：在底部时，用渲染区域的实际宽度精确计算
+            let total_visual = Self::total_visual_rows(content_lines, content_render_area.width);
+            total_visual.saturating_sub(visible_count) as u16
+        };
 
         // === 内容区 ===
         // 只有在非审批模式下才渲染内容区域
@@ -2268,11 +2338,8 @@ impl App {
                     Paragraph::new(help_lines).alignment(ratatui::layout::Alignment::Left);
                 f.render_widget(help_content, content_render_area);
             } else if search_mode && !search_query.is_empty() {
-                // === 搜索模式：渲染带高亮的行 ===
-                let start = scroll_offset as usize;
-                let end = (start + visible_count).min(total_lines);
-
-                let visible_lines: Vec<Line> = (start..end)
+                // === 搜索模式：渲染带高亮的全量行 + scroll ===
+                let visible_lines: Vec<Line> = (0..total_lines)
                     .map(|line_idx| {
                         let line = &content_lines[line_idx];
                         let line_text = line.to_string();
@@ -2302,16 +2369,18 @@ impl App {
                     })
                     .collect();
 
-                // 搜索模式恢复自动换行
-                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
+                // 搜索模式：全量 Paragraph + scroll
+                let content = Paragraph::new(visible_lines)
+                    .wrap(Wrap { trim: false })
+                    .scroll((scroll_y, 0));
                 f.render_widget(content, content_render_area);
             } else {
-                // === 正常模式：直接渲染 ===
-                let start = scroll_offset as usize;
-                let end = (start + visible_count).min(total_lines);
-                let visible_lines: Vec<Line> = content_lines[start..end].to_vec();
-                // 恢复自动换行，支持窗口宽度自适应
-                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
+                // === 正常模式：全量渲染 + Paragraph::scroll ===
+                // 声明式：不再按逻辑行切片，让 ratatui 的 scroll 精确控制可见区
+                let visible_lines: Vec<Line> = content_lines.to_vec();
+                let content = Paragraph::new(visible_lines)
+                    .wrap(Wrap { trim: false })
+                    .scroll((scroll_y, 0));
                 f.render_widget(content, content_render_area);
             }
         } else {
@@ -2340,8 +2409,9 @@ impl App {
             }
         }
 
-        // === 滚动指示器 ===
-        let max_offset = total_lines.saturating_sub(visible_count) as u16;
+        // === 滚动指示器（基于视觉行） ===
+        let total_visual = Self::total_visual_rows(content_lines, content_render_area.width);
+        let max_offset = total_visual.saturating_sub(visible_count) as u16;
         if max_offset > 0 && user_scrolled {
             let pct = if max_offset > 0 {
                 (scroll_offset as f64 / max_offset as f64 * 100.0) as u16
@@ -6992,5 +7062,226 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
         app.cleanup_after_stream(tid);
         assert!(app.table_buffer.is_empty(), "cleanup should flush table buffer");
         assert!(app.content_lines.len() > initial, "table should be rendered");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Fix 2/3/4 回归测试（TUI UX regressions）
+    // ═══════════════════════════════════════════════════════════
+
+    /// Fix 2 回归：auto-save 应显示在状态栏，而非 content_lines
+    #[test]
+    fn test_fix2_autosave_not_in_content() {
+        let mut app = App::new_for_test();
+
+        // 模拟 auto-save：使用 set_status（Fix 2 的实现）
+        app.set_status(status_bar::StatusKind::Idle, "auto-save · 5 events / 10 min".to_string());
+
+        // content_lines 不应包含 auto-save 文本
+        let text = app
+            .content_lines
+            .iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| &*s.content)
+            .collect::<String>();
+        assert!(
+            !text.contains("auto-save"),
+            "auto-save should be in status bar, not content_lines. got: {}",
+            text
+        );
+
+        // 状态栏应包含 auto-save
+        assert!(
+            app.status_text.contains("auto-save"),
+            "status_text should contain auto-save, got: {}",
+            app.status_text
+        );
+    }
+
+    /// Fix 3 回归：InputComposer render 后清除旧内容
+    #[test]
+    fn test_fix3_input_clears_old_content() {
+        use ratatui::layout::Rect;
+
+        let mut app = App::new_for_test();
+
+        // 第一次渲染：输入长文本
+        app.input = InputComposer::new("This is a long input text that takes space");
+        let mut buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "This is a long input");
+
+        // 第二次渲染：输入更短的文本
+        app.input = InputComposer::new("Short");
+        buf = render_to_buffer(&mut app, 80, 24);
+
+        // 旧文本的残余不应出现在 buffer 中
+        let text = buffer_to_string(&buf);
+        // 确认 "Short" 出现
+        assert!(text.contains("Short"), "should contain new input 'Short'");
+        // 确认 "long input text" 不出现在输入区域那行
+        // （"long" 可能出现在状态栏等位置，检查 "long input text" 连续串）
+        assert!(
+            !text.contains("long input text that takes space"),
+            "old input residual should be cleared"
+        );
+    }
+
+    /// Fix 4 回归：at_bottom 时 draw_frame 重新计算 scroll，底部内容可见
+    #[test]
+    fn test_fix4_scroll_recycled_at_bottom() {
+        let mut app = App::new_for_test();
+
+        // 添加足够多的内容行，使 scroll_offset > 0
+        for i in 0..30 {
+            app.push_line(format!("Content line {}", i));
+        }
+        app.scroll_to_bottom();
+
+        // 记录 scroll_offset
+        let scroll_before = app.scroll_offset;
+        assert!(scroll_before > 0, "should have scrolled down, got offset={}", scroll_before);
+
+        // 渲染后应该仍在底部（Fix 4 的 draw_frame 逻辑）
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+
+        // 底部最后几行内容应该可见
+        assert!(
+            text.contains("Content line 29"),
+            "last content line should be visible, scroll_offset={}",
+            scroll_before
+        );
+    }
+
+    /// wrap-aware 滚动核心：长行折行时，底部最后一行必须可见
+    #[test]
+    fn test_fix4_wrap_aware_last_line_visible() {
+        let mut app = App::new_for_test();
+
+        // 构造窄终端 + 长行：每个逻辑行在 40 列宽度下折为 3 行视觉行
+        let long_line = "A".repeat(120); // 120 chars / 40 cols = 3 visual rows
+        for i in 0..10 {
+            app.push_line(format!("{}-{}", long_line, i));
+        }
+        // 再加一条短行作为"最后一行"
+        app.push_line("LAST_LINE_VISIBLE".to_string());
+        app.set_test_size(40, 24);
+        app.scroll_to_bottom();
+
+        // 40 列 x 24 行，输入框 1 行 + 状态栏 1 + 分隔线 1 = 可用 21 行
+        let buf = render_to_buffer(&mut app, 40, 24);
+        let text = buffer_to_string(&buf);
+
+        assert!(
+            text.contains("LAST_LINE_VISIBLE"),
+            "last line should be visible with wrap-aware scrolling.\n\
+             Each logical line (120 chars) wraps to 3 visual rows at width=40.\n\
+             Buffer content:\n{}",
+            text
+        );
+    }
+
+    /// visual_start_from_bottom 单元测试：用 Paragraph::line_count 精确验证
+    #[test]
+    fn test_visual_start_from_bottom_exact() {
+        use ratatui::text::Line;
+
+        // 5 行，每行 ~6 字符，渲染宽度 10 → 每行 1 视觉行
+        let lines: Vec<Line> = (0..5).map(|i| Line::from(format!("line{}", i))).collect();
+        let start = App::visual_start_from_bottom(&lines, 10, 3);
+        // 需要最后 3 行：line2, line3, line4 → start = 2
+        assert_eq!(start, 2, "should start from line 2");
+
+        // 5 行，每行 20 字符，渲染宽度 10 → 每行 2 视觉行
+        let lines: Vec<Line> = (0..5).map(|_| Line::from("X".repeat(20))).collect();
+        let start = App::visual_start_from_bottom(&lines, 10, 4);
+        // 每行 2 视觉行，需要填 4 视觉行 = 2 逻辑行 → start = 3
+        assert_eq!(start, 3, "should start from line 3 (2 wrapped lines × 2 = 4 visual rows)");
+
+        // 空内容
+        let empty: Vec<Line> = vec![];
+        let start = App::visual_start_from_bottom(&empty, 10, 5);
+        assert_eq!(start, 0, "empty lines should return 0");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Fix 4 快照测试：验证底部内容在不同宽度下的渲染
+    // ═══════════════════════════════════════════════════════════
+
+    /// 快照：窄终端（40 列）下，长行折行后最后一行必须可见
+    #[test]
+    fn test_fix4_snapshot_narrow_wrap_bottom_visible() {
+        let mut app = App::new_for_test();
+
+        // 10 个长行 + 1 个短行（最后一行）
+        let long_line = "This is a very long line that will definitely wrap at 40 columns width terminal. ".to_string();
+        for i in 0..10 {
+            app.push_line(format!("{}line {}", long_line, i));
+        }
+        app.push_line(">> BOTTOM_LINE <<".to_string());
+
+        // 先设置 test_size，再 scroll_to_bottom，确保 content_area() 一致
+        app.set_test_size(40, 24);
+        app.scroll_to_bottom();
+
+        let buf = render_to_buffer(&mut app, 40, 24);
+        assert_buffer_contains!(&buf, "BOTTOM_LINE");
+        assert_tui_snapshot!("fix4_narrow_wrap_bottom", &buf);
+    }
+
+    /// 快照：宽终端（120 列），同样内容不应折行
+    #[test]
+    fn test_fix4_snapshot_wide_no_wrap() {
+        let mut app = App::new_for_test();
+
+        let long_line = "This is a very long line that will definitely wrap at 40 columns width terminal. ".to_string();
+        for i in 0..10 {
+            app.push_line(format!("{}line {}", long_line, i));
+        }
+        app.push_line(">> BOTTOM_LINE <<".to_string());
+        app.set_test_size(120, 24);
+        app.scroll_to_bottom();
+
+        let buf = render_to_buffer(&mut app, 120, 24);
+        assert_buffer_contains!(&buf, "BOTTOM_LINE");
+        assert_tui_snapshot!("fix4_wide_no_wrap", &buf);
+    }
+
+    /// 快照：CJK 长行折行后底部可见
+    #[test]
+    fn test_fix4_snapshot_cjk_wrap_bottom_visible() {
+        let mut app = App::new_for_test();
+
+        // CJK 字符每个占 2 列，30 个 = 60 列，在 40 列终端折为 2 行
+        let cjk_line = "这是一段很长的中文内容用于测试折行后最后一行是否可见".to_string();
+        for i in 0..15 {
+            app.push_line(format!("{}-{}", cjk_line, i));
+        }
+        // 使用 ASCII marker 避免 markdown 渲染干扰 + CJK buffer 编码问题
+        app.push_line("BOTTOM_CJK_OK".to_string());
+        app.set_test_size(40, 24);
+        app.scroll_to_bottom();
+
+        let buf = render_to_buffer(&mut app, 40, 24);
+        assert_buffer_contains!(&buf, "BOTTOM_CJK_OK");
+        assert_tui_snapshot!("fix4_cjk_wrap_bottom", &buf);
+    }
+
+    /// 快照：大量内容，底部短行必须可见（用户原始报告场景）
+    #[test]
+    fn test_fix4_snapshot_many_lines_bottom_visible() {
+        let mut app = App::new_for_test();
+
+        // 模拟真实对话场景：多条长输出 + 一条短回复
+        for i in 0..50 {
+            app.push_line(format!("Content line {} with some moderate length text here", i));
+        }
+        app.push_line(">> USER_SHOULD_SEE_THIS <<".to_string());
+        app.set_test_size(80, 24);
+        app.scroll_to_bottom();
+
+        // 80 列 × 24 行（典型终端尺寸）
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "USER_SHOULD_SEE_THIS");
+        assert_tui_snapshot!("fix4_many_lines_bottom", &buf);
     }
 }

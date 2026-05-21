@@ -2734,22 +2734,14 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
         app.set_event_persistence(event_persistence);
         app.set_persistence_config(ep_config.snapshot_event_count, ep_config.snapshot_interval_minutes * 60);
 
-        // 🔥 Phase 7: 启动时显示事件持久化状态（简洁暗色）
-        app.push_line(format!(
-            "{}  auto-save · {} events / {} min{}",
-            render::color_256(242),
+        // 🔥 Phase 7: 启动时显示事件持久化状态（写入状态栏，不污染 content_lines）
+        app.set_status(status_bar::StatusKind::Idle, format!(
+            "auto-save · {} events / {} min",
             ep_config.snapshot_event_count,
-            ep_config.snapshot_interval_minutes,
-            render::RESET
+            ep_config.snapshot_interval_minutes
         ));
-        app.scroll_to_bottom();
     } else {
-        app.push_line(format!(
-            "{}  auto-save · off{}",
-            render::color_256(242),
-            render::RESET
-        ));
-        app.scroll_to_bottom();
+        app.set_status(status_bar::StatusKind::Idle, "auto-save · off".to_string());
     }
 
     // 🔥 首次运行检测和初始化

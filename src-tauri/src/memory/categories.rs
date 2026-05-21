@@ -90,6 +90,7 @@ macro_rules! declare_halls {
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 match s {
                     $($display => Ok(MemoryHall::$name),)*
+                    $(stringify!($name) => Ok(MemoryHall::$name),)*
                     _ => Err(format!("Invalid Hall: {}", s)),
                 }
             }
@@ -188,9 +189,9 @@ pub fn path_schema() -> serde_json::Value {
         "description": "Memory path in spatial metaphor format",
         "examples": [
             "Preferences/programming-languages",
-            "ProjectKnowledge/frontend-stack",
+            "Project Knowledge/frontend-stack",
             "project/Preferences/programming-languages",
-            "user/ProjectKnowledge/database-config"
+            "user/Project Knowledge/database-config"
         ]
     })
 }
@@ -252,6 +253,39 @@ mod tests {
     #[test]
     fn test_hall_from_str_invalid() {
         assert!("InvalidHall".parse::<MemoryHall>().is_err());
+    }
+
+    // ── PascalCase 别名容错（AI 模型可能传 "ProjectKnowledge" 而非 "Project Knowledge"）──
+
+    #[test]
+    fn test_hall_pascal_case_alias_project_knowledge() {
+        assert_eq!(
+            "ProjectKnowledge".parse::<MemoryHall>(),
+            Ok(MemoryHall::ProjectKnowledge)
+        );
+    }
+
+    #[test]
+    fn test_hall_pascal_case_alias_workflow_patterns() {
+        assert_eq!(
+            "WorkflowPatterns".parse::<MemoryHall>(),
+            Ok(MemoryHall::WorkflowPatterns)
+        );
+    }
+
+    #[test]
+    fn test_hall_pascal_case_path_resolution() {
+        // 完整路径测试：PascalCase Hall + Room
+        let path = "ProjectKnowledge/frontend-stack".parse::<MemoryPath>();
+        assert!(path.is_ok(), "PascalCase Hall should resolve: {:?}", path);
+        let p = path.unwrap();
+        assert_eq!(p.hall, MemoryHall::ProjectKnowledge);
+        assert_eq!(p.room, "frontend-stack");
+    }
+
+    #[test]
+    fn test_hall_unknown_still_rejected() {
+        assert!("UnknownHall".parse::<MemoryHall>().is_err());
     }
 
     #[test]
