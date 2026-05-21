@@ -2,8 +2,6 @@
 source: src/bin/ifai/tui.rs
 expression: text
 ---
-definitely wrap at 40 columns width     
-terminal. line 3                        
 This is a very long line that will      
 definitely wrap at 40 columns width     
 terminal. line 4                        
@@ -23,6 +21,8 @@ This is a very long line that will
 definitely wrap at 40 columns width     
 terminal. line 9                        
 BOTTOM_LINE <<                          
+                                        
+                                        
 ○ [Ready]                               
 ────────────────────────────────────────
 ⟩

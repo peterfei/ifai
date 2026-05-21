@@ -732,8 +732,13 @@ pub struct App {
     terminal: Option<Terminal<CrosstermBackend<Stdout>>>,
     /// 内容区行缓冲
     pub content_lines: Vec<Line<'static>>,
-    /// 内容区滚动偏移
+    /// 内容区滚动偏移（视觉行）
     pub scroll_offset: u16,
+    /// 视觉行缓存：避免每帧重算 total_visual_rows
+    cached_total_visual: std::cell::Cell<usize>,
+    cached_visual_width: std::cell::Cell<u16>,
+    /// 缓存的 content_lines 长度（检测内容变化，自动失效）
+    cached_content_len: std::cell::Cell<usize>,
     /// 输入框
     pub input: InputComposer,
     /// 状态栏文本
@@ -822,6 +827,9 @@ impl App {
             terminal: Some(terminal),
             content_lines: Vec::new(),
             scroll_offset: 0,
+            cached_total_visual: std::cell::Cell::new(0),
+            cached_visual_width: std::cell::Cell::new(0),
+            cached_content_len: std::cell::Cell::new(0),
             input: InputComposer::new(""),
             status_text: String::new(),
             status_kind: StatusKind::default(),
@@ -868,6 +876,9 @@ impl App {
             terminal: None,
             content_lines: Vec::new(),
             scroll_offset: 0,
+            cached_total_visual: std::cell::Cell::new(0),
+            cached_visual_width: std::cell::Cell::new(0),
+            cached_content_len: std::cell::Cell::new(0),
             input: InputComposer::new(""),
             status_text: String::new(),
             status_kind: StatusKind::default(),
@@ -1954,17 +1965,21 @@ impl App {
         let target_logical = self.search.matches[match_index];
         let area = self.content_area();
 
-        // 计算目标逻辑行之前的视觉行数
+        // 计算目标逻辑行之前的视觉行数（非热路径，直接计算即可）
         if target_logical > 0 {
             let before_lines = &self.content_lines[..target_logical];
-            let target_visual = Self::total_visual_rows(before_lines, area.width);
+            let target_visual = {
+                let text: ratatui::text::Text = before_lines.iter().cloned().collect();
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .line_count(area.width)
+            };
             let visible = area.height as usize;
             let half_visible = visible / 2;
 
             if target_visual < self.scroll_offset as usize
                 || target_visual >= self.scroll_offset as usize + visible
             {
-                // 目标不在可视区，滚动使目标居中
                 self.scroll_offset = target_visual.saturating_sub(half_visible) as u16;
             }
         } else {
@@ -1978,33 +1993,57 @@ impl App {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 声明式滚动引擎：Paragraph::line_count() 作为唯一真相源
+    // 声明式滚动引擎 v2：缓存 + 切片渲染
     // ═══════════════════════════════════════════════════════════
     //
-    // 核心原则：
-    //   - scroll_offset 语义 = 视觉行偏移（非逻辑行）
-    //   - 所有视觉行计数委托给 ratatui 的 Paragraph::line_count()
-    //   - 零手动折行计算，消除 Line::width() 与 WordWrapper 的不一致
+    // 性能关键路径：
+    //   - cached_total_visual: 避免每帧重算，内容变化时失效
+    //   - 切片渲染：只渲染可见行，不克隆全量内容
+    //   - Paragraph::line_count(): 精确匹配 WordWrapper 行为
     //
-    // ┌──────────────────────────────────────────────────────┐
-    // │  ratatui::Paragraph::line_count(width)               │
-    // │     ↓ 使用 WordWrapper（按词折行）                     │
-    // │     ↓ 精确匹配实际渲染行为                              │
-    // │  所有滚动 API 直接使用此值                              │
-    // └──────────────────────────────────────────────────────┘
+    // ┌─────────────────────────────────────────────┐
+    // │  get_cached_total_visual(width)              │
+    // │     ↓ Cell 缓存，自动检测 content 变化/宽度变化│
+    // │     ↓ 只在失效时调用 Paragraph::line_count()  │
+    // │  at_bottom/scroll_down 等全部使用缓存值        │
+    // └─────────────────────────────────────────────┘
 
-    /// 用 Paragraph::line_count() 计算内容在给定宽度下的总视觉行数
-    fn total_visual_rows(lines: &[ratatui::text::Line<'_>], width: u16) -> usize {
-        if width == 0 || lines.is_empty() {
-            return 0;
+    /// 使视觉行缓存失效（在 content_lines 改变时调用）
+    fn invalidate_visual_cache(&self) {
+        self.cached_total_visual.set(0);
+        self.cached_visual_width.set(0);
+        self.cached_content_len.set(0);
+    }
+
+    /// 获取缓存的视觉行总数（只在内容/宽度变化时重算）
+    fn get_cached_total_visual(&self, lines: &[ratatui::text::Line<'_>], width: u16) -> usize {
+        let cached_len = self.cached_content_len.get();
+        let cached_w = self.cached_visual_width.get();
+        let cached_v = self.cached_total_visual.get();
+
+        // 缓存命中：长度和宽度都没变
+        if cached_len == lines.len() && cached_w == width && cached_v > 0 {
+            return cached_v;
         }
-        let text: ratatui::text::Text = lines.iter().cloned().collect();
-        Paragraph::new(text)
-            .wrap(Wrap { trim: false })
-            .line_count(width)
+
+        // 缓存失效：重算
+        let total = if width == 0 || lines.is_empty() {
+            0
+        } else {
+            let text: ratatui::text::Text = lines.iter().cloned().collect();
+            Paragraph::new(text)
+                .wrap(Wrap { trim: false })
+                .line_count(width)
+        };
+
+        self.cached_total_visual.set(total);
+        self.cached_visual_width.set(width);
+        self.cached_content_len.set(lines.len());
+        total
     }
 
     /// 用 Paragraph::line_count() 计算从底部取 N 个视觉行对应的起始逻辑行索引
+    /// 只从末尾反向遍历 visible 行数即可，O(visible) 而非 O(total)
     fn visual_start_from_bottom(
         lines: &[ratatui::text::Line<'_>],
         width: u16,
@@ -2013,7 +2052,6 @@ impl App {
         if width == 0 || lines.is_empty() || available_visual_rows == 0 {
             return 0;
         }
-        // 声明式：用 line_count 逐行累积，从末尾反向填充
         let mut used = 0usize;
         for (i, line) in lines.iter().enumerate().rev() {
             let text: ratatui::text::Text = vec![line.clone()].into();
@@ -2028,18 +2066,43 @@ impl App {
         0
     }
 
+    /// 将视觉行偏移量转换为对应的逻辑行索引
+    /// 正向遍历累积每行的折行高度，直到达到 visual_offset
+    /// 返回起始逻辑行索引
+    fn visual_offset_to_logical(
+        lines: &[ratatui::text::Line<'_>],
+        width: u16,
+        visual_offset: usize,
+    ) -> usize {
+        if width == 0 || lines.is_empty() || visual_offset == 0 {
+            return 0;
+        }
+        let mut accumulated = 0usize;
+        for (i, line) in lines.iter().enumerate() {
+            let text: ratatui::text::Text = vec![line.clone()].into();
+            let wrapped = Paragraph::new(text)
+                .wrap(Wrap { trim: false })
+                .line_count(width);
+            if accumulated + wrapped > visual_offset {
+                return i;
+            }
+            accumulated += wrapped;
+        }
+        lines.len().saturating_sub(1)
+    }
+
     /// 滚动到底部（基于视觉行）
     pub fn scroll_to_bottom(&mut self) {
         let area = self.content_area();
-        let total_visual = Self::total_visual_rows(&self.content_lines, area.width);
+        let total_visual = self.get_cached_total_visual(&self.content_lines, area.width);
         let visible = area.height as usize;
         self.scroll_offset = total_visual.saturating_sub(visible) as u16;
     }
 
-    /// 判断当前是否在内容底部（基于视觉行）
+    /// 判断当前是否在内容底部（基于视觉行，使用缓存）
     pub fn at_bottom(&self) -> bool {
         let area = self.content_area();
-        let total_visual = Self::total_visual_rows(&self.content_lines, area.width);
+        let total_visual = self.get_cached_total_visual(&self.content_lines, area.width);
         let max_offset = total_visual.saturating_sub(area.height as usize) as u16;
         self.scroll_offset >= max_offset
     }
@@ -2052,7 +2115,7 @@ impl App {
     /// 向下滚动 n 个视觉行（基于视觉行上限）
     pub fn scroll_down(&mut self, n: u16) {
         let area = self.content_area();
-        let total_visual = Self::total_visual_rows(&self.content_lines, area.width);
+        let total_visual = self.get_cached_total_visual(&self.content_lines, area.width);
         let max_offset = total_visual.saturating_sub(area.height as usize) as u16;
         self.scroll_offset = (self.scroll_offset + n).min(max_offset);
     }
@@ -2244,18 +2307,15 @@ impl App {
             .saturating_sub(if overlay_height > 0 { 2 } else { 0 });
         let total_lines = content_lines.len();
 
-        // ═══ 声明式渲染：scroll_y 基于视觉行 ═══
-        // 不再按逻辑行切片，而是渲染全量 Paragraph + Paragraph::scroll()
-        // ratatui 的 scroll 会精确跳过前 N 个视觉行
-        //
-        // 关键：当在底部时，用 Paragraph::line_count() 重新计算精确的 scroll_y，
-        // 而不是依赖可能过时的 scroll_offset（例如窗口大小改变后）。
-        let scroll_y = if user_scrolled {
-            scroll_offset
+        // ═══ 切片渲染：基于视觉行的精确滚动 ═══
+        // 性能关键：只渲染可见切片，不克隆全量 content_lines。
+        // 用 visual_start_from_bottom 确保最后一行可见。
+        let render_start = if user_scrolled {
+            // 用户手动滚动：基于视觉偏移向前扫描找逻辑起始行
+            Self::visual_offset_to_logical(content_lines, content_render_area.width, scroll_offset as usize)
         } else {
-            // 声明式：在底部时，用渲染区域的实际宽度精确计算
-            let total_visual = Self::total_visual_rows(content_lines, content_render_area.width);
-            total_visual.saturating_sub(visible_count) as u16
+            // 在底部：精确计算起始逻辑行
+            Self::visual_start_from_bottom(content_lines, content_render_area.width, visible_count)
         };
 
         // === 内容区 ===
@@ -2338,21 +2398,24 @@ impl App {
                     Paragraph::new(help_lines).alignment(ratatui::layout::Alignment::Left);
                 f.render_widget(help_content, content_render_area);
             } else if search_mode && !search_query.is_empty() {
-                // === 搜索模式：渲染带高亮的全量行 + scroll ===
-                let visible_lines: Vec<Line> = (0..total_lines)
+                // === 搜索模式：切片渲染带高亮行 ===
+                let start = render_start;
+                let end = if user_scrolled {
+                    (start + visible_count).min(total_lines)
+                } else {
+                    total_lines
+                };
+
+                let visible_lines: Vec<Line> = (start..end)
                     .map(|line_idx| {
                         let line = &content_lines[line_idx];
                         let line_text = line.to_string();
 
-                        // 检查这一行是否是当前匹配
                         let is_current_match = current_match_index < search_matches.len()
                             && search_matches[current_match_index] == line_idx;
-
-                        // 检查这一行是否是其他匹配
                         let is_other_match =
                             search_matches.contains(&line_idx) && !is_current_match;
 
-                        // 如果包含搜索词，添加高亮
                         if line_text
                             .to_lowercase()
                             .contains(&search_query.to_lowercase())
@@ -2369,19 +2432,24 @@ impl App {
                     })
                     .collect();
 
-                // 搜索模式：全量 Paragraph + scroll
-                let content = Paragraph::new(visible_lines)
-                    .wrap(Wrap { trim: false })
-                    .scroll((scroll_y, 0));
+                let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
                 f.render_widget(content, content_render_area);
             } else {
-                // === 正常模式：全量渲染 + Paragraph::scroll ===
-                // 声明式：不再按逻辑行切片，让 ratatui 的 scroll 精确控制可见区
-                let visible_lines: Vec<Line> = content_lines.to_vec();
-                let content = Paragraph::new(visible_lines)
-                    .wrap(Wrap { trim: false })
-                    .scroll((scroll_y, 0));
-                f.render_widget(content, content_render_area);
+                // === 正常模式：切片渲染 ===
+                if user_scrolled {
+                    let end = (render_start + visible_count).min(total_lines);
+                    let visible_lines: Vec<Line> = content_lines[render_start..end].to_vec();
+                    let content = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
+                    f.render_widget(content, content_render_area);
+                } else {
+                    // 在底部：从 render_start 渲染到末尾，用 Paragraph::scroll 跳过溢出
+                    let visible_lines: Vec<Line> = content_lines[render_start..].to_vec();
+                    let para = Paragraph::new(visible_lines).wrap(Wrap { trim: false });
+                    let total_visual = para.line_count(content_render_area.width);
+                    let scroll_y = total_visual.saturating_sub(visible_count) as u16;
+                    let content = para.scroll((scroll_y, 0));
+                    f.render_widget(content, content_render_area);
+                }
             }
         } else {
             // 审批模式：用黑色背景清除内容区域
@@ -2409,8 +2477,8 @@ impl App {
             }
         }
 
-        // === 滚动指示器（基于视觉行） ===
-        let total_visual = Self::total_visual_rows(content_lines, content_render_area.width);
+        // === 滚动指示器（基于视觉行，使用缓存） ===
+        let total_visual = self.get_cached_total_visual(content_lines, content_render_area.width);
         let max_offset = total_visual.saturating_sub(visible_count) as u16;
         if max_offset > 0 && user_scrolled {
             let pct = if max_offset > 0 {
