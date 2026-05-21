@@ -3,7 +3,7 @@
 //! 当内容区为空时显示欢迎信息，底部显示 36 帧有机变形 ASCII 动画。
 
 use std::f32::consts::PI;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -13,45 +13,19 @@ const FRAME_COUNT: usize = 36;
 /// 帧间隔（毫秒），与 amp 一致
 const FRAME_TICK_MS: u64 = 80;
 
-/// 编译时嵌入 36 帧动画数据
-const ANIMATION_FRAMES: [&str; FRAME_COUNT] = [
-    include_str!("welcome_frames/frame_0.txt"),
-    include_str!("welcome_frames/frame_1.txt"),
-    include_str!("welcome_frames/frame_2.txt"),
-    include_str!("welcome_frames/frame_3.txt"),
-    include_str!("welcome_frames/frame_4.txt"),
-    include_str!("welcome_frames/frame_5.txt"),
-    include_str!("welcome_frames/frame_6.txt"),
-    include_str!("welcome_frames/frame_7.txt"),
-    include_str!("welcome_frames/frame_8.txt"),
-    include_str!("welcome_frames/frame_9.txt"),
-    include_str!("welcome_frames/frame_10.txt"),
-    include_str!("welcome_frames/frame_11.txt"),
-    include_str!("welcome_frames/frame_12.txt"),
-    include_str!("welcome_frames/frame_13.txt"),
-    include_str!("welcome_frames/frame_14.txt"),
-    include_str!("welcome_frames/frame_15.txt"),
-    include_str!("welcome_frames/frame_16.txt"),
-    include_str!("welcome_frames/frame_17.txt"),
-    include_str!("welcome_frames/frame_18.txt"),
-    include_str!("welcome_frames/frame_19.txt"),
-    include_str!("welcome_frames/frame_20.txt"),
-    include_str!("welcome_frames/frame_21.txt"),
-    include_str!("welcome_frames/frame_22.txt"),
-    include_str!("welcome_frames/frame_23.txt"),
-    include_str!("welcome_frames/frame_24.txt"),
-    include_str!("welcome_frames/frame_25.txt"),
-    include_str!("welcome_frames/frame_26.txt"),
-    include_str!("welcome_frames/frame_27.txt"),
-    include_str!("welcome_frames/frame_28.txt"),
-    include_str!("welcome_frames/frame_29.txt"),
-    include_str!("welcome_frames/frame_30.txt"),
-    include_str!("welcome_frames/frame_31.txt"),
-    include_str!("welcome_frames/frame_32.txt"),
-    include_str!("welcome_frames/frame_33.txt"),
-    include_str!("welcome_frames/frame_34.txt"),
-    include_str!("welcome_frames/frame_35.txt"),
-];
+/// 编译时嵌入 36 帧动画数据（宏消除 36 行 include_str! 重复）
+macro_rules! frames {
+    ($($i:literal),+) => { [$(
+        include_str!(concat!("welcome_frames/frame_", stringify!($i), ".txt"))
+    ),+] };
+}
+
+const ANIMATION_FRAMES: [&str; FRAME_COUNT] = frames!(
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
+    10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+    20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+    30, 31, 32, 33, 34, 35
+);
 
 /// 欢迎页组件
 pub struct WelcomeWidget {
