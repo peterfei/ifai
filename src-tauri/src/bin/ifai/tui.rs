@@ -416,114 +416,37 @@ fn ansi_bright_color(idx: u8) -> Color {
     }
 }
 
-/// 清理单行 Markdown 标记（轻量版，用于无 ANSI 的纯文本行）
-///
-/// 处理：标题前缀 `#`，粗体 `**text**`，斜体 `*text*`/`_text_`，
-/// 行内代码 `` `text` ``，表格单元格 `|text|`，水平分割线 `---`。
-fn clean_markdown(line: &str) -> String {
-    let trimmed = line.trim_start();
+// ============================================================================
+// 🎨 Markdown 表格缓冲渲染
+// ============================================================================
 
-    // 标题：# / ## / ### / #### 等（行首）→ 直接去掉 # 标记
-    if trimmed.starts_with('#') {
-        let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
-        let rest = trimmed[hash_count..].trim_start();
-        return strip_inline_markdown(rest);
-    }
-
-    // 表格分隔行 |---|---| → 跳过
-    if trimmed.starts_with('|') && trimmed.contains("---") {
-        let parts: Vec<&str> = trimmed.split('|').filter(|s| !s.trim().is_empty()).collect();
-        if parts.iter().all(|p| p.trim().chars().all(|c| c == '-')) {
-            return String::new();
-        }
-    }
-
-    // 水平分割线 --- / *** / ___（3+ 个相同字符）
-    if trimmed.len() >= 3 {
-        let first = trimmed.chars().next().unwrap();
-        if (first == '-' || first == '*' || first == '_')
-            && trimmed.chars().all(|c| c == first)
-            && trimmed.len() >= 3
-        {
-            return "────────────────────".to_string();
-        }
-    }
-
-    strip_inline_markdown(line)
+/// 检测是否为 Markdown 表格行（|...| 格式）
+fn is_table_row(line: &str) -> bool {
+    let t = line.trim();
+    t.starts_with('|') && t.ends_with('|') && t.len() > 2
 }
 
-/// 清理行内 Markdown 标记：粗体、斜体、行内代码、表格管道符
-fn strip_inline_markdown(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        match c {
-            // 粗体 **text**
-            '*' if chars.peek() == Some(&'*') => {
-                chars.next();
-                let mut inner = String::new();
-                loop {
-                    match chars.next() {
-                        Some('*') if chars.peek() == Some(&'*') => {
-                            chars.next();
-                            break;
-                        }
-                        Some(ch) => inner.push(ch),
-                        None => break,
-                    }
-                }
-                result.push_str(&inner);
-            }
-            // 斜体 *text*
-            '*' => {
-                let mut inner = String::new();
-                loop {
-                    match chars.next() {
-                        Some('*') => break,
-                        Some(ch) => inner.push(ch),
-                        None => break,
-                    }
-                }
-                result.push_str(&inner);
-            }
-            // 粗体 __text__
-            '_' if chars.peek() == Some(&'_') => {
-                chars.next();
-                let mut inner = String::new();
-                loop {
-                    match chars.next() {
-                        Some('_') if chars.peek() == Some(&'_') => {
-                            chars.next();
-                            break;
-                        }
-                        Some(ch) => inner.push(ch),
-                        None => break,
-                    }
-                }
-                result.push_str(&inner);
-            }
-            // 行内代码 `text`
-            '`' => {
-                let mut inner = String::new();
-                loop {
-                    match chars.next() {
-                        Some('`') => break,
-                        Some(ch) => inner.push(ch),
-                        None => break,
-                    }
-                }
-                result.push_str(&inner);
-            }
-            // 表格管道符 | → 空格分隔
-            '|' => {
-                result.push(' ');
-            }
-            _ => result.push(c),
-        }
+/// 检测是否为表格分隔行（|---|---|）
+fn is_table_separator(line: &str) -> bool {
+    let t = line.trim();
+    if !t.starts_with('|') || !t.ends_with('|') {
+        return false;
     }
-    result
+    t[1..t.len() - 1]
+        .split('|')
+        .all(|c| c.trim().chars().all(|ch| ch == '-' || ch == ':' || ch == ' '))
 }
+
+/// 解析表格行为单元格数组
+fn parse_table_row(line: &str) -> Vec<String> {
+    let t = line.trim();
+    t[1..t.len() - 1]
+        .split('|')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 
 // ============================================================================
 // 🏛️ 任务渲染 — 配置表驱动（代码即数据，零 match）
@@ -873,6 +796,8 @@ pub struct App {
     persistence_event_threshold: u64,
     /// 🔥 Phase 6: 持久化配置 - 快照间隔秒数（默认 600）
     persistence_interval_secs: u64,
+    /// 🎨 Markdown 表格行缓冲区（逐行到达，延迟渲染）
+    table_buffer: Vec<String>,
 }
 
 impl App {
@@ -927,6 +852,7 @@ impl App {
             last_snapshot_time: None,
             persistence_event_threshold: 50,
             persistence_interval_secs: 600,
+            table_buffer: Vec::new(),
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -972,6 +898,7 @@ impl App {
             last_snapshot_time: None,
             persistence_event_threshold: 50,
             persistence_interval_secs: 600,
+            table_buffer: Vec::new(),
         }
     }
 
@@ -1143,18 +1070,53 @@ impl App {
             .clone()
     }
 
-    /// 推送一行文本到内容区（ANSI 转样式 + Markdown 清理）
+    /// 刷新表格缓冲区：将累积的 Markdown 表格行渲染为 Unicode 表格
+    pub fn flush_table_buffer(&mut self) {
+        if self.table_buffer.is_empty() {
+            return;
+        }
+        let rows: Vec<Vec<String>> = self
+            .table_buffer
+            .iter()
+            .filter(|l| !is_table_separator(l))
+            .map(|l| parse_table_row(l))
+            .filter(|c| !c.is_empty())
+            .collect();
+        self.table_buffer.clear();
+        if rows.is_empty() {
+            return;
+        }
+
+        let headers: Vec<&str> = rows[0].iter().map(|s| s.as_str()).collect();
+        let data = &rows[1..];
+        let rendered = crate::render::render_table(&headers, data);
+        let style = Style::default().fg(Color::Indexed(236));
+        for line in rendered.lines() {
+            if !line.is_empty() {
+                self.content_lines
+                    .push(Line::from(vec![Span::styled(line.to_string(), style)]));
+            }
+        }
+    }
+
+    /// 推送一行文本到内容区（ANSI 转样式 + Markdown 渲染 + 表格缓冲）
     pub fn push_line(&mut self, text: String) {
-        // 在添加内容前记住是否在底部（follow-bottom 模式）
         let was_at_bottom = self.at_bottom();
         for line in text.split('\n') {
-            // 如果包含 ANSI 转义码 → 转换为 ratatui 样式
-            // 否则 → 清理残留的 Markdown 标记
+            // 表格行 → 缓冲（延迟刷出，避免流式场景刷出残表）
+            if is_table_row(line) {
+                self.table_buffer.push(line.to_string());
+                continue;
+            }
+            // 非表格行 → 先刷出缓冲的完整表格
+            if !self.table_buffer.is_empty() {
+                self.flush_table_buffer();
+            }
+
             let spans = if line.contains("\x1b[") {
                 ansi_to_spans(line)
             } else {
-                let cleaned = clean_markdown(line);
-                vec![Span::from(cleaned)]
+                crate::markdown_render::markdown_line_to_spans(line)
             };
             self.content_lines.push(Line::from(spans));
         }
@@ -1322,6 +1284,10 @@ impl App {
     ///
     /// 由 StreamGuard::drop() 自动调用，也可手动调用（幂等）。
     pub fn cleanup_after_stream(&mut self, thread_id: crate::thread::ThreadId) {
+        // 🔥 流结束时 flush 残留的表格缓冲
+        if !self.table_buffer.is_empty() {
+            self.flush_table_buffer();
+        }
         self.end_streaming(thread_id);
         self.set_thread_busy(thread_id, false);
         self.set_status(StatusKind::Idle, String::new());
@@ -6782,5 +6748,249 @@ fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\
                 }
             }
         }
+    }
+
+    // ============================================================================
+    // 🎨 层 2: 快照测试 T16-T20（Markdown 渲染 + 表格）
+    // ============================================================================
+
+    /// T16: 粗体渲染快照
+    #[test]
+    fn test_t16_bold_rendering_snapshot() {
+        let mut app = App::new_for_test();
+        app.push_line("**bold text** plain".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("bold text"), "should contain 'bold text', got:\n{text}");
+        assert_tui_snapshot!("t16_bold_rendering", &buf);
+    }
+
+    /// T17: 标题渲染快照
+    #[test]
+    fn test_t17_heading_rendering_snapshot() {
+        let mut app = App::new_for_test();
+        app.push_line("# Main Title".to_string());
+        app.push_line("## Section".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("Main Title"), "should contain 'Main Title', got:\n{text}");
+        assert!(text.contains("Section"), "should contain 'Section', got:\n{text}");
+        assert_tui_snapshot!("t17_heading_rendering", &buf);
+    }
+
+    /// T18: 混合格式渲染快照
+    #[test]
+    fn test_t18_mixed_format_snapshot() {
+        let mut app = App::new_for_test();
+        app.push_line("Use **bold** and `code` here".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("bold"), "should contain 'bold', got:\n{text}");
+        assert!(text.contains("code"), "should contain 'code', got:\n{text}");
+        assert_tui_snapshot!("t18_mixed_format", &buf);
+    }
+
+    /// T19: 表格渲染快照
+    #[test]
+    fn test_t19_table_rendering_snapshot() {
+        let mut app = App::new_for_test();
+        app.push_line("| Name | Age |".to_string());
+        app.push_line("|------|-----|".to_string());
+        app.push_line("| Alice | 30 |".to_string());
+        app.push_line("After table.".to_string()); // 触发 flush
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("Name"), "should contain 'Name', got:\n{text}");
+        assert!(text.contains("Alice"), "should contain 'Alice', got:\n{text}");
+        assert!(text.contains("After table"), "should contain 'After table', got:\n{text}");
+        assert_tui_snapshot!("t19_table_rendering", &buf);
+    }
+
+    /// T20: 混合内容完整页快照
+    #[test]
+    fn test_t20_full_page_snapshot() {
+        let mut app = App::new_for_test();
+        app.push_line("# Project Status".to_string());
+        app.push_line("Current progress:".to_string());
+        app.push_line("| Task | Status |".to_string());
+        app.push_line("|------|--------|".to_string());
+        app.push_line("| Auth | Done |".to_string());
+        app.push_line("| API  | WIP   |".to_string());
+        app.push_line("Next: **deploy**".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("Project Status"), "should contain title, got:\n{text}");
+        assert!(text.contains("Auth"), "should contain 'Auth', got:\n{text}");
+        assert!(text.contains("deploy"), "should contain 'deploy', got:\n{text}");
+        assert_tui_snapshot!("t20_full_page", &buf);
+    }
+
+    // ============================================================================
+    // 🎨 层 3: 集成测试 T30-T37（表格缓冲 + push_line 行为）
+    // ============================================================================
+
+    /// T30: 非表格文本即时渲染
+    #[test]
+    fn test_t30_non_table_line_rendered_immediately() {
+        let mut app = App::new_for_test();
+        let initial = app.content_lines.len();
+        app.push_line("**hello**".to_string());
+        assert_eq!(app.content_lines.len(), initial + 1);
+        // 第一个 span 应包含 "hello"（粗体标记被渲染）
+        let line = &app.content_lines[initial];
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.contains("hello"), "should contain 'hello', got: {text}");
+        // 确认 table_buffer 为空
+        assert!(app.table_buffer.is_empty());
+    }
+
+    /// T31: 表格完整缓冲 + 正文触发 flush
+    #[test]
+    fn test_t31_table_buffered_then_flushed() {
+        let mut app = App::new_for_test();
+        let initial = app.content_lines.len();
+        app.push_line("| Name | Age |".to_string());
+        // 此时表格行进入 buffer，content_lines 不增加
+        assert!(!app.table_buffer.is_empty(), "table should be buffered");
+        assert_eq!(app.content_lines.len(), initial, "no content added yet");
+
+        app.push_line("|------|-----|".to_string());
+        app.push_line("| Bob | 25 |".to_string());
+        // 仍缓冲
+        assert_eq!(app.content_lines.len(), initial, "still buffering");
+
+        // 正文行触发 flush
+        app.push_line("Done.".to_string());
+        // flush 后：表格多行（表头+分隔+数据行渲染为 Unicode） + "Done." 行
+        assert!(app.content_lines.len() > initial + 1, "should have table + done line");
+        assert!(app.table_buffer.is_empty(), "buffer should be cleared");
+
+        // 验证包含表格内容
+        let all_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect::<String>();
+        assert!(all_text.contains("Name"), "should contain 'Name'");
+        assert!(all_text.contains("Bob"), "should contain 'Bob'");
+    }
+
+    /// T32: 表格在末尾 flush_table_buffer 手动刷出
+    #[test]
+    fn test_t32_table_flush_at_end() {
+        let mut app = App::new_for_test();
+        let initial = app.content_lines.len();
+        app.push_line("| X | Y |".to_string());
+        app.push_line("|---|---|".to_string());
+        app.push_line("| 1 | 2 |".to_string());
+        assert!(app.table_buffer.len() == 3, "all 3 rows buffered");
+        assert_eq!(app.content_lines.len(), initial, "no content yet");
+
+        app.flush_table_buffer();
+        assert!(app.table_buffer.is_empty(), "buffer cleared");
+        assert!(app.content_lines.len() > initial, "table rendered to content_lines");
+    }
+
+    /// T33: 表格分隔行被过滤
+    #[test]
+    fn test_t33_separator_filtered() {
+        let mut app = App::new_for_test();
+        app.push_line("| a | b |".to_string());
+        app.push_line("|---|---|".to_string());
+        app.push_line("| 1 | 2 |".to_string());
+        app.flush_table_buffer();
+
+        let all_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect::<String>();
+        // 渲染结果不应包含 --- 分隔行原文（但应有 Unicode 边框如 ─）
+        assert!(!all_text.contains("---|"), "separator line should be filtered");
+        assert!(all_text.contains("a"), "should contain header 'a'");
+        assert!(all_text.contains("1"), "should contain data '1'");
+    }
+
+    /// T34: 混合内容边界 — 标题 + 表格 + 正文
+    #[test]
+    fn test_t34_heading_table_text_boundary() {
+        let mut app = App::new_for_test();
+        app.push_line("# Title".to_string());
+        assert_eq!(app.content_lines.len(), 1, "heading rendered immediately");
+        assert!(app.table_buffer.is_empty());
+
+        app.push_line("| a | b |".to_string());
+        app.push_line("|---|---|".to_string());
+        app.push_line("| 1 | 2 |".to_string());
+        // 标题已在 content_lines[0]，表格在 buffer
+        assert_eq!(app.table_buffer.len(), 3);
+
+        app.push_line("Done.".to_string());
+        // 现在：标题行 + 表格块(多行) + "Done."
+        assert!(app.table_buffer.is_empty());
+        let all_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(all_text.contains("Title"), "should contain heading");
+        assert!(all_text.contains("Done"), "should contain trailing text");
+    }
+
+    /// T35: 连续两个表格互不干扰
+    #[test]
+    fn test_t35_two_consecutive_tables() {
+        let mut app = App::new_for_test();
+        // 表格 1
+        app.push_line("| A | B |".to_string());
+        app.push_line("|---|---|".to_string());
+        app.push_line("| 1 | 2 |".to_string());
+        // 分隔文本触发表格1 flush
+        app.push_line("middle text".to_string());
+        let after_first = app.content_lines.len();
+
+        // 表格 2
+        app.push_line("| X | Y | Z |".to_string());
+        app.push_line("|---|---|---|".to_string());
+        app.push_line("| a | b | c |".to_string());
+        app.push_line("end.".to_string());
+        let after_second = app.content_lines.len();
+
+        assert!(after_second > after_first, "second table added content");
+
+        let all_text: String = app.content_lines.iter()
+            .flat_map(|l| l.spans.iter())
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(all_text.contains("A"), "table1 header");
+        assert!(all_text.contains("X"), "table2 header");
+        assert!(all_text.contains("middle text"), "separator text");
+    }
+
+    /// T36: 空行触发表格 flush
+    #[test]
+    fn test_t36_empty_line_flushes_table() {
+        let mut app = App::new_for_test();
+        app.push_line("| a |".to_string());
+        assert!(!app.table_buffer.is_empty());
+        app.push_line(String::new()); // 空行不是表格行，触发 flush
+        assert!(app.table_buffer.is_empty(), "empty line should flush table");
+        // 之后又是表格行
+        app.push_line("| b |".to_string());
+        assert!(!app.table_buffer.is_empty(), "new table buffered");
+    }
+
+    /// T37: cleanup_after_stream flush 表格缓冲
+    #[test]
+    fn test_t37_cleanup_flushes_table_buffer() {
+        let mut app = App::new_for_test();
+        let tid = app.thread.store.primary_id();
+
+        app.push_line("| H1 | H2 |".to_string());
+        app.push_line("|----|-----|".to_string());
+        app.push_line("| v1 | v2 |".to_string());
+        assert!(app.table_buffer.len() == 3);
+
+        let initial = app.content_lines.len();
+        app.cleanup_after_stream(tid);
+        assert!(app.table_buffer.is_empty(), "cleanup should flush table buffer");
+        assert!(app.content_lines.len() > initial, "table should be rendered");
     }
 }

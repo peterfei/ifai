@@ -124,6 +124,7 @@ md5 = "0.7"
 rustyline = "14"
 base64 = "0.22"
 ratatui = "0.29"
+pulldown-cmark = "0.10"
 crossterm = { version = "0.28", features = ["event-stream"] }
 arboard = { version = "3.2", default-features = false, features = ["wayland-data-control"] }
 # TUI diff rendering

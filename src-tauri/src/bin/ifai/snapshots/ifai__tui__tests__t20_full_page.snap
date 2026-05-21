@@ -1,0 +1,28 @@
+---
+source: src/bin/ifai/tui.rs
+expression: text
+---
+Project Status                                                                  
+Current progress:                                                               
+┌──────┬────────┐                                                               
+│ Task │ Status │                                                               
+├──────┼────────┤                                                               
+│ Auth │ Done   │                                                               
+│ API  │ WIP    │                                                               
+└──────┴────────┘                                                               
+Next: deploy                                                                    
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+○ [Ready]                                                                       
+────────────────────────────────────────────────────────────────────────────────
+⟩

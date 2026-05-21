@@ -35,6 +35,7 @@ mod input_help_bug_test; // 🧪 键盘输入触发帮助 E2E 测试
 mod keybindings; // 🔥 快捷键定义和帮助系统
 mod loop_detector; // 🎨 元编程循环检测引擎
 mod markdown_meta; // 🎨 Markdown 元编程驱动层
+mod markdown_render; // 🎨 Markdown 样式渲染（pulldown-cmark Event → ratatui Span）
 mod markdown_stream; // 🎨 Markdown 代码块流式渲染器
 mod permission; // 🔥 元编程权限引擎
 mod permission_store; // 🔥 权限规则存储（用户白名单）
