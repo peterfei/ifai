@@ -1090,7 +1090,7 @@ impl App {
         let headers: Vec<&str> = rows[0].iter().map(|s| s.as_str()).collect();
         let data = &rows[1..];
         let rendered = crate::render::render_table(&headers, data);
-        let style = Style::default().fg(Color::Indexed(236));
+        let style = Style::default().fg(Color::Indexed(252));
         for line in rendered.lines() {
             if !line.is_empty() {
                 self.content_lines
