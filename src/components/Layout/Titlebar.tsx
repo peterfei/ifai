@@ -36,6 +36,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   const menuRef = useRef<HTMLDivElement>(null);
   const { openFile, activeFileId, openedFiles, setFileDirty, fetchGitStatuses, addWorkspaceRoot, saveWorkspaceConfig, loadWorkspaceConfig } = useFileStore();
   const { toggleSettings, isSidebarOpen, toggleSidebar } = useLayoutStore();
+  const guiMode = useLayoutStore((s) => s.guiMode);
   const theme = useSettingsStore(state => state.theme);
   const setTheme = useSettingsStore(state => state.setTheme);
   // v0.3.0: Code Smell Store
@@ -305,14 +306,14 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
       <div className="h-full min-w-6" aria-hidden="true" />
 
       <div className="justify-self-center flex items-center gap-2" data-no-drag="true">
-        <ModeSwitch />
+        {guiMode === 'split' && <ModeSwitch />}
         <GuiLayoutSwitcher />
       </div>
 
       <div className="h-full min-w-6" aria-hidden="true" />
 
       <div className="flex items-center justify-self-end space-x-2" data-no-drag="true">
-        <LayoutSwitcher />
+        {guiMode === 'split' && <LayoutSwitcher />}
         <button
           className={clsx(
             'rounded-[var(--radius-sm)] p-1 transition-colors',

@@ -960,7 +960,8 @@ function App() {
       <StorageQuotaBanner />
 
       {/* Main content area: GUI LayoutEngine or legacy layout */}
-      {guiMode !== 'split' ? (
+      {/* 新布局引擎：guiMode 非 split 时显示，覆盖在旧布局上方 */}
+      {guiMode !== 'split' && (
         <LayoutEngine
           mode={guiMode}
           paneRenderer={(id) => {
@@ -968,8 +969,9 @@ function App() {
             return Component ? <Component /> : <div>Unknown: {id}</div>;
           }}
         />
-      ) : (
-      <div className="flex flex-1 overflow-hidden">
+      )}
+      {/* 旧布局始终渲染（保证 hooks 不被跳过），guiMode 非 split 时隐藏 */}
+      <div className="flex flex-1 overflow-hidden" style={guiMode !== 'split' ? { display: 'none' } : undefined}>
         {/* v0.2.6 新增：侧栏宽度拖拽 */}
         {isSidebarOpen && sidebarPosition === 'left' && (
           <Sidebar />
@@ -1091,8 +1093,7 @@ function App() {
           </>
         )}
       </div>
-      )}
-      
+
       <Fragment>
         <Suspense fallback={null}><CommandPalette onSelect={handleSelectFileFromPalette} /></Suspense>
         <Suspense fallback={null}><CommandBar /></Suspense>
