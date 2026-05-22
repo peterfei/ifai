@@ -17,6 +17,7 @@ import { detectLanguageFromPath } from '../../utils/languageDetection';
 import { LayoutSwitcher } from './LayoutSwitcher';
 import { HelpMenu } from '../Help/HelpMenu';
 import { ModeSwitch } from './ModeSwitch';
+import { GuiLayoutSwitcher } from '../../gui/layout';
 import { formatKeybinding, isMac } from '../../utils/keyboard';
 
 // v0.3.0: 工作区菜单分隔线组件
@@ -303,8 +304,9 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
 
       <div className="h-full min-w-6" aria-hidden="true" />
 
-      <div className="justify-self-center" data-no-drag="true">
+      <div className="justify-self-center flex items-center gap-2" data-no-drag="true">
         <ModeSwitch />
+        <GuiLayoutSwitcher />
       </div>
 
       <div className="h-full min-w-6" aria-hidden="true" />

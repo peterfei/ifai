@@ -32,6 +32,8 @@ import { Sidebar } from './components/Layout/Sidebar';
 import { Statusbar } from './components/Layout/Statusbar';
 import { SplitPaneContainer } from './components/Layout/SplitPaneContainer';
 import { TabBar } from './components/Editor/TabBar';
+import { LayoutEngine, registerLayouts } from './gui/layout';
+import { componentRegistry } from './gui/registry';
 import { AIChat } from './components/AIChat/AIChat';
 import { ApprovalToolbar } from './components/AIChat/ApprovalToolbar';
 
@@ -159,6 +161,8 @@ function App() {
     layoutMode,
     // 🔥 v0.5.0: 双模引擎状态
     editorMode,
+    // GUI 布局模式
+    guiMode,
   } = useLayoutStore();
 
   // v0.2.9: Code Review Store
@@ -193,6 +197,9 @@ function App() {
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
+
+    // GUI 布局注册（布局描述符 + 面板组件）
+    registerLayouts();
 
     const init = async () => {
       // Defer initialization to ensure DOM and Vite preamble are settled
@@ -952,7 +959,16 @@ function App() {
       <Titlebar onToggleChat={toggleChat} isChatOpen={isChatOpen} onToggleTerminal={toggleTerminal} isTerminalOpen={isTerminalOpen} />
       <StorageQuotaBanner />
 
-      {/* Main content area: Sidebar + Editor/Terminal + AIChat */}
+      {/* Main content area: GUI LayoutEngine or legacy layout */}
+      {guiMode !== 'split' ? (
+        <LayoutEngine
+          mode={guiMode}
+          paneRenderer={(id) => {
+            const Component = componentRegistry.get(id);
+            return Component ? <Component /> : <div>Unknown: {id}</div>;
+          }}
+        />
+      ) : (
       <div className="flex flex-1 overflow-hidden">
         {/* v0.2.6 新增：侧栏宽度拖拽 */}
         {isSidebarOpen && sidebarPosition === 'left' && (
@@ -1075,6 +1091,7 @@ function App() {
           </>
         )}
       </div>
+      )}
       
       <Fragment>
         <Suspense fallback={null}><CommandPalette onSelect={handleSelectFileFromPalette} /></Suspense>
