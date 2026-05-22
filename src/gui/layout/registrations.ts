@@ -17,30 +17,30 @@ export function registerLayouts() {
 
   // conversation 布局：三栏（左中右）
   layoutRegistry.register('conversation', {
-    id: 'conversation',
+    mode: 'conversation',
     panes: [
       { id: 'left', width: 320, flex: 0 },
       { id: 'center', width: 'auto', flex: 1 },
       { id: 'right', width: 400, flex: 0 },
     ],
-  } as LayoutDescriptor);
+  } as unknown as LayoutDescriptor);
 
   // editor 布局：单栏全屏
   layoutRegistry.register('editor', {
-    id: 'editor',
+    mode: 'editor',
     panes: [
       { id: 'main', width: '100%', flex: 1 },
     ],
-  } as LayoutDescriptor);
+  } as unknown as LayoutDescriptor);
 
   // split 布局：两栏（左编辑器，右AI聊天）
   layoutRegistry.register('split', {
-    id: 'split',
+    mode: 'split',
     panes: [
       { id: 'editor', width: '50%', flex: 1 },
       { id: 'aichat', width: '50%', flex: 1 },
     ],
-  } as LayoutDescriptor);
+  } as unknown as LayoutDescriptor);
 
   console.log('✅ Layout registrations complete');
   console.log('📋 Registered layouts:', layoutRegistry.entries().map(([id]) => id));

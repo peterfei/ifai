@@ -2,7 +2,7 @@ import React from 'react';
 
 interface PaneShellProps {
   children?: React.ReactNode;
-  width?: number;
+  width?: number | string;
   flex?: number;
   'data-testid'?: string;
 }
@@ -10,12 +10,24 @@ interface PaneShellProps {
 export function PaneShell({ children, width, flex, 'data-testid': testId }: PaneShellProps) {
   const style: React.CSSProperties = {
     overflow: 'hidden',
-    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+    position: 'relative',
     transition: 'flex 300ms cubic-bezier(0.4, 0, 0.2, 1)',
   };
   if (width !== undefined) {
-    style.width = `${width}px`;
-    style.flexShrink = 0;
+    if (typeof width === 'number') {
+      style.width = `${width}px`;
+      style.flexShrink = 0;
+    } else {
+      style.width = width;
+      if (width === 'auto') {
+        style.flex = '1';
+      } else {
+        style.flexShrink = 0;
+      }
+    }
   }
   if (flex !== undefined) style.flex = String(flex);
 

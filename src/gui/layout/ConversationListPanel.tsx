@@ -4,6 +4,7 @@ import { useThreadStore } from '../../stores/threadStore';
 import { switchThread } from '../../stores/useChatStore';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
+import { STATUS_PALETTE } from '../conversation/PALETTE';
 
 /* ===== DSL 数据驱动 ===== */
 
@@ -16,18 +17,10 @@ const STATUS_MAP: Record<string, ThreadStatus> = {
   idle: 'pending',
 };
 
-/* 纯色背景 + 白色文字 */
-const STATUS_STYLE: Record<ThreadStatus, { bg: string; text: string; label: string }> = {
-  active:    { bg: 'bg-[#10B981]', text: 'text-white', label: '工作中' },
-  completed: { bg: 'bg-[#6B7280]', text: 'text-white', label: '已完成' },
-  pending:   { bg: 'bg-[#F59E0B]', text: 'text-white', label: '待处理' },
-};
-
-/* Mock Agent 数量 — 后续对接真实数据 */
-const MOCK_AGENT_COUNT: Record<string, number> = {
-  active: 3,
-  completed: 2,
-  pending: 1,
+const STATUS_LABEL: Record<ThreadStatus, string> = {
+  active: '工作中',
+  completed: '已完成',
+  pending: '待处理',
 };
 
 /* ===== 组件 ===== */
@@ -58,7 +51,8 @@ export function ConversationListPanel() {
   return (
     <div
       data-testid="conversation-list-panel"
-      className="flex h-full flex-col bg-[#1E1E1E] border-r border-[#2D2D2D]"
+      className="flex flex-col bg-[#1E1E1E] border-r border-[#2D2D2D]"
+      style={{ flex: '1 1 0%', minHeight: 0 }}
     >
       {/* 新建对话 */}
       <div className="px-4 pt-4 pb-2">
@@ -104,8 +98,8 @@ export function ConversationListPanel() {
         <span className="text-xs text-[#6B7280]">{sortedThreads.length}</span>
       </div>
 
-      {/* 对话卡片列表 */}
-      <div className="flex-1 overflow-y-auto px-3 pb-2">
+      {/* 对话卡片列表 — min-h-0 确保 flex 收缩 */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-2">
         {sortedThreads.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 text-[#6B7280] text-sm">
             {searchQuery ? '无匹配结果' : '暂无对话'}
@@ -113,9 +107,9 @@ export function ConversationListPanel() {
         )}
         {sortedThreads.map((thread) => {
           const status: ThreadStatus = STATUS_MAP[thread.status] || 'pending';
-          const statusStyle = STATUS_STYLE[status];
+          const color = STATUS_PALETTE[status];
           const isActive = activeThreadId === thread.id;
-          const agentCount = MOCK_AGENT_COUNT[thread.status] ?? 0;
+          const agentCount = thread.agentTasks?.length ?? 0;
 
           return (
             <button
@@ -145,14 +139,17 @@ export function ConversationListPanel() {
               {/* 底部：状态 + Agent数 + 时间 */}
               <div className="mt-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {/* 纯色状态标签 */}
-                  <span className={clsx(
-                    'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
-                    statusStyle.bg,
-                    statusStyle.text,
-                  )}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                    {statusStyle.label}
+                  {/* 纯色状态标签 — inline style */}
+                  <span
+                    data-status={status}
+                    style={{
+                      backgroundColor: color.bg,
+                      color: '#fff',
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#fff' }} />
+                    {STATUS_LABEL[status]}
                   </span>
                   {/* Agent 数量 */}
                   {agentCount > 0 && (

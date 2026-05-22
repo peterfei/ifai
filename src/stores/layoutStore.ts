@@ -48,6 +48,10 @@ export interface LayoutState {
   // 对话模式左栏模式（任务进度 vs 对话列表）
   leftPanelMode: 'task' | 'list';
 
+  // 对话模式三栏宽度（可拖拽调整，持久化）
+  conversationLeftWidth: number;
+  conversationRightWidth: number;
+
   // 分屏状态
   panes: Pane[];
   activePaneId: string | null;
@@ -90,6 +94,9 @@ export interface LayoutState {
   // GUI 布局模式操作
   setGuiMode: (mode: 'conversation' | 'editor' | 'split') => void;
   setLeftPanelMode: (mode: 'task' | 'list') => void;
+
+  // 对话模式栏宽调整
+  setConversationPaneWidth: (pane: 'left' | 'right', width: number) => void;
 
   // v0.2.9 新增：审查历史操作
   toggleReviewHistory: () => void;
@@ -158,6 +165,10 @@ export const useLayoutStore = create<LayoutState>()(
 
       // 对话模式左栏模式（默认任务进度）
       leftPanelMode: 'task' as const,
+
+      // 对话模式三栏宽度（可拖拽调整）
+      conversationLeftWidth: 260,
+      conversationRightWidth: 300,
 
       // 分屏状态
       panes: [
@@ -248,6 +259,16 @@ export const useLayoutStore = create<LayoutState>()(
 
       // 对话模式左栏模式切换
       setLeftPanelMode: (mode) => set({ leftPanelMode: mode }),
+
+      // 对话模式栏宽调整（带约束）
+      setConversationPaneWidth: (pane, width) => {
+        const clamped = Math.max(150, Math.min(600, width));
+        if (pane === 'left') {
+          set({ conversationLeftWidth: clamped });
+        } else {
+          set({ conversationRightWidth: clamped });
+        }
+      },
 
       // v0.2.9 新增：审查历史操作
       toggleReviewHistory: () => {
@@ -482,7 +503,7 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'layout-storage',
-      version: 4, // 版本升级以支持 guiMode
+      version: 5, // 版本升级以支持 conversation 栏宽
       partialize: (state) => ({
         panes: state.panes,
         activePaneId: state.activePaneId,
@@ -506,6 +527,9 @@ export const useLayoutStore = create<LayoutState>()(
         editorMode: state.editorMode,
         // GUI 布局模式持久化
         guiMode: state.guiMode,
+        // 对话模式栏宽持久化
+        conversationLeftWidth: state.conversationLeftWidth,
+        conversationRightWidth: state.conversationRightWidth,
       }),
 
       onRehydrateStorage: () => (state) => {
@@ -539,13 +563,24 @@ export const useLayoutStore = create<LayoutState>()(
             guiMode: 'split' as const,
           };
         }
+        if (version === 4) {
+          // 从版本 4 迁移到版本 5，添加 conversation 栏宽
+          console.log(`[LayoutStore] Migrating from version ${version} to 5, adding conversation widths`);
+          return {
+            ...persistedState,
+            conversationLeftWidth: 260,
+            conversationRightWidth: 300,
+          };
+        }
         // 版本 0 或其他版本
-        console.log(`[LayoutStore] Migrating from version ${version} to 4`);
+        console.log(`[LayoutStore] Migrating from version ${version} to 5`);
         return {
           ...persistedState,
           isToolExplorerOpen: false,
           isWorkflowsOpen: false,
           guiMode: 'split' as const,
+          conversationLeftWidth: 260,
+          conversationRightWidth: 300,
         };
       },
     }
