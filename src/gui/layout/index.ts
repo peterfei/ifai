@@ -5,3 +5,4 @@ export { LayoutEngine } from './LayoutEngine';
 export { registerLayouts } from './registrations';
 export { ConversationPanel } from './ConversationPanel';
 export { EditorPanel } from './EditorPanel';
+export { GuiLayoutSwitcher } from './GuiLayoutSwitcher';
