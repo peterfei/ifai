@@ -45,6 +45,8 @@ import { usePivoStore } from '../../stores/pivoStore';
 import { MarkdownRenderer, SimpleMarkdownRenderer } from './MarkdownRenderer';
 import styles from './MessageItem.module.css';
 import { MessageCardRegistry, resolveCardType } from '../../gui/conversation/MessageCardRegistry';
+import { getUserBubbleStyle, getAssistantBubbleStyle, getAgentBubbleStyle, getAgentAvatarStyle } from '../../gui/conversation/bubbleStyles';
+import { getAgent } from '../../gui/conversation/AGENT_DSL';
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构
  * @param files 文件路径数组
@@ -111,12 +113,18 @@ interface MessageItemProps {
     onOpenFile: (path: string) => void;
     onOpenComposer?: (messageId: string) => void; // v0.2.8: 打开 Composer 面板
     isStreaming?: boolean;
+    /** conversation 模式紧凑样式：使用 PALETTE 驱动 inline style */
+    compact?: boolean;
 }
 // Custom comparison function for React.memo
 // Optimized to avoid unnecessary re-renders during streaming
 const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps) => {
     // Re-render if streaming status changes
     if (prevProps.isStreaming !== nextProps.isStreaming) {
+        return false;
+    }
+    // Re-render if compact mode changes
+    if (prevProps.compact !== nextProps.compact) {
         return false;
     }
     // Re-render if message content changes
@@ -191,7 +199,7 @@ const areMessageItemPropsEqual = (prevProps: MessageItemProps, nextProps: Messag
     );
 };
 
-export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming }: MessageItemProps) => {
+export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming, compact }: MessageItemProps) => {
     const { t } = useTranslation();
     const isUser = message.role === 'user';
     const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
@@ -495,9 +503,24 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Determine bubble style
     const isAgent = !!(message as any).agentId;
     const isInlineTask = !!(message as any).isInlineTask;
-    const bubbleClass = isInlineTask 
-        ? "bg-gray-800/40 border border-white/5 text-white/40 italic py-1.5 px-3 rounded-lg text-[11px]" 
+    const bubbleClass = isInlineTask
+        ? "bg-gray-800/40 border border-white/5 text-white/40 italic py-1.5 px-3 rounded-lg text-[11px]"
         : (isUser ? STYLES.userBubble : (isAgent ? STYLES.agentBubble : STYLES.assistantBubble));
+
+    // compact 模式：使用 PALETTE 驱动的 inline style
+    const compactBubbleStyle = React.useMemo(() => {
+        if (!compact) return undefined;
+        if (isInlineTask) return undefined;
+        if (isUser) return getUserBubbleStyle(true);
+        if (isAgent) return getAgentBubbleStyle((message as any).agentId || '', true);
+        return getAssistantBubbleStyle(true);
+    }, [compact, isInlineTask, isUser, isAgent, (message as any).agentId]);
+
+    // compact 模式：Agent 头像样式
+    const compactAvatarStyle = React.useMemo(() => {
+        if (!compact || !isAgent) return undefined;
+        return getAgentAvatarStyle((message as any).agentId || '');
+    }, [compact, isAgent, (message as any).agentId]);
     // 🔥 FIX v0.3.9.3: 更加稳健的内容检测逻辑，支持字符串和数组
     const hasVisibleContent = React.useMemo(() => {
         if (!message.content) return false;
@@ -859,12 +882,19 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             data-testid={`message-${message.id}`}
             data-role={message.role} // 🔥 FIX: 添加 role 属性用于 E2E 测试
         >
-            <div className={`flex items-start gap-3 w-full ${!effectiveShouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
+            <div
+                className={`flex items-start gap-3 w-full ${!effectiveShouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}
+                style={compactBubbleStyle}
+            >
                 {/* A. 头像区 - 始终显示 */}
                 <div className="shrink-0 mt-0.5">
                     {isUser ? (
                         <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shadow-lg text-white">
                             <User size={12} />
+                        </div>
+                    ) : isAgent && compact && compactAvatarStyle ? (
+                        <div style={compactAvatarStyle}>
+                            {getAgent((message as any).agentId)?.abbr ?? '?'}
                         </div>
                     ) : isAgent ? (
                         <div className="w-5 h-5 rounded-md bg-indigo-900 flex items-center justify-center border border-indigo-500/30 shadow-lg text-indigo-400">
@@ -930,9 +960,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             onAction={(action, data) => {
                                 console.log('[MessageItem] Card action:', action, data);
                                 if (action === 'approve') {
-                                    handleApprove(message.id, data?.toolCallId);
+                                    handleApproveAll();
                                 } else if (action === 'reject') {
-                                    handleReject(message.id, data?.toolCallId);
+                                    handleRejectAll();
                                 } else if (action === 'openComposer') {
                                     onOpenComposer?.(message.id);
                                 }

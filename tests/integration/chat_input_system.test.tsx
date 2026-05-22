@@ -39,21 +39,30 @@ describe('ChatInputArea High-Fidelity Integration', () => {
     vi.clearAllMocks();
   });
 
-  it('SHOULD trigger fuzzy search when user types @', async () => {
+  it('SHOULD trigger Agent selector when user types @ (empty filter)', async () => {
     render(<ChatInputArea isLoading={false} />);
-    
+
     const textarea = screen.getByPlaceholderText(/输入消息|Type a message/i);
-    
+
     // 模拟用户输入 @
     fireEvent.change(textarea, { target: { value: '@' } });
-    
-    // 预期：弹出搜索面板
+
+    // 预期：弹出 Agent 选择器（空 filter 优先展示 Agent）
+    const agentSelector = await screen.findByTestId('agent-selector');
+    expect(agentSelector).toBeDefined();
+  });
+
+  it('SHOULD trigger fuzzy search when @ filter does not match any Agent', async () => {
+    render(<ChatInputArea isLoading={false} />);
+
+    const textarea = screen.getByPlaceholderText(/输入消息|Type a message/i);
+
+    // 模拟用户输入 @ma（不匹配任何 Agent，回退到文件搜索）
+    fireEvent.change(textarea, { target: { value: '@ma' } });
+
+    // 预期：弹出文件搜索面板
     const searchPanel = await screen.findByTestId('file-mention-panel');
     expect(searchPanel).toBeDefined();
-    
-    // 预期：显示匹配的文件
-    expect(screen.getByText('main.tsx')).toBeDefined();
-    expect(screen.getByText('App.tsx')).toBeDefined();
   });
 
   it('SHOULD insert file reference when a result is selected', async () => {

@@ -9,6 +9,8 @@ import { ImageInput } from '../Multimodal/ImageInput';
 import { FuzzyFileSearch } from './FuzzyFileSearch';
 import { SymbolSearch } from './SymbolSearch';
 import { SlashCommandList } from './SlashCommandList';
+import { AgentSelector } from '../../gui/conversation/AgentSelector';
+import { getAllAgents } from '../../gui/conversation/AGENT_DSL';
 import { ContextHUD } from './ContextHUD';
 import { ToolClassificationIndicator } from '../ToolClassification';
 import { ModelCapsulePanel } from './ModelCapsulePanel';
@@ -32,6 +34,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
   const [input, setInput] = useState('');
   const [showMention, setShowMention] = useState(false);
   const [mentionFilter, setMentionFilter] = useState('');
+  const [showAgentSelector, setShowAgentSelector] = useState(false);
+  const [agentFilter, setAgentFilter] = useState('');
   const [showSymbol, setShowSymbol] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState('');
   const [showCommands, setShowCommands] = useState(false);
@@ -168,10 +172,26 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
     const sMatch = textBefore.match(/#([\w-]*)$/);
     const slashMatch = textBefore.match(/^\/(\w*)$/);
 
-    if (mMatch) { setShowMention(true); setMentionFilter(mMatch[1]); setShowSymbol(false); setShowCommands(false); }
-    else if (sMatch) { setShowSymbol(true); setSymbolFilter(sMatch[1]); setShowMention(false); setShowCommands(false); }
-    else if (slashMatch) { setShowCommands(true); setShowMention(false); setShowSymbol(false); }
-    else { setShowMention(false); setShowSymbol(false); setShowCommands(false); }
+    if (mMatch) {
+      // @ 触发：优先展示 Agent 选择器，如果没有 Agent 匹配则展示文件搜索
+      const agentText = mMatch[1].toLowerCase();
+      const matchedAgents = getAllAgents().filter(
+        (a) => a.name.toLowerCase().includes(agentText) ||
+               a.abbr.toLowerCase().includes(agentText) ||
+               a.command.toLowerCase().includes(agentText) ||
+               a.id.toLowerCase().includes(agentText),
+      );
+      if (matchedAgents.length > 0 || agentText === '') {
+        setShowAgentSelector(true); setAgentFilter(mMatch[1]);
+        setShowMention(false); setShowSymbol(false); setShowCommands(false);
+      } else {
+        setShowMention(true); setMentionFilter(mMatch[1]);
+        setShowAgentSelector(false); setShowSymbol(false); setShowCommands(false);
+      }
+    }
+    else if (sMatch) { setShowSymbol(true); setSymbolFilter(sMatch[1]); setShowMention(false); setShowAgentSelector(false); setShowCommands(false); }
+    else if (slashMatch) { setShowCommands(true); setShowMention(false); setShowAgentSelector(false); setShowSymbol(false); }
+    else { setShowMention(false); setShowAgentSelector(false); setShowSymbol(false); setShowCommands(false); }
   };
 
   const handleSelectFile = (filePath: string) => {
@@ -180,6 +200,15 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
     const textAfter = input.slice(cursor);
     setInput(`${textBefore}[#${filePath.split('/').pop()}](${filePath}) ${textAfter}`);
     setShowMention(false);
+    textareaRef.current?.focus();
+  };
+
+  const handleSelectAgent = (agentId: string, command: string) => {
+    const cursor = textareaRef.current?.selectionStart || 0;
+    const textBefore = input.slice(0, cursor).replace(/@[\w.-]*$/, '');
+    const textAfter = input.slice(cursor);
+    setInput(`${textBefore}${command} ${textAfter}`);
+    setShowAgentSelector(false);
     textareaRef.current?.focus();
   };
 
@@ -291,7 +320,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const isPanelOpen = showMention || showSymbol || showCommands;
+    const isPanelOpen = showMention || showSymbol || showCommands || showAgentSelector;
 
     // 🏆 v0.4.1: 事件转发机制 - 将键盘事件路由到当前活跃的面板
     if (isPanelOpen) {
@@ -328,6 +357,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
   return (
     <div className="relative group px-1" data-testid="chat-input-area" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onPaste={handlePaste}>
       {showMention && <FuzzyFileSearch ref={fileSearchRef} filter={mentionFilter} onSelect={handleSelectFile} onClose={() => setShowMention(false)} />}
+      {showAgentSelector && <AgentSelector filter={agentFilter} onSelect={handleSelectAgent} onClose={() => setShowAgentSelector(false)} />}
       {showSymbol && <SymbolSearch ref={symbolSearchRef} filter={symbolFilter} onSelect={handleSelectSymbol} onClose={() => setShowSymbol(false)} />}
       {showCommands && <SlashCommandList ref={commandListRef} filter={input} onSelect={handleSelectCommand} onClose={() => setShowCommands(false)} />}
 

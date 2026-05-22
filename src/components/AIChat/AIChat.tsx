@@ -2559,6 +2559,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
             onOpenComposer={openComposer}
             isLoading={isLoading}
             parentRef={scrollContainerRef}
+            compact={compact}
           />
 
           {/* 🔥 工作流内嵌监控器 - 始终渲染，让容器自己决定是否显示 */}
@@ -2633,7 +2634,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
 
       {/* 🔥 Phase D.2: compact 模式下输入框使用对话模式样式 */}
       <div className={`p-4 bg-[#1e1e1e]/30 relative z-[100] ${compact ? 'p-2' : ''}`}>
-        <ChatInputArea isLoading={isLoading} compact={compact} />
+        <ChatInputArea isLoading={isLoading} />
       </div>
 
       {/* v0.2.8: Composer 2.0 多文件 Diff 预览 Portal */}

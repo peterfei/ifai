@@ -16,6 +16,8 @@ import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
 import { calculateDistanceToBottom, ScrollConstants } from '../../hooks/useChatScrollController';
 import { StreamingMessageSkeleton } from './skeleton';
+import { shouldShowTimeDivider, getTimeGroupKey, getTimeGroupLabel } from '../../gui/conversation/timeGrouping';
+import { TimeDivider } from '../../gui/conversation/TimeDivider';
 
 /**
  * 从 messages 中过滤出可见消息并计算 hasPendingToolCalls
@@ -52,6 +54,8 @@ interface VirtualMessageListProps {
   onOpenComposer?: (messageId: string) => void;
   isLoading: boolean;
   parentRef?: React.RefObject<HTMLDivElement>;
+  /** conversation 模式紧凑样式 */
+  compact?: boolean;
 }
 
 /**
@@ -67,6 +71,7 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
   onOpenComposer,
   isLoading,
   parentRef,
+  compact,
 }, ref) => {
   const localRef = useRef<HTMLDivElement>(null);
   const scrollElementRef = parentRef || localRef;
@@ -143,23 +148,36 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
   // 现在虚拟滚动始终启用（当消息数 >= 15 时），无论是否在流式输出
   // 这确保了长对话在流式期间也能保持良好的性能
   if (visibleMessages.length < 15) {
-    // 短对话直接渲染
+    // 短对话直接渲染（含时间分组标题）
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
-        {visibleMessages.map((message, index) => (
-          <React.Fragment key={message.id}>
-            <MessageItem
-              message={message as any}
-              onApprove={onApprove}
-              onReject={onReject}
-              onOpenFile={onOpenFile}
-              onOpenComposer={onOpenComposer}
-              // 🔥 v0.5.0: 只在消息本身的 isStreaming 为 true 时才启用，不使用全局 isLoading
-              // 这样历史消息加载时不会触发打字机效果
-              isStreaming={message.isStreaming || false}
-            />
-          </React.Fragment>
-        ))}
+        {visibleMessages.map((message, index) => {
+          // 第一条消息始终显示时间分组标题
+          const isFirst = index === 0;
+          // 与前一条消息跨日时显示时间分组标题
+          const showDivider = isFirst || shouldShowTimeDivider(
+            visibleMessages[index - 1] as any,
+            message as any,
+          );
+          const dividerLabel = showDivider
+            ? getTimeGroupLabel(getTimeGroupKey((message as any).timestamp))
+            : null;
+
+          return (
+            <React.Fragment key={message.id}>
+              {showDivider && dividerLabel && <TimeDivider label={dividerLabel} />}
+              <MessageItem
+                message={message as any}
+                onApprove={onApprove}
+                onReject={onReject}
+                onOpenFile={onOpenFile}
+                onOpenComposer={onOpenComposer}
+                isStreaming={message.isStreaming || false}
+                compact={compact}
+              />
+            </React.Fragment>
+          );
+        })}
         {/* 🔥 流式加载骨架屏：只有在加载中但没有实际内容时才显示 */}
         {isLoading && visibleMessages.length > 0 && !hasStreamingContent && <StreamingMessageSkeleton />}
       </div>
@@ -236,6 +254,7 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
                 // 🔥 FIX v0.3.5: 使用消息自身的 isStreaming，与短列表路径保持一致
                 // 之前硬编码 false，导致虚拟滚动模式下工具审批状态不触发渲染
                 isStreaming={message.isStreaming || false}
+                compact={compact}
               />
             </div>
           );
