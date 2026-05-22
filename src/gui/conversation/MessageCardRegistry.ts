@@ -116,12 +116,16 @@ for (const { type, component } of DEFAULT_TYPES) {
 
 import { ProgressCard } from './cards/ProgressCard';
 import { ApprovalCard } from './cards/ApprovalCard';
+import { InteractionCard } from './cards/InteractionCard';
 
 // ProgressCard 替换占位符
 MessageCardRegistry.register('progress', ProgressCard);
 
 // ApprovalCard 替换占位符
 MessageCardRegistry.register('approval', ApprovalCard);
+
+// InteractionCard 替换占位符
+MessageCardRegistry.register('interaction', InteractionCard);
 
 /* ===== resolveCardType 函数 ===== */
 
