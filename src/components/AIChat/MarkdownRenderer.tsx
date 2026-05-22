@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -135,6 +136,38 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         rel="noopener noreferrer"
       />
     ),
+    table: ({ node, children, ...props }: any) => (
+      <div className="my-3 overflow-x-auto" style={{ textRendering: 'auto' }}>
+        <table {...props} className="border-collapse border border-gray-600 rounded theme-text-muted" style={{ tableLayout: 'auto', width: 'auto', minWidth: '100%' }}>
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ node, children, ...props }: any) => (
+      <thead {...props} className="bg-gray-700/50 theme-text">
+        {children}
+      </thead>
+    ),
+    tbody: ({ node, children, ...props }: any) => (
+      <tbody {...props} className="divide-y divide-gray-700">
+        {children}
+      </tbody>
+    ),
+    tr: ({ node, children, ...props }: any) => (
+      <tr {...props} className="hover:bg-gray-700/20 transition-colors">
+        {children}
+      </tr>
+    ),
+    th: ({ node, children, ...props }: any) => (
+      <th {...props} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider border-b border-gray-600 theme-text" style={{ textRendering: 'auto', whiteSpace: 'nowrap', minWidth: '100px' }}>
+        {children}
+      </th>
+    ),
+    td: ({ node, children, ...props }: any) => (
+      <td {...props} className="px-4 py-2 text-sm border-b border-gray-700/50 theme-text-muted" style={{ textRendering: 'auto', minWidth: '120px', whiteSpace: 'nowrap' }}>
+        {children}
+      </td>
+    ),
     code: ({ node, className, children, ...rest }: any) => {
       const match = /language-(\w+)/.exec(className || '');
       const { inline } = rest as any;
@@ -186,6 +219,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       <ReactMarkdown
         children={getDisplayContent()}
         components={markdownComponents}
+        remarkPlugins={[remarkGfm]}
       />
 
       {/* 折叠按钮 - 仅在非流式状态且内容超过阈值时显示 */}
@@ -283,6 +317,38 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
         rel="noopener noreferrer"
       />
     ),
+    table: ({ node, children, ...props }: any) => (
+      <div className="my-3 overflow-x-auto" style={{ textRendering: 'auto' }}>
+        <table {...props} className="border-collapse border border-gray-600 rounded theme-text-muted" style={{ tableLayout: 'auto', width: 'auto', minWidth: '100%' }}>
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ node, children, ...props }: any) => (
+      <thead {...props} className="bg-gray-700/50 theme-text">
+        {children}
+      </thead>
+    ),
+    tbody: ({ node, children, ...props }: any) => (
+      <tbody {...props} className="divide-y divide-gray-700">
+        {children}
+      </tbody>
+    ),
+    tr: ({ node, children, ...props }: any) => (
+      <tr {...props} className="hover:bg-gray-700/20 transition-colors">
+        {children}
+      </tr>
+    ),
+    th: ({ node, children, ...props }: any) => (
+      <th {...props} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider border-b border-gray-600 theme-text" style={{ textRendering: 'auto', whiteSpace: 'nowrap', minWidth: '100px' }}>
+        {children}
+      </th>
+    ),
+    td: ({ node, children, ...props }: any) => (
+      <td {...props} className="px-4 py-2 text-sm border-b border-gray-700/50 theme-text-muted" style={{ textRendering: 'auto', minWidth: '120px', whiteSpace: 'nowrap' }}>
+        {children}
+      </td>
+    ),
   };
 
   return (
@@ -290,6 +356,7 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
       <ReactMarkdown
         children={content}
         components={markdownComponents}
+        remarkPlugins={[remarkGfm]}
       />
     </div>
   );

@@ -51,6 +51,11 @@
 /* Markdown 内容样式 */
 .markdownContent :global(p) {
   margin-bottom: 0.5rem;
+  word-break: normal;
+  overflow-wrap: normal;
+  text-rendering: auto;
+  white-space: normal;
+  line-height: 1.6;
 }
 
 .markdownContent :global(p:last-child) {
@@ -278,4 +283,14 @@
   width: 100%;
   height: auto;
   display: block;
+}
+
+/* 列表项换行修复 */
+.markdownContent :global(li) {
+  margin-left: 0.5rem;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  white-space: normal !important;
+  text-rendering: auto !important;
+  line-height: 1.6 !important;
 }
