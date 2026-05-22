@@ -47,6 +47,7 @@ import { QueueIndicator } from './QueueIndicator';
 import { VirtualMessageList, VirtualMessageListHandle } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
+import { EmptyConversationState } from './EmptyConversationState';
 import { useChatScrollController } from '../../hooks/useChatScrollController';
 import { featureFlags } from '../../config/features';
 // v0.3.1: 时间线视图
@@ -2549,6 +2550,8 @@ ${t('aiChat.errorFix.fixAndModify')}`;
             overflowAnchor: 'auto',
           }}
         >
+          {/* compact 模式空对话占位 */}
+          {compact && rawMessages.length === 0 && !isLoading && <EmptyConversationState />}
           {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
           <VirtualMessageList
             ref={virtualMessageListRef}
