@@ -44,6 +44,7 @@ import { PivoTreeList } from './PivoTreeList';
 import { usePivoStore } from '../../stores/pivoStore';
 import { MarkdownRenderer, SimpleMarkdownRenderer } from './MarkdownRenderer';
 import styles from './MessageItem.module.css';
+import { MessageCardRegistry, resolveCardType } from '../../gui/conversation/MessageCardRegistry';
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构
  * @param files 文件路径数组
@@ -919,6 +920,29 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                     {/* B4. 消息正文与工具 */}
                     <div className="space-y-3">
+                        {/* 🔥 Phase D: MessageCard 集成 - 检查 cardType */}
+                        {(() => {
+                            const cardType = resolveCardType(message as any);
+                            const CardComponent = MessageCardRegistry.get(cardType);
+
+                            // 如果有注册的卡片组件，渲染该组件
+                            if (CardComponent) {
+                                return (
+                                    <CardComponent
+                                        message={message}
+                                        onAction={(action, data) => {
+                                            // 处理卡片操作（如审批确认、拒绝等）
+                                            console.log('[MessageItem] Card action:', action, data);
+                                        }}
+                                        compact={!isUser}
+                                    />
+                                );
+                            }
+
+                            // 否则返回 null，继续渲染原有内容
+                            return null;
+                        })()}
+
                         {/* 如果内容为空且正在流式传输，显示骨架屏 */}
                         {effectivelyStreaming && !contentWithoutThinking && !hasToolCalls && renderSkeleton()}
 

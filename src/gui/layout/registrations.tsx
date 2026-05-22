@@ -4,6 +4,8 @@ import { ConversationListPanel } from './ConversationListPanel';
 import { ConversationPanel } from './ConversationPanel';
 import { ConversationDetailPanel } from './ConversationDetailPanel';
 import { EditorPanel } from './EditorPanel';
+import { TaskProgressPanel } from './TaskProgressPanel';
+import { MOCK_TASK_DATA } from '../conversation/WORKFLOW_DSL';
 
 /**
  * DSL 声明式布局注册
@@ -16,7 +18,7 @@ export function registerLayouts() {
   layoutRegistry.register('conversation', {
     mode: 'conversation',
     panes: [
-      { id: 'conversation-list', width: 260 },
+      { id: 'conversation-list', width: 260 },  // 对话列表（左栏）
       { id: 'conversation', flex: 1 },
       { id: 'conversation-detail', width: 300 },
     ],
@@ -42,4 +44,9 @@ export function registerLayouts() {
   componentRegistry.register('conversation', ConversationPanel);
   componentRegistry.register('conversation-detail', ConversationDetailPanel);
   componentRegistry.register('editor', EditorPanel);
+
+  // TaskProgressPanel 使用 Mock 数据（后续对接真实数据）
+  componentRegistry.register('conversation-task', () => (
+    <TaskProgressPanel taskData={MOCK_TASK_DATA} />
+  ));
 }

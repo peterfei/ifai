@@ -45,6 +45,9 @@ export interface LayoutState {
   guiConversationSnapshot: { scrollPosition: number; activeThreadId: string; inputDraft: string } | null;
   guiEditorSnapshot: { openFiles: string[]; activeFile: string; cursorPosition: { line: number; col: number } } | null;
 
+  // 对话模式左栏模式（任务进度 vs 对话列表）
+  leftPanelMode: 'task' | 'list';
+
   // 分屏状态
   panes: Pane[];
   activePaneId: string | null;
@@ -86,6 +89,7 @@ export interface LayoutState {
 
   // GUI 布局模式操作
   setGuiMode: (mode: 'conversation' | 'editor' | 'split') => void;
+  setLeftPanelMode: (mode: 'task' | 'list') => void;
 
   // v0.2.9 新增：审查历史操作
   toggleReviewHistory: () => void;
@@ -151,6 +155,9 @@ export const useLayoutStore = create<LayoutState>()(
       guiMode: 'split' as const,
       guiConversationSnapshot: null,
       guiEditorSnapshot: null,
+
+      // 对话模式左栏模式（默认任务进度）
+      leftPanelMode: 'task' as const,
 
       // 分屏状态
       panes: [
@@ -238,6 +245,9 @@ export const useLayoutStore = create<LayoutState>()(
 
         set(updates);
       },
+
+      // 对话模式左栏模式切换
+      setLeftPanelMode: (mode) => set({ leftPanelMode: mode }),
 
       // v0.2.9 新增：审查历史操作
       toggleReviewHistory: () => {

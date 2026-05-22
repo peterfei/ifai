@@ -19,7 +19,7 @@ describe('Layout registrations', () => {
   it('conversation 模式有三栏面板', () => {
     const desc = layoutRegistry.get('conversation')!;
     expect(desc.panes.length).toBe(3);
-    expect(desc.panes[0].id).toBe('conversation-list');
+    expect(desc.panes[0].id).toBe('conversation-list');  // ConversationListPanel
     expect(desc.panes[0].width).toBe(260);
     expect(desc.panes[1].id).toBe('conversation');
     expect(desc.panes[1].flex).toBe(1);

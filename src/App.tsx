@@ -198,9 +198,6 @@ function App() {
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
-    // GUI 布局注册（布局描述符 + 面板组件）
-    registerLayouts();
-
     const init = async () => {
       // Defer initialization to ensure DOM and Vite preamble are settled
       await new Promise(resolve => setTimeout(resolve, 150));
