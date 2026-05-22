@@ -4,7 +4,8 @@
  * 数据驱动的工作流步骤定义，支持：
  * - 任务元数据（标题、步骤、Agent 分配）
  * - 任务清单（可勾选的步骤列表）
- * - 审批和交互数据（后续 Phase C 实现）
+ * - 审批卡片数据（ApprovalCard）
+ * - 交互卡片数据（InteractionCard）
  */
 
 import { AGENT_DSL } from './AGENT_DSL';
@@ -36,7 +37,7 @@ export interface TaskProgress {
 /**
  * 任务数据 DSL
  *
- * 完整的任务元数据，用于驱动 TaskProgressPanel 渲染
+ * 完整的任务元数据，用于驱动 ProgressCard 渲染
  */
 export interface TaskData {
   /** 任务 ID */
@@ -53,7 +54,219 @@ export interface TaskData {
   taskList: TaskItem[];
 }
 
+/* ===== 审批卡片类型 ===== */
+
+/**
+ * 风险等级
+ */
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+/**
+ * 文件变更项
+ */
+export interface FileChangeItem {
+  /** 文件路径 */
+  path: string;
+  /** 变更统计（如 "+42 -18"） */
+  change: string;
+  /** 风险等级 */
+  risk: RiskLevel;
+}
+
+/**
+ * 审批动作
+ */
+export type ApprovalAction = 'continue' | 'skip' | 'stop';
+
+/**
+ * 审批卡片数据
+ */
+export interface ApprovalData {
+  /** 审批类型 */
+  type: 'schema_change' | 'code_review' | 'test_generation' | 'security_scan' | string;
+  /** 审批标题 */
+  title: string;
+  /** 审批描述 */
+  description: string;
+  /** 整体风险等级 */
+  overallRisk: RiskLevel;
+  /** 受影响的文件列表 */
+  files: FileChangeItem[];
+  /** 批准后的动作 */
+  onApprove: ApprovalAction;
+  /** 拒绝后的动作 */
+  onReject: ApprovalAction;
+}
+
+/* ===== 交互卡片类型 ===== */
+
+/**
+ * 交互模式
+ */
+export type InteractionMode = 'single' | 'multiple';
+
+/**
+ * 选项标签
+ */
+export interface OptionTag {
+  /** 标签文本 */
+  label: string;
+  /** 标签颜色（可选，默认为灰色） */
+  color?: 'brand' | 'emerald' | 'amber' | 'red' | string;
+}
+
+/**
+ * 交互选项
+ */
+export interface InteractionOption {
+  /** 选项 ID */
+  id: string;
+  /** 选项标签 */
+  label: string;
+  /** 选项描述 */
+  desc: string;
+  /** 选项标签（可选） */
+  tag?: string;
+  /** 标签颜色（可选） */
+  tagColor?: string;
+}
+
+/**
+ * 交互卡片数据
+ */
+export interface InteractionData {
+  /** 交互类型 */
+  type: 'single' | 'multiple';
+  /** 交互标题 */
+  title: string;
+  /** 问题文本 */
+  question: string;
+  /** 紧凑模式下的提示文本 */
+  compactAsk: string;
+  /** 选项列表 */
+  options: InteractionOption[];
+  /** 选择后的动作 */
+  onSelect: ApprovalAction;
+}
+
 /* ===== Mock 数据 ===== */
+
+/**
+ * MOCK_APPROVAL_DATA — Mock 审批数据
+ *
+ * 场景：重构Agent 建议将手动状态管理替换为 React Hook Form + Zod 验证方案
+ */
+export const MOCK_APPROVAL_DATA: ApprovalData = {
+  type: 'schema_change',
+  title: '确认 Schema 变更',
+  description: '重构Agent 建议将手动状态管理替换为 React Hook Form + Zod 验证方案。需修改登录表单组件及相关类型定义。',
+  overallRisk: 'medium',
+  files: [
+    { path: 'src/components/LoginForm.tsx', change: '+42 -18', risk: 'medium' },
+    { path: 'src/schema/loginSchema.ts', change: '+15 -0', risk: 'low' },
+    { path: 'src/types/auth.ts', change: '+8 -3', risk: 'low' },
+  ],
+  onApprove: 'continue',
+  onReject: 'stop',
+};
+
+/**
+ * MOCK_APPROVAL_DATA_HIGH_RISK — 高风险审批数据
+ *
+ * 场景：安全审查发现 SQL 注入风险
+ */
+export const MOCK_APPROVAL_DATA_HIGH_RISK: ApprovalData = {
+  type: 'code_review',
+  title: '确认安全漏洞修复',
+  description: '分析Agent 在 PR #142 中发现 SQL 注入风险和 XSS 漏洞。建议立即修复后再合并。',
+  overallRisk: 'high',
+  files: [
+    { path: 'src/api/userSearch.ts', change: '+28 -14', risk: 'high' },
+    { path: 'src/components/UserList.tsx', change: '+15 -8', risk: 'high' },
+  ],
+  onApprove: 'continue',
+  onReject: 'stop',
+};
+
+/**
+ * MOCK_INTERACTION_DATA_SINGLE — Mock 单选交互数据
+ *
+ * 场景：询问用户偏好的迁移策略
+ */
+export const MOCK_INTERACTION_DATA_SINGLE: InteractionData = {
+  type: 'single',
+  title: '选择迁移策略',
+  question: '请选择您偏好的登录模块迁移策略：',
+  compactAsk: '正在征求您的意见...',
+  options: [
+    {
+      id: 'full',
+      label: '全面重构',
+      desc: '重新实现整个登录模块，代码更整洁',
+      tag: '推荐',
+      tagColor: 'brand',
+    },
+    {
+      id: 'incr',
+      label: '渐进式改造',
+      desc: '保留现有接口，逐步替换内部实现',
+      tag: '稳妥',
+    },
+    {
+      id: 'hybrid',
+      label: '混合方案',
+      desc: '核心逻辑重写，UI 层渐进替换',
+      tag: '平衡',
+      tagColor: 'amber',
+    },
+  ],
+  onSelect: 'continue',
+};
+
+/**
+ * MOCK_INTERACTION_DATA_MULTIPLE — Mock 多选交互数据
+ *
+ * 场景：选择安全扫描范围
+ */
+export const MOCK_INTERACTION_DATA_MULTIPLE: InteractionData = {
+  type: 'multiple',
+  title: '选择扫描范围',
+  question: '请选择需要安全扫描的检查项（可多选）：',
+  compactAsk: '请选择扫描范围...',
+  options: [
+    {
+      id: 'sqli',
+      label: 'SQL 注入检测',
+      desc: '扫描数据库查询中的拼接注入风险',
+      tag: '高危',
+      tagColor: 'red',
+    },
+    {
+      id: 'xss',
+      label: 'XSS 漏洞检测',
+      desc: '扫描前端模板中的跨站脚本风险',
+      tag: '高危',
+      tagColor: 'red',
+    },
+    {
+      id: 'dep',
+      label: '依赖漏洞检查',
+      desc: '检查第三方库的已知 CVE 漏洞',
+      tag: '中危',
+      tagColor: 'amber',
+    },
+    {
+      id: 'secret',
+      label: '密钥泄露检测',
+      desc: '扫描硬编码密钥和凭据泄露风险',
+      tag: '中危',
+      tagColor: 'amber',
+    },
+  ],
+  onSelect: 'continue',
+};
+
+/* ===== 工具函数 ===== */
 
 /**
  * MOCK_TASK_DATA — Mock 任务数据

@@ -115,9 +115,13 @@ for (const { type, component } of DEFAULT_TYPES) {
 /* ===== 注册真实组件（替换占位符） ===== */
 
 import { ProgressCard } from './cards/ProgressCard';
+import { ApprovalCard } from './cards/ApprovalCard';
 
 // ProgressCard 替换占位符
 MessageCardRegistry.register('progress', ProgressCard);
+
+// ApprovalCard 替换占位符
+MessageCardRegistry.register('approval', ApprovalCard);
 
 /* ===== resolveCardType 函数 ===== */
 
