@@ -117,6 +117,10 @@ for (const { type, component } of DEFAULT_TYPES) {
 import { ProgressCard } from './cards/ProgressCard';
 import { ApprovalCard } from './cards/ApprovalCard';
 import { InteractionCard } from './cards/InteractionCard';
+import { FileChangeCard } from './cards/FileChangeCard';
+import { ToolCallCard } from './cards/ToolCallCard';
+import { ErrorFixCard } from './cards/ErrorFixCard';
+import { ComposerCard } from './cards/ComposerCard';
 
 // ProgressCard 替换占位符
 MessageCardRegistry.register('progress', ProgressCard);
@@ -126,6 +130,18 @@ MessageCardRegistry.register('approval', ApprovalCard);
 
 // InteractionCard 替换占位符
 MessageCardRegistry.register('interaction', InteractionCard);
+
+// FileChangeCard 替换占位符
+MessageCardRegistry.register('file-change', FileChangeCard);
+
+// ToolCallCard 替换占位符
+MessageCardRegistry.register('tool-call', ToolCallCard);
+
+// ErrorFixCard 替换占位符
+MessageCardRegistry.register('error-fix', ErrorFixCard);
+
+// ComposerCard 替换占位符
+MessageCardRegistry.register('composer', ComposerCard);
 
 /* ===== resolveCardType 函数 ===== */
 

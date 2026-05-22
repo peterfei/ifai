@@ -149,6 +149,129 @@ export interface InteractionData {
   onSelect: ApprovalAction;
 }
 
+/* ===== 文件变更卡片类型 ===== */
+
+/**
+ * 文件变更类型
+ */
+export type FileChangeType = 'create' | 'modify' | 'delete' | 'rename';
+
+/**
+ * 变更详情
+ */
+export interface FileChangeDetails {
+  /** 变更类型 */
+  type: FileChangeType;
+  /** 旧路径（重命名时使用） */
+  oldPath?: string;
+  /** 新增行数 */
+  additions?: number;
+  /** 删除行数 */
+  deletions?: number;
+  /** 变更摘要 */
+  summary?: string;
+}
+
+/**
+ * 文件变更卡片数据
+ */
+export interface FileChangeData {
+  /** 文件路径 */
+  path: string;
+  /** 变更详情 */
+  change: FileChangeDetails;
+  /** 语言类型（用于语法高亮） */
+  language?: string;
+}
+
+/* ===== 工具调用卡片类型 ===== */
+
+/**
+ * 工具状态
+ */
+export type ToolStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+
+/**
+ * 工具调用卡片数据
+ */
+export interface ToolCallData {
+  /** 工具名称 */
+  name: string;
+  /** 工具描述 */
+  description?: string;
+  /** 工具状态 */
+  status: ToolStatus;
+  /** 工具参数 */
+  args?: Record<string, any>;
+  /** 工具结果 */
+  result?: any;
+  /** 错误信息 */
+  error?: string;
+  /** 执行时长（毫秒） */
+  duration?: number;
+}
+
+/* ===== 错误修复卡片类型 ===== */
+
+/**
+ * 错误严重程度
+ */
+export type ErrorSeverity = 'error' | 'warning' | 'info';
+
+/**
+ * 错误修复卡片数据
+ */
+export interface ErrorFixData {
+  /** 错误消息 */
+  message: string;
+  /** 错误严重程度 */
+  severity: ErrorSeverity;
+  /** 错误位置（文件名:行号） */
+  location?: string;
+  /** 建议的修复方案 */
+  suggestions: Array<{
+    title: string;
+    description: string;
+    code?: string;
+  }>;
+  /** 是否已自动修复 */
+  autoFixed?: boolean;
+}
+
+/* ===== Composer 卡片类型 ===== */
+
+/**
+ * Composer 状态
+ */
+export type ComposerStatus = 'drafting' | 'reviewing' | 'applying' | 'done';
+
+/**
+ * Composer 卡片数据
+ */
+export interface ComposerData {
+  /** Composer 标题 */
+  title: string;
+  /** Composer 状态 */
+  status: ComposerStatus;
+  /** 变更文件列表 */
+  files: Array<{
+    path: string;
+    additions: number;
+    deletions: number;
+  }>;
+  /** 总变更统计 */
+  stats: {
+    totalAdditions: number;
+    totalDeletions: number;
+    filesChanged: number;
+  };
+  /** 操作按钮 */
+  actions?: Array<{
+    label: string;
+    action: string;
+  }>;
+}
+
 /* ===== Mock 数据 ===== */
 
 /**
@@ -264,6 +387,157 @@ export const MOCK_INTERACTION_DATA_MULTIPLE: InteractionData = {
     },
   ],
   onSelect: 'continue',
+};
+
+/**
+ * MOCK_FILE_CHANGE_DATA — Mock 文件变更数据
+ *
+ * 场景：创建新的登录组件
+ */
+export const MOCK_FILE_CHANGE_DATA: FileChangeData = {
+  path: 'src/components/LoginForm.tsx',
+  change: {
+    type: 'create',
+    additions: 156,
+    deletions: 0,
+    summary: '创建基于 React Hook Form 的登录表单组件',
+  },
+  language: 'typescript',
+};
+
+/**
+ * MOCK_FILE_CHANGE_MODIFY — Mock 文件修改数据
+ *
+ * 场景：修改现有组件
+ */
+export const MOCK_FILE_CHANGE_MODIFY: FileChangeData = {
+  path: 'src/components/UserList.tsx',
+  change: {
+    type: 'modify',
+    additions: 42,
+    deletions: 18,
+    summary: '添加虚拟滚动和性能优化',
+  },
+  language: 'typescript',
+};
+
+/**
+ * MOCK_TOOL_CALL_DATA — Mock 工具调用数据
+ *
+ * 场景：执行数据库查询
+ */
+export const MOCK_TOOL_CALL_DATA: ToolCallData = {
+  name: 'execute_sql_query',
+  description: '执行 SQL 查询获取用户列表',
+  status: 'success',
+  args: {
+    query: 'SELECT * FROM users LIMIT 10',
+  },
+  result: {
+    rows: 10,
+    data: [
+      { id: 1, name: 'Alice', email: 'alice@example.com' },
+      { id: 2, name: 'Bob', email: 'bob@example.com' },
+    ],
+  },
+  duration: 245,
+};
+
+/**
+ * MOCK_TOOL_CALL_RUNNING — Mock 运行中的工具调用
+ *
+ * 场景：正在执行文件搜索
+ */
+export const MOCK_TOOL_CALL_RUNNING: ToolCallData = {
+  name: 'search_files',
+  description: '搜索包含 "useState" 的所有文件',
+  status: 'running',
+  args: {
+    pattern: 'useState',
+    path: './src',
+  },
+};
+
+/**
+ * MOCK_ERROR_FIX_DATA — Mock 错误修复数据
+ *
+ * 场景：TypeScript 类型错误
+ */
+export const MOCK_ERROR_FIX_DATA: ErrorFixData = {
+  message: "Type 'string' is not assignable to type 'number'",
+  severity: 'error',
+  location: 'src/components/LoginForm.tsx:42:5',
+  suggestions: [
+    {
+      title: '将 userId 转换为 number',
+      description: '使用 parseInt() 或 Number() 将字符串转换为数字',
+      code: 'const userId = parseInt(props.userId, 10);',
+    },
+    {
+      title: '修改类型定义',
+      description: '将 userId 的类型从 number 改为 string',
+    },
+  ],
+};
+
+/**
+ * MOCK_ERROR_FIX_WARNING — Mock 警告数据
+ *
+ * 场景：废弃警告
+ */
+export const MOCK_ERROR_FIX_WARNING: ErrorFixData = {
+  message: 'Warning: componentWillMount is deprecated',
+  severity: 'warning',
+  location: 'src/components/LoginForm.tsx:28:10',
+  suggestions: [
+    {
+      title: '迁移到 componentDidMount',
+      description: '将初始化逻辑移到 componentDidMount 生命周期方法',
+    },
+  ],
+  autoFixed: true,
+};
+
+/**
+ * MOCK_COMPOSER_DATA — Mock Composer 数据
+ *
+ * 场景：多文件变更 Composer
+ */
+export const MOCK_COMPOSER_DATA: ComposerData = {
+  title: '重构登录模块',
+  status: 'reviewing',
+  files: [
+    { path: 'src/components/LoginForm.tsx', additions: 156, deletions: 42 },
+    { path: 'src/schema/loginSchema.ts', additions: 28, deletions: 0 },
+    { path: 'src/types/auth.ts', additions: 12, deletions: 8 },
+  ],
+  stats: {
+    totalAdditions: 196,
+    totalDeletions: 50,
+    filesChanged: 3,
+  },
+  actions: [
+    { label: '查看详情', action: 'view-details' },
+    { label: '应用变更', action: 'apply' },
+    { label: '取消', action: 'cancel' },
+  ],
+};
+
+/**
+ * MOCK_COMPOSER_DONE — Mock 已完成 Composer
+ */
+export const MOCK_COMPOSER_DONE: ComposerData = {
+  title: '添加用户认证功能',
+  status: 'done',
+  files: [
+    { path: 'src/api/auth.ts', additions: 89, deletions: 0 },
+    { path: 'src/components/LoginForm.tsx', additions: 156, deletions: 0 },
+  ],
+  stats: {
+    totalAdditions: 245,
+    totalDeletions: 0,
+    filesChanged: 2,
+  },
 };
 
 /* ===== 工具函数 ===== */
