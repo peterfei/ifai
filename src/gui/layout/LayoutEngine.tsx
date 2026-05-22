@@ -23,7 +23,7 @@ export function LayoutEngine({ mode, paneRenderer }: LayoutEngineProps) {
     <div data-testid="layout-engine" style={{ display: 'flex', width: '100%', height: '100%' }}>
       {descriptor.panes.map((pane) => (
         <PaneShell key={pane.id} width={pane.width} flex={pane.flex}>
-          <div data-pane-id={pane.id}>
+          <div data-pane-id={pane.id} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             {paneRenderer(pane.id)}
           </div>
         </PaneShell>

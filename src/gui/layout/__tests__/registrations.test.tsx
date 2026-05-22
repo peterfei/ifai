@@ -16,10 +16,21 @@ describe('Layout registrations', () => {
     expect(layoutRegistry.has('split')).toBe(true);
   });
 
-  it('conversation 模式有 1 个面板', () => {
+  it('conversation 模式有三栏面板', () => {
     const desc = layoutRegistry.get('conversation')!;
+    expect(desc.panes.length).toBe(3);
+    expect(desc.panes[0].id).toBe('conversation-list');
+    expect(desc.panes[0].width).toBe(260);
+    expect(desc.panes[1].id).toBe('conversation');
+    expect(desc.panes[1].flex).toBe(1);
+    expect(desc.panes[2].id).toBe('conversation-detail');
+    expect(desc.panes[2].width).toBe(300);
+  });
+
+  it('editor 模式有 1 个面板', () => {
+    const desc = layoutRegistry.get('editor')!;
     expect(desc.panes.length).toBe(1);
-    expect(desc.panes[0].id).toBe('conversation');
+    expect(desc.panes[0].id).toBe('editor');
   });
 
   it('split 模式有 2 个面板', () => {
@@ -29,14 +40,16 @@ describe('Layout registrations', () => {
     expect(desc.panes[1].id).toBe('editor');
   });
 
-  it('面板组件均可渲染', () => {
-    const ConversationComp = componentRegistry.get('conversation')!;
-    const EditorComp = componentRegistry.get('editor')!;
-
-    const { container: c1 } = render(<ConversationComp />);
-    expect(c1.textContent).toBeTruthy();
-
-    const { container: c2 } = render(<EditorComp />);
-    expect(c2.textContent).toBeTruthy();
+  it('所有面板组件均已注册且可渲染', () => {
+    const ids = ['conversation-list', 'conversation', 'conversation-detail', 'editor'];
+    for (const id of ids) {
+      const Comp = componentRegistry.get(id);
+      expect(Comp, `Component "${id}" should be registered`).toBeDefined();
+      if (Comp) {
+        const Element = Comp;
+        const { container } = render(<Element />);
+        expect(container.textContent).toBeTruthy();
+      }
+    }
   });
 });

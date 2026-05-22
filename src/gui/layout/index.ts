@@ -3,6 +3,8 @@ export { layoutRegistry } from './layout-registry';
 export { PaneShell } from './PaneShell';
 export { LayoutEngine } from './LayoutEngine';
 export { registerLayouts } from './registrations';
+export { ConversationListPanel } from './ConversationListPanel';
 export { ConversationPanel } from './ConversationPanel';
+export { ConversationDetailPanel } from './ConversationDetailPanel';
 export { EditorPanel } from './EditorPanel';
 export { GuiLayoutSwitcher } from './GuiLayoutSwitcher';

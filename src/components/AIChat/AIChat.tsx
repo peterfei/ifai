@@ -84,9 +84,11 @@ import './skeleton/styles.css';
 interface AIChatProps {
   width?: number;
   onResizeStart?: (e: React.MouseEvent) => void;
+  /** 精简模式：隐藏 Header/ThreadTabs/ViewSelector，用于对话布局 */
+  compact?: boolean;
 }
 
-export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
+export const AIChat = ({ width, onResizeStart, compact }: AIChatProps) => {
   const { t } = useTranslation();
 
   // 🔥 元编程架构：骨架屏引擎（仅需 3 行代码）
@@ -2382,10 +2384,10 @@ ${t('aiChat.errorFix.fixAndModify')}`;
 
   if (!isProviderConfigured) {
     return (
-      <div 
+      <div
         data-testid="chat-panel"
-        className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative transition-colors"
-        style={{ width: width ? `${width}px` : '384px' }}
+        className={`flex flex-col h-full bg-[#1e1e1e] relative transition-colors ${width ? 'border-l border-gray-700 flex-shrink-0' : ''}`}
+        style={{ width: width ? `${width}px` : '100%' }}
       >
         {onResizeStart && (
           <div 
@@ -2393,7 +2395,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
               onMouseDown={onResizeStart}
           />
         )}
-        {renderHeader()}
+        {!compact && renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
           <img src={ifaiLogo} alt="IfAI Logo" className="w-10 h-10 text-gray-500 mb-4 opacity-70" />
           <p className="text-gray-400 mb-4">{t('chat.errorNoKey')} {currentProvider ? `(${currentProvider.name})` : ''}</p>
@@ -2411,8 +2413,8 @@ ${t('aiChat.errorFix.fixAndModify')}`;
   return (
     <div
         data-testid="chat-panel"
-        className={`flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative transition-colors ${isDragHighlight ? 'border-blue-500 bg-blue-900/20' : ''}`}
-        style={{ width: width ? `${width}px` : '384px', contain: 'layout' }}
+        className={`flex flex-col h-full bg-[#1e1e1e] relative transition-colors ${width ? 'border-l border-gray-700 flex-shrink-0' : ''} ${isDragHighlight ? 'border-blue-500 bg-blue-900/20' : ''}`}
+        style={{ width: width ? `${width}px` : '100%', ...(width ? { contain: 'layout' } : {}) }}
     >
       {/* 🔥 DEBUG: 在最顶层添加一个调试 div */}
       <div data-testid="aichat-debug" style={{ display: 'none' }}>
@@ -2425,7 +2427,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
         />
       )}
       
-      {renderHeader()}
+      {!compact && renderHeader()}
 
       {/* Thread Search Bar (Conditional) */}
       <AnimatePresence>
@@ -2466,10 +2468,10 @@ ${t('aiChat.errorFix.fixAndModify')}`;
       </AnimatePresence>
 
       {/* Thread Tabs */}
-      <ThreadTabs width={width} maxVisibleTabs={5} showMessageCount={true} showCloseButton={true} />
+      {!compact && <ThreadTabs width={width} maxVisibleTabs={5} showMessageCount={true} showCloseButton={true} />}
 
-      {/* 🚀 Phase 1: Segmented Control for View Switching */}
-      <div className="px-4 py-2 border-b border-white/5 bg-[#1e1e1e]/40 backdrop-blur-md" data-testid="ai-view-selector">
+      {/* Segmented Control for View Switching */}
+      {!compact && <div className="px-4 py-2 border-b border-white/5 bg-[#1e1e1e]/40 backdrop-blur-md" data-testid="ai-view-selector">
         <div className="flex p-0.5 bg-gray-900/50 rounded-lg relative border border-white/5">
           <button
             onClick={() => setViewMode('normal')}
@@ -2502,7 +2504,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
             )}
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* v0.3.1: 根据视图模式显示不同的内容 */}
       {viewMode === 'timeline' ? (

@@ -1004,8 +1004,8 @@ function App() {
           />
         )}
 
-        {/* 新增：自定义布局模式下，聊天面板在左侧 */}
-        {layoutMode === 'custom' && isChatOpen && (
+        {/* 自定义布局模式下，聊天面板在左侧（仅 split 模式） */}
+        {layoutMode === 'custom' && isChatOpen && guiMode === 'split' && (
           <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />
         )}
 
@@ -1043,8 +1043,8 @@ function App() {
           <Statusbar />
         </div>
 
-        {/* 默认布局模式下，聊天面板在右侧 */}
-        {layoutMode === 'default' && isChatOpen && <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />}
+        {/* 默认布局模式下，聊天面板在右侧（仅 split 模式） */}
+        {layoutMode === 'default' && isChatOpen && guiMode === 'split' && <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />}
 
         {/* v0.3.0: 代码分析面板 */}
         {useCodeSmellStore((state) => state.isPanelOpen) && (
