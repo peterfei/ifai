@@ -18,6 +18,7 @@ import {
   AGENT_PALETTE,
   RISK_PALETTE,
   STATUS_PALETTE,
+  AGENT_STATUS_PALETTE,
   TAG_PALETTE,
 } from '../PALETTE';
 
@@ -212,6 +213,41 @@ describe('PALETTE + derivePalette', () => {
       expect(palette.unknown.text).toBe('#6B7280');
       expect(palette.unknown.border).toBe('#6B7280');
       expect(palette.unknown.dot).toBe('#6B7280');
+    });
+  });
+
+  describe('UT-A.1.8: AGENT_STATUS_PALETTE 正确派生', () => {
+    it('应覆盖 7 种 Agent 状态', () => {
+      const keys = Object.keys(AGENT_STATUS_PALETTE);
+      expect(keys).toHaveLength(7);
+      expect(keys).toContain('running');
+      expect(keys).toContain('completed');
+      expect(keys).toContain('failed');
+      expect(keys).toContain('initializing');
+      expect(keys).toContain('idle');
+      expect(keys).toContain('waitingfortool');
+      expect(keys).toContain('stopped');
+    });
+
+    it('running 应使用 info 蓝色', () => {
+      expect(AGENT_STATUS_PALETTE.running.bg).toBe('#3B82F6');
+    });
+
+    it('completed 应使用 success 绿色', () => {
+      expect(AGENT_STATUS_PALETTE.completed.bg).toBe('#10B981');
+    });
+
+    it('failed 应使用 danger 红色', () => {
+      expect(AGENT_STATUS_PALETTE.failed.bg).toBe('#EF4444');
+    });
+
+    it('每种状态有完整的 ColorQuad', () => {
+      for (const [, quad] of Object.entries(AGENT_STATUS_PALETTE)) {
+        expect(quad.bg).toBeTruthy();
+        expect(quad.text).toBeTruthy();
+        expect(quad.border).toBeTruthy();
+        expect(quad.dot).toBeTruthy();
+      }
     });
   });
 });

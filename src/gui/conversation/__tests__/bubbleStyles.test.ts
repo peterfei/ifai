@@ -78,4 +78,25 @@ describe('bubbleStyles', () => {
     const style = getAgentAvatarStyle('unknown_agent');
     expect(style.backgroundColor).toBe(SEMANTIC_TOKENS.semantic.neutral);
   });
+
+  // BS-11: non-compact 用户气泡使用 PALETTE 品牌色
+  it('BS-11: non-compact 用户气泡使用 PALETTE 品牌色', () => {
+    const style = getUserBubbleStyle(false);
+    expect(style.backgroundColor).toBe(BRAND_COLORS['500']);
+  });
+
+  // BS-12: non-compact AI 气泡使用 PALETTE surface 色
+  it('BS-12: non-compact AI 气泡使用 PALETTE surface 色', () => {
+    const style = getAssistantBubbleStyle(false);
+    expect(style.backgroundColor).toBe(SEMANTIC_TOKENS.surface.bg2);
+  });
+
+  // BS-13: non-compact 模式 padding 与 compact 不同
+  it('BS-13: non-compact 模式 padding 大于 compact 模式', () => {
+    const normal = getUserBubbleStyle(false);
+    const compact = getUserBubbleStyle(true);
+    expect(normal.padding).not.toBe(compact.padding);
+    // normal 模式 padding 应更大（12px 16px vs 8px 12px）
+    expect((normal.padding as string).length).toBeGreaterThan((compact.padding as string).length);
+  });
 });
