@@ -847,6 +847,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         }
         return null;
     }, [toggleBlock, processScanResult]);
+
+    // Phase D: 预计算 MessageCard（仅当 message 显式指定 cardType 时才使用卡片渲染）
+    const resolvedCardType = (message as any).cardType ? resolveCardType(message as any) : null;
+    const ResolvedCard = resolvedCardType ? MessageCardRegistry.get(resolvedCardType) : null;
+
     // 统一渲染逻辑 (v0.4.1: 去分支化重构，杜绝 Hook 冲突)
     return (
         <div
@@ -918,30 +923,24 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         </div>
                     )}
 
-                    {/* B4. 消息正文与工具 */}
+                    {/* Phase D: MessageCard 集成 — 有卡片时渲染卡片，否则渲染原始内容 */}
+                    {ResolvedCard ? (
+                        <ResolvedCard
+                            message={message}
+                            onAction={(action, data) => {
+                                console.log('[MessageItem] Card action:', action, data);
+                                if (action === 'approve') {
+                                    handleApprove(message.id, data?.toolCallId);
+                                } else if (action === 'reject') {
+                                    handleReject(message.id, data?.toolCallId);
+                                } else if (action === 'openComposer') {
+                                    onOpenComposer?.(message.id);
+                                }
+                            }}
+                            compact={!isUser}
+                        />
+                    ) : (
                     <div className="space-y-3">
-                        {/* 🔥 Phase D: MessageCard 集成 - 检查 cardType */}
-                        {(() => {
-                            const cardType = resolveCardType(message as any);
-                            const CardComponent = MessageCardRegistry.get(cardType);
-
-                            // 如果有注册的卡片组件，渲染该组件
-                            if (CardComponent) {
-                                return (
-                                    <CardComponent
-                                        message={message}
-                                        onAction={(action, data) => {
-                                            // 处理卡片操作（如审批确认、拒绝等）
-                                            console.log('[MessageItem] Card action:', action, data);
-                                        }}
-                                        compact={!isUser}
-                                    />
-                                );
-                            }
-
-                            // 否则返回 null，继续渲染原有内容
-                            return null;
-                        })()}
 
                         {/* 如果内容为空且正在流式传输，显示骨架屏 */}
                         {effectivelyStreaming && !contentWithoutThinking && !hasToolCalls && renderSkeleton()}
@@ -1331,6 +1330,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
                     </div>
+                    )}
                 </div>
             </div>
         </div>

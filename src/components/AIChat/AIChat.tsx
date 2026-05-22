@@ -2582,14 +2582,16 @@ ${t('aiChat.errorFix.fixAndModify')}`;
           <WorkflowInlineMonitorContainer key="global-workflow-monitor" />
 
           {/* v0.4.0: Token 统计显示 */}
-          {tokenStats && rawMessages.length > 0 && (
+          {/* 🔥 Phase D.2: compact 模式下隐藏 TokenStatsDisplay */}
+          {!compact && tokenStats && rawMessages.length > 0 && (
             <div className="my-2 mx-2" data-testid="conversation-token-stats">
               <TokenStatsDisplay stats={tokenStats} model={currentModel} />
             </div>
           )}
 
           {/* v0.4.0: 对话总结显示 */}
-          {conversationSummary && (
+          {/* 🔥 Phase D.2: compact 模式下隐藏 ConversationSummary */}
+          {!compact && conversationSummary && (
             <div className="my-2 mx-2" data-testid="conversation-summary">
               <ConversationSummary
                 summary={conversationSummary}
@@ -2600,7 +2602,8 @@ ${t('aiChat.errorFix.fixAndModify')}`;
           )}
 
           {/* v0.4.0: 对话压缩状态显示 */}
-          {compactInfo && compactInfo.originalCount > compactInfo.compressedCount && (
+          {/* 🔥 Phase D.2: compact 模式下隐藏 CompactIndicator */}
+          {!compact && compactInfo && compactInfo.originalCount > compactInfo.compressedCount && (
             <div className="my-2 mx-2" data-testid="conversation-compact-indicator">
               <CompactIndicator
                 originalCount={compactInfo.originalCount}
@@ -2616,16 +2619,20 @@ ${t('aiChat.errorFix.fixAndModify')}`;
       )}
 
       {/* v0.2.6 新增：Token 使用量指示器 */}
-
-      <TokenUsageIndicator />
+      {/* 🔥 Phase D.2: compact 模式下隐藏 TokenUsageIndicator */}
+      {!compact && <TokenUsageIndicator />}
 
       {/* Phase 2: 消息队列状态指示器 */}
-      <div className="px-4 pb-2">
-        <QueueIndicator />
-      </div>
+      {/* 🔥 Phase D.2: compact 模式下隐藏 QueueIndicator */}
+      {!compact && (
+        <div className="px-4 pb-2">
+          <QueueIndicator />
+        </div>
+      )}
 
-      <div className="p-4 bg-[#1e1e1e]/30 relative z-[100]">
-        <ChatInputArea isLoading={isLoading} />
+      {/* 🔥 Phase D.2: compact 模式下输入框使用对话模式样式 */}
+      <div className={`p-4 bg-[#1e1e1e]/30 relative z-[100] ${compact ? 'p-2' : ''}`}>
+        <ChatInputArea isLoading={isLoading} compact={compact} />
       </div>
 
       {/* v0.2.8: Composer 2.0 多文件 Diff 预览 Portal */}
