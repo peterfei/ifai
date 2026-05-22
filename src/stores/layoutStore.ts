@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// GUI 布局模式（三模式切换：对话/编辑器/分屏）
+export type GuiLayoutMode = 'conversation' | 'editor' | 'split';
+
 export interface Pane {
   id: string;
   fileId?: string;
@@ -36,6 +39,11 @@ export interface LayoutState {
   // 新增：布局模式
   layoutMode: 'default' | 'custom';
   editorMode: 'vibe' | 'spec';
+
+  // GUI 布局模式（三模式切换）
+  guiMode: GuiLayoutMode;
+  guiConversationSnapshot: { scrollPosition: number; activeThreadId: string; inputDraft: string } | null;
+  guiEditorSnapshot: { openFiles: string[]; activeFile: string; cursorPosition: { line: number; col: number } } | null;
 
   // 分屏状态
   panes: Pane[];
@@ -75,6 +83,9 @@ export interface LayoutState {
   // 新增：布局模式操作
   setLayoutMode: (mode: 'default' | 'custom') => void;
   setEditorMode: (mode: 'vibe' | 'spec') => void;
+
+  // GUI 布局模式操作
+  setGuiMode: (mode: 'conversation' | 'editor' | 'split') => void;
 
   // v0.2.9 新增：审查历史操作
   toggleReviewHistory: () => void;
@@ -135,6 +146,11 @@ export const useLayoutStore = create<LayoutState>()(
       // 新增：布局模式初始状态
       layoutMode: 'default',
       editorMode: 'vibe',
+
+      // GUI 布局模式（默认分屏）
+      guiMode: 'split' as const,
+      guiConversationSnapshot: null,
+      guiEditorSnapshot: null,
 
       // 分屏状态
       panes: [
@@ -197,6 +213,31 @@ export const useLayoutStore = create<LayoutState>()(
       // 新增：布局模式操作函数
       setLayoutMode: (mode) => set({ layoutMode: mode }),
       setEditorMode: (mode) => { syncModeToGlobal(mode); set({ editorMode: mode }); },
+
+      // GUI 布局模式操作（三模式切换）
+      setGuiMode: (mode) => {
+        const prevMode = get().guiMode;
+        const updates: Partial<LayoutState> = { guiMode: mode };
+
+        // 切出 conversation 时保存快照
+        if (prevMode === 'conversation') {
+          updates.guiConversationSnapshot = {
+            scrollPosition: 0,
+            activeThreadId: '',
+            inputDraft: '',
+          };
+        }
+        // 切出 editor 时保存快照
+        if (prevMode === 'editor') {
+          updates.guiEditorSnapshot = {
+            openFiles: [],
+            activeFile: '',
+            cursorPosition: { line: 0, col: 0 },
+          };
+        }
+
+        set(updates);
+      },
 
       // v0.2.9 新增：审查历史操作
       toggleReviewHistory: () => {
@@ -431,7 +472,7 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'layout-storage',
-      version: 3, // P4: 版本升级以支持 isWorkflowsOpen
+      version: 4, // 版本升级以支持 guiMode
       partialize: (state) => ({
         panes: state.panes,
         activePaneId: state.activePaneId,
@@ -453,6 +494,8 @@ export const useLayoutStore = create<LayoutState>()(
         // 技能市场
         isSkillMarketOpen: state.isSkillMarketOpen,
         editorMode: state.editorMode,
+        // GUI 布局模式持久化
+        guiMode: state.guiMode,
       }),
 
       onRehydrateStorage: () => (state) => {
@@ -478,12 +521,21 @@ export const useLayoutStore = create<LayoutState>()(
             isWorkflowsOpen: false, // 新字段的默认值
           };
         }
+        if (version === 3) {
+          // 从版本 3 迁移到版本 4，添加 guiMode
+          console.log(`[LayoutStore] Migrating from version ${version} to 4, adding guiMode`);
+          return {
+            ...persistedState,
+            guiMode: 'split' as const,
+          };
+        }
         // 版本 0 或其他版本
-        console.log(`[LayoutStore] Migrating from version ${version} to 3`);
+        console.log(`[LayoutStore] Migrating from version ${version} to 4`);
         return {
           ...persistedState,
           isToolExplorerOpen: false,
           isWorkflowsOpen: false,
+          guiMode: 'split' as const,
         };
       },
     }
