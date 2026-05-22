@@ -37,6 +37,7 @@ function getMimeType(filePath: string): string {
 // import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { MessageItem } from './MessageItem';
+import { CardPreviewButton } from './CardPreviewButton';
 import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
 import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
 import { ThreadSearchBar } from './ThreadSearchBar';
@@ -2664,6 +2665,9 @@ ${t('aiChat.errorFix.fixAndModify')}`;
 
       {/* 🔥 元编程架构：骨架屏覆盖层（仅需 1 行代码） */}
       <SkeletonRenderer />
+
+      {/* Phase E: 卡片预览按钮（开发模式） */}
+      <CardPreviewButton />
     </div>
   );
 };
