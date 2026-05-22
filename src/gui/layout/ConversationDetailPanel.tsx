@@ -10,22 +10,24 @@
  */
 
 import React, { useState } from 'react';
-import { FileText, Package, Eye, MessageSquare } from 'lucide-react';
+import { FileText, Package, Eye, MessageSquare, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { useThreadStore } from '../../stores/threadStore';
 import { WorkLogPanel } from './panels/WorkLogPanel';
 import { ArtifactsPanel } from './panels/ArtifactsPanel';
 import { PreviewPanel } from './panels/PreviewPanel';
+import { AgentWorkspace } from './AgentWorkspace';
 import type { FileChangeData } from './panels/useArtifactData';
 
 /* ===== Tab DSL ===== */
 
-type DetailTab = 'log' | 'artifacts' | 'preview';
+type DetailTab = 'log' | 'artifacts' | 'preview' | 'agent';
 
 const TAB_DESCRIPTOR: { key: DetailTab; label: string; icon: React.ReactNode }[] = [
   { key: 'log', label: '工作日志', icon: <FileText size={14} /> },
   { key: 'artifacts', label: '产出物', icon: <Package size={14} /> },
   { key: 'preview', label: '预览', icon: <Eye size={14} /> },
+  { key: 'agent', label: 'Agent', icon: <Bot size={14} /> },
 ];
 
 /* ===== 组件 ===== */
@@ -75,6 +77,7 @@ export function ConversationDetailPanel() {
         {activeTab === 'log' && <WorkLogPanel />}
         {activeTab === 'artifacts' && <ArtifactsPanel onFileSelect={handleFileSelect} />}
         {activeTab === 'preview' && <PreviewPanel file={selectedFile} />}
+        {activeTab === 'agent' && <AgentWorkspace />}
       </div>
 
       {/* 底部状态栏 */}

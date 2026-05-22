@@ -124,7 +124,7 @@ export function LayoutEngine({ mode, paneRenderer }: LayoutEngineProps) {
     : {};
 
   return (
-    <div data-testid="layout-engine" style={{ display: 'flex', flexDirection: 'column', width: '100%', flex: '1 1 0%', minHeight: 0 }}>
+    <div data-testid="layout-engine" style={{ display: 'flex', flexDirection: 'column', width: '100%', flex: '1 1 0%', minHeight: 0, transition: 'opacity 150ms ease' }}>
       <div style={{ display: 'flex', flex: '1 1 0%', minHeight: 0 }}>
         {descriptor.panes.map((pane, index) => {
           const isCollapsed = collapsedMap[index as keyof typeof collapsedMap] === true;

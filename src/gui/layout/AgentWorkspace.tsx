@@ -4,59 +4,16 @@
  * 紧凑模式：嵌入右栏，显示最新 Agent 状态摘要
  * 展开模式：覆盖主区域，显示完整日志和进度
  *
- * 颜色/状态查表：AGENT_DSL + 状态映射
+ * 委托 AgentWorkstation 渲染单个 Agent 工位
  */
 
 import React from 'react';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useAgentStore } from '../../stores/agentStore';
-import { AGENT_DSL, getAgent } from '../conversation/AGENT_DSL';
+import { AgentWorkstation } from './AgentWorkstation';
+import type { Agent } from '../../types/agent';
 
-/** 状态颜色查表 */
-const STATUS_COLORS: Record<string, string> = {
-  running: '#3B82F6',
-  completed: '#10B981',
-  failed: '#EF4444',
-  initializing: '#F59E0B',
-  paused: '#9CA3AF',
-};
-
-/** 状态中文查表 */
-const STATUS_LABELS: Record<string, string> = {
-  running: '运行中',
-  completed: '已完成',
-  failed: '失败',
-  initializing: '初始化',
-  paused: '已暂停',
-};
-
-function AgentAvatar({ type }: { type: string }) {
-  const descriptor = getAgent(type);
-  const color = descriptor?.color?.bg ?? STATUS_COLORS.running;
-
-  return (
-    <div
-      data-agent-avatar
-      style={{
-        width: 28,
-        height: 28,
-        borderRadius: '50%',
-        backgroundColor: color,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
-        fontSize: 11,
-        fontWeight: 600,
-        flexShrink: 0,
-      }}
-    >
-      {descriptor?.abbr ?? type.slice(0, 3).toUpperCase()}
-    </div>
-  );
-}
-
-function CompactView({ agents }: { agents: any[] }) {
+function CompactView({ agents }: { agents: Agent[] }) {
   const setMode = useLayoutStore((s) => s.setAgentWorkspaceMode);
 
   if (agents.length === 0) {
@@ -74,27 +31,12 @@ function CompactView({ agents }: { agents: any[] }) {
     );
   }
 
-  const latest = agents[0];
-  const statusColor = STATUS_COLORS[latest.status] ?? STATUS_COLORS.running;
-  const statusLabel = STATUS_LABELS[latest.status] ?? latest.status;
-
   return (
     <div data-testid="agent-workspace-compact" style={{ padding: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <AgentAvatar type={latest.type} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {latest.type}
-          </div>
-          <div style={{ fontSize: 10, color: statusColor }}>{statusLabel}</div>
-        </div>
-        {agents.length > 1 && (
-          <span style={{ fontSize: 10, color: '#9CA3AF' }}>+{agents.length - 1}</span>
-        )}
-      </div>
-      {latest.progress != null && (
-        <div style={{ marginTop: 4, height: 2, borderRadius: 1, background: '#e5e7eb', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${Math.round(latest.progress * 100)}%`, background: statusColor, borderRadius: 1 }} />
+      <AgentWorkstation agent={agents[0]} compact />
+      {agents.length > 1 && (
+        <div style={{ marginTop: 4, fontSize: 10, color: '#9CA3AF', textAlign: 'center' }}>
+          +{agents.length - 1} 个更多
         </div>
       )}
       <button
@@ -108,7 +50,7 @@ function CompactView({ agents }: { agents: any[] }) {
   );
 }
 
-function ExpandedView({ agents }: { agents: any[] }) {
+function ExpandedView({ agents }: { agents: Agent[] }) {
   const setMode = useLayoutStore((s) => s.setAgentWorkspaceMode);
 
   return (
@@ -126,30 +68,11 @@ function ExpandedView({ agents }: { agents: any[] }) {
       {agents.length === 0 ? (
         <div style={{ color: '#9CA3AF', fontSize: 12, textAlign: 'center' }}>暂无活跃 Agent</div>
       ) : (
-        agents.map((agent) => {
-          const statusColor = STATUS_COLORS[agent.status] ?? STATUS_COLORS.running;
-          return (
-            <div key={agent.id} style={{ marginBottom: 12, padding: 8, background: '#f9fafb', borderRadius: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <AgentAvatar type={agent.type} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500 }}>{agent.type}</div>
-                  <div style={{ fontSize: 10, color: statusColor }}>
-                    {STATUS_LABELS[agent.status] ?? agent.status}
-                    {agent.progress != null && ` · ${Math.round(agent.progress * 100)}%`}
-                  </div>
-                </div>
-              </div>
-              {agent.logs && agent.logs.length > 0 && (
-                <div style={{ fontSize: 10, color: '#6B7280', maxHeight: 80, overflow: 'auto' }}>
-                  {agent.logs.map((log: string, i: number) => (
-                    <div key={i}>{log}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })
+        agents.map((agent) => (
+          <div key={agent.id} style={{ marginBottom: 8, background: '#f9fafb', borderRadius: 6 }}>
+            <AgentWorkstation agent={agent} />
+          </div>
+        ))
       )}
     </div>
   );

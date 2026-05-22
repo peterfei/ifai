@@ -184,6 +184,21 @@ export const STATUS_PALETTE = derivePalette({
 });
 
 /**
+ * AGENT_STATUS_PALETTE — Agent 状态颜色
+ *
+ * 用于 AgentWorkstation 的状态指示器和标签
+ */
+export const AGENT_STATUS_PALETTE = derivePalette({
+  running:        'info',     // 蓝色 #3B82F6
+  completed:      'success',  // 绿色 #10B981
+  failed:         'danger',   // 红色 #EF4444
+  initializing:   'warning',  // 橙色 #F59E0B
+  idle:           'neutral',  // 灰色 #6B7280
+  waitingfortool: 'warning',  // 橙色 #F59E0B
+  stopped:        'muted',    // 浅灰 #9CA3AF
+});
+
+/**
  * TAG_PALETTE — 标签颜色
  *
  * 用于交互卡片的选项标签、分类标签等
