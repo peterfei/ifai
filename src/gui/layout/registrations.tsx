@@ -6,6 +6,7 @@ import { ConversationDetailPanel } from './ConversationDetailPanel';
 import { EditorPanel } from './EditorPanel';
 import { TaskProgressPanel } from './TaskProgressPanel';
 import { MOCK_TASK_DATA } from '../conversation/WORKFLOW_DSL';
+import { AgentWorkspace } from './AgentWorkspace';
 
 /**
  * DSL 声明式布局注册
@@ -44,6 +45,7 @@ export function registerLayouts() {
   componentRegistry.register('conversation', ConversationPanel);
   componentRegistry.register('conversation-detail', ConversationDetailPanel);
   componentRegistry.register('editor', EditorPanel);
+  componentRegistry.register('agent-workspace', AgentWorkspace);
 
   // TaskProgressPanel 使用 Mock 数据（后续对接真实数据）
   componentRegistry.register('conversation-task', () => (

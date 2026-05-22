@@ -52,6 +52,13 @@ export interface LayoutState {
   conversationLeftWidth: number;
   conversationRightWidth: number;
 
+  // 对话模式三栏折叠状态
+  conversationLeftCollapsed: boolean;
+  conversationRightCollapsed: boolean;
+
+  // Agent 工作台模式
+  agentWorkspaceMode: 'compact' | 'expanded';
+
   // 分屏状态
   panes: Pane[];
   activePaneId: string | null;
@@ -97,6 +104,12 @@ export interface LayoutState {
 
   // 对话模式栏宽调整
   setConversationPaneWidth: (pane: 'left' | 'right', width: number) => void;
+
+  // 对话模式栏折叠切换
+  toggleConversationPaneCollapse: (pane: 'left' | 'right') => void;
+
+  // Agent 工作台模式切换
+  setAgentWorkspaceMode: (mode: 'compact' | 'expanded') => void;
 
   // v0.2.9 新增：审查历史操作
   toggleReviewHistory: () => void;
@@ -169,6 +182,13 @@ export const useLayoutStore = create<LayoutState>()(
       // 对话模式三栏宽度（可拖拽调整）
       conversationLeftWidth: 260,
       conversationRightWidth: 300,
+
+      // 对话模式三栏折叠状态
+      conversationLeftCollapsed: false,
+      conversationRightCollapsed: false,
+
+      // Agent 工作台模式
+      agentWorkspaceMode: 'compact' as const,
 
       // 分屏状态
       panes: [
@@ -254,6 +274,10 @@ export const useLayoutStore = create<LayoutState>()(
           };
         }
 
+        // 切换模式时重置折叠状态
+        updates.conversationLeftCollapsed = false;
+        updates.conversationRightCollapsed = false;
+
         set(updates);
       },
 
@@ -269,6 +293,18 @@ export const useLayoutStore = create<LayoutState>()(
           set({ conversationRightWidth: clamped });
         }
       },
+
+      // 对话模式栏折叠切换
+      toggleConversationPaneCollapse: (pane) => {
+        if (pane === 'left') {
+          set((s) => ({ conversationLeftCollapsed: !s.conversationLeftCollapsed }));
+        } else {
+          set((s) => ({ conversationRightCollapsed: !s.conversationRightCollapsed }));
+        }
+      },
+
+      // Agent 工作台模式切换
+      setAgentWorkspaceMode: (mode) => set({ agentWorkspaceMode: mode }),
 
       // v0.2.9 新增：审查历史操作
       toggleReviewHistory: () => {
@@ -503,7 +539,7 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'layout-storage',
-      version: 5, // 版本升级以支持 conversation 栏宽
+      version: 7, // 版本升级以支持 agentWorkspaceMode
       partialize: (state) => ({
         panes: state.panes,
         activePaneId: state.activePaneId,
@@ -530,6 +566,11 @@ export const useLayoutStore = create<LayoutState>()(
         // 对话模式栏宽持久化
         conversationLeftWidth: state.conversationLeftWidth,
         conversationRightWidth: state.conversationRightWidth,
+        // 对话模式栏折叠持久化
+        conversationLeftCollapsed: state.conversationLeftCollapsed,
+        conversationRightCollapsed: state.conversationRightCollapsed,
+        // Agent 工作台模式持久化
+        agentWorkspaceMode: state.agentWorkspaceMode,
       }),
 
       onRehydrateStorage: () => (state) => {
@@ -572,8 +613,25 @@ export const useLayoutStore = create<LayoutState>()(
             conversationRightWidth: 300,
           };
         }
+        if (version === 5) {
+          // 从版本 5 迁移到版本 6，添加 conversation 栏折叠
+          console.log(`[LayoutStore] Migrating from version ${version} to 6, adding conversation collapse`);
+          return {
+            ...persistedState,
+            conversationLeftCollapsed: false,
+            conversationRightCollapsed: false,
+          };
+        }
+        if (version === 6) {
+          // 从版本 6 迁移到版本 7，添加 agentWorkspaceMode
+          console.log(`[LayoutStore] Migrating from version ${version} to 7, adding agentWorkspaceMode`);
+          return {
+            ...persistedState,
+            agentWorkspaceMode: 'compact' as const,
+          };
+        }
         // 版本 0 或其他版本
-        console.log(`[LayoutStore] Migrating from version ${version} to 5`);
+        console.log(`[LayoutStore] Migrating from version ${version} to 7`);
         return {
           ...persistedState,
           isToolExplorerOpen: false,
@@ -581,6 +639,9 @@ export const useLayoutStore = create<LayoutState>()(
           guiMode: 'split' as const,
           conversationLeftWidth: 260,
           conversationRightWidth: 300,
+          conversationLeftCollapsed: false,
+          conversationRightCollapsed: false,
+          agentWorkspaceMode: 'compact' as const,
         };
       },
     }

@@ -3,6 +3,8 @@ import type { GuiLayoutMode } from '../../stores/layoutStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { layoutRegistry } from './layout-registry';
 import { PaneShell } from './PaneShell';
+import { PaneCollapseToggle } from './PaneCollapseToggle';
+import { LayoutModeBar } from './LayoutModeBar';
 
 interface LayoutEngineProps {
   mode: GuiLayoutMode;
@@ -60,6 +62,8 @@ export function LayoutEngine({ mode, paneRenderer }: LayoutEngineProps) {
   const descriptor = layoutRegistry.get(mode);
   const conversationLeftWidth = useLayoutStore((s) => s.conversationLeftWidth);
   const conversationRightWidth = useLayoutStore((s) => s.conversationRightWidth);
+  const conversationLeftCollapsed = useLayoutStore((s) => s.conversationLeftCollapsed);
+  const conversationRightCollapsed = useLayoutStore((s) => s.conversationRightCollapsed);
   const setConversationPaneWidth = useLayoutStore((s) => s.setConversationPaneWidth);
 
   if (!descriptor) {
@@ -114,32 +118,68 @@ export function LayoutEngine({ mode, paneRenderer }: LayoutEngineProps) {
     ? [conversationLeftWidth, undefined, conversationRightWidth]
     : [];
 
+  // 折叠映射表: pane index → collapsed
+  const collapsedMap = isConversation
+    ? { 0: conversationLeftCollapsed, 2: conversationRightCollapsed }
+    : {};
+
   return (
-    <div data-testid="layout-engine" style={{ display: 'flex', width: '100%', flex: '1 1 0%', minHeight: 0 }}>
-      {descriptor.panes.map((pane, index) => {
-        // conversation 模式：用索引取覆盖宽度
-        const width = isConversation ? (convWidths[index] ?? pane.width) : pane.width;
+    <div data-testid="layout-engine" style={{ display: 'flex', flexDirection: 'column', width: '100%', flex: '1 1 0%', minHeight: 0 }}>
+      <div style={{ display: 'flex', flex: '1 1 0%', minHeight: 0 }}>
+        {descriptor.panes.map((pane, index) => {
+          const isCollapsed = collapsedMap[index as keyof typeof collapsedMap] === true;
+          // conversation 模式：用索引取覆盖宽度；折叠时 width=0
+          const width = isCollapsed ? 0 : (isConversation ? (convWidths[index] ?? pane.width) : pane.width);
+          const flex = isCollapsed ? 0 : pane.flex;
 
-        // conversation 三栏：index 0 的分隔线控制左栏，index 1 的控制右栏
-        const dividerSide = index === 0 ? 'left' : 'right';
+          // conversation 三栏：index 0 的分隔线控制左栏，index 1 的控制右栏
+          const dividerSide = index === 0 ? 'left' : 'right';
+          // 折叠面板旁的分隔线和相邻面板的分隔线都不渲染
+          const nextCollapsed = collapsedMap[(index + 1) as keyof typeof collapsedMap] === true;
+          const showDivider = isConversation && index < descriptor.panes.length - 1 && !isCollapsed && !nextCollapsed;
 
-        return (
-          <React.Fragment key={pane.id}>
-            <PaneShell width={width} flex={pane.flex}>
-              <div data-pane-id={pane.id} style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0 }}>
-                {paneRenderer(pane.id)}
-              </div>
-            </PaneShell>
+          return (
+            <React.Fragment key={pane.id}>
+              {isCollapsed ? (
+                /* 折叠态：脱离 PaneShell，使用固定最小宽度保证展开按钮可见 */
+                <div
+                  style={{
+                    width: 24,
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    zIndex: 20,
+                  }}
+                >
+                  <PaneCollapseToggle side={index === 0 ? 'left' : 'right'} />
+                </div>
+              ) : (
+                <PaneShell width={width} flex={flex}>
+                  <div data-pane-id={pane.id} style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0, position: 'relative' }}>
+                    {paneRenderer(pane.id)}
+                    {/* conversation 模式面板内嵌折叠按钮 */}
+                    {isConversation && (index === 0 || index === 2) && (
+                      <div style={{ position: 'absolute', top: 8, [index === 0 ? 'right' : 'left']: 4, zIndex: 20 }}>
+                        <PaneCollapseToggle side={index === 0 ? 'left' : 'right'} />
+                      </div>
+                    )}
+                  </div>
+                </PaneShell>
+              )}
 
-            {isConversation && index < descriptor.panes.length - 1 && (
-              <HorizontalDivider
-                side={dividerSide as 'left' | 'right'}
-                onResizeStart={handleResizeStart}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
+              {showDivider && (
+                <HorizontalDivider
+                  side={dividerSide as 'left' | 'right'}
+                  onResizeStart={handleResizeStart}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {isConversation && <LayoutModeBar />}
     </div>
   );
 }
