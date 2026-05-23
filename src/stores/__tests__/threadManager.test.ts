@@ -9,6 +9,7 @@ import { useThreadStore } from '../threadStore';
 import { useChatStore } from '../useChatStore';
 import { useAgentStore } from '../agentStore';
 import { ThreadManager } from '../threadManager';
+import { chatEventBus } from '../chat/eventBus/ChatEventBus';
 
 // Mock threadPersistence
 vi.mock('../persistence/threadPersistence', () => ({
@@ -146,11 +147,28 @@ describe('ThreadManager', () => {
       if (unsubscribe) unsubscribe();
     });
 
-    it('TM-4: Agent 完成时 thread 状态变为 completed', async () => {
+    it('TM-4: 普通聊天（无 Agent）保持 active 状态', async () => {
       const threadId = ThreadManager.create();
       const unsubscribe = ThreadManager.initAgentStatusSync();
 
-      // 先启动 Agent
+      // 初始状态是 active
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('active');
+
+      // 没有 Agent 运行，应该保持 active
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('active');
+
+      if (unsubscribe) unsubscribe();
+    });
+
+    it('TM-4.1: Agent 完成时 thread 状态变为 idle', async () => {
+      const threadId = ThreadManager.create();
+      const unsubscribe = ThreadManager.initAgentStatusSync();
+
+      // 初始状态应该是 active
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('active');
+
+      // 启动 Agent
       useAgentStore.setState({
         runningAgents: [{ id: 'agent-1', threadId, status: 'running' } as any],
       });
@@ -160,7 +178,8 @@ describe('ThreadManager', () => {
       // 清空 runningAgents（模拟完成）
       useAgentStore.setState({ runningAgents: [] });
       await new Promise(resolve => setTimeout(resolve, 10));
-      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('completed');
+      // Agent 完成后，状态变为 idle
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('idle');
 
       if (unsubscribe) unsubscribe();
     });
@@ -210,8 +229,116 @@ describe('ThreadManager', () => {
       useAgentStore.setState({ runningAgents: [] });
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // unsubscribe 后，thread 状态应该保持 'working' 不会变回 'active'
+      // unsubscribe 后，thread 状态应该保持 'working' 不会变回 'idle'
       expect(useThreadStore.getState().getThread(threadId)?.status).toBe('working');
+    });
+  });
+
+  describe('TM-9 ~ TM-12: Chat 流式状态同步（事件总线驱动）', () => {
+    it('TM-9: chat:stream:start 时 thread 状态变为 active', async () => {
+      const threadId = ThreadManager.create();
+      // 先将状态设为 idle（模拟已有对话）
+      useThreadStore.getState().updateThread(threadId, { status: 'idle' });
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('idle');
+
+      const unsubscribe = ThreadManager.initChatStatusSync();
+
+      // 通过事件总线模拟 LLM 开始回复
+      chatEventBus.emit('chat:stream:start', {
+        correlationId: 'corr-001',
+        sessionId: threadId,
+        timestamp: Date.now(),
+        messageId: 'corr-001',
+      });
+
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('active');
+
+      if (unsubscribe) unsubscribe();
+    });
+
+    it('TM-10: chat:stream:finished 时 thread 状态变为 idle', async () => {
+      const threadId = ThreadManager.create();
+      const unsubscribe = ThreadManager.initChatStatusSync();
+
+      // 模拟 LLM 开始回复
+      chatEventBus.emit('chat:stream:start', {
+        correlationId: 'corr-002',
+        sessionId: threadId,
+        timestamp: Date.now(),
+        messageId: 'corr-002',
+      });
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('active');
+
+      // 模拟 LLM 回复完成
+      chatEventBus.emit('chat:stream:finished', {
+        correlationId: 'corr-002',
+        sessionId: threadId,
+        timestamp: Date.now(),
+        totalTokens: 100,
+      });
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('idle');
+
+      if (unsubscribe) unsubscribe();
+    });
+
+    it('TM-11: chat:stream:finished 不会覆盖 working 状态（Agent 优先）', async () => {
+      const threadId = ThreadManager.create();
+
+      // 同时初始化 Agent 同步和 Chat 同步
+      const unsubAgent = ThreadManager.initAgentStatusSync();
+      const unsubChat = ThreadManager.initChatStatusSync();
+
+      // Agent 启动 → working
+      useAgentStore.setState({
+        runningAgents: [{ id: 'agent-1', threadId, status: 'running' } as any],
+      });
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('working');
+
+      // LLM 回复完成 → 不应覆盖 working 状态
+      chatEventBus.emit('chat:stream:finished', {
+        correlationId: 'corr-003',
+        sessionId: threadId,
+        timestamp: Date.now(),
+        totalTokens: 50,
+      });
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('working');
+
+      if (unsubAgent) unsubAgent();
+      if (unsubChat) unsubChat();
+    });
+
+    it('TM-12: initChatStatusSync 返回 unsubscribe 函数', () => {
+      const unsubscribe = ThreadManager.initChatStatusSync();
+      expect(typeof unsubscribe).toBe('function');
+      if (unsubscribe) unsubscribe();
+    });
+
+    it('TM-12.1: unsubscribe 后停止同步 Chat 状态', async () => {
+      const threadId = ThreadManager.create();
+      const unsubscribe = ThreadManager.initChatStatusSync();
+
+      // LLM 开始回复
+      chatEventBus.emit('chat:stream:start', {
+        correlationId: 'corr-004',
+        sessionId: threadId,
+        timestamp: Date.now(),
+        messageId: 'corr-004',
+      });
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('active');
+
+      // 取消订阅
+      if (unsubscribe) unsubscribe();
+
+      // LLM 回复完成
+      chatEventBus.emit('chat:stream:finished', {
+        correlationId: 'corr-004',
+        sessionId: threadId,
+        timestamp: Date.now(),
+        totalTokens: 50,
+      });
+      // 取消订阅后状态保持 active，不会变为 idle
+      expect(useThreadStore.getState().getThread(threadId)?.status).toBe('active');
     });
   });
 

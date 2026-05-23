@@ -26,7 +26,7 @@ export interface StoredThread {
   lastActiveAt: number;
   messageCount: number;
   agentTasks: string[];
-  status: 'active' | 'archived' | 'deleted';
+  status: 'active' | 'idle' | 'working' | 'archived' | 'deleted';
   hasUnreadActivity: boolean;
   tags: string[];
   pinned: boolean;

@@ -61,6 +61,7 @@ import { useEditorStore } from './stores/editorStore';
 import { useLayoutStore } from './stores/layoutStore';
 import { useAgentStore } from './stores/agentStore';
 import { useThreadStore } from './stores/threadStore';
+import { ThreadManager, migrateLegacyStatus } from './stores/threadManager';
 import { useCodeReviewStore } from './stores/codeReviewStore';
 import { useInlineEditStore } from './stores/inlineEditStore';
 import { useHelpStore } from './stores/helpStore';
@@ -450,6 +451,15 @@ function App() {
         console.error('[App] ❌ Failed to initialize agent event listeners:', error);
     });
 
+    // Initialize ThreadManager Agent status sync
+    console.log('[App] 🚀 Starting to initialize ThreadManager Agent status sync...');
+    const threadStatusCleanup = ThreadManager.initAgentStatusSync();
+    const chatStatusCleanup = ThreadManager.initChatStatusSync();
+    console.log('[App] ✅ ThreadManager Agent + Chat status sync initialized!');
+
+    // Migrate legacy thread status: active → idle
+    migrateLegacyStatus();
+
     // NOTE: The duplicate agent:result listener in App.tsx is now REMOVED
     // because agentStore.ts already handles this event properly.
     // This eliminates duplicate message injection.
@@ -463,6 +473,14 @@ function App() {
             } catch (error) {
                 console.error('[App] ❌ Error cleaning up agent event listeners:', error);
             }
+        }
+        if (threadStatusCleanup) {
+            console.log('[App] 🧹 Cleaning up ThreadManager Agent status sync...');
+            threadStatusCleanup();
+        }
+        if (chatStatusCleanup) {
+            console.log('[App] 🧹 Cleaning up ThreadManager Chat status sync...');
+            chatStatusCleanup();
         }
     };
   }, []);

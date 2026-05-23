@@ -1,26 +1,29 @@
 import React, { useMemo } from 'react';
 import { Plus, Search, Gamepad2, Shield, Cpu, ChevronRight, Users } from 'lucide-react';
 import { useThreadStore } from '../../stores/threadStore';
-import { switchThread } from '../../stores/useChatStore';
+import { ThreadManager } from '../../stores/threadManager';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { STATUS_PALETTE } from '../conversation/PALETTE';
+import type { ThreadStatus } from '../../stores/threadStore';
 
 /* ===== DSL 数据驱动 ===== */
 
-type ThreadStatus = 'active' | 'completed' | 'pending';
-
-const STATUS_MAP: Record<string, ThreadStatus> = {
+const STATUS_MAP: Partial<Record<string, ThreadStatus>> = {
   active: 'active',
-  completed: 'completed',
-  pending: 'pending',
-  idle: 'pending',
+  idle: 'idle',
+  working: 'working',
+  completed: 'idle', // 映射 completed 到 idle
+  pending: 'idle', // 映射 pending 到 idle
+  archived: 'archived',
 };
 
 const STATUS_LABEL: Record<ThreadStatus, string> = {
-  active: '工作中',
-  completed: '已完成',
-  pending: '待处理',
+  active: '活跃',
+  idle: '空闲',
+  working: '工作中',
+  archived: '已归档',
+  deleted: '已删除',
 };
 
 /* ===== 组件 ===== */
@@ -29,7 +32,6 @@ export function ConversationListPanel() {
   const { t } = useTranslation();
   const threads = useThreadStore((s) => s.threads);
   const activeThreadId = useThreadStore((s) => s.activeThreadId);
-  const createThread = useThreadStore((s) => s.createThread);
   const searchQuery = useThreadStore((s) => s.searchQuery);
   const setSearchQuery = useThreadStore((s) => s.setSearchQuery);
 
@@ -44,8 +46,8 @@ export function ConversationListPanel() {
   }, [threads, searchQuery]);
 
   const handleNewThread = () => {
-    const id = createThread({ title: t('common.untitled', '新对话') });
-    switchThread(id);
+    const id = ThreadManager.create({ title: t('common.untitled', '新对话') });
+    ThreadManager.switch(id);
   };
 
   return (
@@ -106,7 +108,7 @@ export function ConversationListPanel() {
           </div>
         )}
         {sortedThreads.map((thread) => {
-          const status: ThreadStatus = STATUS_MAP[thread.status] || 'pending';
+          const status: ThreadStatus = STATUS_MAP[thread.status] || 'active';
           const color = STATUS_PALETTE[status];
           const isActive = activeThreadId === thread.id;
           const agentCount = thread.agentTasks?.length ?? 0;
@@ -114,7 +116,7 @@ export function ConversationListPanel() {
           return (
             <button
               key={thread.id}
-              onClick={() => switchThread(thread.id)}
+              onClick={() => ThreadManager.switch(thread.id)}
               className={clsx(
                 'w-full rounded-lg px-3 py-3 text-left transition-all mb-3',
                 'border border-transparent',

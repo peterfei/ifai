@@ -178,9 +178,13 @@ export const RISK_PALETTE = derivePalette({
  * 用于任务清单、线程状态等状态标识
  */
 export const STATUS_PALETTE = derivePalette({
-  active:    'success',  // 绿色 #10B981
-  completed: 'neutral',  // 灰色 #6B7280
-  pending:   'warning',  // 橙色 #F59E0B
+  active:    'info',     // 蓝色 #3B82F6 — 活跃交互
+  idle:      'neutral',  // 灰色 #6B7280 — 空闲等待
+  working:   'warning',  // 橙色 #F59E0B — Agent 执行中
+  archived:  'muted',    // 浅灰 #9CA3AF — 已归档
+  deleted:   'danger',   // 红色 #EF4444 — 已删除
+  completed: 'success',  // 绿色 #10B981 — 已完成（兼容）
+  pending:   'warning',  // 橙色 #F59E0B — 待处理（兼容）
 });
 
 /**

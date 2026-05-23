@@ -152,22 +152,42 @@ describe('PALETTE + derivePalette', () => {
   });
 
   describe('UT-A.1.5: STATUS_PALETTE 正确派生', () => {
-    it('应包含 3 个状态', () => {
-      expect(Object.keys(STATUS_PALETTE)).toHaveLength(3);
+    it('应包含 7 个状态（含兼容字段）', () => {
+      expect(Object.keys(STATUS_PALETTE)).toHaveLength(7);
       expect(STATUS_PALETTE).toHaveProperty('active');
+      expect(STATUS_PALETTE).toHaveProperty('idle');
+      expect(STATUS_PALETTE).toHaveProperty('working');
       expect(STATUS_PALETTE).toHaveProperty('completed');
+      expect(STATUS_PALETTE).toHaveProperty('archived');
+      expect(STATUS_PALETTE).toHaveProperty('deleted');
       expect(STATUS_PALETTE).toHaveProperty('pending');
     });
 
-    it('active 状态应使用 success 绿色', () => {
-      expect(STATUS_PALETTE.active.bg).toBe('#10B981');
+    it('active 状态应使用 info 蓝色', () => {
+      expect(STATUS_PALETTE.active.bg).toBe('#3B82F6');
     });
 
-    it('completed 状态应使用 neutral 灰色', () => {
-      expect(STATUS_PALETTE.completed.bg).toBe('#6B7280');
+    it('idle 状态应使用 neutral 灰色', () => {
+      expect(STATUS_PALETTE.idle.bg).toBe('#6B7280');
     });
 
-    it('pending 状态应使用 warning 橙色', () => {
+    it('working 状态应使用 warning 橙色', () => {
+      expect(STATUS_PALETTE.working.bg).toBe('#F59E0B');
+    });
+
+    it('completed 状态应使用 success 绿色（兼容）', () => {
+      expect(STATUS_PALETTE.completed.bg).toBe('#10B981');
+    });
+
+    it('archived 状态应使用 muted 浅灰色', () => {
+      expect(STATUS_PALETTE.archived.bg).toBe('#9CA3AF');
+    });
+
+    it('deleted 状态应使用 danger 红色', () => {
+      expect(STATUS_PALETTE.deleted.bg).toBe('#EF4444');
+    });
+
+    it('pending 状态应使用 warning 橙色（兼容）', () => {
       expect(STATUS_PALETTE.pending.bg).toBe('#F59E0B');
     });
   });
