@@ -4,7 +4,6 @@ import { useLayoutStore } from '../../stores/layoutStore';
 import { layoutRegistry } from './layout-registry';
 import { PaneShell } from './PaneShell';
 import { PaneCollapseToggle } from './PaneCollapseToggle';
-import { LayoutModeBar } from './LayoutModeBar';
 
 interface LayoutEngineProps {
   mode: GuiLayoutMode;
@@ -179,7 +178,6 @@ export function LayoutEngine({ mode, paneRenderer }: LayoutEngineProps) {
           );
         })}
       </div>
-      {isConversation && <LayoutModeBar />}
     </div>
   );
 }
