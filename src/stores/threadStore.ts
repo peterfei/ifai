@@ -12,7 +12,7 @@ import { PersistenceManager } from '../services/storage/PersistenceManager';
 // Types
 // ============================================================================
 
-export type ThreadStatus = 'active' | 'archived' | 'deleted';
+export type ThreadStatus = 'active' | 'working' | 'completed' | 'archived' | 'deleted';
 
 export interface Thread {
   id: string;
