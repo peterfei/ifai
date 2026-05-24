@@ -221,14 +221,14 @@
   - [x] 1.7.3 Titlebar 实现 GuiLayoutSwitcher 模式切换按钮 ✅
   - [x] 1.7.4 底部快捷切换按钮 ✅ (LayoutModeBar DSL 查表, LMB-1~7 测试) — 已移除：与顶部 GuiLayoutSwitcher 重复
   - [x] 1.7.5 键盘快捷键（⌘+1/2/3） ✅ (LayoutShortcuts KEY_TO_MODE 查表, LS-1~7 测试)
-  - [ ] **1.7.6** 对话列表右键菜单 **[P0]** 🔴 **阻塞性问题 - 2026-05-24**
-    - [ ] 1.7.6.1 创建 `ConversationContextMenu.tsx` 组件（位置：右键点击处，180px宽度，深色背景）
-    - [ ] 1.7.6.2 实现删除对话功能（二次确认对话框，软删除status='deleted'，删除当前对话时自动切换）
-    - [ ] 1.7.6.3 实现重命名对话功能（编辑状态输入框，Enter保存，ESC取消，调用ThreadManager.updateTitle）
-    - [ ] 1.7.6.4 实现固定对话功能（toggle pinned状态，固定对话排序在顶部）
-    - [ ] 1.7.6.5 扩展 ThreadManager 方法（updateTitle/update）
-    - [ ] 1.7.6.6 单元测试（菜单显示/关闭，删除流程，重命名流程，固定功能）
-    - [ ] 1.7.6.7 E2E测试（右键菜单E2E-CM-1~4）
+  - [x] **1.7.6** 对话列表右键菜单 ✅ **[P0]** 已完成 - 2026-05-24
+    - [x] 1.7.6.1 创建 `ConversationContextMenu.tsx` 组件 ✅（策略模式 + 配置驱动，Portal 渲染，自动位置调整）
+    - [x] 1.7.6.2 实现删除对话功能 ✅（ConfirmDialog 替代 window.confirm，修复 Tauri/Electron 兼容性）
+    - [x] 1.7.6.3 实现重命名对话功能 ✅（编辑状态输入框，Enter/ESC 键盘支持）
+    - [x] 1.7.6.4 实现固定对话功能 ✅（置顶图标显示，toggle pinned 状态）
+    - [x] 1.7.6.5 扩展 ThreadManager 方法 ✅（updateTitle/update 方法，事件发射）
+    - [x] 1.7.6.6 单元测试 ✅（15 个测试：5 + 10，ConversationContextMenu + calculateMenuPosition）
+    - [ ] 1.7.6.7 E2E 测试（右键菜单 E2E-CM-1~4）**[P2]** — 待实现
   - [ ] 1.7.7 文件引用上下文菜单（点击文件链接显示操作选项） **[P1]**
   - [x] 1.7.8 模式切换过渡动画 ✅ (LayoutEngine opacity 150ms ease, LT-1~5)
 
