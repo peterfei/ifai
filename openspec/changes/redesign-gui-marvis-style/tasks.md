@@ -228,7 +228,7 @@
     - [x] 1.7.6.4 实现固定对话功能 ✅（置顶图标显示，toggle pinned 状态）
     - [x] 1.7.6.5 扩展 ThreadManager 方法 ✅（updateTitle/update 方法，事件发射）
     - [x] 1.7.6.6 单元测试 ✅（15 个测试：5 + 10，ConversationContextMenu + calculateMenuPosition）
-    - [ ] 1.7.6.7 E2E 测试（右键菜单 E2E-CM-1~4）**[P2]** — 待实现
+    - [x] 1.7.6.7 E2E 测试 ✅（8 个测试：E2E-CM-1~8，全部通过）
   - [ ] 1.7.7 文件引用上下文菜单（点击文件链接显示操作选项） **[P1]**
   - [x] 1.7.8 模式切换过渡动画 ✅ (LayoutEngine opacity 150ms ease, LT-1~5)
 

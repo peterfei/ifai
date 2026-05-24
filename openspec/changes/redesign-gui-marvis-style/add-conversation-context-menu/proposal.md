@@ -1589,7 +1589,7 @@ test('PT-CM-2: calculateMenuPosition 计算性能 < 1ms', async ({ page }) => {
 ```
 
 **待完成**:
-- ⏳ E2E 测试（E2E-CM-1~4，P2 优先级）
+- ✅ E2E 测试（E2E-CM-1~8，全部通过）✅
 
 ---
 
