@@ -182,9 +182,9 @@ describe('LayoutEngine - leftPanelMode Support', () => {
       expect(descriptor).toBeDefined();
       expect(descriptor?.panes).toHaveLength(3);
 
-      const leftPane = descriptor?.panes.find(p => p.id === 'left');
+      const leftPane = descriptor?.panes.find(p => p.id === 'conversation-list');
       expect(leftPane).toBeDefined();
-      expect(leftPane?.width).toBe(320);
+      expect(leftPane?.width).toBe(260);
     });
 
     it('应该能从 task 模式切换到 list 模式', () => {

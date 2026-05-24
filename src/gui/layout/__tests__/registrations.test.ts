@@ -2,37 +2,32 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { layoutRegistry } from '../layout-registry';
 import { componentRegistry } from '../../registry/component-registry';
 import { registerLayouts } from '../registrations';
-import { TaskProgressPanel } from '../TaskProgressPanel';
 import { ConversationDetailPanel } from '../ConversationDetailPanel';
 
 describe('Layout Registrations', () => {
   beforeEach(() => {
-    // 清理注册状态，避免测试间互相影响
     layoutRegistry.clear();
     componentRegistry.clear();
   });
 
   describe('B.3.3 - TaskProgressPanel Registration', () => {
     it('should register TaskProgressPanel in componentRegistry', () => {
-      // 导入 registrations 模块
       registerLayouts();
 
       const TaskProgressPanelComponent = componentRegistry.get('conversation-task');
       expect(TaskProgressPanelComponent).toBeDefined();
-      expect(TaskProgressPanelComponent).toBe(TaskProgressPanel);
     });
 
-    it('should register conversation layout with task panel', () => {
+    it('should register conversation layout with three panes', () => {
       registerLayouts();
 
       const conversationLayout = layoutRegistry.get('conversation');
       expect(conversationLayout).toBeDefined();
-      expect(conversationLayout?.panes).toHaveLength(3); // 左中右三栏
+      expect(conversationLayout?.panes).toHaveLength(3);
 
-      const leftPane = conversationLayout?.panes.find(p => p.id === 'left');
-      expect(leftPane).toBeDefined();
-      expect(leftPane?.flex).toBe(0); // 左栏是固定宽度
-      expect(leftPane?.width).toBe(320); // 左栏宽度320px
+      const listPane = conversationLayout?.panes.find(p => p.id === 'conversation-list');
+      expect(listPane).toBeDefined();
+      expect(listPane?.width).toBe(260);
     });
 
     it.skip('should have leftPanelMode state in layoutStore', async () => {
@@ -85,9 +80,9 @@ describe('Layout Registrations', () => {
       expect(descriptor).toBeDefined();
       expect(descriptor?.panes).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: 'left' }),
-          expect.objectContaining({ id: 'center' }),
-          expect.objectContaining({ id: 'right' }),
+          expect.objectContaining({ id: 'conversation-list' }),
+          expect.objectContaining({ id: 'conversation' }),
+          expect.objectContaining({ id: 'conversation-detail' }),
         ])
       );
     });

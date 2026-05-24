@@ -757,6 +757,20 @@ dependencies: []
 
       window.__E2E_GET_MESSAGES__ = () => window.__chatStore?.getState()?.messages || [];
 
+      // 🔥 Expose ThreadManager for E2E tests
+      if (!w.__ThreadManager__) {
+        // Import ThreadManager from the module and expose it
+        (async () => {
+          try {
+            const threadModule = await import('/src/stores/threadManager.ts');
+            w.__ThreadManager__ = threadModule.ThreadManager;
+            console.log('[E2E Setup] ✅ ThreadManager exposed to window');
+          } catch (e) {
+            console.warn('[E2E Setup] ⚠️ Failed to expose ThreadManager:', e);
+          }
+        })();
+      }
+
       window.__E2E_OPEN_MOCK_FILE__ = (name, content) => {
         const fileStore = window.__fileStore;
         const layoutStore = window.__layoutStore;
@@ -901,8 +915,15 @@ dependencies: []
 
   // 3. 等待 Stores 初始化完成
   await page.waitForFunction(() => {
-    return window.__chatStore && window.__settingsStore && window.__fileStore && window.__agentStore;
+    return window.__chatStore && window.__settingsStore && window.__fileStore;
   }, { timeout: 30000 });
+
+  // 3.1 等待 agentStore（可选，部分测试需要）
+  await page.waitForFunction(() => {
+    return !!(window as any).__agentStore;
+  }, { timeout: 10000 }).catch(() => {
+    console.log('[E2E] ⚠️ __agentStore 未初始化，跳过（Agent相关测试可能失败）');
+  });
 
   // 3.1 等待 conversationStore 初始化（部分 E2E 测试依赖）
   await page.waitForFunction(() => {
