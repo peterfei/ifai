@@ -21,6 +21,8 @@ vi.mock('../../../stores/threadStore', () => ({
       searchQuery: '',
       setSearchQuery: vi.fn(),
       createThread: mockCreateThread,
+      getThread: (id: string) => mockThreads[id],
+      updateThread: vi.fn(),
     }),
 }));
 
@@ -28,11 +30,27 @@ vi.mock('../../../stores/useChatStore', () => ({
   switchThread: vi.fn(),
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback: string) => fallback,
-  }),
+// Mock ThreadManager
+vi.mock('../../../stores/threadManager', () => ({
+  ThreadManager: {
+    create: vi.fn((opts: any) => 'new-thread-id'),
+    switch: vi.fn(),
+    updateTitle: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  },
 }));
+
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual as any,
+    initReactI18next: { type: '3rdParty', init: () => {} },
+    useTranslation: () => ({
+      t: (key: string, fallback: string) => fallback,
+    }),
+  };
+});
 
 describe('ConversationListPanel', () => {
   beforeEach(() => {
@@ -105,11 +123,11 @@ describe('ConversationListPanel', () => {
     const statusLabel = container.querySelector('[data-status="active"]');
 
     expect(statusLabel).toBeTruthy();
-    // active → success → #10B981
-    expect((statusLabel as HTMLElement).style.backgroundColor).toBe('#10B981');
+    // active → info → #3B82F6
+    expect((statusLabel as HTMLElement).style.backgroundColor).toBe('#3B82F6');
   });
 
-  // CLP-5: completed 状态颜色用 STATUS_PALETTE.completed
+  // CLP-5: completed 状态映射到 idle，颜色用 STATUS_PALETTE.idle
   it('CLP-5: completed 状态颜色用 inline style 来自 STATUS_PALETTE', () => {
     mockThreads['t1'] = {
       id: 't1',
@@ -121,14 +139,15 @@ describe('ConversationListPanel', () => {
     };
 
     const { container } = render(<ConversationListPanel />);
-    const statusLabel = container.querySelector('[data-status="completed"]');
+    // completed 被映射为 idle
+    const statusLabel = container.querySelector('[data-status="idle"]');
 
     expect(statusLabel).toBeTruthy();
-    // completed → neutral → #6B7280
+    // completed → idle → neutral → #6B7280
     expect((statusLabel as HTMLElement).style.backgroundColor).toBe('#6B7280');
   });
 
-  // CLP-6: pending 状态颜色用 STATUS_PALETTE.pending
+  // CLP-6: pending 状态映射到 idle，颜色用 STATUS_PALETTE.idle
   it('CLP-6: pending 状态颜色用 inline style 来自 STATUS_PALETTE', () => {
     mockThreads['t1'] = {
       id: 't1',
@@ -140,14 +159,15 @@ describe('ConversationListPanel', () => {
     };
 
     const { container } = render(<ConversationListPanel />);
-    const statusLabel = container.querySelector('[data-status="pending"]');
+    // pending 被映射为 idle
+    const statusLabel = container.querySelector('[data-status="idle"]');
 
     expect(statusLabel).toBeTruthy();
-    // pending → warning → #F59E0B
-    expect((statusLabel as HTMLElement).style.backgroundColor).toBe('#F59E0B');
+    // pending → idle → neutral → #6B7280
+    expect((statusLabel as HTMLElement).style.backgroundColor).toBe('#6B7280');
   });
 
-  // CLP-7: 状态标签中文（工作中/已完成/待处理）
+  // CLP-7: 状态标签中文（活跃/空闲）
   it('CLP-7: 状态标签中文', () => {
     mockThreads['t1'] = {
       id: 't1',
@@ -167,8 +187,8 @@ describe('ConversationListPanel', () => {
     };
     mockThreads['t3'] = {
       id: 't3',
-      title: 'Pending',
-      status: 'pending',
+      title: 'Working',
+      status: 'working',
       messageCount: 0,
       updatedAt: Date.now(),
       agentTasks: [],
@@ -176,9 +196,12 @@ describe('ConversationListPanel', () => {
 
     render(<ConversationListPanel />);
 
+    // active → '活跃'
+    expect(screen.getByText('活跃')).toBeTruthy();
+    // completed 映射到 idle → '空闲'
+    expect(screen.getByText('空闲')).toBeTruthy();
+    // working → '工作中'
     expect(screen.getByText('工作中')).toBeTruthy();
-    expect(screen.getByText('已完成')).toBeTruthy();
-    expect(screen.getByText('待处理')).toBeTruthy();
   });
 
   // CLP-8: STATUS_PALETTE ColorQuad → inline style
@@ -195,8 +218,8 @@ describe('ConversationListPanel', () => {
     const { container } = render(<ConversationListPanel />);
     const statusLabel = container.querySelector('[data-status="active"]');
 
-    // 应该使用 inline style
-    expect((statusLabel as HTMLElement).style.backgroundColor).toBe('#10B981');
+    // 应该使用 inline style，active 状态是蓝色 #3B82F6
+    expect((statusLabel as HTMLElement).style.backgroundColor).toBe('#3B82F6');
     // 不应该有 bg-[xxx] 的 Tailwind 类
     expect((statusLabel as HTMLElement).className).not.toContain('bg-[');
   });
@@ -229,8 +252,8 @@ describe('ConversationListPanel', () => {
   });
 
   // CLP-13: 对话卡片点击切换正常
-  it('CLP-13: 对话卡片点击调用 switchThread', async () => {
-    const { switchThread } = await import('../../../stores/useChatStore');
+  it('CLP-13: 对话卡片点击调用 ThreadManager.switch', async () => {
+    const { ThreadManager } = await import('../../../stores/threadManager');
     mockThreads['t1'] = {
       id: 't1',
       title: 'Clickable Thread',
@@ -243,6 +266,6 @@ describe('ConversationListPanel', () => {
     render(<ConversationListPanel />);
 
     fireEvent.click(screen.getByText('Clickable Thread'));
-    expect(switchThread).toHaveBeenCalledWith('t1');
+    expect(ThreadManager.switch).toHaveBeenCalledWith('t1');
   });
 });

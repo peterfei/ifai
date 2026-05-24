@@ -1,11 +1,14 @@
-import React, { useMemo } from 'react';
-import { Plus, Search, Gamepad2, Shield, Cpu, ChevronRight, Users } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Search, Gamepad2, Shield, Cpu, ChevronRight, Users, Edit, Pin, Trash2 } from 'lucide-react';
 import { useThreadStore } from '../../stores/threadStore';
 import { ThreadManager } from '../../stores/threadManager';
+import { ConversationContextMenu, type MenuItem, type MenuStrategy, type MenuContext } from '../conversation/ConversationContextMenu';
+import { ConfirmDialog } from '../../components/UI/ConfirmDialog';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { STATUS_PALETTE } from '../conversation/PALETTE';
 import type { ThreadStatus } from '../../stores/threadStore';
+import type { Thread } from '../../stores/threadStore';
 
 /* ===== DSL 数据驱动 ===== */
 
@@ -35,6 +38,23 @@ export function ConversationListPanel() {
   const searchQuery = useThreadStore((s) => s.searchQuery);
   const setSearchQuery = useThreadStore((s) => s.setSearchQuery);
 
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    threadId: string;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // 编辑状态
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  // 删除确认对话框状态
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    threadId: string | null;
+    title: string;
+  }>({ open: false, threadId: null, title: '' });
+
   const sortedThreads = useMemo(() => {
     return Object.values(threads)
       .filter((th) => th.status !== 'deleted')
@@ -48,6 +68,94 @@ export function ConversationListPanel() {
   const handleNewThread = () => {
     const id = ThreadManager.create({ title: t('common.untitled', '新对话') });
     ThreadManager.switch(id);
+  };
+
+  // 删除确认处理器
+  const handleConfirmDelete = async () => {
+    if (confirmDialog.threadId) {
+      await ThreadManager.delete(confirmDialog.threadId);
+
+      // 删除当前对话自动切换
+      if (activeThreadId === confirmDialog.threadId) {
+        const remaining = Object.values(threads).filter(
+          t => t.status !== 'deleted' && t.id !== confirmDialog.threadId
+        );
+        if (remaining.length > 0) {
+          ThreadManager.switch(remaining[0].id);
+        } else {
+          ThreadManager.create({ title: '新对话' });
+        }
+      }
+    }
+    setConfirmDialog({ open: false, threadId: null, title: '' });
+    setContextMenu(null);
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmDialog({ open: false, threadId: null, title: '' });
+  };
+
+  // ========== 声明式菜单配置 ==========
+  const menuItems: MenuItem[] = useMemo(() => [
+    {
+      id: 'rename',
+      label: '重命名',
+      icon: Edit,
+      action: 'edit',
+    },
+    {
+      id: 'togglePin',
+      label: (thread: Thread) => thread.pinned ? '取消置顶' : '置顶对话',
+      icon: Pin,
+      action: 'toggleProperty',
+      payload: { key: 'pinned' },
+    },
+    {
+      id: 'delete',
+      label: '删除对话',
+      icon: Trash2,
+      action: 'deleteWithConfirm',
+      danger: true,
+    },
+  ], []);
+
+  // ========== 策略注册表 ==========
+  const menuStrategies: Record<string, MenuStrategy> = useMemo(() => ({
+    edit: (thread: Thread, _, ctx: MenuContext) => {
+      ctx.setEditingId(thread.id);
+      ctx.setEditValue(thread.title);
+    },
+
+    toggleProperty: (thread: Thread, { key }: { key: string }, _ctx: MenuContext) => {
+      ThreadManager.update(thread.id, { [key]: !thread[key as keyof Thread] });
+    },
+
+    deleteWithConfirm: async (thread: Thread, _, ctx: MenuContext) => {
+      // 触发确认对话框
+      setConfirmDialog({
+        open: true,
+        threadId: thread.id,
+        title: thread.title,
+      });
+    },
+  }), [threads, activeThreadId]);
+
+  // 菜单上下文
+  const menuContext: MenuContext = useMemo(() => ({
+    threads,
+    activeThreadId,
+    setEditingId,
+    setEditValue,
+  }), [threads, activeThreadId]);
+
+  // 处理右键菜单
+  const handleContextMenu = (e: React.MouseEvent, threadId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      threadId,
+      position: { x: e.clientX, y: e.clientY },
+    });
   };
 
   return (
@@ -112,31 +220,68 @@ export function ConversationListPanel() {
           const color = STATUS_PALETTE[status];
           const isActive = activeThreadId === thread.id;
           const agentCount = thread.agentTasks?.length ?? 0;
+          const isEditing = editingId === thread.id;
 
           return (
-            <button
-              key={thread.id}
-              onClick={() => ThreadManager.switch(thread.id)}
-              className={clsx(
-                'w-full rounded-lg px-3 py-3 text-left transition-all mb-3',
-                'border border-transparent',
-                isActive
-                  ? 'bg-[#293449] border-[rgba(59,130,246,0.3)]'
-                  : 'bg-[#1F2937] hover:bg-[#273344]'
+            <div key={thread.id} className="relative">
+              {/* 编辑状态：重命名输入框 */}
+              {isEditing && (
+                <input
+                  data-testid="rename-input"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={() => {
+                    ThreadManager.updateTitle(thread.id, editValue);
+                    setEditingId(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      ThreadManager.updateTitle(thread.id, editValue);
+                      setEditingId(null);
+                    }
+                    if (e.key === 'Escape') {
+                      setEditingId(null);
+                    }
+                  }}
+                  className="absolute inset-0 w-full px-3 py-3 text-sm font-semibold bg-[#1E1E1E] border border-[#3B82F6] outline-none rounded-lg mb-3 z-10"
+                  style={{ color: isActive ? '#fff' : '#E5E7EB' }}
+                  autoFocus
+                />
               )}
-            >
-              {/* 标题 */}
-              <span className={clsx(
-                'block text-sm font-semibold truncate',
-                isActive ? 'text-white' : 'text-[#E5E7EB]'
-              )}>
-                {thread.title}
-              </span>
 
-              {/* 描述 */}
-              <p className="mt-1 text-[13px] text-[#9CA3AF] truncate">
-                {thread.messageCount > 0 ? `${thread.messageCount} 条消息` : '空对话'}
-              </p>
+              {/* 对话卡片按钮 */}
+              <button
+                data-thread-id={thread.id}
+                onClick={() => ThreadManager.switch(thread.id)}
+                onContextMenu={(e) => handleContextMenu(e, thread.id)}
+                className={clsx(
+                  'w-full rounded-lg px-3 py-3 text-left transition-all mb-3',
+                  'border border-transparent',
+                  isActive
+                    ? 'bg-[#293449] border-[rgba(59,130,246,0.3)]'
+                    : 'bg-[#1F2937] hover:bg-[#273344]'
+                )}
+                style={{ visibility: isEditing ? 'hidden' : 'visible' }}
+              >
+                {/* 标题行 + 置顶标识 */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className={clsx(
+                    'block text-sm font-semibold truncate flex-1',
+                    isActive ? 'text-white' : 'text-[#E5E7EB]'
+                  )}>
+                    {thread.title}
+                  </span>
+
+                  {/* 置顶标识 */}
+                  {thread.pinned && (
+                    <Pin size={14} className="text-[#3B82F6] flex-shrink-0" data-testid="pinned-icon" />
+                  )}
+                </div>
+
+                {/* 描述 */}
+                <p className="mt-1 text-[13px] text-[#9CA3AF] truncate">
+                  {thread.messageCount > 0 ? `${thread.messageCount} 条消息` : '空对话'}
+                </p>
 
               {/* 底部：状态 + Agent数 + 时间 */}
               <div className="mt-2.5 flex items-center justify-between">
@@ -166,6 +311,7 @@ export function ConversationListPanel() {
                 </span>
               </div>
             </button>
+            </div>
           );
         })}
       </div>
@@ -181,6 +327,30 @@ export function ConversationListPanel() {
           <span className="text-xs text-[#9CA3AF]">本地模型</span>
         </div>
       </div>
+
+      {/* 右键菜单 */}
+      {contextMenu && (
+        <ConversationContextMenu
+          thread={threads[contextMenu.threadId]}
+          items={menuItems}
+          strategies={menuStrategies}
+          position={contextMenu.position}
+          context={menuContext}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* 删除确认对话框 */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={`删除"${confirmDialog.title}"？`}
+        description="此操作不可恢复。删除后对话将永久消失。"
+        confirmLabel="删除"
+        cancelLabel="取消"
+        tone="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   );
 }

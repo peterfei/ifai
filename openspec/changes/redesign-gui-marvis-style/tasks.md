@@ -221,7 +221,14 @@
   - [x] 1.7.3 Titlebar 实现 GuiLayoutSwitcher 模式切换按钮 ✅
   - [x] 1.7.4 底部快捷切换按钮 ✅ (LayoutModeBar DSL 查表, LMB-1~7 测试) — 已移除：与顶部 GuiLayoutSwitcher 重复
   - [x] 1.7.5 键盘快捷键（⌘+1/2/3） ✅ (LayoutShortcuts KEY_TO_MODE 查表, LS-1~7 测试)
-  - [ ] 1.7.6 右键菜单布局模式子菜单 **[P1]**
+  - [ ] **1.7.6** 对话列表右键菜单 **[P0]** 🔴 **阻塞性问题 - 2026-05-24**
+    - [ ] 1.7.6.1 创建 `ConversationContextMenu.tsx` 组件（位置：右键点击处，180px宽度，深色背景）
+    - [ ] 1.7.6.2 实现删除对话功能（二次确认对话框，软删除status='deleted'，删除当前对话时自动切换）
+    - [ ] 1.7.6.3 实现重命名对话功能（编辑状态输入框，Enter保存，ESC取消，调用ThreadManager.updateTitle）
+    - [ ] 1.7.6.4 实现固定对话功能（toggle pinned状态，固定对话排序在顶部）
+    - [ ] 1.7.6.5 扩展 ThreadManager 方法（updateTitle/update）
+    - [ ] 1.7.6.6 单元测试（菜单显示/关闭，删除流程，重命名流程，固定功能）
+    - [ ] 1.7.6.7 E2E测试（右键菜单E2E-CM-1~4）
   - [ ] 1.7.7 文件引用上下文菜单（点击文件链接显示操作选项） **[P1]**
   - [x] 1.7.8 模式切换过渡动画 ✅ (LayoutEngine opacity 150ms ease, LT-1~5)
 
@@ -229,6 +236,18 @@
   - [x] 1.8.1 聊天面板采用新设计的对话气泡 ✅ (PALETTE 驱动, BS-1~13 测试)
   - [ ] 1.8.2 聊天面板宽度自适应 **[P1]**
   - [ ] 1.8.3 聊天面板可折叠为浮动按钮 **[P1]**
+
+- [x] **1.8b** Thread 状态管理系统 ✅（commit ee4daf6d，详见 `specs/thread-state-management/proposal.md`）
+  - [x] 1.8b.1 实现 `ThreadManager` 统一入口（create/switch/archive/delete） ✅
+  - [x] 1.8b.2 ThreadStatus 扩展为 5 态（active/idle/working/archived/deleted） ✅
+  - [x] 1.8b.3 Agent 状态同步：`initAgentStatusSync()` 订阅 runningAgents ✅ (TM-3~TM-5, TM-7~TM-8)
+  - [x] 1.8b.4 Chat 流式状态同步：`initChatStatusSync()` 事件总线驱动 ✅ (TM-9~TM-12)
+  - [x] 1.8b.5 `migrateLegacyStatus()` 历史数据迁移（active → idle） ✅
+  - [x] 1.8b.6 ConversationListPanel 使用 ThreadManager + STATUS_LABEL 查表 ✅
+  - [x] 1.8b.7 App.tsx 初始化订阅 + 清理 ✅
+  - [x] 1.8b.8 单元测试 26 个 ✅（TM-1~TM-12）
+  - [x] 1.8b.9 E2E 测试 5 个 ✅（真实事件总线驱动：LLM 交互流程 + 多轮对话 + Agent+Chat 并发）
+  - [x] 1.8b.10 修复 "Unknown: center" Bug ✅（删除旧 `registrations.ts`，统一使用 `registrations.tsx`）
 
 - [ ] **1.9** 组件测试
   - [x] 1.9.1 用户消息气泡渲染测试 ✅ (BS-1~2 bubbleStyles.test.ts)
@@ -245,6 +264,14 @@
   - [ ] 1.9.12 布局模式切换 E2E 测试（E2E5.8） **[P3]**
   - [ ] 1.9.13 Fidelity 验证：FT4.1~4.3 **[P3]**
 
+- [x] **1.9b** 对话模式集成测试审计 ✅（详见 `specs/conversation-mode/audit-report.md`）
+  - [x] 1.9b.1 编写真实集成测试（ConversationMode.integration.test.tsx，14 个测试用例）✅
+  - [x] 1.9b.2 运行测试并验证全部通过（14/14 ✅）✅
+  - [x] 1.9b.3 审计 DSL 双注册表架构符合度（layoutRegistry + componentRegistry）✅
+  - [x] 1.9b.4 验证查表驱动 UI 模式（STATUS_LABEL, AGENT_DSL, PALETTE）✅
+  - [x] 1.9b.5 验证状态驱动响应式架构（Zustand store → UI）✅
+  - [x] 1.9b.6 生成审计总结报告（符合度 96/100）✅
+
 ## Phase 2: Agent 工作台 + 审批/问答系统
 
 - [x] **2.1** Agent 角色系统 ✅
@@ -259,7 +286,7 @@
   - [ ] 2.2.4 实现 `AgentStatusIndicator.tsx` 状态指示器 **[P2]** — 已有颜色查表，可按需独立提取
   - [ ] 2.2.5 实现工作台场景背景（WorkspaceScene.tsx） **[P3]**
 
-- [ ] **2.3** Agent 动画系统 **[P2]**
+- [ ] **2.3** Agent 动画系统 **[P2]** — 详见 `specs/agent-animation/proposal.md`
   - [ ] 2.3.1 定义 Agent 状态机（idle/working/thinking/error/celebrating）
   - [ ] 2.3.2 实现工作动画（键盘打字效果）
   - [ ] 2.3.3 实现空闲动画（喝咖啡/看书/伸懒腰/冥想）

@@ -145,6 +145,59 @@ export const ThreadManager = {
   },
 
   /**
+   * 更新对话标题
+   *
+   * @param threadId - 对话ID
+   * @param newTitle - 新标题
+   */
+  updateTitle: (threadId: string, newTitle: string): void => {
+    const thread = useThreadStore.getState().threads[threadId];
+    if (!thread) {
+      console.warn(`[ThreadManager] Thread not found: ${threadId}`);
+      return;
+    }
+
+    useThreadStore.getState().updateThread(threadId, {
+      title: newTitle,
+      updatedAt: Date.now(),
+    });
+
+    // 发射事件
+    chatEventBus.emit('thread:titleUpdated', {
+      threadId,
+      oldTitle: thread.title,
+      newTitle,
+      timestamp: Date.now(),
+    } as any);
+  },
+
+  /**
+   * 更新对话属性（通用方法）
+   *
+   * @param threadId - 对话ID
+   * @param updates - 要更新的属性
+   */
+  update: (threadId: string, updates: Partial<Thread>): void => {
+    const thread = useThreadStore.getState().threads[threadId];
+    if (!thread) {
+      console.warn(`[ThreadManager] Thread not found: ${threadId}`);
+      return;
+    }
+
+    useThreadStore.getState().updateThread(threadId, {
+      ...updates,
+      updatedAt: Date.now(),
+    });
+
+    // 发射事件
+    chatEventBus.emit('thread:updated', {
+      threadId,
+      updates,
+      timestamp: Date.now(),
+    } as any);
+  },
+
+  /**
    * 订阅 agentStore.runningAgents，自动更新 thread.status
    *
    * TM-3 ~ TM-5: Agent 驱动的状态同步
