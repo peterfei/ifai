@@ -1,10 +1,18 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import styles from './MessageItem.module.css';
+import {
+  FileReferenceContextMenu,
+  createDefaultFileMenuItems,
+  createDefaultFileMenuStrategies,
+  extractFileInfo,
+  isFilePath,
+  type FileMenuContext,
+} from './FileReferenceContextMenu';
 
 interface MarkdownRendererProps {
   content: string;
@@ -13,6 +21,12 @@ interface MarkdownRendererProps {
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   index?: number;
+  /** 文件操作回调 */
+  onOpenFile?: (path: string) => Promise<void>;
+  /** 复制到剪贴板 */
+  onCopyToClipboard?: (text: string) => Promise<void>;
+  /** 在文件管理器中显示 */
+  onShowInFinder?: (path: string) => Promise<void>;
 }
 
 const prismTheme = {
@@ -85,8 +99,41 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   isExpanded = false,
   onToggleExpand,
   index = 0,
+  onOpenFile,
+  onCopyToClipboard,
+  onShowInFinder,
 }) => {
   const { t } = useTranslation();
+
+  // 文件引用右键菜单状态
+  const [fileMenu, setFileMenu] = useState<{
+    file: ReturnType<typeof extractFileInfo> | null;
+    position: { x: number; y: number } | null;
+  }>({ file: null, position: null });
+
+  // 默认文件菜单项
+  const fileMenuItems = React.useMemo(() => createDefaultFileMenuItems(), []);
+
+  // 默认文件菜单策略
+  const fileMenuStrategies = React.useMemo(
+    () => createDefaultFileMenuStrategies(),
+    []
+  );
+
+  // 处理文件链接右键菜单
+  const handleFileContextMenu = (e: React.MouseEvent, filePath: string) => {
+    // 检查是否为文件路径
+    if (!isFilePath(filePath)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const fileInfo = extractFileInfo(filePath);
+    setFileMenu({
+      file: fileInfo,
+      position: { x: e.clientX, y: e.clientY },
+    });
+  };
   // 检查是否需要折叠
   const shouldCollapse = !isStreaming && content.split('\n').length > maxLinesBeforeCollapse;
 
@@ -128,14 +175,19 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     li: ({ node, ...props }: any) => (
       <li {...props} className="ml-4" />
     ),
-    a: ({ node, ...props }: any) => (
-      <a
-        {...props}
-        className="theme-text-accent underline hover:text-[var(--accent-hover)]"
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-    ),
+    a: ({ node, href, ...props }: any) => {
+      const filePath = href || '';
+      return (
+        <a
+          {...props}
+          href={href}
+          className="theme-text-accent underline hover:text-[var(--accent-hover)]"
+          target="_blank"
+          rel="noopener noreferrer"
+          onContextMenu={(e) => handleFileContextMenu(e, filePath)}
+        />
+      );
+    },
     table: ({ node, children, ...props }: any) => (
       <div className="my-3 overflow-x-auto" style={{ textRendering: 'auto' }}>
         <table {...props} className="border-collapse border border-gray-600 rounded theme-text-muted" style={{ tableLayout: 'auto', width: 'auto', minWidth: '100%' }}>
@@ -248,6 +300,31 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           <span className={styles.streamingDot} />
           {t('aiChat.markdown.streaming')}
         </span>
+      )}
+
+      {/* 文件引用上下文菜单 */}
+      {fileMenu.file && fileMenu.position && (
+        <FileReferenceContextMenu
+          file={fileMenu.file}
+          items={fileMenuItems}
+          strategies={fileMenuStrategies}
+          position={fileMenu.position}
+          context={{
+            file: fileMenu.file,
+            position: fileMenu.position,
+            onClose: () => setFileMenu({ file: null, position: null }),
+            copyToClipboard: onCopyToClipboard || (async (text) => {
+              await navigator.clipboard.writeText(text);
+            }),
+            openInEditor: onOpenFile || (async (path) => {
+              console.log('[FileReference] Open in editor:', path);
+            }),
+            showInFinder: onShowInFinder || (async (path) => {
+              console.log('[FileReference] Show in finder:', path);
+            }),
+            setCopiedItem: () => {},
+          }}
+        />
       )}
     </div>
   );
