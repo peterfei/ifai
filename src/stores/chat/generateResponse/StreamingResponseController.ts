@@ -519,10 +519,9 @@ export class StreamingResponseController {
           data = JSON.parse(raw);
         } catch (e) {
           // 🏆 文本片段处理
-          // 🔥 FIX: 检查是否是 JSON 控制数据（防止错误地将流式控制数据作为文本发送）
-          if (raw.includes('"choices":') && raw.includes('"delta":') && raw.includes('"content":')) {
+          if (this.isJsonControlData(raw)) {
             console.warn('[SC] Detected JSON control data that failed to parse:', raw.substring(0, 100));
-            return; // 丢弃无法解析的 JSON 控制数据
+            return;
           }
           this.emitChunk(raw, false, payload);
           return;
@@ -541,17 +540,12 @@ export class StreamingResponseController {
         if (typeof content === 'string') {
           contentStr = content;
 
-          // 🔥 FIX P0: 检查 content 是否包含 JSON 控制数据
-          // 防止后端错误地将 JSON 控制数据作为内容发送
-          if (contentStr.includes('"choices":') && contentStr.includes('"delta":') && contentStr.includes('"content":')) {
+          if (this.isJsonControlData(contentStr)) {
             console.warn('[SC] ⚠️ JSON control data detected in content field, skipping:', contentStr.substring(0, 100));
             return;
           }
 
-          // 🔥 FIX P0: 检查 content 是否以 { 开头且包含大量 JSON 特征（可能是被错误包装的 JSON）
-          const trimmed = contentStr.trim();
-          if (trimmed.startsWith('{') && contentStr.length > 50 &&
-              (contentStr.includes('"index":') || contentStr.includes('"content_block_index"'))) {
+          if (this.isSuspiciousJsonIndex(contentStr)) {
             console.warn('[SC] ⚠️ Suspicious JSON-like content detected, skipping:', contentStr.substring(0, 100));
             return;
           }
@@ -783,46 +777,16 @@ export class StreamingResponseController {
         // 不会走到这里因为 finishReason 为 undefined。
         if (!evaluateStreamEvent(currentPhase, 'emitFinished')) {
           console.log(`[SC] ⚠️ emitFinished suppressed by STREAM_RULES (phase=${currentPhase}), but finish_reason=${finishReason} received — forcing through`);
-
-          // flush tool buffer
           if (finishReason === 'tool_calls' || finishReason === 'tool') {
-            for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
-              if (buffered.hasName && buffered.arguments.length > 0) {
-                chatEventBus.emit('chat:tool:call', {
-                  ...payload,
-                  toolId: buffered.toolId,
-                  name: buffered.name,
-                  arguments: buffered.arguments,
-                });
-              }
-            }
-            this.toolCallBuffer.clear();
-            this.indexToBufferKey.clear();
+            this.flushToolBuffer(payload);
           }
           // 不再 return — 继续走下面的 finishReason 处理逻辑
         }
 
         // finish_reason: "tool_calls" — 始终结束流
-        // 🔥 FIX: 不再依赖 currentPhase 判断是否结束流。
-        // 后端 continuation loop 应自行管理续播，不需要前端"保持流活着"。
-        // 如果前端不结束流 → chat:stream:finished 不触发 → ToolCallManager 不执行工具 → 死锁
         if (finishReason === 'tool_calls' || finishReason === 'tool') {
           console.log(`[SC] finish_reason=${finishReason}: flushing tool buffer and ending stream`);
-
-          // Flush 任何仍在缓冲中的工具调用
-          for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
-            if (buffered.hasName && buffered.arguments.length > 0) {
-              chatEventBus.emit('chat:tool:call', {
-                ...payload,
-                toolId: buffered.toolId,
-                name: buffered.name,
-                arguments: buffered.arguments,
-              });
-            }
-          }
-          this.toolCallBuffer.clear();
-          this.indexToBufferKey.clear();
-
+          this.flushToolBuffer(payload);
           this.emitFinished(payload, data.usage?.total_tokens);
           return;
         }
@@ -851,56 +815,61 @@ export class StreamingResponseController {
 
       // 🔥 FIX P0: 检查 raw 是否包含 JSON 控制数据后再发送
       if (typeof raw === 'string') {
-        // 检查是否是 JSON 控制数据
-        if (raw.includes('"choices":') && raw.includes('"delta":') && raw.includes('"content":')) {
+        if (this.isJsonControlData(raw)) {
           console.warn('[SC] ⚠️ JSON control data detected in parse error handler, discarding:', raw.substring(0, 100));
           return;
         }
 
-        // 检查是否以 { 开头的可疑 JSON
-        const trimmed = raw.trim();
-        if (trimmed.startsWith('{') && raw.length > 50 &&
-            (raw.includes('"index":') || raw.includes('"content_block_index"'))) {
+        if (this.isSuspiciousJsonIndex(raw)) {
           console.warn('[SC] ⚠️ Suspicious JSON-like data in parse error handler, discarding:', raw.substring(0, 100));
           return;
         }
 
-        // 🔥 DEBUG: 打印即将发送的原始数据
         console.log('[SC] 📤 Sending raw string as delta (parse fallback):', raw.substring(0, 50));
         this.emitChunk(raw, false, payload);
       }
     }
   }
 
+  /** 判断原始数据是否为 JSON 控制数据（应丢弃而非作为文本发送） */
+  private isJsonControlData(raw: string): boolean {
+    return raw.includes('"choices":') && raw.includes('"delta":') && raw.includes('"content":');
+  }
+
+  /** 判断原始数据是否为可疑的 JSON-like 索引数据 */
+  private isSuspiciousJsonIndex(raw: string): boolean {
+    return raw.trim().startsWith('{') && raw.length > 30
+      && (raw.includes('"index":') || raw.includes('"content_block_index"'));
+  }
+
+  /** 刷新工具调用缓冲区，将完整工具调用 emit 到 EventBus */
+  private flushToolBuffer(payload: BasePayload) {
+    for (const [, buffered] of this.toolCallBuffer.entries()) {
+      if (buffered.hasName && buffered.arguments.length > 0) {
+        chatEventBus.emit('chat:tool:call', {
+          ...payload,
+          toolId: buffered.toolId,
+          name: buffered.name,
+          arguments: buffered.arguments,
+        });
+      }
+    }
+    this.toolCallBuffer.clear();
+    this.indexToBufferKey.clear();
+  }
+
   private emitChunk(delta: string, isFinal: boolean, payload: BasePayload, deltaIndex: number = -1) {
-    // 🔥 FIX P0: 在发送前检查 delta 是否包含 JSON 控制数据
     if (delta && delta.length > 0) {
-      // 检查是否包含完整的 JSON 控制数据格式
-      if (delta.includes('"choices":') && delta.includes('"delta":') && delta.includes('"content":')) {
-        console.error('[SC] 🚨 CRITICAL: JSON control data detected in emitChunk!');
-        console.error('[SC] 🚨 delta:', delta.substring(0, 200));
-        console.error('[SC] 🚨 correlationId:', payload.correlationId);
-        console.error('[SC] 🚨 deltaIndex:', deltaIndex);
-        console.error('[SC] 🚨 Stack trace:', new Error().stack);
-        // 丢弃这个包含 JSON 控制数据的 delta
+      if (this.isJsonControlData(delta)) {
+        console.error('[SC] 🚨 JSON control data detected in emitChunk, discarding:', delta.substring(0, 100));
         return;
       }
-
-      // 检查是否以 { 开头的可疑 JSON
-      const trimmed = delta.trim();
-      if (trimmed.startsWith('{') && delta.length > 30 &&
-          (delta.includes('"index":') || delta.includes('"content_block_index"'))) {
-        console.error('[SC] 🚨 CRITICAL: Suspicious JSON-like data detected in emitChunk!');
-        console.error('[SC] 🚨 delta:', delta.substring(0, 200));
-        console.error('[SC] 🚨 correlationId:', payload.correlationId);
-        console.error('[SC] 🚨 deltaIndex:', deltaIndex);
-        console.error('[SC] 🚨 Stack trace:', new Error().stack);
-        // 丢弃这个可疑的 delta
+      if (this.isSuspiciousJsonIndex(delta)) {
+        console.error('[SC] 🚨 Suspicious JSON-like data in emitChunk, discarding:', delta.substring(0, 100));
         return;
       }
     }
 
-    // 🔥 DEBUG: 仅在异常时打印（大片段）- 使用 logger 节流
     if (delta.length > 100) {
       logger.debug(`emitChunk: deltaIndex=${deltaIndex}, deltaLength=${delta.length}, preview="${delta.slice(0, 30)}"`);
     }
@@ -908,7 +877,7 @@ export class StreamingResponseController {
     chatEventBus.emit('chat:stream:chunk', {
       ...payload,
       delta,
-      deltaIndex,  // 🔥 序号校验：添加序号
+      deltaIndex,
       fullContent: '',
       isFinal
     });
@@ -957,19 +926,7 @@ export class StreamingResponseController {
 
     // 🏆 FIX: Emit 任何缓冲中的 tool calls（即使 JSON 不完整）
     if (this.toolCallBuffer.size > 0) {
-      for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
-        if (buffered.hasName && buffered.arguments.length > 0) {
-          chatEventBus.emit('chat:tool:call', {
-            ...payload,
-            toolId: buffered.toolId,
-            name: buffered.name,
-            arguments: buffered.arguments
-          });
-        }
-      }
-
-      this.toolCallBuffer.clear();
-      this.indexToBufferKey.clear(); // 🏆 清理 index 映射
+      this.flushToolBuffer(payload);
     }
 
     // 🏆 PIVO 3.0: 物理闭环信号

@@ -16,7 +16,7 @@ import type { MessageAdapter } from '../MessageAdapterRegistry';
 /** 工具名称字段优先级（扩展只改此数组） */
 const TOOL_NAME_FIELDS = ['tool', 'name', 'functionName'];
 
-/** 状态映射表（声明式，零 if-else） */
+/** 状态映射表：源状态 → UI 状态（声明式查表） */
 const STATUS_MAP: Record<string, string> = {
   pending: 'pending',
   executing: 'running',
@@ -26,6 +26,18 @@ const STATUS_MAP: Record<string, string> = {
   approved: 'success',
   rejected: 'cancelled',
 };
+
+/**
+ * 多工具聚合优先级表（声明式，零 if-else）
+ * 优先级从高到下，first-match wins。
+ * 每项 [predicate, sourceStatus] — predicate 检查子工具状态集，sourceStatus 用于 STATUS_MAP 查表。
+ */
+const AGGREGATE_PRIORITY: Array<{ test: (stats: Set<string>) => boolean; status: string }> = [
+  { test: stats => stats.has('error') || stats.has('failed'),                        status: 'failed' },
+  { test: stats => stats.has('executing') || stats.has('running'),                    status: 'running' },
+  { test: stats => stats.has('pending'),                                              status: 'pending' },
+  { test: stats => true, /* default / all completed */                                status: 'completed' },
+];
 
 /* ===== 辅助函数 ===== */
 
@@ -45,18 +57,8 @@ function adaptSingle(call: any): Record<string, any> {
 }
 
 function adaptMulti(calls: any[]): Record<string, any> {
-  // 🔥 FIX: 根据子工具状态推导总体状态，不再硬编码 'pending'
-  const allCompleted = calls.every(tc => tc.status === 'completed');
-  const anyExecuting = calls.some(tc => tc.status === 'executing' || tc.status === 'running');
-  const anyPending = calls.some(tc => tc.status === 'pending');
-  const anyError = calls.some(tc => tc.status === 'error' || tc.status === 'failed');
-
-  let overallStatus: string;
-  if (allCompleted) overallStatus = 'completed';
-  else if (anyError) overallStatus = 'failed';
-  else if (anyExecuting) overallStatus = 'running';
-  else if (anyPending) overallStatus = 'pending';
-  else overallStatus = 'completed';
+  const stats = new Set(calls.map(tc => tc.status));
+  const overallStatus = AGGREGATE_PRIORITY.find(rule => rule.test(stats))?.status ?? 'completed';
 
   return {
     name: `${calls.length} 个工具调用`,
