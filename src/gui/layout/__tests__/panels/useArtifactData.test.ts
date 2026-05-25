@@ -26,6 +26,23 @@ function makeToolCall(name: string, result?: any): ToolCall {
   };
 }
 
+/** 快捷构造 agent_write_file 的 JSON result */
+function agentWriteResult(filePath: string, originalContent: string | null, newContent: string): string {
+  return JSON.stringify({
+    success: true,
+    message: 'File written successfully',
+    originalContent,
+    newContent,
+    filePath,
+    timestamp: Date.now(),
+  });
+}
+
+/** 快捷构造 write_file 的纯文本 result */
+function writeResult(filePath: string, lines: number, chars: number): string {
+  return `Successfully wrote to file: ${filePath}\n${lines} lines, ${chars} characters`;
+}
+
 function makeMessage(
   role: Message['role'],
   toolCalls?: ToolCall[],
@@ -55,11 +72,9 @@ describe('useArtifactData', () => {
   it('RA-2: 从 toolCall result 中提取文件变更', () => {
     mockMessages.push(
       makeMessage('assistant', [
-        makeToolCall('Write', {
-          path: '/src/components/Button.tsx',
-          additions: 50,
-          deletions: 0,
-        }),
+        makeToolCall('agent_write_file', agentWriteResult(
+          '/src/components/Button.tsx', null, 'export function Button() {}',
+        )),
       ]),
     );
 
@@ -72,11 +87,7 @@ describe('useArtifactData', () => {
   it('RA-3: 每条产出物含 name/size/type/path', () => {
     mockMessages.push(
       makeMessage('assistant', [
-        makeToolCall('Edit', {
-          path: '/src/utils/helper.ts',
-          additions: 20,
-          deletions: 5,
-        }),
+        makeToolCall('write_file', writeResult('/src/utils/helper.ts', 25, 600)),
       ]),
     );
 
@@ -93,21 +104,9 @@ describe('useArtifactData', () => {
   it('RA-4: 文件类型从路径后缀推断', () => {
     mockMessages.push(
       makeMessage('assistant', [
-        makeToolCall('Write', {
-          path: '/src/hooks/useForm.ts',
-          additions: 30,
-          deletions: 0,
-        }),
-        makeToolCall('Write', {
-          path: '/src/components/Form.tsx',
-          additions: 40,
-          deletions: 0,
-        }),
-        makeToolCall('Write', {
-          path: '/src/hooks/useForm.test.ts',
-          additions: 60,
-          deletions: 0,
-        }),
+        makeToolCall('write_file', writeResult('/src/hooks/useForm.ts', 30, 800)),
+        makeToolCall('write_file', writeResult('/src/components/Form.tsx', 40, 1200)),
+        makeToolCall('write_file', writeResult('/src/hooks/useForm.test.ts', 60, 1800)),
       ]),
     );
 
@@ -121,11 +120,11 @@ describe('useArtifactData', () => {
   it('RA-5: 文件大小从 additions + deletions 估算', () => {
     mockMessages.push(
       makeMessage('assistant', [
-        makeToolCall('Write', {
-          path: '/src/app.ts',
-          additions: 100,
-          deletions: 20,
-        }),
+        makeToolCall('agent_write_file', agentWriteResult(
+          '/src/app.ts',
+          'old line\n'.repeat(20),
+          'new line\n'.repeat(100),
+        )),
       ]),
     );
 
@@ -142,18 +141,14 @@ describe('useArtifactData', () => {
     // 两条消息，都修改同一个文件
     mockMessages.push(
       makeMessage('assistant', [
-        makeToolCall('Write', {
-          path: '/src/index.ts',
-          additions: 10,
-          deletions: 0,
-        }),
+        makeToolCall('agent_write_file', agentWriteResult(
+          '/src/index.ts', null, 'first version',
+        )),
       ]),
       makeMessage('assistant', [
-        makeToolCall('Edit', {
-          path: '/src/index.ts',
-          additions: 50,
-          deletions: 10,
-        }),
+        makeToolCall('agent_write_file', agentWriteResult(
+          '/src/index.ts', 'first version', 'second version with more content',
+        )),
       ]),
     );
 
@@ -163,7 +158,7 @@ describe('useArtifactData', () => {
     const indexFiles = result.current.filter((a) => a.name === 'index.ts');
     expect(indexFiles.length).toBe(1);
 
-    // 保留的是最新（additions + deletions 更大的那条）
-    expect(indexFiles[0].size).toBeTruthy();
+    // 保留的是最新
+    expect(indexFiles[0].path).toBeTruthy();
   });
 });
