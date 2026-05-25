@@ -1039,35 +1039,6 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 )}
             </div>
 
-            {/* Actions (Approve/Reject) */}
-            {isPending && !isPartial && (
-                <div className="flex border-t border-gray-700/30">
-                    {!settings.agentAutoApprove ? (
-                        <>
-                            <button
-                                data-testid="approve-button"
-                                onClick={() => onApprove(toolCall.id)}
-                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 border-r border-gray-700/30 transition-all duration-200"
-                            >
-                                <Check size={14} /> {t('toolApproval.actions.approve')}
-                            </button>
-                            <button
-                                data-testid="reject-button"
-                                onClick={() => onReject(toolCall.id)}
-                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 flex items-center justify-center gap-2 transition-all duration-200"
-                            >
-                                <X size={14} /> {t('toolApproval.actions.reject')}
-                            </button>
-                        </>
-                    ) : (
-                        <div className="w-full px-5 py-3 bg-blue-500/5 flex items-center gap-2 text-[10px] font-bold text-blue-400/80 uppercase tracking-widest">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                            {t('toolApproval.autoApprove.enabled')}
-                        </div>
-                    )}
-                </div>
-            )}
-
             {/* 🔥 撤销按钮 - 仅在已完成的文件写入操作且有回滚数据时显示 */}
             {toolCall.status === 'completed' &&
              toolCall.tool === 'agent_write_file' &&

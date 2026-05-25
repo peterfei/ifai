@@ -953,9 +953,17 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             onAction={(action, data) => {
                                 console.log('[MessageItem] Card action:', action, data);
                                 if (action === 'approve') {
-                                    handleApproveAll();
+                                    if (data?.toolId) {
+                                        onApprove(message.id, data.toolId);
+                                    } else {
+                                        handleApproveAll();
+                                    }
                                 } else if (action === 'reject') {
-                                    handleRejectAll();
+                                    if (data?.toolId) {
+                                        onReject(message.id, data.toolId);
+                                    } else {
+                                        handleRejectAll();
+                                    }
                                 } else if (action === 'openComposer') {
                                     onOpenComposer?.(message.id);
                                 }

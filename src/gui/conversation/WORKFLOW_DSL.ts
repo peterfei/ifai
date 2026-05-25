@@ -189,7 +189,7 @@ export interface FileChangeData {
 /**
  * 工具状态
  */
-export type ToolStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+export type ToolStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled' | 'approved' | 'rejected' | 'executing';
 
 /**
  * 工具调用卡片数据

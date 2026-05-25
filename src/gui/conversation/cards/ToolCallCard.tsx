@@ -7,15 +7,17 @@
  * - 工具状态（pending/running/success/failed/cancelled）
  * - 执行参数 + 结果
  * - 执行时长
+ * - 审批按钮（pending 状态时显示）
  *
  * 设计原则：
  * - 小巧紧凑，嵌入消息流
  * - 颜色根据状态区分
  * - 数据从 WORKFLOW_DSL 派生
+ * - approval onAction 传递 toolId 实现逐工具审批
  */
 
 import React, { useState } from 'react';
-import { Wrench, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight } from 'lucide-react';
+import { Wrench, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight, Check, X } from 'lucide-react';
 import type { MessageCardProps } from '../MessageCardRegistry';
 import type { ToolCallData, ToolStatus } from '../WORKFLOW_DSL';
 
@@ -24,6 +26,7 @@ import type { ToolCallData, ToolStatus } from '../WORKFLOW_DSL';
 interface ToolCallCardData {
   name: string;
   description?: string;
+  toolId?: string;
   status: ToolStatus;
   args?: Record<string, any>;
   result?: any;
@@ -33,12 +36,24 @@ interface ToolCallCardData {
 
 /* ===== 工具状态配置 ===== */
 
-const STATUS_CONFIG: Record<ToolStatus, { icon: any; color: string; label: string; bg: string }> = {
+const STATUS_CONFIG: Record<string, { icon: any; color: string; label: string; bg: string }> = {
   pending: {
     icon: Clock,
     color: '#F59E0B',
     label: '等待中',
     bg: 'rgba(245, 158, 11, 0.1)',
+  },
+  approved: {
+    icon: CheckCircle,
+    color: '#3B82F6',
+    label: '已批准',
+    bg: 'rgba(59, 130, 246, 0.1)',
+  },
+  executing: {
+    icon: Loader2,
+    color: '#3B82F6',
+    label: '执行中',
+    bg: 'rgba(59, 130, 246, 0.1)',
   },
   running: {
     icon: Loader2,
@@ -58,6 +73,12 @@ const STATUS_CONFIG: Record<ToolStatus, { icon: any; color: string; label: strin
     label: '失败',
     bg: 'rgba(239, 68, 68, 0.1)',
   },
+  rejected: {
+    icon: XCircle,
+    color: '#9CA3AF',
+    label: '已拒绝',
+    bg: 'rgba(107, 114, 128, 0.1)',
+  },
   cancelled: {
     icon: XCircle,
     color: '#9CA3AF',
@@ -66,17 +87,47 @@ const STATUS_CONFIG: Record<ToolStatus, { icon: any; color: string; label: strin
   },
 };
 
+/* ===== 审批操作栏 ===== */
+
+function ApprovalActionBar({
+  toolId,
+  onAction,
+}: {
+  toolId?: string;
+  onAction?: (action: string, data?: any) => void;
+}) {
+  return (
+    <div className="flex border-t border-gray-700/30">
+      <button
+        onClick={() => onAction?.('approve', { toolId })}
+        className="flex-1 py-2 text-[10px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-1.5 border-r border-gray-700/30 transition-all duration-200"
+      >
+        <Check size={12} />
+        <span>批准</span>
+      </button>
+      <button
+        onClick={() => onAction?.('reject', { toolId })}
+        className="flex-1 py-2 text-[10px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 flex items-center justify-center gap-1.5 transition-all duration-200"
+      >
+        <X size={12} />
+        <span>拒绝</span>
+      </button>
+    </div>
+  );
+}
+
 /* ===== 主组件 ===== */
 
-export function ToolCallCard({ message, compact }: MessageCardProps) {
+export function ToolCallCard({ message, compact, onAction }: MessageCardProps) {
   const data = message.data as any;
   const [expanded, setExpanded] = useState(false);
 
   // 安全获取 status，默认为 'pending'
-  const status: ToolStatus = data?.status || 'pending';
-  const config = STATUS_CONFIG[status];
+  const status: string = data?.status || 'pending';
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const IconComponent = config.icon;
-  const isRunning = status === 'running';
+  const isRunning = status === 'running' || status === 'executing';
+  const isPending = status === 'pending';
 
   return (
     <div
@@ -140,8 +191,39 @@ export function ToolCallCard({ message, compact }: MessageCardProps) {
         </div>
       </div>
 
-      {/* 展开内容：参数和结果 */}
-      {expanded && (
+      {/* 多工具模式：逐个列出 */}
+      {data?.multiTool && data?.calls && (
+        <div className="px-3 pb-2 space-y-1">
+          {data.calls.map((call: any, index: number) => {
+            const callConfig = STATUS_CONFIG[call.status] || STATUS_CONFIG.pending;
+            const CallIcon = callConfig.icon;
+            const isCallPending = call.status === 'pending';
+            return (
+              <div key={call.id || index} className="rounded border border-white/5 overflow-hidden">
+                <div className="flex items-center justify-between px-2 py-1.5 bg-white/[0.02]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CallIcon className={`w-3 h-3 ${call.status === 'running' || call.status === 'executing' ? 'animate-spin' : ''}`} style={{ color: callConfig.color }} />
+                    <span className="text-[11px] text-gray-300 truncate">{call.name}</span>
+                  </div>
+                  <div
+                    className="px-1.5 py-0.5 rounded text-[8px] font-medium flex-shrink-0"
+                    style={{ backgroundColor: callConfig.bg, color: callConfig.color }}
+                  >
+                    {callConfig.label}
+                  </div>
+                </div>
+                {/* 多工具中每个 pending 工具的单独审批按钮 */}
+                {isCallPending && (
+                  <ApprovalActionBar toolId={call.id} onAction={onAction} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 展开内容：参数和结果（仅单工具模式） */}
+      {!data?.multiTool && expanded && (
         <div className="px-3 pb-3 space-y-2">
           {/* 参数 */}
           {data?.args && (
@@ -183,6 +265,11 @@ export function ToolCallCard({ message, compact }: MessageCardProps) {
             </div>
           )}
         </div>
+      )}
+
+      {/* 单工具模式：pending 状态显示审批按钮 */}
+      {!data?.multiTool && isPending && (
+        <ApprovalActionBar toolId={data?.toolId} onAction={onAction} />
       )}
     </div>
   );

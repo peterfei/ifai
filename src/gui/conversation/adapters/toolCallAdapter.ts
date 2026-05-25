@@ -36,6 +36,7 @@ function pickField(obj: any, fields: string[], fallback: string): string {
 function adaptSingle(call: any): Record<string, any> {
   return {
     name: pickField(call, TOOL_NAME_FIELDS, 'Unknown Tool'),
+    toolId: call.id,
     status: STATUS_MAP[call.status] ?? 'pending',
     args: call.args,
     result: call.output ?? call.result,
