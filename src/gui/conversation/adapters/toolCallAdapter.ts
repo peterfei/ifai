@@ -45,14 +45,27 @@ function adaptSingle(call: any): Record<string, any> {
 }
 
 function adaptMulti(calls: any[]): Record<string, any> {
+  // 🔥 FIX: 根据子工具状态推导总体状态，不再硬编码 'pending'
+  const allCompleted = calls.every(tc => tc.status === 'completed');
+  const anyExecuting = calls.some(tc => tc.status === 'executing' || tc.status === 'running');
+  const anyPending = calls.some(tc => tc.status === 'pending');
+  const anyError = calls.some(tc => tc.status === 'error' || tc.status === 'failed');
+
+  let overallStatus: string;
+  if (allCompleted) overallStatus = 'completed';
+  else if (anyError) overallStatus = 'failed';
+  else if (anyExecuting) overallStatus = 'running';
+  else if (anyPending) overallStatus = 'pending';
+  else overallStatus = 'completed';
+
   return {
     name: `${calls.length} 个工具调用`,
-    status: 'pending',
+    status: STATUS_MAP[overallStatus] ?? 'pending',
     multiTool: true,
     calls: calls.map((tc: any) => ({
       id: tc.id,
       name: pickField(tc, TOOL_NAME_FIELDS, 'Unknown Tool'),
-      status: tc.status,
+      status: STATUS_MAP[tc.status] ?? tc.status,
       args: tc.args,
       result: tc.result,
     })),

@@ -444,29 +444,14 @@ export class StreamingResponseController {
         }
 
         // 3. 🔥 FIX: 监听 finish 事件（商业版 ifainew_core 发送）
-        // 🔥 CRITICAL FIX: 在 continuation 场景下，后端会发送 _finish 事件但不应该结束流
-        // 我们需要在 emitFinished 之前检查是否有真正的结束条件
+        // 🔥 CRITICAL FIX: 始终调用 emitFinished，不再阻止。
+        // 之前的 pending 工具检查导致死锁：
+        //   _finish 有 pending 工具 → 不 emitFinished → chat:stream:finished 不触发
+        //   → ToolCallManager 不 processPending → auto-approve 在 standard 模式返回 false
+        //   → 没人执行工具 → 永远 pending → isLoading 卡 true
+        // 现在始终结束流，工具保持 pending 状态等待用户审批（通过 ToolCallCard/ToolApproval 的按钮）
         const unlistenFinish = await listen(`${eventId}_finish`, (event: any) => {
-          // 🔥 DIAGNOSTIC: 打印 _finish 事件接收信息
-          console.log(`[SC] 🏁 _finish event received: correlationId=${payload.correlationId}`);
-
-          // 检查是否有待处理的工具调用
-          const chatStore = useChatStore.getState();
-          const msg = chatStore.messages.find(m => m.id === payload.correlationId);
-          const hasPendingTools = msg?.toolCalls?.some((tc: any) =>
-            tc.status === 'pending' || tc.status === 'approved' || tc.status === 'executing' || tc.isPartial
-          );
-
-          console.log(`[SC] _finish event: hasPendingTools=${hasPendingTools}, msg.toolCalls.length=${msg?.toolCalls?.length || 0}`);
-
-          // 🔥 FIX: 如果有待处理的工具，不结束流（continuation 场景）
-          if (hasPendingTools) {
-            console.log(`[SC] _finish event received but has pending tools, continuing stream`);
-            return;
-          }
-
-          // 只有在没有待处理工具时才真正结束
-          console.log(`[SC] _finish event received with no pending tools, calling emitFinished`);
+          console.log(`[SC] 🏁 _finish event received: correlationId=${payload.correlationId}, calling emitFinished`);
           this.emitFinished(payload);
         });
 
@@ -515,21 +500,9 @@ export class StreamingResponseController {
       // 🔥 DIAGNOSTIC: 打印 Event Fallback 触发信息
       console.log(`[SC] ⚠️ Event Fallback: raw is falsy (raw=${raw}), correlationId=${payload.correlationId}`);
 
-      // 检查是否有待处理的工具或内容
-      const chatStore = useChatStore.getState();
-      const msg = chatStore.messages.find(m => m.id === payload.correlationId);
-      const hasPendingTools = msg?.toolCalls?.some((tc: any) =>
-        tc.status === 'pending' || tc.status === 'approved' || tc.status === 'executing' || tc.isPartial
-      );
-
-      console.log(`[SC] Event Fallback: hasPendingTools=${hasPendingTools}, msg.toolCalls.length=${msg?.toolCalls?.length || 0}`);
-
-      if (!hasPendingTools) {
-        console.log(`[SC] Event Fallback: triggering emitFinished`);
-        this.emitFinished(payload);
-      } else {
-        console.log(`[SC] Event Fallback: has pending tools, NOT triggering emitFinished`);
-      }
+      // 🔥 FIX: 始终触发 emitFinished，不再因 pending 工具阻止（与 _finish 修复同因）
+      console.log(`[SC] Event Fallback: triggering emitFinished`);
+      this.emitFinished(payload);
       return;
     }
 
@@ -801,12 +774,17 @@ export class StreamingResponseController {
         const currentPhase = session?.currentPhase || 'STREAMING';
         console.log(`[SC] 🏁 Finish event received: finishReason=${finishReason}, phase=${currentPhase}, correlationId=${payload.correlationId}`);
 
-        // 🔥 Schema-Driven: 使用 evaluateStreamEvent 决定是否处理 finish 事件
-        // 当 phase 为 AWAITING_APPROVAL 或 CONTINUING 时，emitFinished 被 suppress
+        // 🔥 FIX: 后端明确发送了 finish_reason，无论 phase 如何都应结束流。
+        // 之前的 STREAM_RULES 抑制导致死锁：
+        //   AWAITING_APPROVAL phase → suppress emitFinished → chat:stream:finished 不触发
+        //   → ToolCallManager 不 processPending → auto-approve 不执行 → 永远 pending
+        // 现在始终 flush tool buffer 并继续处理（让后续的 finishReason 分支决定是否 emitFinished）
+        // 注意：对于 CONTINUING phase 且没有 finish_reason 的场景（后端还在发数据），
+        // 不会走到这里因为 finishReason 为 undefined。
         if (!evaluateStreamEvent(currentPhase, 'emitFinished')) {
-          console.log(`[SC] ⛔ emitFinished suppressed by STREAM_RULES (phase=${currentPhase}), continuation in progress`);
+          console.log(`[SC] ⚠️ emitFinished suppressed by STREAM_RULES (phase=${currentPhase}), but finish_reason=${finishReason} received — forcing through`);
 
-          // 仍然 flush tool buffer（工具调用数据需要传递给 UI）
+          // flush tool buffer
           if (finishReason === 'tool_calls' || finishReason === 'tool') {
             for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
               if (buffered.hasName && buffered.arguments.length > 0) {
@@ -821,13 +799,15 @@ export class StreamingResponseController {
             this.toolCallBuffer.clear();
             this.indexToBufferKey.clear();
           }
-          return;
+          // 不再 return — 继续走下面的 finishReason 处理逻辑
         }
 
-        // finish_reason: "tool_calls" 在 STREAMING phase 下的处理
-        //（正常流程：后端 continuation loop 还会继续发送事件）
+        // finish_reason: "tool_calls" — 始终结束流
+        // 🔥 FIX: 不再依赖 currentPhase 判断是否结束流。
+        // 后端 continuation loop 应自行管理续播，不需要前端"保持流活着"。
+        // 如果前端不结束流 → chat:stream:finished 不触发 → ToolCallManager 不执行工具 → 死锁
         if (finishReason === 'tool_calls' || finishReason === 'tool') {
-          console.log(`[SC] finish_reason=${finishReason}: flushing tool buffer (phase=${currentPhase})`);
+          console.log(`[SC] finish_reason=${finishReason}: flushing tool buffer and ending stream`);
 
           // Flush 任何仍在缓冲中的工具调用
           for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
@@ -843,11 +823,7 @@ export class StreamingResponseController {
           this.toolCallBuffer.clear();
           this.indexToBufferKey.clear();
 
-          // 如果 phase 仍是 STREAMING，说明后端没有 continuation loop（无工具调用）
-          // 这种情况下需要结束流
-          if (currentPhase === 'STREAMING') {
-            this.emitFinished(payload, data.usage?.total_tokens);
-          }
+          this.emitFinished(payload, data.usage?.total_tokens);
           return;
         }
 
@@ -942,9 +918,17 @@ export class StreamingResponseController {
     // 🔥 FIX v0.3.12: 幂等性保护 - 防止同一个 correlationId 多次触发 finish
     const correlationId = payload.correlationId;
 
-    // 🔥 DIAGNOSTIC: 打印堆栈跟踪，追踪是哪个路径触发了 emitFinished - 使用 logger
-    logger.debug(`emitFinished called: correlationId=${correlationId}`);
-    logger.debug(`Call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    // 🔥 DIAGNOSTIC: 诊断标记 — 检查 window.__EMIT_FINISHED_LOG__ 确认 emitFinished 是否被调用
+    if (typeof window !== 'undefined') {
+      if (!(window as any).__EMIT_FINISHED_LOG__) (window as any).__EMIT_FINISHED_LOG__ = [];
+      (window as any).__EMIT_FINISHED_LOG__.push({
+        correlationId,
+        timestamp: Date.now(),
+        stack: new Error().stack?.split('\n').slice(1, 4).join(' | '),
+      });
+    }
+    console.log(`[SC] 🏁 emitFinished called: correlationId=${correlationId}`);
+    console.log(`[SC] 🏁 Call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
 
     if (this.emittedFinish.has(correlationId)) {
       logger.warn(`Duplicate finish suppressed: ${correlationId}`);

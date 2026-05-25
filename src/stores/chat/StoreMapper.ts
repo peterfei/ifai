@@ -1651,6 +1651,32 @@ export const initStoreMapper = () => {
       };
       useChatStore.setState(updater as any);
 
+      // 🔥 FIX: 安全网 — 所有工具完成后检查 isLoading 是否卡住
+      // 问题链：StreamingResponseController 的 _finish 在 pending 工具时跳过 emitFinished →
+      // activeStreamCount 不递减 → ToolCallManager 又设 isLoading=true → 无后续流重置 → 卡死
+      // 延迟 2s 检查：若此时所有工具已完成但 isLoading 仍为 true，强制清理
+      setTimeout(() => {
+        const currentState = useChatStore.getState();
+        const msg = currentState.messages.find((m: any) => m.id === correlationId);
+        if (!msg?.toolCalls) return;
+
+        const allToolsDone = msg.toolCalls.every((tc: any) => tc.status === 'completed');
+        if (!allToolsDone) return;
+
+        // 所有工具已完成，但 isLoading 仍为 true → 强制清理
+        if (currentState.isLoading) {
+          console.warn('[StoreMapper] ⚠️ All tools completed but isLoading still true, forcing cleanup', {
+            correlationId,
+            activeStreamCount,
+          });
+          activeStreamCount = 0;
+          useChatStore.setState({ isLoading: false } as any);
+
+          // 通知 ContentSegmentManager 清理
+          contentSegmentManager.onStreamFinish(correlationId);
+        }
+      }, 2000);
+
       // 🔥 CRITICAL FIX: 禁用前端续播（后端已在内部 loop 中处理 continuation）
       // 后端的 harness_ai_service.rs 已有完整的 continuation loop 机制
       // 前端续播会导致双重流并发，造成 delta_index 冲突和内容混乱

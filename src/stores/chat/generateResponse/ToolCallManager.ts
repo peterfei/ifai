@@ -23,10 +23,14 @@ export class ToolCallManager {
     this.init();
   }
 private init() {
-  chatEventBus.on('chat:stream:start', () => { this.isStreamActive = true; });
-  chatEventBus.on('chat:stream:finished', (p) => { 
-      this.isStreamActive = false; 
-      this.processPendingToolCalls(p); 
+  chatEventBus.on('chat:stream:start', () => {
+    this.isStreamActive = true;
+    console.log('[ToolCallManager] 📡 stream:start, isStreamActive=true');
+  });
+  chatEventBus.on('chat:stream:finished', (p) => {
+      console.log('[ToolCallManager] 📡 stream:finished, processing pending tools');
+      this.isStreamActive = false;
+      this.processPendingToolCalls(p);
   });
 
   chatEventBus.on('chat:tool:call', (payload) => {
@@ -68,17 +72,98 @@ private init() {
 
   private async processPendingToolCalls(payload: BasePayload) {
     const pending = Array.from(this.activeToolCalls.values()).filter(tc => tc.status === 'pending');
-    for (const tc of pending) {
-      if (this.checkAutoApprove(tc.name)) {
-        await this.executeTool(tc, payload);
-      } else {
-        chatEventBus.emit('chat:error', { 
-            ...payload, 
-            code: 'APPROVAL_REQUIRED', 
-            message: `Tool ${tc.name} requires manual approval`,
-            moduleId: 'ToolManager'
-        } as any);
+
+    if (pending.length === 0) return;
+
+    // 🔥 FIX: 先尝试让后端接管所有工具执行（resolve_tool_approval）
+    // 后端有 continuation loop，一次 approve 后会执行所有工具并继续生成。
+    // 只对 safe 工具自动审批；非 safe 工具不自动 resolve。
+    const safePending = pending.filter(tc => this.checkAutoApprove(tc.name));
+    const unsafePending = pending.filter(tc => !this.checkAutoApprove(tc.name));
+
+    if (safePending.length > 0) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+
+        // 对第一个 safe 工具调 resolve_tool_approval，后端会接管所有工具
+        const firstTool = safePending[0];
+        console.log(`[ToolCallManager] 🔓 Resolving backend approval for ${firstTool.name} (batch of ${safePending.length} safe tools)`);
+
+        // 标记所有 safe 工具为已执行（防止 StoreMapper 重复审批）
+        if (!(window as any).__EXECUTED_TOOLS__) {
+          (window as any).__EXECUTED_TOOLS__ = new Set();
+        }
+        const executedTools = (window as any).__EXECUTED_TOOLS__;
+        safePending.forEach(tc => {
+          executedTools.add(tc.id);
+          tc.status = 'executing';
+        });
+
+        const backendResolved = await invoke('resolve_tool_approval', {
+          toolCallId: firstTool.id,
+          approved: true,
+          result: null
+        });
+
+        if (backendResolved) {
+          console.log(`[ToolCallManager] ✅ Backend took over tool execution, ${safePending.length} tools will be handled by backend loop`);
+
+          // 🔥 FIX: 乐观更新 store 中的工具状态为 completed，避免 UI 卡在 pending
+          const globalStore = (window as any).__chatStore;
+          if (globalStore) {
+            const toolIds = safePending.map(tc => tc.id);
+            globalStore.setState((state: any) => ({
+              messages: state.messages.map((msg: any) => {
+                if (msg.toolCalls && msg.toolCalls.some((t: any) => toolIds.includes(t.id))) {
+                  return {
+                    ...msg,
+                    toolCalls: msg.toolCalls.map((t: any) =>
+                      toolIds.includes(t.id) ? { ...t, status: 'completed' as const, result: '{"status":"backend_executing"}' } : t
+                    )
+                  };
+                }
+                return msg;
+              })
+            }));
+          }
+
+          // 清理 activeToolCalls
+          safePending.forEach(tc => this.activeToolCalls.delete(tc.id));
+        } else {
+          // resolve_tool_approval 返回 false，回退到串行执行
+          console.log(`[ToolCallManager] ⚠️ Backend didn't take over, falling back to serial execution`);
+          safePending.forEach(tc => {
+            tc.status = 'pending';
+            executedTools.delete(tc.id);
+          });
+          for (const tc of safePending) {
+            await this.executeTool(tc, payload);
+          }
+        }
+      } catch (e) {
+        // resolve_tool_approval 不存在或失败，回退到串行执行
+        console.log(`[ToolCallManager] ⚠️ resolve_tool_approval failed, falling back to serial execution:`, e);
+        const executedTools = (window as any).__EXECUTED_TOOLS__;
+        if (executedTools) {
+          safePending.forEach(tc => {
+            tc.status = 'pending';
+            executedTools.delete(tc.id);
+          });
+        }
+        for (const tc of safePending) {
+          await this.executeTool(tc, payload);
+        }
       }
+    }
+
+    // 非 safe 工具需要手动审批
+    for (const tc of unsafePending) {
+      chatEventBus.emit('chat:error', {
+          ...payload,
+          code: 'APPROVAL_REQUIRED',
+          message: `Tool ${tc.name} requires manual approval`,
+          moduleId: 'ToolManager'
+      } as any);
     }
   }
 
