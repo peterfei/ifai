@@ -953,14 +953,17 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             onAction={(action, data) => {
                                 console.log('[MessageItem] Card action:', action, data);
                                 if (action === 'approve') {
-                                    if (data?.toolId) {
-                                        onApprove(message.id, data.toolId);
+                                    const toolId = data?.toolId;
+                                    if (toolId) {
+                                        // 直接调 store，绕过 props 链（useCallback / React.memo / 虚拟滚动）
+                                        useChatStore.getState().approveToolCall(message.id, toolId);
                                     } else {
                                         handleApproveAll();
                                     }
                                 } else if (action === 'reject') {
-                                    if (data?.toolId) {
-                                        onReject(message.id, data.toolId);
+                                    const toolId = data?.toolId;
+                                    if (toolId) {
+                                        useChatStore.getState().rejectToolCall(message.id, toolId);
                                     } else {
                                         handleRejectAll();
                                     }
