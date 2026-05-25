@@ -1022,7 +1022,10 @@ export class StreamingResponseController {
 
     chatEventBus.emit('chat:stream:finished', {
       ...payload,
-      totalTokens: tokens
+      totalTokens: tokens,
+      // 🏆 元编程：将 threadId 注入事件数据，使消费者（如 CPS）从 payload 声明式读取
+      // 而不是在 async handler 中查询即将被 stopListening 删除的 session
+      threadId: session?.threadId,
     });
 
     // 事件发出后清理 session 和监听器

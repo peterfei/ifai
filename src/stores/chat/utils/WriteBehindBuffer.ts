@@ -59,6 +59,24 @@ export class WriteBehindBuffer<K, V = string> {
         await this.config.onFlush(group, new Map([[key, value]]));
     }
 
+    /** 立即冲刷指定分组的所有缓冲 */
+    async flushGroup(group: string): Promise<void> {
+        if (this.items.size === 0) return;
+        const pending: Map<K, V> = new Map();
+        for (const [key, value] of this.items) {
+            if (this.config.groupBy(key, value) === group) {
+                pending.set(key, value);
+            }
+        }
+        if (pending.size === 0) return;
+        for (const key of pending.keys()) {
+            this.items.delete(key);
+        }
+        await this.config.onFlush(group, pending).catch(e => {
+            console.warn(`[WriteBehindBuffer] Flush failed for group "${group}":`, e);
+        });
+    }
+
     /** 清空缓冲（不写入） */
     clear(): void {
         this.items.clear();

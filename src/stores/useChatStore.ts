@@ -704,6 +704,11 @@ export const switchThread = async (threadId: string) => {
         console.log('[ChatStore] ⏳ threadPersistence not initialized, initializing...');
         await threadPersistence.init();
     }
+
+    // 🏆 元编程：发射领域事件，CPS 声明式监听自行响应
+    // 不再直接 import 调用 CPS，实现控制反转（IoC）
+    chatEventBus.emit('chat:thread:switching', { threadId, previousThreadId });
+
     try {
         const messages = await threadPersistence.loadThreadMessages(threadId);
 
@@ -724,12 +729,35 @@ export const switchThread = async (threadId: string) => {
             return;
         }
 
+        // 🔧 normalizeToolCalls: 声明式状态映射表
+        // 元编程原则：非硬编码 if/else，通过配置数据驱动转换
+        // 防止 hasActiveToolCalls（MessageItem.tsx:248-250）在历史消息加载时触发打字机效果
+        const STALE_STATUS_MAP: Record<string, string> = {
+            pending: 'completed',
+            executing: 'completed',
+            running: 'completed',
+        };
+        const normalizeToolCalls = (toolCalls: any[] | undefined): any[] | undefined => {
+            if (!toolCalls || toolCalls.length === 0) return toolCalls;
+            return toolCalls.map((tc: any) => ({
+                ...tc,
+                status: STALE_STATUS_MAP[tc.status] ?? tc.status,
+                isPartial: tc.isPartial ? false : tc.isPartial,
+            }));
+        };
+
         // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
         // 🔥 v0.5.0: 强制重置 isStreaming 状态，避免历史消息触发打字机效果
         const normalizedMessages = (messages || []).map((msg: any, idx: number) => {
             // 如果已经有 segments 且不为空，直接使用
             if (msg.segments && msg.segments.length > 0) {
-                return { ...msg, isStreaming: false, _loadOrder: idx };  // 🔥 重置 isStreaming
+                return {
+                    ...msg,
+                    isStreaming: false,
+                    status: 'completed',
+                    toolCalls: normalizeToolCalls(msg.toolCalls),
+                    _loadOrder: idx,
+                };
             }
 
             // 物理恢复：如果没 segments 但有内容，创建一个默认的 pre-tool 段落
@@ -747,6 +775,8 @@ export const switchThread = async (threadId: string) => {
             return {
                 ...msg,
                 isStreaming: false,  // 🔥 重置 isStreaming
+                status: 'completed',  // 🔥 重置 status（防止 IndexedDB 残留 'streaming'）
+                toolCalls: normalizeToolCalls(msg.toolCalls),  // 🔥 重置 toolCalls stale 状态
                 segments,
                 _loadOrder: idx  // 添加加载顺序索引用于稳定排序
             };

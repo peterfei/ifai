@@ -80,6 +80,21 @@ async function flushDeltasToDB(threadId: string, deltas: Map<string, string>): P
     }
 }
 
+// ─── 缓存引用 ──────────────────────────────────────────────
+
+let buffer: WriteBehindBuffer<string, string> | null = null;
+
+/**
+ * 刷新指定线程的跨线程缓冲 delta 到 IndexedDB。
+ * switchThread 在加载线程消息前调用此函数，确保 CPS 缓冲中的
+ * 流式 delta 已落地，避免加载过期内容。
+ */
+export async function flushPendingForThread(threadId: string): Promise<void> {
+    if (buffer && threadId && threadId !== '_orphaned') {
+        await buffer.flushGroup(threadId);
+    }
+}
+
 // ─── 服务初始化 ──────────────────────────────────────────────
 
 export function initCrossThreadPersistence(): void {
@@ -92,7 +107,7 @@ export function initCrossThreadPersistence(): void {
     }
 
     // ── 声明式缓冲配置：不需要手动 timer/map/threshold 管理 ──
-    const buffer = new WriteBehindBuffer<string, string>({
+    buffer = new WriteBehindBuffer<string, string>({
         groupBy: (correlationId) => {
             const session = getStreamSession(correlationId);
             return session?.threadId ?? '_orphaned';
@@ -120,31 +135,30 @@ export function initCrossThreadPersistence(): void {
 
     // ── 监听器：finished ──
     // 流完成时：先刷掉剩余缓冲，再标记消息为 completed
-    // 注意：不使用 isCrossThreadChunk —— 因为 emitFinished 在事件发出前就已
-    // 将 session.isFinished 设为 true，isCrossThreadChunk 会拒之门外。
-    // 正确做法：只检查消息是否在当前 store 中（不在则归 CPS 处理）。
+    // threadId 通过事件 payload 声明式提供（由 StreamingResponseController.emitFinished 注入），
+    // 避免了 async handler 中查询 session 的竞态（emitFinished 之后会调用 stopListening 删除 session）。
     chatEventBus.on('chat:stream:finished', (payload: any) => {
-        const { correlationId } = payload;
+        const { correlationId, threadId } = payload;
+        if (!correlationId || !threadId) return;
         const state = useChatStore.getState();
         // 消息在当前 store 中 → StoreMapper 会处理 isLoading 和标记
         if (state.messages.some((m: any) => m.id === correlationId)) return;
 
         (async () => {
-            // 1) 刷走 buffer 中剩余的 delta
             await buffer.flushKey(correlationId);
-
-            // 2) 从 session 获取 threadId（emitFinished 中 event 发出后
-            //    才会 stopListening 删除 session，所以此时 session 仍可访问）
-            const session = getStreamSession(correlationId);
-            if (!session?.threadId) {
-                logger.warn(`⚠️ Finished event but no session found for ${correlationId.substring(0, 20)}`);
-                return;
-            }
-
-            // 3) 标记消息为 completed
-            await applyToMessages(session.threadId, correlationId, ops.finishStream());
+            await applyToMessages(threadId, correlationId, ops.finishStream());
             logger.debug(`✅ Cross-thread stream finished: ${correlationId.substring(0, 20)}`);
         })();
+    });
+
+    // ── 监听器：thread:switching ──
+    // 元编程：不导出函数给 switchThread 调用，通过事件驱动自行响应
+    // 当用户切换会话时，flush 属于目标线程的缓冲 delta 到 IndexedDB
+    chatEventBus.on('chat:thread:switching', async ({ threadId }: { threadId: string }) => {
+        if (threadId && threadId !== '_orphaned' && buffer) {
+            await buffer.flushGroup(threadId);
+            logger.debug(`🔄 Flushed pending deltas for thread ${threadId.substring(0, 20)} on switch`);
+        }
     });
 }
 
