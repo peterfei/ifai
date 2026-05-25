@@ -7,6 +7,8 @@
  * - 引擎 `adaptMessageToCard` 零分支：通过遍历注册表实现
  * - 每个适配器自描述（match + adapt），新增卡片类型 = register 一个新适配器
  * - 与 MessageCardRegistry、blockingStepRegistry、layoutRegistry 一致的 Registry 模式
+ *
+ * 注意：approvalAdapter 已取消注册，审批操作由 ToolApproval 内联处理。
  */
 import { Registry } from '../registry/registry';
 

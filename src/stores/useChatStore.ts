@@ -27,6 +27,7 @@ export interface Message {
   isStreaming?: boolean;              // 🏆 新增：标记是否正在流式传输
   toolCalls?: ToolCall[];
   tool_call_id?: string;
+  approvalMeta?: Record<string, any>;   // LLM 操作审批元数据
 
   // 🏆 新增：正式的 segments 字段（取代 contentSegments）
   segments?: ContentSegment[];         // 可选字段（兼容持久化和 core 类型）

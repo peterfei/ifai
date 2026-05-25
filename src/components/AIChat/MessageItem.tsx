@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot, CheckCircle, X } from 'lucide-react';
+import { User, FileCode, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot, CheckCircle, X } from 'lucide-react';
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTypewriter } from '../../hooks/useTypewriter';
@@ -946,7 +946,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         </div>
                     )}
 
-                    {/* Phase D: MessageCard — 卡片与原始内容共存（ToolApproval 不受影响） */}
+                    {/* Phase D: MessageCard — ApprovalCard 仅作信息面板（按钮在 ToolApproval 内联） */}
                     {ResolvedCard && (
                         <ResolvedCard
                             message={cardMessage}
@@ -1002,20 +1002,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
 
-                        {/* Batch Review Panel */}
-                        {pendingCount > 1 && (
-                            <div className="mb-3 p-2 bg-blue-900/20 rounded border border-blue-700/50 flex items-center justify-between">
-                                <div className="text-xs font-medium text-blue-300">{t('messageItem.pendingActions', { count: pendingCount })}</div>
-                                <div className="flex gap-2">
-                                    <button onClick={handleApproveAll} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] rounded transition-colors">
-                                        <CheckCheck size={12} /> {t('messageItem.approveAll')}
-                                    </button>
-                                    <button onClick={handleRejectAll} className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] rounded transition-colors">
-                                        <XCircle size={12} /> {t('messageItem.rejectAll')}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                        {/* Batch Review Panel 已移除，审批由 ToolApproval 内联处理 */}
 
                         {/* 主要内容流 (Interleaved Text and Tools) */}
                         {taskBreakdown ? (

@@ -1039,6 +1039,31 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 )}
             </div>
 
+            {/* 🔥 审批操作 — pending 工具的内联确认/拒绝按钮（直调 store，绕过 props 链） */}
+            {toolCall.status === 'pending' && (
+                <div className="flex border-t border-gray-700/30">
+                    <button
+                        onClick={() => useChatStore.getState().approveToolCall(message?.id || '', toolCall.id)}
+                        className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
+                                   text-green-400 hover:bg-green-500/10
+                                   flex items-center justify-center gap-2 transition-all duration-200"
+                    >
+                        <Check size={14} />
+                        确认执行
+                    </button>
+                    <div className="w-px bg-gray-700/30" />
+                    <button
+                        onClick={() => useChatStore.getState().rejectToolCall(message?.id || '', toolCall.id)}
+                        className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
+                                   text-red-400 hover:bg-red-500/10
+                                   flex items-center justify-center gap-2 transition-all duration-200"
+                    >
+                        <X size={14} />
+                        拒绝
+                    </button>
+                </div>
+            )}
+
             {/* 🔥 撤销按钮 - 仅在已完成的文件写入操作且有回滚数据时显示 */}
             {toolCall.status === 'completed' &&
              toolCall.tool === 'agent_write_file' &&

@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Wrench, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight, Check, X } from 'lucide-react';
+import { Wrench, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 import type { MessageCardProps } from '../MessageCardRegistry';
 import type { ToolCallData, ToolStatus } from '../WORKFLOW_DSL';
 
@@ -86,35 +86,6 @@ const STATUS_CONFIG: Record<string, { icon: any; color: string; label: string; b
     bg: 'rgba(107, 114, 128, 0.1)',
   },
 };
-
-/* ===== 审批操作栏 ===== */
-
-function ApprovalActionBar({
-  toolId,
-  onAction,
-}: {
-  toolId?: string;
-  onAction?: (action: string, data?: any) => void;
-}) {
-  return (
-    <div className="flex border-t border-gray-700/30">
-      <button
-        onClick={() => onAction?.('approve', { toolId })}
-        className="flex-1 py-2 text-[10px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-1.5 border-r border-gray-700/30 transition-all duration-200"
-      >
-        <Check size={12} />
-        <span>批准</span>
-      </button>
-      <button
-        onClick={() => onAction?.('reject', { toolId })}
-        className="flex-1 py-2 text-[10px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 flex items-center justify-center gap-1.5 transition-all duration-200"
-      >
-        <X size={12} />
-        <span>拒绝</span>
-      </button>
-    </div>
-  );
-}
 
 /* ===== 主组件 ===== */
 
@@ -212,10 +183,6 @@ export function ToolCallCard({ message, compact, onAction }: MessageCardProps) {
                     {callConfig.label}
                   </div>
                 </div>
-                {/* 多工具中每个 pending 工具的单独审批按钮 */}
-                {isCallPending && (
-                  <ApprovalActionBar toolId={call.id} onAction={onAction} />
-                )}
               </div>
             );
           })}
@@ -267,10 +234,7 @@ export function ToolCallCard({ message, compact, onAction }: MessageCardProps) {
         </div>
       )}
 
-      {/* 单工具模式：pending 状态显示审批按钮 */}
-      {!data?.multiTool && isPending && (
-        <ApprovalActionBar toolId={data?.toolId} onAction={onAction} />
-      )}
+      {/* 审批由 ToolApproval 内联处理 */}
     </div>
   );
 }

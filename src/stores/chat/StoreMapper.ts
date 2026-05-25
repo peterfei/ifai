@@ -236,7 +236,28 @@ export const initStoreMapper = () => {
             }
             return {
                 messages: state.messages.map((m: any) =>
-                    m.id === correlationId ? { ...m, isStreaming: false, status: 'completed' } : m
+                    m.id === correlationId ? {
+                        ...m,
+                        isStreaming: false,
+                        status: 'completed',
+                        // 🏆 从 pending toolCalls 声明式推导 approvalMeta
+                        approvalMeta: m.toolCalls?.some((tc: any) => tc.status === 'pending')
+                            ? {
+                                title: `${m.toolCalls.filter((tc: any) => tc.status === 'pending').length} 个操作待确认`,
+                                summary: m.toolCalls.filter((tc: any) => tc.status === 'pending').map((tc: any) => tc.tool).join(', '),
+                                risk: m.toolCalls.some((tc: any) => tc.tool === 'bash' || tc.tool === 'execute_command') ? 'high'
+                                    : m.toolCalls.some((tc: any) => tc.tool === 'write_file' || tc.tool === 'create_file' || tc.tool === 'delete_file') ? 'medium'
+                                    : 'low',
+                                files: m.toolCalls
+                                    .filter((tc: any) => tc.status === 'pending' && tc.args?.path)
+                                    .map((tc: any) => ({
+                                        path: tc.args.path,
+                                        change: tc.tool,
+                                        risk: tc.tool === 'bash' ? 'high' : tc.tool === 'write_file' || tc.tool === 'create_file' || tc.tool === 'delete_file' ? 'medium' : 'low',
+                                    })),
+                            }
+                            : undefined,
+                    } : m
                 ),
                 isLoading: activeStreamCount > 0,
             };

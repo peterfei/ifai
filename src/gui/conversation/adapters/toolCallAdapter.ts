@@ -61,7 +61,8 @@ function adaptMulti(calls: any[]): Record<string, any> {
 
 export const toolCallAdapter: MessageAdapter = {
   id: 'tool-call',
-  match: (msg: any) => !!msg.toolCalls?.length,
+  // approvalMeta 的消息由 ToolApproval 内联处理，不渲染 ToolCallCard
+  match: (msg: any) => !!msg.toolCalls?.length && !msg.approvalMeta,
   adapt: (msg: any) => {
     const isMulti = msg.toolCalls.length > 1;
     return {
