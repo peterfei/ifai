@@ -45,6 +45,7 @@ import { usePivoStore } from '../../stores/pivoStore';
 import { MarkdownRenderer, SimpleMarkdownRenderer } from './MarkdownRenderer';
 import styles from './MessageItem.module.css';
 import { MessageCardRegistry, resolveCardType } from '../../gui/conversation/MessageCardRegistry';
+import { adaptMessageToCard } from '../../gui/conversation/MessageAdapterRegistry';
 import { getUserBubbleStyle, getAssistantBubbleStyle, getAgentBubbleStyle, getAgentAvatarStyle } from '../../gui/conversation/bubbleStyles';
 import { getAgent } from '../../gui/conversation/AGENT_DSL';
 /**
@@ -864,9 +865,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         return null;
     }, [toggleBlock, processScanResult]);
 
-    // Phase D: 预计算 MessageCard（仅当 message 显式指定 cardType 时才使用卡片渲染）
-    const resolvedCardType = (message as any).cardType ? resolveCardType(message as any) : null;
+    // Phase D: 预计算 MessageCard — 通过 MessageAdapterRegistry 适配真实消息
+    // 移除 cardType? 守卫后，resolveCardType 的智能推断（toolCalls → tool-call 等）对所有消息生效
+    const adaptedCard = adaptMessageToCard(message);
+    const resolvedCardType = adaptedCard ? resolveCardType(adaptedCard as any) : null;
     const ResolvedCard = resolvedCardType ? MessageCardRegistry.get(resolvedCardType) : null;
+    const cardMessage = adaptedCard ? { ...message, ...adaptedCard } : message;
 
     // 统一渲染逻辑 (v0.4.1: 去分支化重构，杜绝 Hook 冲突)
     return (
@@ -942,10 +946,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         </div>
                     )}
 
-                    {/* Phase D: MessageCard 集成 — 有卡片时渲染卡片，否则渲染原始内容 */}
-                    {ResolvedCard ? (
+                    {/* Phase D: MessageCard — 卡片与原始内容共存（ToolApproval 不受影响） */}
+                    {ResolvedCard && (
                         <ResolvedCard
-                            message={message}
+                            message={cardMessage}
                             onAction={(action, data) => {
                                 console.log('[MessageItem] Card action:', action, data);
                                 if (action === 'approve') {
@@ -958,11 +962,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             }}
                             compact={!isUser}
                         />
-                    ) : (
+                    )}
+
                     <div className="space-y-3">
 
-                        {/* 如果内容为空且正在流式传输，显示骨架屏 */}
-                        {effectivelyStreaming && !contentWithoutThinking && !hasToolCalls && renderSkeleton()}
+                        {/* 如果内容为空且正在流式传输，显示骨架屏（仅无卡片时） */}
+                        {!ResolvedCard && effectivelyStreaming && !contentWithoutThinking && !hasToolCalls && renderSkeleton()}
 
                         {/* v0.3.7 新增：PIVO 极简任务列表 (随行渲染模式) */}
                         {isPivoEscort && pivoTasks && pivoTasks.length > 0 && (
@@ -1349,7 +1354,6 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
                     </div>
-                    )}
                 </div>
             </div>
         </div>
