@@ -59,6 +59,18 @@ export class WriteBehindBuffer<K, V = string> {
         await this.config.onFlush(group, new Map([[key, value]]));
     }
 
+    /**
+     * 立即冲刷指定 key 到指定分组（绕过 groupBy 回调）。
+     * 🏆 元编程：当 groupBy 依赖的外部状态（如 session）已被清理时使用，
+     * 调用者负责提供正确的 group，而非通过 groupBy 回调动态推导。
+     */
+    async flushKeyToGroup(key: K, group: string): Promise<void> {
+        const value = this.items.get(key);
+        if (value === undefined) return;
+        this.items.delete(key);
+        await this.config.onFlush(group, new Map([[key, value]]));
+    }
+
     /** 立即冲刷指定分组的所有缓冲 */
     async flushGroup(group: string): Promise<void> {
         if (this.items.size === 0) return;

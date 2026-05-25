@@ -749,12 +749,16 @@ export const switchThread = async (threadId: string) => {
         // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
         // 🔥 v0.5.0: 强制重置 isStreaming 状态，避免历史消息触发打字机效果
         const normalizedMessages = (messages || []).map((msg: any, idx: number) => {
+            // 🏆 元编程：通过声明式谓词检查消息是否有活跃流 session
+            // 如果有，保留 isStreaming/status 而非强制重置为 completed
+            const isActiveStream = isStreamActive(msg.id);
+
             // 如果已经有 segments 且不为空，直接使用
             if (msg.segments && msg.segments.length > 0) {
                 return {
                     ...msg,
-                    isStreaming: false,
-                    status: 'completed',
+                    isStreaming: isActiveStream ? true : false,
+                    status: isActiveStream ? 'streaming' : 'completed',
                     toolCalls: normalizeToolCalls(msg.toolCalls),
                     _loadOrder: idx,
                 };
@@ -774,9 +778,9 @@ export const switchThread = async (threadId: string) => {
 
             return {
                 ...msg,
-                isStreaming: false,  // 🔥 重置 isStreaming
-                status: 'completed',  // 🔥 重置 status（防止 IndexedDB 残留 'streaming'）
-                toolCalls: normalizeToolCalls(msg.toolCalls),  // 🔥 重置 toolCalls stale 状态
+                isStreaming: isActiveStream ? true : false,
+                status: isActiveStream ? 'streaming' : 'completed',
+                toolCalls: normalizeToolCalls(msg.toolCalls),
                 segments,
                 _loadOrder: idx  // 添加加载顺序索引用于稳定排序
             };
@@ -810,6 +814,19 @@ export const switchThread = async (threadId: string) => {
 };
 
 /**
+ * 🏆 声明式谓词：消息的流是否仍在活跃？
+ * 元编程原则：将"如何判断活跃流"封装为单一数据源，
+ * 消除多处 getSession + isFinished 手动判断
+ */
+export function isStreamActive(correlationId: string): boolean {
+    const controller = typeof window !== 'undefined'
+        ? (window as any).__StreamingResponseController
+        : null;
+    const session = controller?.getSession?.(correlationId);
+    return !!session && !session.isFinished;
+}
+
+/**
  * 🐛 FIX: 检测刚加载的消息中是否有仍在流式输出的活跃 session。
  * 用户切回原对话时，如果 LLM 还在后台生成，需要恢复 isLoading 使 UI 继续实时更新。
  *
@@ -817,15 +834,7 @@ export const switchThread = async (threadId: string) => {
  * 规则："loadedMessages 中有 msg.id 匹配 activeSession 且未完成 → isLoading = true"
  */
 function restoreIsLoadingIfActive(messages: any[]): void {
-    const controller = typeof window !== 'undefined'
-        ? (window as any).__StreamingResponseController
-        : null;
-    if (!controller?.getSession) return;
-
-    const hasActiveStream = messages.some((msg: any) => {
-        const session = controller.getSession(msg.id);
-        return session && !session.isFinished;
-    });
+    const hasActiveStream = messages.some((msg: any) => isStreamActive(msg.id));
 
     if (hasActiveStream) {
         console.log(`[ChatStore] 🔄 Detected active stream, restoring isLoading`);

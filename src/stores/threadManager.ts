@@ -7,7 +7,7 @@
  */
 
 import { useThreadStore } from './threadStore';
-import { useChatStore } from './useChatStore';
+import { useChatStore, isStreamActive } from './useChatStore';
 import { useAgentStore } from './agentStore';
 import { chatEventBus } from './chat/eventBus/ChatEventBus';
 import { threadPersistence } from './persistence/threadPersistence';
@@ -90,7 +90,11 @@ export const ThreadManager = {
       // 用户离开当前对话 → 状态变为 idle（不再活跃使用）
       const currentThread = useThreadStore.getState().getThread(currentThreadId);
       if (currentThread && currentThread.status === 'active') {
-        useThreadStore.getState().updateThread(currentThreadId, { status: 'idle' });
+        // 🏆 元编程：通过声明式谓词检测活跃流，消除内联 getSession 重复
+        const hasActiveStream = messages.some((msg: any) => isStreamActive(msg.id));
+        if (!hasActiveStream) {
+          useThreadStore.getState().updateThread(currentThreadId, { status: 'idle' });
+        }
       }
     }
 

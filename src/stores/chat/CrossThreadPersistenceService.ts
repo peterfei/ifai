@@ -145,7 +145,10 @@ export function initCrossThreadPersistence(): void {
         if (state.messages.some((m: any) => m.id === correlationId)) return;
 
         (async () => {
-            await buffer.flushKey(correlationId);
+            // 🏆 元编程：使用 payload 中的 threadId 直接 flush，绕过 groupBy
+            // groupBy 依赖 getSession 查询线程归属，但 stopListening 已删除 session
+            // flushKeyToGroup 由调用者提供 group，不经过 groupBy 回调
+            await buffer.flushKeyToGroup(correlationId, threadId);
             await applyToMessages(threadId, correlationId, ops.finishStream());
             logger.debug(`✅ Cross-thread stream finished: ${correlationId.substring(0, 20)}`);
         })();
