@@ -966,6 +966,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                     <div className="space-y-3">
 
+                        {/* 流式状态指示器 - 消息级，与文本内容解耦 */}
+                        {effectivelyStreaming && (
+                            <span className={styles.streamingIndicator}>
+                                <span className={styles.streamingDot} />
+                                {t('aiChat.markdown.streaming')}
+                            </span>
+                        )}
+
                         {/* 如果内容为空且正在流式传输，显示骨架屏（仅无卡片时） */}
                         {!ResolvedCard && effectivelyStreaming && !contentWithoutThinking && !hasToolCalls && renderSkeleton()}
 

@@ -294,14 +294,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         </button>
       )}
 
-      {/* 流式状态指示器 - 仅在流式状态时显示 */}
-      {isStreaming && (
-        <span className={styles.streamingIndicator}>
-          <span className={styles.streamingDot} />
-          {t('aiChat.markdown.streaming')}
-        </span>
-      )}
-
       {/* 文件引用上下文菜单 */}
       {fileMenu.file && fileMenu.position && (
         <FileReferenceContextMenu

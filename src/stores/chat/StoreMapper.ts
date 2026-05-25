@@ -23,6 +23,9 @@ const logger = createLogger('StoreMapper');
 // ✅ 元编程：数据流追踪（当元数据启用时）
 const MULTI_MODAL_LOGGING_ENABLED = true;
 
+// 🏆 声明式：活跃 stream 计数器 — isLoading 由此推导，消除时间耦合
+let activeStreamCount = 0;
+
 export const initStoreMapper = () => {
     // 🔥 CRITICAL: 防止同一页面重复初始化（HMR）
     // 仅检查 window 级别，不检查 globalThis，避免跨 page 隔离问题
@@ -105,6 +108,9 @@ export const initStoreMapper = () => {
         const messageId = payload.messageId; // UI 层面的 ID
 
         console.log('[StoreMapper] 🚀 Stream start:', { correlationId, messageId });
+
+        // 🏆 声明式计数器：activeStreamCount 推导 isLoading
+        activeStreamCount++;
 
         // 🏆 设置 isStreaming 标记
         useChatStore.setState((state: any) => ({
@@ -208,16 +214,19 @@ export const initStoreMapper = () => {
         // A. 通知 ContentSegmentManager
         contentSegmentManager.onStreamFinish(correlationId);
 
+        // 🏆 声明式递减计数器（先于 setState，确保 isLoading 推导准确）
+        activeStreamCount = Math.max(0, activeStreamCount - 1);
+
         // B. 物理标记流完成 & 清除续播锁
         finishedStreams.add(correlationId);
         continuationInProgress[correlationId] = false;
-        
+
         // 延迟清理 finishedStreams 标记，防止内存泄漏
         setTimeout(() => {
           finishedStreams.delete(correlationId);
         }, 10000);
 
-        // C. 重置 UI 加载状态
+        // C. 重置 UI 加载状态（由 activeStreamCount 声明式推导，消除时间耦合）
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) {
@@ -229,18 +238,9 @@ export const initStoreMapper = () => {
                 messages: state.messages.map((m: any) =>
                     m.id === correlationId ? { ...m, isStreaming: false, status: 'completed' } : m
                 ),
-                isLoading: false,
+                isLoading: activeStreamCount > 0,
             };
         }) as any;
-
-        // 🔥 DEBUG: 验证状态是否正确更新
-        setTimeout(() => {
-            const newState = useChatStore.getState();
-            if (newState.isLoading) {
-                console.error('[StoreMapper] ❌ isLoading is still true after setState! Force resetting...');
-                useChatStore.setState({ isLoading: false } as any);
-            }
-        }, 50);
 
         // D. 终极同步：确保 segments 中缺失的内容补齐到 content
         // 🔥 FIX: 仅在 segments 有 content 而 message.content 为空或明显更短时补齐

@@ -113,10 +113,9 @@ describe('StoreMapper + CrossThreadPersistenceService 集成', () => {
 
     await new Promise(r => setTimeout(r, 300));
 
-    // StoreMapper 的 setTimeout(50ms) force-reset 安全网会重置 isLoading=false，
-    // 但这是正常行为。核心验证：CPS handler 从 payload 读取了 threadId，整体不崩溃。
-    // (getSession 仍会被 flushKey→groupBy 回调调用，但与 CPS finish 逻辑解耦)
+    // 声明式 activeStreamCount 不再强制重置 isLoading，
+    // 因为 another-stream 仍在加载中，isLoading=true 是正确的行为。
     const state = useChatStore.getState();
-    expect(state.isLoading).toBe(false);  // StoreMapper force-reset 安全网
+    expect(state.isLoading).toBe(true);  // another-stream 仍在加载，保持 true
   });
 });
