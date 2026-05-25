@@ -15,6 +15,7 @@ import { contentSegmentManager } from './generateResponse/ContentSegmentManager'
 import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { toast } from 'sonner';
 import { createLogger } from '../../utils/logger';
+import { initCrossThreadPersistence } from './CrossThreadPersistenceService';
 
 // 🔥 Logger instance for StoreMapper
 const logger = createLogger('StoreMapper');
@@ -171,9 +172,7 @@ export const initStoreMapper = () => {
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) {
-                // 🔥 DEBUG: 找不到消息时的调试信息
-                console.warn(`[StoreMapper] ⚠️ Message not found for correlationId: ${correlationId}`);
-                console.log(`[StoreMapper] Available message IDs:`, state.messages.map((m: any) => m.id));
+                // 🐛 跨线程 chunk：由 CrossThreadPersistenceService 独立处理
                 return state;
             }
 
@@ -219,12 +218,20 @@ export const initStoreMapper = () => {
         }, 10000);
 
         // C. 重置 UI 加载状态
-        useChatStore.setState((state: any) => ({
-            messages: state.messages.map((m: any) =>
-                m.id === correlationId ? { ...m, isStreaming: false, status: 'completed' } : m
-            ),
-            isLoading: false
-        }) as any);
+        useChatStore.setState((state: any) => {
+            const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+            if (messageIndex === -1) {
+                // 🐛 跨线程 finished：由 CrossThreadPersistenceService 独立处理
+                // 务必返回 state 而非设置 isLoading:false，避免杀死当前线程加载态
+                return state;
+            }
+            return {
+                messages: state.messages.map((m: any) =>
+                    m.id === correlationId ? { ...m, isStreaming: false, status: 'completed' } : m
+                ),
+                isLoading: false,
+            };
+        }) as any;
 
         // 🔥 DEBUG: 验证状态是否正确更新
         setTimeout(() => {
@@ -1850,4 +1857,9 @@ export const initStoreMapper = () => {
       };
       useChatStore.setState(updater as any);
     });
+
+    // ── 跨线程流式持久化服务 ──
+    // 不修改 StoreMapper，以独立 EventBus 监听器运行。
+    // 通过声明式路由规则自动判断 chunk 归属，缓冲写入 IndexedDB。
+    initCrossThreadPersistence();
 };

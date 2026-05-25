@@ -122,6 +122,25 @@ export class StreamingResponseController {
   }
 
   /**
+   * 🐛 FIX: 查询指定流的会话信息
+   * 供 CrossThreadPersistenceService 判断 chunk 归属使用。
+   */
+  getSession(correlationId: string): StreamSession | undefined {
+    return this.activeSessions.get(correlationId);
+  }
+
+  /**
+   * 🐛 FIX: 中止指定流（用于删除正在流式的线程时主动清理）
+   * 发出 finished 事件 → 停止监听 → 清理 session
+   */
+  abortStream(correlationId: string): void {
+    this.emitFinished({ correlationId, sessionId: '', timestamp: Date.now() });
+    this.stopListening(correlationId);
+    this.activeSessions.delete(correlationId);
+    this.emittedFinish.delete(correlationId);
+  }
+
+  /**
    * 🏆 PIVO 3.0: 物理级自愈心跳监测器
    * 每 5 秒检测一次流停滞，15 秒无心跳则触发自愈
    */
@@ -994,12 +1013,19 @@ export class StreamingResponseController {
         });
     }
 
-    // 🏆 FIX: 在清理前标记 session 为已完成，防止心跳监测器误判
+    // 🐛 FIX: 先 emit 事件再 cleanup，确保事件处理器（如 CrossThreadPersistenceService）
+    // 在触发时仍能访问 session 信息（如 threadId）
     const session = this.activeSessions.get(correlationId);
     if (session) {
       session.isFinished = true;
     }
 
+    chatEventBus.emit('chat:stream:finished', {
+      ...payload,
+      totalTokens: tokens
+    });
+
+    // 事件发出后清理 session 和监听器
     this.stopListening(payload.correlationId);
 
     // 🏆 FIX: 如果没有活跃会话了，物理停止心跳监测
@@ -1007,11 +1033,6 @@ export class StreamingResponseController {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
-
-    chatEventBus.emit('chat:stream:finished', {
-      ...payload,
-      totalTokens: tokens
-    });
   }
 
   /**

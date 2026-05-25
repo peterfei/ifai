@@ -680,6 +680,14 @@ export const switchThread = async (threadId: string) => {
     const previousMessages = useChatStore.getState().messages;
     const isSameThread = previousThreadId === threadId;
 
+    // 🐛 FIX: 切换前显式保存当前线程的消息，确保 StoreMapper 流式累加的内容不被丢失
+    if (!isSameThread && previousThreadId && previousMessages.length > 0) {
+        const { threadPersistence } = await import('./persistence/threadPersistence');
+        await threadPersistence.saveThreadMessages(previousThreadId, previousMessages as any).catch(err => {
+            console.error('[ChatStore] ⚠️ Failed to save messages before thread switch:', err);
+        });
+    }
+
     // 更新 currentThreadId
     useChatStore.setState({ currentThreadId: threadId, isLoading: false });
 
@@ -761,11 +769,39 @@ export const switchThread = async (threadId: string) => {
         if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
             (window as any).__chatStore.setState({ messages: sortedMessages });
         }
+
+        // 🐛 FIX: 响应式检测——加载的消息中是否有仍在活跃流式输出的？
+        // 如果有，恢复 isLoading，使 StoreMapper 能继续实时更新 UI
+        restoreIsLoadingIfActive(sortedMessages);
     } catch (e) {
         console.error('[ChatStore] SwitchThread failed:', e);
         // 加载失败时保留当前 messages，不做任何修改
     }
 };
+
+/**
+ * 🐛 FIX: 检测刚加载的消息中是否有仍在流式输出的活跃 session。
+ * 用户切回原对话时，如果 LLM 还在后台生成，需要恢复 isLoading 使 UI 继续实时更新。
+ *
+ * 元编程原则：声明式规则而非过程式 if/else。
+ * 规则："loadedMessages 中有 msg.id 匹配 activeSession 且未完成 → isLoading = true"
+ */
+function restoreIsLoadingIfActive(messages: any[]): void {
+    const controller = typeof window !== 'undefined'
+        ? (window as any).__StreamingResponseController
+        : null;
+    if (!controller?.getSession) return;
+
+    const hasActiveStream = messages.some((msg: any) => {
+        const session = controller.getSession(msg.id);
+        return session && !session.isFinished;
+    });
+
+    if (hasActiveStream) {
+        console.log(`[ChatStore] 🔄 Detected active stream, restoring isLoading`);
+        useChatStore.setState({ isLoading: true });
+    }
+}
 
 export const getThreadMessages = (id: string) => useChatStore.getState().messages;
 export const setThreadMessages = (id: string, msgs: any[]) => useChatStore.setState({ messages: msgs });
@@ -793,7 +829,8 @@ if (typeof window !== 'undefined') {
     const messages = state.messages;
 
     // 将消息序列化为字符串进行比较，避免频繁持久化
-    const messagesJson = JSON.stringify(messages.map((m: any) => ({ id: m.id, role: m.role, timestamp: m.timestamp })));
+    // 🐛 FIX: 包含 contentLen 以捕获流式响应中的内容变化（StoreMapper 追加 delta 改变 content）
+    const messagesJson = JSON.stringify(messages.map((m: any) => ({ id: m.id, role: m.role, timestamp: m.timestamp, contentLen: m.content?.length || 0 })));
 
     // 只有当消息真正变化时才持久化
     if (messagesJson !== lastPersistedMessages && messages.length > 0) {

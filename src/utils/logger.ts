@@ -44,6 +44,7 @@ export type LoggerCategory =
   | 'MessageQueue'
   | 'PersistenceManager'
   | 'EventBus'
+  | 'CrossThreadPersist'
   | 'Other';
 
 // ============================================================================
