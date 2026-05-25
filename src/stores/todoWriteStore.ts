@@ -14,6 +14,14 @@ import { taskStoreService } from '../services/taskStoreService';
 
 export type PanelState = 'full' | 'collapsed' | 'hidden';
 
+/* ===== 线程级任务缓存 ===== */
+
+/**
+ * 内存缓存：每个线程的任务快照
+ * 切换线程时保存/恢复，不持久化到 localStorage
+ */
+const _threadTaskCache = new Map<string, TaskItem[]>();
+
 interface TodoWriteStoreState {
   // 状态
   tasks: TaskItem[];
@@ -41,6 +49,10 @@ interface TodoWriteStoreState {
 
   // 从 TodoWrite 工具调用同步
   syncFromToolCall: (todos: any[]) => void;
+
+  // 线程级任务保存/恢复
+  saveTasksForThread: (threadId: string) => void;
+  loadTasksForThread: (threadId: string) => void;
 
   // 🔥 FIX: 修复损坏的 store 数据
   repairStore: () => void;
@@ -178,6 +190,23 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
             error: error instanceof Error ? error.message : String(error),
           });
         }
+      },
+
+      // 线程级保存：切换线程前，将当前任务缓存到旧线程
+      saveTasksForThread: (threadId: string) => {
+        const tasks = get().tasks;
+        if (tasks.length > 0) {
+          _threadTaskCache.set(threadId, [...tasks]);
+        } else {
+          _threadTaskCache.delete(threadId);
+        }
+      },
+
+      // 线程级恢复：切换线程后，从缓存加载新线程的任务
+      loadTasksForThread: (threadId: string) => {
+        const tasks = _threadTaskCache.get(threadId) || [];
+        set({ tasks, panelState: tasks.length > 0 ? 'full' : 'hidden' });
+        get().updateStats();
       },
 
       // 更新统计信息

@@ -122,25 +122,13 @@ import { ToolCallCard } from './cards/ToolCallCard';
 import { ErrorFixCard } from './cards/ErrorFixCard';
 import { ComposerCard } from './cards/ComposerCard';
 
-// ProgressCard 替换占位符
+// Declarative registration — 新增卡片 = 一行 register
 MessageCardRegistry.register('progress', ProgressCard);
-
-// ApprovalCard 替换占位符
 MessageCardRegistry.register('approval', ApprovalCard);
-
-// InteractionCard 替换占位符
 MessageCardRegistry.register('interaction', InteractionCard);
-
-// FileChangeCard 替换占位符
 MessageCardRegistry.register('file-change', FileChangeCard);
-
-// ToolCallCard 替换占位符
 MessageCardRegistry.register('tool-call', ToolCallCard);
-
-// ErrorFixCard 替换占位符
 MessageCardRegistry.register('error-fix', ErrorFixCard);
-
-// ComposerCard 替换占位符
 MessageCardRegistry.register('composer', ComposerCard);
 
 /* ===== resolveCardType 函数 ===== */

@@ -218,6 +218,10 @@ export const useThreadStore = create<ThreadStore>()(
           // 保存旧线程的消息
           await threadPersistence.saveThreadMessages(oldThreadId, oldMessages as any);
           console.log('[ThreadStore] 💾 保存旧线程消息:', oldThreadId.substring(0, 20), '消息数:', oldMessages.length);
+
+          // 保存旧线程的 TodoWrite 任务到内存缓存
+          const { useTodoWriteStore } = await import('./todoWriteStore');
+          useTodoWriteStore.getState().saveTasksForThread(oldThreadId);
         }
 
         set(state => ({
@@ -234,6 +238,10 @@ export const useThreadStore = create<ThreadStore>()(
         const { switchThread: loadThreadMessages } = await import('./useChatStore');
         await loadThreadMessages(threadId);
         console.log('[ThreadStore] ✅ 消息加载完成');
+
+        // 恢复新线程的 TodoWrite 任务（从内存缓存）
+        const { useTodoWriteStore } = await import('./todoWriteStore');
+        useTodoWriteStore.getState().loadTasksForThread(threadId);
       },
 
       updateThread: (threadId: string, updates: Partial<Thread>) => {

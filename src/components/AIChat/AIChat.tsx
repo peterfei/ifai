@@ -47,6 +47,7 @@ import { QueueIndicator } from './QueueIndicator';
 import { VirtualMessageList, VirtualMessageListHandle } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
+import { TodoWriteBanner } from './TodoWriteBanner';
 import { EmptyConversationState } from './EmptyConversationState';
 import { useChatScrollController } from '../../hooks/useChatScrollController';
 import { featureFlags } from '../../config/features';
@@ -2637,6 +2638,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
 
       {/* 🔥 Phase D.2: compact 模式下输入框使用对话模式样式 */}
       <div className={`p-4 bg-[#1e1e1e]/30 relative z-[100] ${compact ? 'p-2' : ''}`}>
+        <TodoWriteBanner />
         <ChatInputArea isLoading={isLoading} />
       </div>
 

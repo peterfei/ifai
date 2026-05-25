@@ -617,6 +617,69 @@ export const MOCK_TASK_DATA_REVIEW: TaskData = {
   ],
 };
 
+/* ===== TodoWrite 卡片类型 ===== */
+
+/**
+ * TodoWrite 任务状态
+ */
+export type TodoWriteTaskStatus = 'pending' | 'in_progress' | 'completed';
+
+/**
+ * TodoWrite 任务项
+ */
+export interface TodoWriteTaskItem {
+  /** 任务描述 */
+  content: string;
+  /** 进行时描述 */
+  activeForm: string;
+  /** 任务状态 */
+  status: TodoWriteTaskStatus;
+}
+
+/**
+ * TodoWrite 卡片数据
+ */
+export interface TodoWriteCardData {
+  /** 卡片标题（如 "5 个任务"） */
+  title: string;
+  /** 任务列表 */
+  tasks: TodoWriteTaskItem[];
+}
+
+/**
+ * TODO_STATUS_CONFIG — 声明式状态渲染配置
+ *
+ * 数据驱动：icon/color/bg/label 全部从配置查表，零 if/else。
+ * 新增状态只需加一行。
+ */
+export const TODO_STATUS_CONFIG: Record<TodoWriteTaskStatus, {
+  icon: string;
+  color: string;
+  bg: string;
+  label: string;
+  pulse?: boolean;
+}> = {
+  pending:     { icon: '○', color: '#9CA3AF', bg: 'rgba(156,163,175,0.1)', label: '待处理' },
+  in_progress: { icon: '●', color: '#3B82F6', bg: 'rgba(59,130,246,0.1)',  label: '进行中', pulse: true },
+  completed:   { icon: '✓', color: '#10B981', bg: 'rgba(16,185,129,0.1)',  label: '已完成' },
+};
+
+/**
+ * MOCK_TODO_WRITE_DATA — Mock TodoWrite 卡片数据
+ *
+ * 场景：AI 创建 5 个任务，其中 1 个进行中、1 个已完成
+ */
+export const MOCK_TODO_WRITE_DATA: TodoWriteCardData = {
+  title: '5 个任务',
+  tasks: [
+    { content: '实现用户认证 API',      activeForm: '正在实现用户认证 API...',    status: 'pending' },
+    { content: '创建登录表单组件',      activeForm: '正在创建登录表单组件...',    status: 'in_progress' },
+    { content: '设计数据库 schema',     activeForm: '正在设计数据库 schema...',   status: 'completed' },
+    { content: '编写单元测试',          activeForm: '正在编写单元测试...',        status: 'pending' },
+    { content: '部署到测试环境',        activeForm: '正在部署到测试环境...',      status: 'pending' },
+  ],
+};
+
 /* ===== 工具函数 ===== */
 
 /**

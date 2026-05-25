@@ -48,6 +48,14 @@ import { MessageCardRegistry, resolveCardType } from '../../gui/conversation/Mes
 import { adaptMessageToCard } from '../../gui/conversation/MessageAdapterRegistry';
 import { getUserBubbleStyle, getAssistantBubbleStyle, getAgentBubbleStyle, getAgentAvatarStyle } from '../../gui/conversation/bubbleStyles';
 import { getAgent } from '../../gui/conversation/AGENT_DSL';
+
+/**
+ * TOOL_RENDER_BLACKLIST — 工具渲染黑名单（声明式）
+ *
+ * 这些工具的 ToolApproval 不在消息流中渲染，由专用卡片接管展示。
+ * 新增黑名单工具只需加一行，三处过滤自动生效。
+ */
+const TOOL_RENDER_BLACKLIST = new Set(['TodoWrite']);
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构
  * @param files 文件路径数组
@@ -1166,6 +1174,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             return null;
                                         }
 
+                                        // 声明式过滤：黑名单工具由专用卡片接管，不渲染 ToolApproval
+                                        if (TOOL_RENDER_BLACKLIST.has(toolCall.tool)) return null;
+
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'in-tool';
                                         const toolComponent = (
@@ -1210,6 +1221,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     // 找出 segments 中没有对应 tool segment 的 pending toolCalls
                                     const orphanedPendingCalls = message.toolCalls.filter((tc: any) =>
                                         tc.status === 'pending' && !renderedToolIds.has(tc.id) && !tc.isPartial
+                                        && !TOOL_RENDER_BLACKLIST.has(tc.tool)
                                     );
 
                                     if (orphanedPendingCalls.length === 0) return null;
@@ -1247,6 +1259,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             console.warn('[MessageItem] ToolCall missing id:', tc);
                                             return false;
                                         }
+                                        if (TOOL_RENDER_BLACKLIST.has(tc.tool)) return false;
                                         return true;
                                     });
 

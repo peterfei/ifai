@@ -191,6 +191,11 @@ export const useChatStore = create<ChatStore>()(
 
       clearMessages: () => {
         set({ messages: [] });
+        // 同步清空 TodoWrite 任务，避免新对话残留旧 Banner
+        import('./todoWriteStore').then(({ useTodoWriteStore }) => {
+          useTodoWriteStore.setState({ tasks: [] });
+          useTodoWriteStore.getState().updateStats();
+        }).catch(() => {});
       },
 
       // 🔥 FIX: 添加工具审批方法的实现
