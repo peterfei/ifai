@@ -147,7 +147,7 @@ export interface UseChatScrollControllerReturn {
  * 1. 用户回到底部 → 立即解锁
  * 2. 用户滚动离开跟随区域 → 锁定自动滚动
  * 3. 命令完成 → 恢复到底部（如果未锁定）
- * 4. 流式更新 → 跟随底部（如果未锁定且在跟随区域）
+ * 4. 流式更新 → 跟随底部（只要用户未主动向上滚动）
  * 5. 新消息追加 → 跟随底部（如果未锁定且在跟随区域）
  */
 const DEFAULT_SCROLL_RULES: ScrollRule[] = [
@@ -178,7 +178,7 @@ const DEFAULT_SCROLL_RULES: ScrollRule[] = [
   {
     trigger: 'stream-updated',
     priority: 50,
-    when: (ctx) => !ctx.isUserScrolling && ctx.isInFollowZone,
+    when: (ctx) => !ctx.isUserScrolling,
     effect: 'follow-bottom',
   },
   {

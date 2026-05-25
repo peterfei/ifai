@@ -48,6 +48,7 @@ import { VirtualMessageList, VirtualMessageListHandle } from './VirtualMessageLi
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
 import { TodoWriteBanner } from './TodoWriteBanner';
+import { StreamingPulseBanner } from './StreamingPulseBanner';
 import { EmptyConversationState } from './EmptyConversationState';
 import { useChatScrollController } from '../../hooks/useChatScrollController';
 import { featureFlags } from '../../config/features';
@@ -388,6 +389,15 @@ export const AIChat = ({ width, onResizeStart, compact }: AIChatProps) => {
       isLoading,
     );
   }, [rawMessages, isLoading]);
+
+  // isLoading 变化后延迟一帧重新校准滚动（StreamingPulseBanner 渲染改变了底部区域高度）
+  useEffect(() => {
+    if (!isLoading) return;
+    const raf = requestAnimationFrame(() => {
+      prevScrollControllerRef.current.scrollToBottom({ skipRAF: true });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [isLoading]);
 
   // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
   useEffect(() => {
@@ -2638,6 +2648,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
 
       {/* 🔥 Phase D.2: compact 模式下输入框使用对话模式样式 */}
       <div className={`p-4 bg-[#1e1e1e]/30 relative z-[100] ${compact ? 'p-2' : ''}`}>
+        <StreamingPulseBanner />
         <TodoWriteBanner />
         <ChatInputArea isLoading={isLoading} />
       </div>

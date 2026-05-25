@@ -353,21 +353,20 @@ describe('Conversation Mode Integration Tests', () => {
 
   /**
    * IT-CM-8: ConversationDetailPanel Tab 切换
-   * 验证：右栏四个 Tab（工作日志/产出物/预览/Agent）可正常切换
+   * 验证：右栏三个 Tab（工作日志/产出物/预览）可正常切换
    */
   it('IT-CM-8: ConversationDetailPanel Tab 切换正常', () => {
     const { container } = renderConversationMode('conversation');
 
     // 验证 Tab 按钮存在
     const tabButtons = container.querySelectorAll('button[class*="flex items-center gap-1.5"]');
-    expect(tabButtons.length).toBe(4);
+    expect(tabButtons.length).toBe(3);
 
     // 验证 Tab 标签
     const tabLabels = Array.from(tabButtons).map((btn) => btn.textContent?.trim());
     expect(tabLabels).toContain('工作日志');
     expect(tabLabels).toContain('产出物');
     expect(tabLabels).toContain('预览');
-    expect(tabLabels).toContain('Agent');
   });
 
   /**
