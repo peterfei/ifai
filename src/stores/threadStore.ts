@@ -263,7 +263,7 @@ export const useThreadStore = create<ThreadStore>()(
         const thread = state.threads[threadId];
         if (!thread) return;
 
-        const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(thread.title);
+        const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$|^(未命名|新对话)$/.test(thread.title);
         if (!isDefaultTitle) return;
 
         const newTitle = generateTitleFromMessage(messageContent);

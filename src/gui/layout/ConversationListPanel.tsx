@@ -66,7 +66,7 @@ export function ConversationListPanel() {
   }, [threads, searchQuery]);
 
   const handleNewThread = () => {
-    const id = ThreadManager.create({ title: t('common.untitled', '新对话') });
+    const id = ThreadManager.create();
     ThreadManager.switch(id);
   };
 
@@ -83,7 +83,7 @@ export function ConversationListPanel() {
         if (remaining.length > 0) {
           ThreadManager.switch(remaining[0].id);
         } else {
-          ThreadManager.create({ title: '新对话' });
+          ThreadManager.create();
         }
       }
     }

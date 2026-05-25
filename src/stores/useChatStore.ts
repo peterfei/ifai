@@ -148,7 +148,7 @@ export const useChatStore = create<ChatStore>()(
             const threadId = get().currentThreadId || threadStore.activeThreadId;
             const currentThread = threadId ? threadStore.getThread(threadId) : null;
             if (currentThread) {
-              const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+              const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$|^(未命名|新对话)$/.test(currentThread.title);
               if (isDefaultTitle) {
                 threadStore.updateThreadTitleFromMessage(threadId, content as string);
               }
