@@ -79,7 +79,7 @@ impl AggregateResultsTool {
 
             if let Some(text) = result.as_str() {
                 let preview = if text.len() > 80 {
-                    format!("{}...", &text[..80])
+                    format!("{}...", crate::ai_utils::safe_truncate(text, 80))
                 } else {
                     text.to_string()
                 };
@@ -120,7 +120,7 @@ impl AggregateResultsTool {
             output.push_str(&format!("├─ 投票率: {} / {} ({}%)\n", count, total, percentage));
 
             let preview = if result.len() > 80 {
-                format!("{}...", &result[..80])
+                format!("{}...", crate::ai_utils::safe_truncate(&result, 80))
             } else {
                 result.to_string()
             };
@@ -141,7 +141,7 @@ impl AggregateResultsTool {
             if let Some(s) = result.as_str() {
                 if !s.is_empty() && !s.contains("错误") && !s.contains("失败") {
                     let preview = if s.len() > 80 {
-                        format!("{}...", &s[..80])
+                        format!("{}...", crate::ai_utils::safe_truncate(s, 80))
                     } else {
                         s.to_string()
                     };
@@ -156,7 +156,7 @@ impl AggregateResultsTool {
         if let Some(first) = results.first() {
             if let Some(s) = first.as_str() {
                 let preview = if s.len() > 80 {
-                    format!("{}...", &s[..80])
+                    format!("{}...", crate::ai_utils::safe_truncate(s, 80))
                 } else {
                     s.to_string()
                 };

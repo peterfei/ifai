@@ -194,10 +194,11 @@ pub fn log_http_error_detail(
         "N/A".to_string()
     };
 
-    // 请求体预览（截断到 2000 字符）
+    // 请求体预览（UTF-8 安全截断）
     let preview_limit = 2000;
     let body_preview = if request_json_str.len() > preview_limit {
-        format!("{}... (truncated, total {} bytes)", &request_json_str[..preview_limit], request_size_bytes)
+        let truncated = crate::ai_utils::safe_truncate(&request_json_str, preview_limit);
+        format!("{}... (truncated, total {} bytes)", truncated, request_size_bytes)
     } else {
         request_json_str.clone()
     };

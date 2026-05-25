@@ -121,8 +121,24 @@ fn perform_compaction_fallback_harness(
         tool_call_id: None,
     });
 
-    // 最近消息
-    let start = messages.len().saturating_sub(keep_last);
+    // 最近消息 — 向前扫描确保不在孤立 tool 消息处截断
+    let mut start = messages.len().saturating_sub(keep_last);
+
+    // 🔥 FIX: 向前扫描确保起始点不落在 tool 消息上
+    // tool 消息必须有前面的 assistant[tool_calls] 消息配对
+    while start > 0 {
+        let first_msg = &messages[start];
+
+        // 如果第一条是 tool，需要继续往前找配对的 assistant[tool_calls]
+        if first_msg.role == MessageRole::Tool {
+            start -= 1;
+            continue;
+        }
+
+        // 找到有效的起始点（user / system / assistant）
+        break;
+    }
+
     result.extend(messages[start..].iter().cloned());
 
     result

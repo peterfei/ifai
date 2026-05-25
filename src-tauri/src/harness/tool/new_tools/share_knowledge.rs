@@ -54,9 +54,9 @@ impl ToolLike for ShareKnowledgeTool {
                 "share_knowledge: 缺少或无效的 'knowledge' 参数".to_string()
             ))?;
 
-        // 格式化知识内容（限制长度）
+        // 格式化知识内容（UTF-8 安全截断）
         let knowledge_preview = if knowledge.len() > 100 {
-            format!("{}...", &knowledge[..100])
+            format!("{}...", crate::ai_utils::safe_truncate(knowledge, 100))
         } else {
             knowledge.to_string()
         };
