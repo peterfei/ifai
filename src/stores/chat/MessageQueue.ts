@@ -9,6 +9,7 @@
  */
 
 import { chatEventBus, type ChatEvents } from './eventBus/ChatEventBus';
+import { DEFAULT_TITLE_REGEX } from '../threadStore';
 
 /**
  * 队列中的消息结构
@@ -207,7 +208,7 @@ export class MessageQueue {
         });
 
         if (currentThread) {
-          const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+          const isDefaultTitle = DEFAULT_TITLE_REGEX.test(currentThread.title);
           console.log('[MessageQueue] 🔍 是否默认标题:', isDefaultTitle);
           if (isDefaultTitle) {
             console.log('[MessageQueue] 🔥 调用 updateThreadTitleFromMessage');

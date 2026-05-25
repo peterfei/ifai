@@ -142,13 +142,13 @@ export const useChatStore = create<ChatStore>()(
             }
 
             // 🔥 自动更新线程标题：如果当前线程的标题是默认标题，根据消息内容更新
-            const { useThreadStore } = await import('./threadStore');
+            const { useThreadStore, DEFAULT_TITLE_REGEX } = await import('./threadStore');
             const threadStore = useThreadStore.getState();
             // 🔥 FIX: 使用 activeThreadId 作为后备，确保即使 currentThreadId 不同步也能找到正确的线程
             const threadId = get().currentThreadId || threadStore.activeThreadId;
             const currentThread = threadId ? threadStore.getThread(threadId) : null;
             if (currentThread) {
-              const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$|^(未命名|新对话)$/.test(currentThread.title);
+              const isDefaultTitle = DEFAULT_TITLE_REGEX.test(currentThread.title);
               if (isDefaultTitle) {
                 threadStore.updateThreadTitleFromMessage(threadId, content as string);
               }

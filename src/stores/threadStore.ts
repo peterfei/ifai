@@ -8,6 +8,9 @@ import type { Message } from 'ifainew-core';
 import { autoSaveThread } from './persistence/threadPersistence';
 import { PersistenceManager } from '../services/storage/PersistenceManager';
 
+/** 默认标题匹配正则：时间格式 + "未命名"/"新对话"（消费方统一引用，避免 DRY 违反） */
+export const DEFAULT_TITLE_REGEX = /^(上午|下午|晚上)(的新对话|的对话 \d+)$|^(未命名|新对话)$/;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -263,7 +266,7 @@ export const useThreadStore = create<ThreadStore>()(
         const thread = state.threads[threadId];
         if (!thread) return;
 
-        const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$|^(未命名|新对话)$/.test(thread.title);
+        const isDefaultTitle = DEFAULT_TITLE_REGEX.test(thread.title);
         if (!isDefaultTitle) return;
 
         const newTitle = generateTitleFromMessage(messageContent);
