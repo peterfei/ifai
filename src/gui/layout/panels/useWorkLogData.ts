@@ -38,16 +38,28 @@ export function inferAgentFromTool(toolName: string): string {
     WebSearch: 'explore',
     WebFetch: 'explore',
     Task: 'explore',
+    agent_read_file: 'explore',
+    agent_list_dir: 'explore',
+    agent_scan_project: 'explore',
+    agent_search: 'explore',
 
-    // 编辑类 → refactor
+    // 编辑/写入类 → refactor
     Edit: 'refactor',
     Write: 'refactor',
+    agent_write_file: 'refactor',
 
-    // 测试类 → test
+    // 命令执行类 → test
     Bash: 'test',
+    agent_execute_command: 'test',
 
     // 审查类 → review
     mcp__4_5v_mcp__analyze_image: 'review',
+    git_status: 'review',
+    secret_scanner: 'review',
+
+    // Git 提交 → git_commit
+    git_commit: 'git_commit',
+    git_snapshot: 'git_commit',
   };
 
   return mapping[toolName] ?? 'unknown';

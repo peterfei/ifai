@@ -1036,6 +1036,28 @@ export const initStoreMapper = () => {
           completion_stats,
         );
 
+        // 🔥 将 workflow tool_call 同步到 message.toolCalls，供 WorkLogPanel 读取
+        let updatedToolCalls = existingMessage.toolCalls ? [...existingMessage.toolCalls] : [];
+        if (event_type === 'tool_call' && tool_details?.tool_name) {
+          const toolName = tool_details.tool_name;
+          const rawInput = tool_details.tool_input || '{}';
+          const toolInputStr = typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput);
+          // 解析 args 为对象（WorkLogPanel extractContent 需要）
+          let parsedArgs: any = toolInputStr;
+          try { parsedArgs = JSON.parse(toolInputStr); } catch { /* 保留字符串 */ }
+
+          updatedToolCalls.push({
+            id: `wf-${workflowId}-${toolName}-${Date.now()}`,
+            type: 'function',
+            function: { name: toolName, arguments: toolInputStr },
+            tool: toolName,
+            args: parsedArgs,
+            status: 'completed',
+            result: tool_details.tool_output || '',
+            isPartial: false,
+          });
+        }
+
         const newMessages = [...state.messages];
         newMessages[assistantIndex] = {
           ...existingMessage,
@@ -1043,6 +1065,7 @@ export const initStoreMapper = () => {
           // 🔥 FIX: 保留原始消息时间戳，不随每次进度事件更新
           // 避免 content area 中消息排序跳动导致乱序
           timestamp: existingMessage.timestamp || Date.now(),
+          toolCalls: updatedToolCalls,
           metadata: {
             ...existingMessage.metadata,
             phaseData: updatedPhaseData,
