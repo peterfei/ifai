@@ -1301,7 +1301,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         {(() => {
                             const metadata = (message as any).metadata || {};
                             const workflowData = metadata.workflowData;
+                            // doc 类型使用 DAG Monitor，不在消息内重复展示 WorkflowView
                             if (workflowData) {
+                                if (metadata.workflowType === 'doc') return null;
                                 return (
                                     <div className="my-2">
                                         <WorkflowView workflowData={workflowData} />

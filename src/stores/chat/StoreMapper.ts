@@ -732,7 +732,7 @@ export const initStoreMapper = () => {
           const newMsgs = [...state.messages];
           newMsgs[existingIdx] = {
             ...newMsgs[existingIdx],
-            metadata: { ...newMsgs[existingIdx].metadata, phaseData, workflowData },
+            metadata: { ...newMsgs[existingIdx].metadata, workflowType: wfType, phaseData, workflowData },
           };
           return { messages: newMsgs };
         }
@@ -746,7 +746,7 @@ export const initStoreMapper = () => {
               role: 'assistant',
               content: '',
               timestamp: Date.now(),
-              metadata: { workflowId, phaseData, workflowData },
+              metadata: { workflowId, workflowType: wfType, phaseData, workflowData },
             },
           ],
         };
