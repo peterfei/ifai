@@ -768,6 +768,16 @@ ${mockPlannedNodes.map(n => `- ${n.label}`).join('\n')}
       // 即使监听器设置失败，也不影响工作流的正常执行
       (async () => {
         try {
+          // 🔥 CRITICAL FIX: 清理上次执行的旧 listener，防止重复注册
+          const oldUnlisteners = (window as any).__workflowUnlisteners || [];
+          if (oldUnlisteners.length > 0) {
+            console.log('[WorkflowIntentHandler] 🧹 Cleaning up', oldUnlisteners.length, 'old workflow listeners');
+            oldUnlisteners.forEach((fn: () => void) => {
+              try { fn(); } catch (_) { /* ignore unlisten errors */ }
+            });
+            (window as any).__workflowUnlisteners = [];
+          }
+
           // 🔥 监听 Tauri 工作流完成事件
           const { listen } = await import('@tauri-apps/api/event');
 

@@ -1,62 +1,74 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { ExploreWorkflowView } from '../ExploreWorkflowView';
-import type { PhaseData } from '../../../types/workflow';
+import type { WorkflowData } from '../../../types/workflow';
 
-const mockPhases: PhaseData[] = [
-  { nodeId: 'p1', mode: 'sequential', intent: '探索', progress: 100, status: 'done', sub: [] },
-  { nodeId: 'p2', mode: 'parallel', intent: '读取', progress: 60, status: 'running', sub: [] },
-  { nodeId: 'p3', mode: 'sequential', intent: '分析', progress: 0, status: 'pending', sub: [] },
-  { nodeId: 'p4', mode: 'sequential', intent: '报告', progress: 0, status: 'pending', sub: [] },
-];
+const mockNode = (overrides?: Partial<WorkflowData['nodes'][0]>): WorkflowData['nodes'][0] => ({
+  nodeId: 'n1',
+  agentType: 'Explore',
+  intent: '测试',
+  status: 'done',
+  tools: [
+    { toolName: 'read_file', status: 'done', elapsedSecs: 0.02, target: 'src/main.rs', tokenCount: 100 },
+  ],
+  elapsedSecs: 0.02,
+  totalTokens: 100,
+  ...overrides,
+});
+
+const mockData = (overrides?: Partial<WorkflowData>): WorkflowData => ({
+  workflowId: 'w1',
+  intent: '测试工作流',
+  nodes: [mockNode(), mockNode({ nodeId: 'n2', intent: '子任务', status: 'running', tools: [], elapsedSecs: 0, totalTokens: 0 })],
+  totalElapsedSecs: 0.02,
+  totalTokens: 100,
+  totalTools: 1,
+  status: 'running',
+  ...overrides,
+});
 
 describe('ExploreWorkflowView', () => {
-  // UT-E.1.11: 4 个 phase 渲染 4 张卡片
-  it('UT-E.1.11: renders 4 phase cards for 4 phases', () => {
-    const { container } = render(
-      <ExploreWorkflowView phaseData={mockPhases} isRunning />
-    );
-    const phaseCards = container.querySelectorAll('.phase-card');
-    expect(phaseCards).toHaveLength(4);
+  it('renders nothing for empty/undefined data', () => {
+    const { container: c1 } = render(<ExploreWorkflowView workflowData={null as unknown as WorkflowData} />);
+    expect(c1.textContent).toBe('');
+
+    const { container: c2 } = render(<ExploreWorkflowView workflowData={undefined as unknown as WorkflowData} />);
+    expect(c2.textContent).toBe('');
+
+    const { container: c3 } = render(<ExploreWorkflowView workflowData={{ ...mockData(), nodes: [] }} />);
+    expect(c3.textContent).toBe('');
   });
 
-  // UT-E.1.12: 标题栏显示 phase 计数
-  it('UT-E.1.12: shows phase count in summary', () => {
-    const { container } = render(
-      <ExploreWorkflowView phaseData={mockPhases} isRunning />
-    );
+  it('shows workflow intent and nodes', () => {
+    const { container } = render(<ExploreWorkflowView workflowData={mockData()} />);
     const text = container.textContent ?? '';
-    expect(text).toContain('1/4 phases');
+    expect(text).toContain('测试工作流');
+    expect(text).toContain('测试');
+    expect(text).toContain('子任务');
   });
 
-  // 全部完成时显示 ✔ all N phases
-  it('shows completion summary when all done', () => {
-    const allDone = mockPhases.map(p => ({ ...p, status: 'done' as const, progress: 100 }));
-    const { container } = render(
-      <ExploreWorkflowView phaseData={allDone} isRunning={false} />
-    );
+  it('all done shows completion summary', () => {
+    const allDone = mockData({
+      nodes: [mockNode()],
+      status: 'done',
+      totalTools: 1,
+    });
+    const { container } = render(<ExploreWorkflowView workflowData={allDone} />);
     const text = container.textContent ?? '';
-    expect(text).toContain('✔ all 4 phases');
+    expect(text).toContain('Workflow complete');
   });
 
-  // 空 phaseData 不渲染
-  it('renders nothing for empty phaseData', () => {
-    const { container } = render(
-      <ExploreWorkflowView phaseData={[]} />
-    );
-    expect(container.textContent).toBe('');
-  });
-
-  // UT-P.1.4: 多并行 phase 各自独立渲染
-  it('UT-P.1.4: renders all phases independently', () => {
-    const mixedPhases: PhaseData[] = [
-      { nodeId: 'a', mode: 'parallel', intent: 'A', progress: 100, status: 'done', sub: [] },
-      { nodeId: 'b', mode: 'parallel', intent: 'B', progress: 30, status: 'running', sub: [] },
-    ];
-    const { container } = render(
-      <ExploreWorkflowView phaseData={mixedPhases} isRunning />
-    );
-    const cards = container.querySelectorAll('.phase-card');
-    expect(cards).toHaveLength(2);
+  it('renders all nodes independently', () => {
+    const data = mockData({
+      nodes: [
+        mockNode({ nodeId: 'a', intent: 'A', status: 'done' }),
+        mockNode({ nodeId: 'b', intent: 'B', status: 'running' }),
+      ],
+    });
+    const { container } = render(<ExploreWorkflowView workflowData={data} />);
+    const cards = container.querySelectorAll('[class*="ml-2"]');
+    expect(cards.length).toBeGreaterThanOrEqual(2);
+    expect(container.textContent).toContain('A');
+    expect(container.textContent).toContain('B');
   });
 });

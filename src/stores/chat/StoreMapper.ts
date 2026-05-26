@@ -16,7 +16,7 @@ import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { toast } from 'sonner';
 import { createLogger } from '../../utils/logger';
 import { initCrossThreadPersistence } from './CrossThreadPersistenceService';
-import type { PhaseData } from '../../types/workflow';
+import type { PhaseData, WorkflowData, NodeData, ToolItem } from '../../types/workflow';
 
 // 🔥 Logger instance for StoreMapper
 const logger = createLogger('StoreMapper');
@@ -485,17 +485,23 @@ export const initStoreMapper = () => {
           );
 
           if (existingIdx !== -1) {
+            // 🔥 FIX: 将 user 消息插入到 assistant 消息之前（而非追加到末尾）
+            // 场景：WorkflowIntentHandler.executeWorkflow() 先于 chat:message:sent 发出 workflow:started，
+            // 导致 assistant 消息先于 user 消息创建。这里用 splice 确保 user 在 assistant 之前。
             const newMsgs = [...filtered];
-            newMsgs[existingIdx] = {
-              ...newMsgs[existingIdx],
-              metadata: { ...newMsgs[existingIdx].metadata, phaseData },
+            const userMessage = {
+              id: messageId, role: 'user' as const, content, timestamp: now,
+              segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
+              workflowRelated: true,
+            };
+            newMsgs.splice(existingIdx, 0, userMessage);
+            // splice 后 assistant 消息索引后移 1 位
+            newMsgs[existingIdx + 1] = {
+              ...newMsgs[existingIdx + 1],
+              metadata: { ...newMsgs[existingIdx + 1].metadata, phaseData },
             };
             return {
-              messages: [...newMsgs, {
-                id: messageId, role: 'user', content, timestamp: now,
-                segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
-                workflowRelated: true,
-              }],
+              messages: newMsgs,
               isLoading: false,
             };
           }
@@ -701,10 +707,15 @@ export const initStoreMapper = () => {
         phases: phaseData.map((p: PhaseData) => `${p.nodeId}:${p.intent}`),
       });
 
+      // 初始化 WorkflowData（TUI 列表格式）
+      const workflowData = deriveUpdatedWorkflowData(
+        undefined, workflowId, 'workflow:started', undefined, undefined, undefined, nodes,
+      );
+
       const updater = (state: any) => {
         if (!state || !state.messages) return state;
 
-        // 如果已存在此 workflowId 的 assistant 消息，只更新 phaseData
+        // 如果已存在此 workflowId 的 assistant 消息，更新 phaseData + workflowData
         const existingIdx = state.messages.findIndex(
           (m: any) => m.role === 'assistant' && m.metadata?.workflowId === workflowId
         );
@@ -713,12 +724,12 @@ export const initStoreMapper = () => {
           const newMsgs = [...state.messages];
           newMsgs[existingIdx] = {
             ...newMsgs[existingIdx],
-            metadata: { ...newMsgs[existingIdx].metadata, phaseData },
+            metadata: { ...newMsgs[existingIdx].metadata, phaseData, workflowData },
           };
           return { messages: newMsgs };
         }
 
-        // 创建新的 assistant 进度占位消息
+        // 创建新的 assistant 进度占位消息（包含 phaseData + workflowData）
         return {
           messages: [
             ...state.messages,
@@ -727,7 +738,7 @@ export const initStoreMapper = () => {
               role: 'assistant',
               content: '',
               timestamp: Date.now(),
-              metadata: { workflowId, phaseData },
+              metadata: { workflowId, phaseData, workflowData },
             },
           ],
         };
@@ -948,21 +959,21 @@ export const initStoreMapper = () => {
       });
     });
 
-    // P3.5: 映射工作流实时进度（流式显示进度）
+    // P3.5: 映射工作流实时进度（流式显示进度 + PhaseCard sub items 更新）
     chatEventBus.on('workflow:progress', (payload) => {
-      const { workflowId, event_type, node_id, message } = payload as any;
+      const { workflowId, event_type, node_id, message, tool_details, completion_stats } = payload as any;
 
       console.log('[StoreMapper] 📊 workflow:progress received:', {
         workflowId,
         event_type,
         node_id,
         message,
+        hasToolDetails: !!tool_details,
+        hasCompletionStats: !!completion_stats,
       });
 
       // 更新工作流消息，显示实时进度
       const updater = (state: any) => {
-        // 🔥 FIX: 异常 state 时返回当前 state，保持不变
-        // 注意：zustand v5 中 return null 会导致整个 state 被替换为 null！
         if (!state || !state.messages) {
           console.warn('[StoreMapper] ⚠️ State is invalid in workflow:progress handler, preserving current state');
           return state;
@@ -976,22 +987,9 @@ export const initStoreMapper = () => {
 
         if (assistantIndex === -1) {
           console.warn('[StoreMapper] ⚠️ Workflow message not found for progress:', workflowId);
-          return state; // 🔥 FIX: zustand v5 中 return null 会把 state 设为 null，必须 return state
+          return state;
         }
 
-        // 🔥 构建进度显示
-        const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-        let progressIndicator = '';
-
-        if (event_type === 'node_started') {
-          progressIndicator = `\n\n#### 🔄 执行中... ( ${timestamp} )\n\n`;
-        }
-
-        const progressContent = progressIndicator + (
-          message ? `${message}\n` : ''
-        );
-
-        // 追加到现有内容（或者创建初始进度消息）
         const existingMessage = state.messages[assistantIndex];
 
         // 🔥 FIX: 如果消息已有自定义内容（总结），不要追加进度信息
@@ -1000,20 +998,47 @@ export const initStoreMapper = () => {
            existingMessage.content.includes('进行中') ||
            existingMessage.content.includes('代码探索完成') ||
            existingMessage.content.includes('项目结构') ||
-           existingMessage.content.length > 300);
+           existingMessage.content.includes('## ✅ 工作流执行完成'));
 
-        const newContent = hasCustomContent
-          ? existingMessage.content  // 保留自定义内容，不追加
-          : existingMessage.content + progressContent;  // 否则追加进度
+        let newContent = existingMessage.content;
+        if (!hasCustomContent && event_type === 'node_started') {
+          const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+          newContent = existingMessage.content + `\n\n#### 🔄 执行中... ( ${timestamp} )\n\n` + (message ? `${message}\n` : '');
+        } else if (!hasCustomContent && message && event_type !== 'tool_call') {
+          // 🔥 TUI ExploreWorkflowView 已通过 workflowData 展示工具列表，
+          // tool_call 的 message（"工具调用: xxx"）不再需要追加到 content 文本
+          newContent = existingMessage.content + `${message}\n`;
+        }
+
+        // 🔥 PhaseCard 数据更新：从 tool_details 提取 sub items
+        const updatedPhaseData = deriveUpdatedPhaseData(
+          existingMessage.metadata?.phaseData,
+          event_type,
+          node_id,
+          tool_details,
+        );
+
+        // 🔥 WorkflowData（TUI 列表）更新：从 event_type + tool_details 构建
+        const updatedWorkflowData = deriveUpdatedWorkflowData(
+          existingMessage.metadata?.workflowData,
+          workflowId,
+          event_type,
+          node_id,
+          tool_details,
+          completion_stats,
+        );
 
         const newMessages = [...state.messages];
         newMessages[assistantIndex] = {
           ...existingMessage,
           content: newContent,
-          timestamp: Date.now(),
+          // 🔥 FIX: 保留原始消息时间戳，不随每次进度事件更新
+          // 避免 content area 中消息排序跳动导致乱序
+          timestamp: existingMessage.timestamp || Date.now(),
           metadata: {
             ...existingMessage.metadata,
-            phaseData: deriveUpdatedPhaseData(existingMessage.metadata?.phaseData, event_type, node_id),
+            phaseData: updatedPhaseData,
+            workflowData: updatedWorkflowData,
             lastProgressUpdate: Date.now(),
           },
         };
@@ -1038,17 +1063,202 @@ export const initStoreMapper = () => {
       }
     }
 
-    /** 更新 phaseData 中匹配 nodeId 的状态 */
+    /**
+     * 更新 phaseData 中匹配 nodeId 的状态和 sub items
+     *
+     * 声明式策略：根据 event_type 推导 status/progress，
+     * 根据 tool_details 推导 sub items（PhaseCard FileTree 数据源）。
+     * 参考 design.md §6.4 数据消费规则
+     */
     function deriveUpdatedPhaseData(
       phaseData: PhaseData[] | undefined,
       event_type: string,
-      node_id: string | undefined
+      node_id: string | undefined,
+      tool_details?: any,
     ): PhaseData[] | undefined {
       if (!phaseData || !node_id) return phaseData;
       const update = derivePhaseStatus(event_type);
-      return phaseData.map((p: PhaseData) =>
-        p.nodeId === node_id ? { ...p, status: update.status, progress: update.progress } : p
+      return phaseData.map((p: PhaseData) => {
+        if (p.nodeId !== node_id) return p;
+        const base = { ...p, status: update.status, progress: update.progress };
+        // 🔥 从 tool_details 提取 sub items（PhaseCard FileTree 的数据源）
+        if (tool_details) {
+          const toolName = tool_details.tool_name || '';
+          const toolInput = tool_details.tool_input || '';
+          // 解析工具输入中的文件路径
+          const parsedSub = parseToolDetailsToSubItems(toolName, toolInput, tool_details, event_type);
+          if (parsedSub.length > 0) {
+            // 合并到现有 sub（去重）
+            const existingSub = base.sub || [];
+            const merged = mergeSubItems(existingSub, parsedSub);
+            base.sub = merged;
+          }
+        }
+        // node_completed → 标记所有 sub items 为 done
+        if (event_type === 'node_completed' && base.sub) {
+          base.sub = base.sub.map(s => ({ ...s, status: 'done' as const }));
+        }
+        return base;
+      });
+    }
+
+    /** 从 tool_details 解析 SubItem[]（声明式映射表驱动） */
+    function parseToolDetailsToSubItems(toolName: string, toolInput: string, details: any, event_type: string): import('../../types/workflow').SubItem[] {
+      const status: PhaseData['status'] = event_type === 'node_completed' ? 'done' : 'running';
+      const items: import('../../types/workflow').SubItem[] = [];
+
+      // 尝试从 toolInput 解析 JSON
+      let parsed: any = null;
+      try {
+        parsed = typeof toolInput === 'string' ? JSON.parse(toolInput) : toolInput;
+      } catch { /* not JSON, skip */ }
+
+      // agent_read_file / agent_scan_project → 提取文件路径
+      if (toolName === 'agent_read_file' || toolName === 'read_file') {
+        const path = parsed?.rel_path || parsed?.path || details.tool_output || '';
+        if (path) {
+          items.push({ name: typeof path === 'string' ? path : String(path), status });
+        }
+      } else if (toolName === 'agent_scan_project' || toolName === 'scan_project') {
+        const path = parsed?.path || parsed?.target_path || '.';
+        items.push({ name: `scan ${typeof path === 'string' ? path : '.'}`, status });
+      } else if (parsed?.rel_path) {
+        items.push({ name: parsed.rel_path, status });
+      } else if (parsed?.path) {
+        items.push({ name: parsed.path, status });
+      }
+
+      return items;
+    }
+
+    /** 合并 sub items（去重：同名 item 取最新 status） */
+    function mergeSubItems(existing: import('../../types/workflow').SubItem[], incoming: import('../../types/workflow').SubItem[]): import('../../types/workflow').SubItem[] {
+      const map = new Map<string, import('../../types/workflow').SubItem>();
+      for (const item of existing) {
+        map.set(item.name, item);
+      }
+      for (const item of incoming) {
+        map.set(item.name, item); // 覆盖旧状态
+      }
+      return Array.from(map.values());
+    }
+
+    /**
+     * 从 ProgressEvent 构建/更新 WorkflowData（TUI 列表格式）
+     *
+     * 声明式策略：根据 event_type 推导节点/工具状态变更，
+     * 增量更新 workflowData 而非全量重建。
+     * 参考 design.md §4.4
+     */
+    function deriveUpdatedWorkflowData(
+      existing: WorkflowData | undefined,
+      workflowId: string,
+      event_type: string,
+      node_id: string | undefined,
+      tool_details?: any,
+      completion_stats?: any,
+      plannedNodes?: any[],
+    ): WorkflowData | undefined {
+      // 首次初始化必须由 workflow:started 触发
+      if (!existing && event_type !== 'workflow:started') return existing;
+
+      let data: WorkflowData;
+
+      if (!existing) {
+        // workflow:started → 创建初始结构
+        const nodes: NodeData[] = (plannedNodes || []).map((n: any) => ({
+          nodeId: n.id || n.nodeId || '',
+          agentType: n.agent_type || n.agentType || 'Explore',
+          intent: n.label || n.intent || '',
+          status: 'pending' as const,
+          tools: [],
+          elapsedSecs: 0,
+          totalTokens: 0,
+        }));
+        data = {
+          workflowId,
+          intent: nodes[0]?.intent || '',
+          nodes,
+          totalElapsedSecs: 0,
+          totalTokens: 0,
+          totalTools: 0,
+          status: 'running',
+        };
+        return data;
+      }
+
+      // 深拷贝避免引用共享
+      data = JSON.parse(JSON.stringify(existing));
+      if (!node_id) return data;
+
+      const nodeIdx = data.nodes.findIndex((n: NodeData) => n.nodeId === node_id);
+      if (nodeIdx === -1) return data;
+
+      const node: NodeData = { ...data.nodes[nodeIdx] };
+
+      switch (event_type) {
+        case 'node_started':
+          node.status = 'running';
+          break;
+
+        case 'tool_call':
+          if (tool_details) {
+            const toolName = tool_details.tool_name || '';
+            // 跳过空工具名
+            if (!toolName) break;
+            const rawInput = typeof tool_details.tool_input === 'string' ? tool_details.tool_input : '';
+            // 尝试从 JSON tool_input 提取文件路径作为 target
+            let target: string | undefined;
+            if (rawInput) {
+              try {
+                const parsed = JSON.parse(rawInput);
+                target = parsed.rel_path || parsed.path || rawInput.substring(0, 80);
+              } catch {
+                target = rawInput.substring(0, 80);
+              }
+            }
+            // 去重：同名工具 + 同 target 时跳过（tool loop 多轮迭代可能重复执行同一工具）
+            const isDuplicate = target && node.tools.some(
+              (t: ToolItem) => t.toolName === toolName && t.target === target,
+            );
+            if (!isDuplicate) {
+              node.tools = [...node.tools, {
+                toolName,
+                status: 'done' as const,
+                elapsedSecs: tool_details.execution_time_ms
+                  ? tool_details.execution_time_ms / 1000
+                  : 0,
+                target,
+                tokenCount: tool_details.output_length || 0,
+              }];
+            }
+            node.totalTokens = node.tools.reduce((s: number, t: ToolItem) => s + (t.tokenCount || 0), 0);
+          }
+          break;
+
+        case 'node_completed':
+          node.status = 'done';
+          if (completion_stats) {
+            node.elapsedSecs = (completion_stats.duration_ms || 0) / 1000;
+            node.totalTokens = completion_stats.token_count || node.totalTokens;
+          }
+          break;
+      }
+
+      data.nodes[nodeIdx] = node;
+
+      // 更新工作流汇总
+      data.totalElapsedSecs = data.nodes.reduce(
+        (max: number, n: NodeData) => Math.max(max, n.elapsedSecs), 0,
       );
+      data.totalTools = data.nodes.reduce(
+        (sum: number, n: NodeData) => sum + n.tools.length, 0,
+      );
+      data.totalTokens = data.nodes.reduce(
+        (sum: number, n: NodeData) => sum + (n.totalTokens || 0), 0,
+      );
+
+      return data;
     }
 
     // 🔥 工作流完成结果缓存（解决 workflow:completed 早于消息创建的问题）
@@ -1213,6 +1423,12 @@ export const initStoreMapper = () => {
             )
           : currentPhaseData;
 
+        // 工作流完成 → 终态 workflowData
+        const currentWorkflowData: WorkflowData | undefined = existingMessage.metadata?.workflowData;
+        const finalizedWorkflowData: WorkflowData | undefined = currentWorkflowData
+          ? { ...currentWorkflowData, status: 'done' as const }
+          : currentWorkflowData;
+
         newMessages[assistantIndex] = {
           ...existingMessage,
           // 🔥 CRITICAL: 追加工作流完成结果到现有内容
@@ -1234,6 +1450,7 @@ export const initStoreMapper = () => {
           metadata: {
             ...existingMessage.metadata,
             phaseData: finalizedPhaseData,
+            workflowData: finalizedWorkflowData,
             completed: true,
             completedAt: completed_at,
           }

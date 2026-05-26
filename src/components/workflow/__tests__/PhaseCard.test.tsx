@@ -93,4 +93,23 @@ describe('PhaseCard', () => {
     const { container: sc } = render(<PhaseCard phase={seqPhase} />);
     expect(sc.textContent).toContain('sequential');
   });
+
+  // UT-S.2.1: done 统计行格式 ✔ Done  X.Xs · N/M tools
+  it('UT-S.2.1: done stats line format matches design spec', () => {
+    const phase: PhaseData = { ...basePhase, status: 'done', progress: 100 };
+    const { container } = render(<PhaseCard phase={phase} />);
+    const text = container.textContent ?? '';
+    // 应包含 Done、tools、分数格式
+    expect(text).toContain('Done');
+    expect(text).toContain('tools');
+    expect(text).toContain('1/2');
+  });
+
+  // UT-S.2.2: running 统计行格式 N/M tools（可选时间）
+  it('UT-S.2.2: running stats line shows tool count', () => {
+    const { container } = render(<PhaseCard phase={basePhase} />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('1/2');
+    expect(text).toContain('tools');
+  });
 });

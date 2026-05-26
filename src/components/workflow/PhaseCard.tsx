@@ -6,7 +6,7 @@
 // 参考: design.md §4.1
 // ============================================================
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StatusIcon } from './StatusIcon';
 import { FileTree } from './FileTree';
 import type { PhaseData } from '../../types/workflow';
@@ -48,6 +48,40 @@ export const PhaseCard: React.FC<PhaseCardProps> = ({ phase, delay = 0 }) => {
   const opacityClass = OPACITY[phase.status] ?? OPACITY.pending;
   const modeSymbol = MODE_SYMBOLS[phase.mode] ?? '';
   const modeBadgeClass = MODE_BADGE_CLASSES[phase.mode] ?? '';
+
+  // ── 独立计时：每个 PhaseCard 实例追踪自己的 elapsed ──
+  const startTimeRef = useRef<number | null>(null);
+  const [elapsedSecs, setElapsedSecs] = useState(0);
+
+  // 状态变化时管理计时器
+  useEffect(() => {
+    if (phase.status === 'running') {
+      // 首次进入 running 时记录起点
+      if (startTimeRef.current === null) {
+        startTimeRef.current = Date.now();
+      }
+    } else if (phase.status === 'done') {
+      // done 时固定最终耗时
+      if (startTimeRef.current !== null) {
+        setElapsedSecs((Date.now() - startTimeRef.current) / 1000);
+      }
+    } else if (phase.status === 'pending') {
+      // pending 时重置
+      startTimeRef.current = null;
+      setElapsedSecs(0);
+    }
+  }, [phase.status]);
+
+  // running 态下周期性更新 elapsed
+  useEffect(() => {
+    if (phase.status !== 'running' || startTimeRef.current === null) return;
+    const id = setInterval(() => {
+      setElapsedSecs((Date.now() - startTimeRef.current!) / 1000);
+    }, 100);
+    return () => clearInterval(id);
+  }, [phase.status]);
+
+  const elapsedStr = elapsedSecs > 0 ? `${elapsedSecs.toFixed(1)}s` : '';
 
   return (
     <div
@@ -95,12 +129,12 @@ export const PhaseCard: React.FC<PhaseCardProps> = ({ phase, delay = 0 }) => {
       </div>
 
       {/* Body */}
-      {renderBody(phase)}
+      {renderBody(phase, elapsedStr)}
     </div>
   );
 };
 
-function renderBody(phase: PhaseData) {
+function renderBody(phase: PhaseData, elapsedStr: string) {
   // pending 或无 sub 且 mode=sequential → 简洁指示
   if (phase.status === 'pending' || (!phase.sub?.length && phase.mode === 'sequential')) {
     return (
@@ -135,17 +169,17 @@ function renderBody(phase: PhaseData) {
         <FileTree items={subItems} />
       )}
 
-      {/* Stats line — 仅完成时 */}
+      {/* Stats line — done: ✔ Done  X.Xs · N/M tools */}
       {phase.status === 'done' && (
         <div className="font-mono text-[9px] text-emerald-400/60">
-          ✔ Done · {doneCount}/{subItems.length} tools
+          ✔ Done  {elapsedStr} · {doneCount}/{subItems.length} tools
         </div>
       )}
 
-      {/* Stats line — 运行中 */}
+      {/* Stats line — running: X.Xs · N/M tools */}
       {phase.status === 'running' && (doneCount > 0 || subItems.length > 0) && (
         <div className="font-mono text-[9px] text-white/20">
-          {doneCount}/{subItems.length} tools
+          {elapsedStr ? `${elapsedStr} · ` : ''}{doneCount}/{subItems.length} tools
         </div>
       )}
     </div>

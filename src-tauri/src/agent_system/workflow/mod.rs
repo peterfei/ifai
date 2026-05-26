@@ -56,7 +56,9 @@ pub mod parallel;
 pub mod parser;
 pub mod prompt_loader;
 pub mod runner;
+pub mod macros;
 pub mod scheduler;
+pub mod spec;
 pub mod tool_loop;
 pub mod tools;
 pub mod types;
@@ -71,6 +73,7 @@ pub use executor::{
     AgentNodeExecutor, ConditionEvaluator, DataPassingManager, NodeExecutionContext, NodeExecutor,
 };
 pub use parser::{ParseError, WorkflowParser};
+pub use spec::{AgentWorkflowSpec, PhaseMode, PhaseSpec, SpecError};
 pub use runner::{
     CompletionStats,
     NodeResult,

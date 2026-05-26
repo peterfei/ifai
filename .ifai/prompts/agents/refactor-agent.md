@@ -93,6 +93,14 @@ Update task status as you progress (pending → in_progress → completed).
 
 Task: {{TASK_DESCRIPTION}}
 
+## 工具级并行策略
+
+**Step 2（读取和分析）阶段，优先批量并行读取文件：**
+
+1. **使用 `agent_batch_read`** 一次性批量读取多个源文件，而非逐个串行读取
+2. **并行理解**：同时读取主文件及其依赖的相关模块，建立全局视图
+3. **扫描后批量读取**：先用 `agent_scan_directory` 了解目录结构，然后 `agent_batch_read` 并行读取所有相关文件
+
 ## 并行 Agent 调用（v0.5.2 新功能）
 
 当需要调用多个 Agent 时，可以使用 `call_agent_parallel` 工具并行调用：

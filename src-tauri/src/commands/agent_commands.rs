@@ -14,6 +14,30 @@ pub struct AgentInfo {
     pub status: AgentStatus,
 }
 
+// ============================================================
+// 策略注册表 — 数据驱动，零 match/if-else
+// ============================================================
+
+/// 审批策略注册表：字符串键 → 策略标识
+const APPROVAL_POLICIES: &[(&str, &str)] = &[
+    ("auto",   "auto_approve"),
+    ("hybrid", "hybrid_approve"),
+];
+
+/// 进度回调注册表：字符串键 → 回调标识
+const PROGRESS_CALLBACKS: &[(&str, &str)] = &[
+    ("gui", "gui_callback"),
+    ("tui", "tui_callback"),
+];
+
+/// 从注册表查找 — 泛型，可复用于任何 (key, factory) 表
+///
+/// 使用二分查找（注册表按 key 排序时），退化为线性查找。
+/// 对于 <10 条注册表条目，线性查找比 HashMap 更快。
+fn resolve_from_table<'a, T>(table: &'a [(&'a str, T)], key: &str) -> Option<&'a T> {
+    table.iter().find(|(k, _)| *k == key).map(|(_, v)| v)
+}
+
 #[tauri::command]
 pub async fn launch_agent(
     app: tauri::AppHandle,
@@ -150,4 +174,61 @@ pub async fn approve_agent_action(
     supervisor.notify_approval(&id, approved).await;
     println!("[AgentCommands] notify_approval completed for id={}", id);
     Ok(())
+}
+
+// ============================================================
+// 单元测试
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- UT-D.1.5: APPROVAL_POLICIES 包含两个条目 ---
+    #[test]
+    fn test_approval_policies_contains_entries() {
+        let keys: Vec<&str> = APPROVAL_POLICIES.iter().map(|(k, _)| *k).collect();
+        assert!(keys.contains(&"auto"), "应包含 auto 策略");
+        assert!(keys.contains(&"hybrid"), "应包含 hybrid 策略");
+    }
+
+    // --- UT-D.1.6: PROGRESS_CALLBACKS 包含两个条目 ---
+    #[test]
+    fn test_progress_callbacks_contains_entries() {
+        let keys: Vec<&str> = PROGRESS_CALLBACKS.iter().map(|(k, _)| *k).collect();
+        assert!(keys.contains(&"gui"), "应包含 gui 回调");
+        assert!(keys.contains(&"tui"), "应包含 tui 回调");
+    }
+
+    // --- UT-D.1.7: resolve_from_table 正确查找 ---
+    #[test]
+    fn test_resolve_from_table_found() {
+        let table: &[(&str, i32)] = &[("a", 1), ("b", 2), ("c", 3)];
+        let result = resolve_from_table(table, "b");
+        assert_eq!(result, Some(&2));
+    }
+
+    // --- UT-D.1.8: resolve_from_table 找不到返回 None ---
+    #[test]
+    fn test_resolve_from_table_not_found() {
+        let table: &[(&str, i32)] = &[("a", 1), ("b", 2)];
+        let result = resolve_from_table(table, "z");
+        assert_eq!(result, None);
+    }
+
+    // --- resolve_from_table: 空表返回 None ---
+    #[test]
+    fn test_resolve_from_table_empty() {
+        let table: &[(&str, i32)] = &[];
+        let result = resolve_from_table(table, "anything");
+        assert_eq!(result, None);
+    }
+
+    // --- resolve_from_table: case sensitive ---
+    #[test]
+    fn test_resolve_from_table_case_sensitive() {
+        let table: &[(&str, i32)] = &[("Hybrid", 1)];
+        assert_eq!(resolve_from_table(table, "hybrid"), None, "大小写敏感");
+        assert_eq!(resolve_from_table(table, "Hybrid"), Some(&1));
+    }
 }

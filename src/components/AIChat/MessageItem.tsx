@@ -1297,15 +1297,52 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
 
-                        {/* PhaseData 工作流进度可视化（优先于旧的 exploreProgress） */}
-                        {(message as any).metadata?.phaseData ? (
-                            <div className="my-2">
-                                <ExploreWorkflowView
-                                    phaseData={(message as any).metadata.phaseData as PhaseData[]}
-                                    isRunning={((message as any).metadata.phaseData as PhaseData[]).some(p => p.status === 'running')}
-                                />
-                            </div>
-                        ) : (message as any).exploreProgress ? (
+                        {/* WorkflowData 工作流进度可视化（TUI 格式，优先于旧的 exploreProgress） */}
+                        {(() => {
+                            const metadata = (message as any).metadata || {};
+                            const workflowData = metadata.workflowData;
+                            if (workflowData) {
+                                return (
+                                    <div className="my-2">
+                                        <ExploreWorkflowView workflowData={workflowData} />
+                                    </div>
+                                );
+                            }
+                            // 向后兼容：旧消息只有 phaseData（无 workflowData）
+                            if (metadata.phaseData) {
+                                const phaseData = metadata.phaseData as PhaseData[];
+                                return (
+                                    <div className="my-2">
+                                        <ExploreWorkflowView
+                                            workflowData={{
+                                                workflowId: metadata.workflowId || 'legacy',
+                                                intent: phaseData[0]?.intent || '',
+                                                nodes: phaseData.map(p => ({
+                                                    nodeId: p.nodeId,
+                                                    agentType: 'Explore' as const,
+                                                    intent: p.intent,
+                                                    status: p.status,
+                                                    tools: (p.sub || []).map(s => ({
+                                                        toolName: s.name,
+                                                        status: s.status,
+                                                        elapsedSecs: 0,
+                                                    })),
+                                                    elapsedSecs: 0,
+                                                    totalTokens: 0,
+                                                })),
+                                                totalElapsedSecs: 0,
+                                                totalTokens: 0,
+                                                totalTools: phaseData.reduce((sum, p) => sum + (p.sub?.length || 0), 0),
+                                                status: phaseData.some(p => p.status === 'running') ? 'running' as const : 'done' as const,
+                                            }}
+                                        />
+                                    </div>
+                                );
+                            }
+                            // 旧版 exploreProgress 回退
+                            if ((message as any).exploreProgress) {
+                                const exploreProgress = (message as any).exploreProgress;
+                                return (
                             <div className="space-y-2 my-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 {/* 🏆 v0.4.1: 当探索完成时，物理渲染 PivoProjectTree 项目树 */}
                                 {(message as any).exploreProgress.phase === 'completed' && (message as any).exploreProgress.scannedFiles && (
@@ -1316,7 +1353,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 )}
                                 <ExploreProgressNew progress={(message as any).exploreProgress} mode="minimal" />
                             </div>
-                        ) : null}
+                                );
+                            }
+                            return null;
+                        })()}
 
                         {/* Task Completion Banner */}
                         {!effectivelyStreaming && (
