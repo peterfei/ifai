@@ -559,6 +559,24 @@ function parseNodeType(nodeId: string, parsedInfo: ParsedNodeInfo): WorkflowNode
   return 'tool';
 }
 
+// ==================== 声明式工作流显示策略（数据驱动，单一真相源） ====================
+/**
+ * 工作流类型 → 显示策略映射
+ * 'message-embedded': 由消息内的 ExploreWorkflowView 等组件处理，DAG Monitor 不介入
+ * 'dag': 由 WorkflowInlineMonitor (DAG 视图) 处理
+ */
+const WORKFLOW_DISPLAY_STRATEGY: Record<string, 'message-embedded' | 'dag'> = {
+  exploration: 'message-embedded',
+  // 其他类型默认走 DAG
+};
+
+const DEFAULT_DISPLAY_STRATEGY: 'dag' | 'message-embedded' = 'dag';
+
+function getWorkflowDisplayStrategy(workflowType: string | undefined): 'message-embedded' | 'dag' {
+  if (!workflowType) return DEFAULT_DISPLAY_STRATEGY;
+  return WORKFLOW_DISPLAY_STRATEGY[workflowType] ?? DEFAULT_DISPLAY_STRATEGY;
+}
+
 // ==================== 全局工作流状态管理（跨组件实例持久化） ====================
 // 🔥 FIX: 使用全局 Map 来存储工作流状态，防止 StrictMode 导致的组件重新挂载问题
 const globalWorkflowStates = new Map<string, WorkflowInfo>();
@@ -668,9 +686,14 @@ export function updateGlobalWorkflowState(workflowId: string, updates: Partial<W
   }
 }
 
-// 🔥 FIX: 添加全局活跃工作流管理函数
+// 🔥 FIX: 添加全局活跃工作流管理函数（声明式驱动，唯一阻塞点）
 export function addActiveWorkflow(workflowId: string) {
-  const wasEmpty = globalActiveWorkflows.size === 0;
+  const state = globalWorkflowStates.get(workflowId);
+  const strategy = getWorkflowDisplayStrategy(state?.workflowType);
+  if (strategy === 'message-embedded') {
+    console.log('[addActiveWorkflow] ⏭️ Skipping workflow (strategy:', strategy, '):', workflowId);
+    return;
+  }
   globalActiveWorkflows.add(workflowId);
   console.log('[addActiveWorkflow] ✅ Added workflow:', workflowId, 'total:', globalActiveWorkflows.size);
   // 通知所有监听器
@@ -2011,26 +2034,17 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
       const workflowType = payload.workflowType || payload.workflow_type;
       console.log('[WorkflowInlineMonitorContainer] 📋 Workflow started:', workflowId, 'type:', workflowType);
 
-      // 🔥 提取 sessionId（用于标签页隔离）
-      const sessionId = payload.sessionId || payload.session_id;
-
-      // 🔥 FIX: 存储 workflowType 到全局状态（供 progress 过滤检查）
+      // 存储 workflowType 到全局状态（addActiveWorkflow 依赖此状态做声明式过滤）
       updateGlobalWorkflowState(workflowId, {
         name: workflowType || t('workflowInline.running'),
         status: 'running' as const,
         startTime: Date.now(),
         nodes: payload.nodes || [],
-        sessionId,  // 🔥 保存 sessionId，用于标签页隔离
-        workflowType,  // 🔥 保存 workflowType，用于 progress 过滤
+        sessionId: payload.sessionId || payload.session_id,
+        workflowType,
       });
 
-      // 🔥 FIX: exploration 工作流由消息内的 ExploreWorkflowView 处理，不触发 DAG Monitor
-      if (workflowType === 'exploration') {
-        console.log('[WorkflowInlineMonitorContainer] ⏭️ Skipping exploration workflow (handled by ExploreWorkflowView)');
-        return;
-      }
-
-      // 添加活跃工作流（非 exploration 类型）
+      // addActiveWorkflow 内部通过声明式策略表自动过滤 exploration 等类型
       addActiveWorkflow(workflowId);
     });
 
@@ -2048,14 +2062,7 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
 
       // 如果这是新工作流，自动添加到活跃工作流列表
       if (workflowId && !globalActiveWorkflows.has(workflowId)) {
-        // 🔥 FIX: 过滤 exploration 类型（已在 workflow:started 中跳过，这里防止 progress 事件触发自动添加）
-        const existingState = globalWorkflowStates.get(workflowId);
-        if (existingState?.workflowType === 'exploration') {
-          console.log('[WorkflowInlineMonitorContainer] ⏭️ Skipping exploration workflow progress (handled by ExploreWorkflowView)');
-          return;
-        }
-
-        console.log('[WorkflowInlineMonitorContainer] 🆕 Detected new workflow from progress event:', workflowId);
+        // addActiveWorkflow 内部通过声明式策略表自动过滤，无需在此重复判断
         addActiveWorkflow(workflowId);
 
         // 初始化全局状态
@@ -2213,9 +2220,13 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     return null;
   }
 
-  // 🔥 标签页隔离：过滤工作流，只显示属于当前 thread 的监控器
+  // 🔥 标签页隔离 + 声明式策略过滤（防御层）
   const filteredWorkflows = activeWorkflows.filter(workflowId => {
     const workflowState = globalWorkflowStates.get(workflowId);
+    // 🔥 声明式：策略为 message-embedded 的工作流不渲染 DAG Monitor
+    if (getWorkflowDisplayStrategy(workflowState?.workflowType) === 'message-embedded') {
+      return false;
+    }
     const belongsToCurrentThread = !activeThreadId || !workflowState?.sessionId || workflowState.sessionId === activeThreadId;
 
     // 🔥 FIX: 移除高频过滤日志
