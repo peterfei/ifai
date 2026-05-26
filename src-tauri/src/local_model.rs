@@ -471,6 +471,46 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
                 let cmd_str = cmd.as_str();
                 let arg = cap.get(2).map(|m| m.as_str()).unwrap_or(".");
                 match cmd_str {
+                    "doc" | "document" => {
+                        let mut args = HashMap::new();
+                        args.insert("rel_path".to_string(), arg.to_string());
+                        calls.push(ParsedToolCall {
+                            name: "agent_list_dir".to_string(),
+                            arguments: args,
+                        });
+                    }
+                    "test" => {
+                        let mut args = HashMap::new();
+                        args.insert("rel_path".to_string(), arg.to_string());
+                        calls.push(ParsedToolCall {
+                            name: "agent_read_file".to_string(),
+                            arguments: args,
+                        });
+                    }
+                    "refactor" => {
+                        let mut args = HashMap::new();
+                        args.insert("rel_path".to_string(), arg.to_string());
+                        calls.push(ParsedToolCall {
+                            name: "agent_read_file".to_string(),
+                            arguments: args,
+                        });
+                    }
+                    "proposal" => {
+                        let mut args = HashMap::new();
+                        args.insert("rel_path".to_string(), arg.to_string());
+                        calls.push(ParsedToolCall {
+                            name: "agent_read_file".to_string(),
+                            arguments: args,
+                        });
+                    }
+                    "task" => {
+                        let mut args = HashMap::new();
+                        args.insert("rel_path".to_string(), arg.to_string());
+                        calls.push(ParsedToolCall {
+                            name: "agent_list_dir".to_string(),
+                            arguments: args,
+                        });
+                    }
                     "explore" | "scan" => {
                         let mut args = HashMap::new();
                         args.insert("rel_path".to_string(), arg.to_string());

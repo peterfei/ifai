@@ -520,6 +520,26 @@ pub async fn execute_quick_workflow(
             println!("[Workflow] ✅ Creating quality check workflow");
             create_quick_quality_check_workflow(&target_path)
         }
+        "test" => {
+            println!("[Workflow] ✅ Creating test workflow");
+            create_quick_test_workflow(&target_path)
+        }
+        "doc" => {
+            println!("[Workflow] ✅ Creating doc workflow");
+            create_quick_doc_workflow(&target_path)
+        }
+        "refactor" => {
+            println!("[Workflow] ✅ Creating refactor workflow");
+            create_quick_refactor_workflow(&target_path)
+        }
+        "proposal" => {
+            println!("[Workflow] ✅ Creating proposal workflow");
+            create_quick_proposal_workflow(&target_path)
+        }
+        "task" => {
+            println!("[Workflow] ✅ Creating task workflow");
+            create_quick_task_workflow(&target_path)
+        }
         _ => {
             let error = format!("未知的工作流类型: {}", workflow_type);
             println!("[Workflow] ❌ {}", error);
@@ -710,6 +730,163 @@ fn create_quick_quality_check_workflow(target_path: &str) -> Workflow {
     workflow
 }
 
+fn create_quick_test_workflow(target_path: &str) -> Workflow {
+    let mut workflow = Workflow::new("quick-test", "生成测试").with_description("自动生成单元测试");
+
+    workflow
+        .add_node(
+            WorkflowNode::new("test", AgentType::Test)
+                .with_label("生成测试")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "分析该目录下的源文件并生成单元测试。
+
+流程：
+1. 读取源文件了解代码结构
+2. 生成对应的测试文件
+3. 使用 agent_write_file 创建测试文件
+
+**输出**：列出创建了哪些测试文件、测试覆盖内容"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        );
+
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
+
+    workflow
+}
+
+fn create_quick_doc_workflow(target_path: &str) -> Workflow {
+    let mut workflow = Workflow::new("quick-doc", "生成文档").with_description("自动生成项目文档和代码注释");
+
+    workflow
+        .add_node(
+            WorkflowNode::new("doc", AgentType::Doc)
+                .with_label("生成文档")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "分析该目录下的源码并生成文档。
+
+流程：
+1. 读取源文件了解代码结构和功能
+2. 使用 agent_write_file 创建文档文件（如 README.md、API.md 等）
+3. 如果源文件缺少注释，更新源文件添加必要注释
+4. 所有文档必须实际写入到目标目录中
+
+**输出**：列出创建/更新了哪些文档文件"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        );
+
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
+
+    workflow
+}
+
+fn create_quick_refactor_workflow(target_path: &str) -> Workflow {
+    let mut workflow = Workflow::new("quick-refactor", "代码重构").with_description("智能代码重构和优化");
+
+    workflow
+        .add_node(
+            WorkflowNode::new("refactor", AgentType::Refactor)
+                .with_label("重构代码")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "分析并重构优化该目录下的代码。
+
+流程：
+1. 读取源文件了解代码结构和问题
+2. 进行重构优化（改进可读性、性能、架构等）
+3. 使用 agent_write_file 实际写入重构后的代码
+4. 所有变更必须落地，不能只输出建议
+
+**输出**：列出修改了哪些文件、修改摘要"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        );
+
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
+
+    workflow
+}
+
+fn create_quick_proposal_workflow(target_path: &str) -> Workflow {
+    let mut workflow = Workflow::new("quick-proposal", "生成提案").with_description("生成变更提案和计划");
+
+    workflow
+        .add_node(
+            WorkflowNode::new("proposal", AgentType::ProposalGenerator)
+                .with_label("生成提案")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "分析源码并生成代码变更提案。
+
+流程：
+1. 读取相关源文件了解当前实现
+2. 输出结构化提案，包含：
+   - 变更目标
+   - 实施步骤
+   - 风险分析"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        );
+
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
+
+    workflow
+}
+
+fn create_quick_task_workflow(target_path: &str) -> Workflow {
+    let mut workflow = Workflow::new("quick-task", "任务拆解").with_description("自动拆解复杂任务为可执行步骤");
+
+    workflow
+        .add_node(
+            WorkflowNode::new("task", AgentType::TaskBreakdown)
+                .with_label("任务拆解")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "分析需求并将复杂任务拆解为可执行的步骤。
+
+流程：
+1. 读取相关文件获取上下文
+2. 输出结构化任务分解，包含：
+   - 任务分解（5-8个子任务）
+   - 依赖关系
+   - 风险评估"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        );
+
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
+
+    workflow
+}
+
 // AgentType 辅助方法
 impl AgentType {
     fn from_str(s: &str) -> Option<Self> {
@@ -720,8 +897,8 @@ impl AgentType {
             "test" => Some(AgentType::Test),
             "doc" => Some(AgentType::Doc),
             "debug" => Some(AgentType::Debug),
-            "task_breakdown" => Some(AgentType::TaskBreakdown),
-            "proposal_generator" => Some(AgentType::ProposalGenerator),
+            "task_breakdown" | "task" => Some(AgentType::TaskBreakdown),
+            "proposal_generator" | "proposal" => Some(AgentType::ProposalGenerator),
             "general_purpose" => Some(AgentType::GeneralPurpose),
             _ => None,
         }
@@ -863,6 +1040,91 @@ mod workflow_tests {
         assert!(workflow.edges.len() >= 1, "代码审查工作流应该至少有1条边");
 
         println!("✅ 代码审查工作流验证通过！");
+    }
+
+    #[test]
+    fn test_test_workflow_structure() {
+        let workflow = create_quick_test_workflow(".");
+
+        println!("\n=== 测试生成工作流结构测试 ===");
+        println!("📊 节点数量: {}", workflow.nodes.len());
+
+        assert_eq!(workflow.nodes.len(), 1, "测试工作流应该有1个节点");
+        assert_eq!(workflow.edges.len(), 0, "测试工作流应该没有边");
+
+        let node = &workflow.nodes[0];
+        assert_eq!(node.id, "test");
+        assert_eq!(node.agent_type, AgentType::Test);
+
+        println!("✅ 测试生成工作流验证通过！");
+    }
+
+    #[test]
+    fn test_doc_workflow_structure() {
+        let workflow = create_quick_doc_workflow(".");
+
+        println!("\n=== 文档生成工作流结构测试 ===");
+        println!("📊 节点数量: {}", workflow.nodes.len());
+
+        assert_eq!(workflow.nodes.len(), 1, "文档工作流应该有1个节点");
+        assert_eq!(workflow.edges.len(), 0, "文档工作流应该没有边");
+
+        let node = &workflow.nodes[0];
+        assert_eq!(node.id, "doc");
+        assert_eq!(node.agent_type, AgentType::Doc);
+
+        println!("✅ 文档生成工作流验证通过！");
+    }
+
+    #[test]
+    fn test_refactor_workflow_structure() {
+        let workflow = create_quick_refactor_workflow(".");
+
+        println!("\n=== 重构工作流结构测试 ===");
+        println!("📊 节点数量: {}", workflow.nodes.len());
+
+        assert_eq!(workflow.nodes.len(), 1, "重构工作流应该有1个节点");
+        assert_eq!(workflow.edges.len(), 0, "重构工作流应该没有边");
+
+        let node = &workflow.nodes[0];
+        assert_eq!(node.id, "refactor");
+        assert_eq!(node.agent_type, AgentType::Refactor);
+
+        println!("✅ 重构工作流验证通过！");
+    }
+
+    #[test]
+    fn test_proposal_workflow_structure() {
+        let workflow = create_quick_proposal_workflow(".");
+
+        println!("\n=== 提案工作流结构测试 ===");
+        println!("📊 节点数量: {}", workflow.nodes.len());
+
+        assert_eq!(workflow.nodes.len(), 1, "提案工作流应该有1个节点");
+        assert_eq!(workflow.edges.len(), 0, "提案工作流应该没有边");
+
+        let node = &workflow.nodes[0];
+        assert_eq!(node.id, "proposal");
+        assert_eq!(node.agent_type, AgentType::ProposalGenerator);
+
+        println!("✅ 提案工作流验证通过！");
+    }
+
+    #[test]
+    fn test_task_workflow_structure() {
+        let workflow = create_quick_task_workflow(".");
+
+        println!("\n=== 任务拆解工作流结构测试 ===");
+        println!("📊 节点数量: {}", workflow.nodes.len());
+
+        assert_eq!(workflow.nodes.len(), 1, "任务拆解工作流应该有1个节点");
+        assert_eq!(workflow.edges.len(), 0, "任务拆解工作流应该没有边");
+
+        let node = &workflow.nodes[0];
+        assert_eq!(node.id, "task");
+        assert_eq!(node.agent_type, AgentType::TaskBreakdown);
+
+        println!("✅ 任务拆解工作流验证通过！");
     }
 
     #[test]

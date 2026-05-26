@@ -477,9 +477,15 @@ export const initStoreMapper = () => {
           if (!state || !state.messages) return state;
 
           const filtered = state.messages.filter((m: any) => m.id !== messageId);
-          const now = Date.now();
 
-          // 如果已存在此 workflowId 的助手消息，只更新 phaseData
+          // 🔥 FIX: 对工作流消息也应用单调递增计数器，确保 user.timestamp < assistant.timestamp
+          // 避免从 IndexedDB 重载时相同时间戳导致不稳定排序
+          const now = Date.now();
+          const sequenceCounter = typeof window !== 'undefined' ? ++(window as any).__MESSAGE_SEQUENCE_COUNTER__ : 0;
+          const userTimestamp = now + sequenceCounter * 100;
+          const assistantTimestamp = userTimestamp + 1;
+
+          // 如果已存在此 workflowId 的助手消息（由 workflow:started 提前创建），更新 phaseData + 修正 timestamp
           const existingIdx = filtered.findIndex(
             (m: any) => m.role === 'assistant' && m.metadata?.workflowId === wfId
           );
@@ -490,14 +496,16 @@ export const initStoreMapper = () => {
             // 导致 assistant 消息先于 user 消息创建。这里用 splice 确保 user 在 assistant 之前。
             const newMsgs = [...filtered];
             const userMessage = {
-              id: messageId, role: 'user' as const, content, timestamp: now,
-              segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
+              id: messageId, role: 'user' as const, content, timestamp: userTimestamp,
+              segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: userTimestamp }],
               workflowRelated: true,
             };
             newMsgs.splice(existingIdx, 0, userMessage);
             // splice 后 assistant 消息索引后移 1 位
+            // 🔥 CRITICAL: 同时修正 assistant 时间戳，确保 user.timestamp < assistant.timestamp
             newMsgs[existingIdx + 1] = {
               ...newMsgs[existingIdx + 1],
+              timestamp: assistantTimestamp,
               metadata: { ...newMsgs[existingIdx + 1].metadata, phaseData },
             };
             return {
@@ -506,20 +514,20 @@ export const initStoreMapper = () => {
             };
           }
 
-          // 创建用户消息 + 助手进度消息（带 phaseData）
+          // 创建用户消息 + 助手进度消息（带 phaseData），使用单调递增时间戳
           return {
             messages: [
               ...filtered,
               {
-                id: messageId, role: 'user', content, timestamp: now,
-                segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
+                id: messageId, role: 'user', content, timestamp: userTimestamp,
+                segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: userTimestamp }],
                 workflowRelated: true,
               },
               {
                 id: assistantId || `wf-progress-${wfId}`,
                 role: 'assistant',
                 content: '',
-                timestamp: now,
+                timestamp: assistantTimestamp,
                 metadata: { workflowId: wfId, phaseData },
               },
             ],
@@ -1005,7 +1013,7 @@ export const initStoreMapper = () => {
           const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
           newContent = existingMessage.content + `\n\n#### 🔄 执行中... ( ${timestamp} )\n\n` + (message ? `${message}\n` : '');
         } else if (!hasCustomContent && message && event_type !== 'tool_call') {
-          // 🔥 TUI ExploreWorkflowView 已通过 workflowData 展示工具列表，
+          // 🔥 TUI WorkflowView 已通过 workflowData 展示工具列表，
           // tool_call 的 message（"工具调用: xxx"）不再需要追加到 content 文本
           newContent = existingMessage.content + `${message}\n`;
         }
@@ -1168,7 +1176,7 @@ export const initStoreMapper = () => {
         // workflow:started → 创建初始结构
         const nodes: NodeData[] = (plannedNodes || []).map((n: any) => ({
           nodeId: n.id || n.nodeId || '',
-          agentType: n.agent_type || n.agentType || 'Explore',
+          agentType: n.agent_type || n.agentType || '',
           intent: n.label || n.intent || '',
           status: 'pending' as const,
           tools: [],

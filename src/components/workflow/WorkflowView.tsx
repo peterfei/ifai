@@ -1,7 +1,8 @@
 // ============================================================
-// ExploreWorkflowView — 工作流探索视图容器（TUI 列表格式）
+// WorkflowView — Agent 工作流视图容器（TUI 列表格式）
 //
 // 组合 WorkflowHeader + NodeSection[] + WorkflowSummary
+// Agent 类型无关 — 支持 explore/review/refactor/test/general
 // 参考: design.md §3.1
 // ============================================================
 
@@ -11,11 +12,11 @@ import { NodeSection } from './NodeSection';
 import { WorkflowSummary } from './WorkflowSummary';
 import type { WorkflowData } from '../../types/workflow';
 
-interface ExploreWorkflowViewProps {
+interface WorkflowViewProps {
   workflowData: WorkflowData;
 }
 
-export const ExploreWorkflowView: React.FC<ExploreWorkflowViewProps> = ({ workflowData }) => {
+export const WorkflowView: React.FC<WorkflowViewProps> = ({ workflowData }) => {
   if (!workflowData?.nodes?.length) return null;
 
   const { intent, nodes, ...summaryData } = workflowData;

@@ -125,6 +125,16 @@ export class SendMessageOrchestrator {
           const wfType = intentResult.metadata.workflowType;
           const plannedNodes = wfType === 'exploration'
             ? [{ id: 'explore', label: '探索项目', agent_type: 'explore' }]
+            : wfType === 'test'
+            ? [{ id: 'test', label: '生成测试', agent_type: 'test' }]
+            : wfType === 'doc'
+            ? [{ id: 'doc', label: '生成文档', agent_type: 'doc' }]
+            : wfType === 'refactor'
+            ? [{ id: 'refactor', label: '重构代码', agent_type: 'refactor' }]
+            : wfType === 'proposal'
+            ? [{ id: 'proposal', label: '生成提案', agent_type: 'proposal' }]
+            : wfType === 'task'
+            ? [{ id: 'task', label: '任务拆解', agent_type: 'task' }]
             : [{ id: 'task', label: '执行任务', agent_type: 'general_purpose' }];
 
           console.log('[SendMessageOrchestrator] 📤 Re-emitting workflow:started with', plannedNodes.length, 'nodes');

@@ -27,6 +27,11 @@ const SLASH_COMMANDS: &[(&str, ToolCategory, &str)] = &[
     ("/search", ToolCategory::SearchOperations, "agent_search"),
     ("/find", ToolCategory::SearchOperations, "agent_search"),
     ("/help", ToolCategory::AiChat, "help"),
+    ("/test", ToolCategory::FileOperations, "agent_read_file"),
+    ("/doc", ToolCategory::FileOperations, "agent_list_dir"),
+    ("/refactor", ToolCategory::FileOperations, "agent_read_file"),
+    ("/proposal", ToolCategory::FileOperations, "agent_read_file"),
+    ("/task", ToolCategory::FileOperations, "agent_list_dir"),
 ];
 
 /// 处理斜杠命令

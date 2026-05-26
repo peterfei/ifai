@@ -19,7 +19,7 @@ export interface IntentResult {
 
 // 🔥 FIX: 移除 /explore 和 /review，因为它们已被工作流系统处理
 // 这些命令现在通过 WorkflowIntentHandler 处理，返回 type: 'workflow'
-const SUPPORTED_SLASH_COMMANDS = ['/test', '/doc', '/refactor'];
+const SUPPORTED_SLASH_COMMANDS: string[] = [];
 
 // P4: 工作流斜杠命令
 const WORKFLOW_SLASH_COMMANDS = ['/workflow', '/wf', '/code-review', '/exploration', '/quality-check'];

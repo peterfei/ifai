@@ -2,7 +2,7 @@
  * TDD: 声明式工作流显示策略过滤
  *
  * 核心设计：WORKFLOW_DISPLAY_STRATEGY 优先级表驱动，单一阻塞点 addActiveWorkflow
- * - exploration → 'message-embedded'（由消息内 ExploreWorkflowView 处理）
+ * - exploration → 'message-embedded'（由消息内 WorkflowView 处理）
  * - 其他类型 → 'dag'（由 WorkflowInlineMonitor DAG 视图处理）
  */
 

@@ -9,7 +9,7 @@
 import { BasePayload, chatEventBus } from '../eventBus/ChatEventBus';
 
 export interface WorkflowIntent {
-  workflowType: 'code_review' | 'exploration' | 'quality_check' | 'custom';
+  workflowType: 'code_review' | 'exploration' | 'quality_check' | 'test' | 'doc' | 'refactor' | 'proposal' | 'task' | 'custom';
   targetPath?: string;
   confidence: number;
   matched: boolean;
@@ -72,6 +72,70 @@ const WORKFLOW_KEYWORDS = {
     name: '质量检查',
     description: '全面的代码质量检查和分析',
   },
+  test: {
+    patterns: [
+      '生成测试',
+      '编写测试',
+      '生成单元测试',
+      '自动测试',
+      'add tests',
+      'write tests',
+    ],
+    workflowType: 'test' as const,
+    name: '生成测试',
+    description: '自动生成单元测试',
+  },
+  doc: {
+    patterns: [
+      '生成文档',
+      '编写文档',
+      '添加注释',
+      '生成注释',
+      'generate docs',
+      'write docs',
+      'add comments',
+    ],
+    workflowType: 'doc' as const,
+    name: '生成文档',
+    description: '自动生成项目文档和代码注释',
+  },
+  refactor: {
+    patterns: [
+      '重构代码',
+      '代码重构',
+      '优化代码',
+      '重构模块',
+      'refactor',
+      '重构',
+    ],
+    workflowType: 'refactor' as const,
+    name: '代码重构',
+    description: '智能代码重构和优化',
+  },
+  proposal: {
+    patterns: [
+      '生成提案',
+      '编写提案',
+      '变更提案',
+      'proposal',
+      '生成计划',
+    ],
+    workflowType: 'proposal' as const,
+    name: '生成提案',
+    description: '生成变更提案和计划',
+  },
+  task: {
+    patterns: [
+      '任务拆解',
+      '拆解任务',
+      '分解任务',
+      'task breakdown',
+      '任务分解',
+    ],
+    workflowType: 'task' as const,
+    name: '任务拆解',
+    description: '自动拆解复杂任务为可执行步骤',
+  },
 };
 
 /**
@@ -86,6 +150,12 @@ const WORKFLOW_SLASH_COMMANDS = {
   '/exploration': 'exploration',
   '/quality-check': 'quality_check',
   '/quality': 'quality_check',
+  '/test': 'test',
+  '/doc': 'doc',
+  '/document': 'doc',
+  '/refactor': 'refactor',
+  '/proposal': 'proposal',
+  '/task': 'task',
 };
 
 /**
@@ -175,6 +245,12 @@ export class WorkflowIntentHandler {
         'exploration': 'exploration',
         'quality': 'quality_check',
         'quality-check': 'quality_check',
+        'test': 'test',
+        'doc': 'doc',
+        'document': 'doc',
+        'refactor': 'refactor',
+        'proposal': 'proposal',
+        'task': 'task',
       };
 
       const workflowType = typeMap[subCommand];
@@ -414,6 +490,26 @@ ${workflowInfo.description}
               { id: 'review', label: '代码审查', agent_type: 'review' },
               { id: 'security', label: '安全检查', agent_type: 'review' }
             ];
+          } else if (workflowType === 'test') {
+            return [
+              { id: 'test', label: '生成测试', agent_type: 'test' }
+            ];
+          } else if (workflowType === 'doc') {
+            return [
+              { id: 'doc', label: '生成文档', agent_type: 'doc' }
+            ];
+          } else if (workflowType === 'refactor') {
+            return [
+              { id: 'refactor', label: '重构代码', agent_type: 'refactor' }
+            ];
+          } else if (workflowType === 'proposal') {
+            return [
+              { id: 'proposal', label: '生成提案', agent_type: 'proposal' }
+            ];
+          } else if (workflowType === 'task') {
+            return [
+              { id: 'task', label: '任务拆解', agent_type: 'task' }
+            ];
           } else {
             return [
               { id: 'task', label: '执行任务', agent_type: 'general_purpose' }
@@ -562,6 +658,26 @@ ${workflowInfo.description}
                 { id: 'explore', label: '探索代码', agent_type: 'explore' },
                 { id: 'review', label: '代码审查', agent_type: 'review' },
                 { id: 'refactor', label: '重构建议', agent_type: 'refactor' }
+              ];
+            } else if (workflowType === 'test') {
+              return [
+                { id: 'test', label: '生成测试', agent_type: 'test' }
+              ];
+            } else if (workflowType === 'doc') {
+              return [
+                { id: 'doc', label: '生成文档', agent_type: 'doc' }
+              ];
+            } else if (workflowType === 'refactor') {
+              return [
+                { id: 'refactor', label: '重构代码', agent_type: 'refactor' }
+              ];
+            } else if (workflowType === 'proposal') {
+              return [
+                { id: 'proposal', label: '生成提案', agent_type: 'proposal' }
+              ];
+            } else if (workflowType === 'task') {
+              return [
+                { id: 'task', label: '任务拆解', agent_type: 'task' }
               ];
             } else {
               return [
@@ -749,6 +865,21 @@ ${mockPlannedNodes.map(n => `- ${n.label}`).join('\n')}
           return [
             { id: 'explore', label: '探索项目', agent_type: 'explore' },
           ];
+        }
+        if (workflowType === 'test') {
+          return [{ id: 'test', label: '生成测试', agent_type: 'test' }];
+        }
+        if (workflowType === 'doc') {
+          return [{ id: 'doc', label: '生成文档', agent_type: 'doc' }];
+        }
+        if (workflowType === 'refactor') {
+          return [{ id: 'refactor', label: '重构代码', agent_type: 'refactor' }];
+        }
+        if (workflowType === 'proposal') {
+          return [{ id: 'proposal', label: '生成提案', agent_type: 'proposal' }];
+        }
+        if (workflowType === 'task') {
+          return [{ id: 'task', label: '任务拆解', agent_type: 'task' }];
         }
         return [{ id: 'task', label: '执行任务', agent_type: 'general_purpose' }];
       })();

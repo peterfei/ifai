@@ -147,7 +147,7 @@ impl Default for RunnerConfig {
     fn default() -> Self {
         Self {
             max_concurrent_nodes: 3,
-            node_timeout_secs: 60, // 1 分钟
+            node_timeout_secs: 300, // 5 分钟（重构/文档生成需要读取+分析+写入）
             max_retries: 5,         // 🔥 增加重试次数以更好地处理速率限制
             fail_fast: false,
         }
@@ -1451,7 +1451,7 @@ mod tests {
     async fn test_runner_config_default() {
         let config = RunnerConfig::default();
         assert_eq!(config.max_concurrent_nodes, 3);
-        assert_eq!(config.node_timeout_secs, 60); // 1 分钟
+        assert_eq!(config.node_timeout_secs, 300);
         assert_eq!(config.max_retries, 5); // 🔥 更新为新的默认值
         assert!(!config.fail_fast);
     }

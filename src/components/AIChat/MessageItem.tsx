@@ -35,7 +35,7 @@ import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { PivoProjectTree } from './PivoProjectTree';
 import { TaskSummary } from './TaskSummary';
 import { TaskCompletionBanner } from './TaskCompletionBanner';
-import { ExploreWorkflowView } from '../workflow/ExploreWorkflowView';
+import { WorkflowView } from '../workflow/WorkflowView';
 import type { PhaseData } from '../../types/workflow';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
@@ -1304,7 +1304,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             if (workflowData) {
                                 return (
                                     <div className="my-2">
-                                        <ExploreWorkflowView workflowData={workflowData} />
+                                        <WorkflowView workflowData={workflowData} />
                                     </div>
                                 );
                             }
@@ -1313,13 +1313,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 const phaseData = metadata.phaseData as PhaseData[];
                                 return (
                                     <div className="my-2">
-                                        <ExploreWorkflowView
+                                        <WorkflowView
                                             workflowData={{
                                                 workflowId: metadata.workflowId || 'legacy',
                                                 intent: phaseData[0]?.intent || '',
                                                 nodes: phaseData.map(p => ({
                                                     nodeId: p.nodeId,
-                                                    agentType: 'Explore' as const,
+                                                    agentType: p.intent || 'Agent' as const,
                                                     intent: p.intent,
                                                     status: p.status,
                                                     tools: (p.sub || []).map(s => ({

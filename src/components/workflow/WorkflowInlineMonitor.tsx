@@ -314,7 +314,7 @@ interface WorkflowInfo {
   nodes?: WorkflowNode[];
   /** 🔥 所属的 session/thread ID，用于标签页隔离 */
   sessionId?: string;
-  /** 🔥 工作流类型，exploration 由消息内 ExploreWorkflowView 处理，不显示 DAG Monitor */
+  /** 🔥 工作流类型，exploration 由消息内 WorkflowView 处理，不显示 DAG Monitor */
   workflowType?: string;
 }
 
@@ -562,7 +562,7 @@ function parseNodeType(nodeId: string, parsedInfo: ParsedNodeInfo): WorkflowNode
 // ==================== 声明式工作流显示策略（数据驱动，单一真相源） ====================
 /**
  * 工作流类型 → 显示策略映射
- * 'message-embedded': 由消息内的 ExploreWorkflowView 等组件处理，DAG Monitor 不介入
+ * 'message-embedded': 由消息内的 WorkflowView 等组件处理，DAG Monitor 不介入
  * 'dag': 由 WorkflowInlineMonitor (DAG 视图) 处理
  */
 const WORKFLOW_DISPLAY_STRATEGY: Record<string, 'message-embedded' | 'dag'> = {

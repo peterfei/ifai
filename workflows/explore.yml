@@ -1,0 +1,39 @@
+# Explore Agent 工作流
+# AgentWorkflowSpec::from_type("explore") → 加载此文件
+
+id: "explore"
+name: "代码探索"
+description: "探索和分析项目结构"
+
+nodes:
+  - id: "phase1_scan"
+    agentType: "explore"
+    label: "采集项目结构"
+    config:
+      tools: ["scan_directory"]
+      max_steps: 3
+      task_description: "扫描项目目录结构，识别主要模块和文件组织"
+
+  - id: "phase2_read"
+    agentType: "explore"
+    label: "读取目标文件"
+    config:
+      tools: ["batch_read", "read", "list"]
+      max_concurrent: 5
+      max_steps: 8
+      task_description: "并行读取目标文件内容"
+
+  - id: "phase3_report"
+    agentType: "explore"
+    label: "生成分析报告"
+    config:
+      tools: ["write"]
+      max_steps: 3
+      require_approval: true
+      task_description: "基于分析结果生成结构化报告"
+
+edges:
+  - from: "phase1_scan"
+    to: "phase2_read"
+  - from: "phase2_read"
+    to: "phase3_report"
