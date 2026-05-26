@@ -470,7 +470,7 @@ export const initStoreMapper = () => {
         }));
 
         console.log('[StoreMapper] 📋 Workflow progress message with phaseData:', {
-          workflowId: wfId, workflowType: wfType, phaseCount: phaseData.length,
+          workflowId: wfId, workflowType, phaseCount: phaseData.length,
         });
 
         const updater = (state: any) => {
@@ -694,7 +694,7 @@ export const initStoreMapper = () => {
 
     // P3: 映射工作流启动 — 创建 assistant 进度消息 + 初始化 PhaseData
     chatEventBus.on('workflow:started', (payload) => {
-      const { workflowId, nodes, correlationId } = payload as any;
+      const { workflowId, nodes, correlationId, workflowType } = payload as any;
 
       if (!workflowId || !nodes || !Array.isArray(nodes) || nodes.length === 0) {
         return;
@@ -732,7 +732,7 @@ export const initStoreMapper = () => {
           const newMsgs = [...state.messages];
           newMsgs[existingIdx] = {
             ...newMsgs[existingIdx],
-            metadata: { ...newMsgs[existingIdx].metadata, workflowType: wfType, phaseData, workflowData },
+            metadata: { ...newMsgs[existingIdx].metadata, workflowType, phaseData, workflowData },
           };
           return { messages: newMsgs };
         }
@@ -746,7 +746,7 @@ export const initStoreMapper = () => {
               role: 'assistant',
               content: '',
               timestamp: Date.now(),
-              metadata: { workflowId, workflowType: wfType, phaseData, workflowData },
+              metadata: { workflowId, workflowType, phaseData, workflowData },
             },
           ],
         };
