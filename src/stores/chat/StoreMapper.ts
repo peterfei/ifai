@@ -470,7 +470,7 @@ export const initStoreMapper = () => {
         }));
 
         console.log('[StoreMapper] 📋 Workflow progress message with phaseData:', {
-          workflowId: wfId, workflowType, phaseCount: phaseData.length,
+          workflowId: wfId, workflowType: wfType, phaseCount: phaseData.length,
         });
 
         const updater = (state: any) => {
