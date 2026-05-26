@@ -70,7 +70,8 @@ pub fn get_main_system_prompt(project_root: &str) -> String {
             .unwrap_or_else(|| "You are IfAI, an advanced AI software engineer.".to_string()),
     };
 
-    template::render_template(&template, &variables).unwrap_or_else(|_| template)
+    template::render_template(&template, &variables, Some(project_root))
+        .unwrap_or_else(|_| template)
 }
 
 pub fn get_agent_prompt(agent_type: &str, project_root: &str, task: &str) -> String {
@@ -117,7 +118,8 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task: &str) -> Str
             }
         });
 
-    template::render_template(&template, &variables).unwrap_or_else(|_| template)
+    template::render_template(&template, &variables, Some(project_root))
+        .unwrap_or_else(|_| template)
 }
 
 fn load_template(project_root: &str, name: &str) -> Option<String> {

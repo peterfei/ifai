@@ -46,7 +46,7 @@ mod test_prompt_manager_access {
         vars.insert("test".to_string(), "value".to_string());
 
         // 验证模板渲染 API 可用
-        let result = template::render_template("Hello {{test}}", &vars);
+        let result = template::render_template("Hello {{test}}", &vars, None);
 
         // 验证渲染成功
         assert!(result.is_ok());

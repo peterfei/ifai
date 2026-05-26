@@ -490,24 +490,24 @@ fn fallback_test_prompt(ctx: &AgentContext) -> String {
 
 目录结构已在上下文中提供，无需调用 agent_scan_project。
 
-**严格限制：最多 2 次工具调用**
-
 **工具使用策略**：
 
-第 1 次调用：同时发起多个 `agent_read_file` — 并行读取源码和现有测试文件。
+第 1 轮：同时发起多个 `agent_read_file` — 并行读取源码和现有测试文件。
 ⚠️ 在同一次响应中发起多个 tool_call，它们会并行执行！
 
-第 2 次调用：不调用工具，直接输出测试建议。
+第 2 轮：分析代码结构，确定需要测试的模块和函数。
+
+第 3 轮：使用 `agent_write_file` 将生成的测试文件写入磁盘。
+- 每个测试文件对应一个源文件，命名规范：`源文件名.test.ext`
+- 必须包含可运行的完整测试代码
+- 确保覆盖正常路径、边界条件和错误处理
 
 **可用工具**：
 - `agent_read_file(rel_path)` — 读取单个文件，可同时发起多个实现并行
 - `agent_list_dir(rel_path)` — 列出单层目录
+- `agent_write_file(rel_path, content)` — **将生成的测试文件写入磁盘**。内容参数为完整的测试文件源码。
 
-**输出格式**：
-- 测试覆盖率分析
-- 未测试的关键功能
-- 测试用例建议（含代码示例）
-- 边界条件和错误处理测试
+**输出**：列出创建了哪些测试文件、测试覆盖内容。
 "#,
         ctx.project_root,
         ctx.variables.get("test_target").cloned().unwrap_or_default()
@@ -870,5 +870,45 @@ Actual content here"#;
             assert!(!config.prompt_file.is_empty());
             assert!(!config.variable_names.is_empty());
         }
+    }
+
+    #[test]
+    fn test_fallback_test_prompt_includes_write_tool() {
+        // Test agent 的 fallback prompt 必须声明 agent_write_file，
+        // 否则即使 tool definitions 中有该工具，LLM 也可能不会调用它。
+        let mut vars = HashMap::new();
+        vars.insert("target_path".to_string(), "src/main.rs".to_string());
+        vars.insert("PROJECT_ROOT".to_string(), "/tmp/test".to_string());
+        use crate::core_traits::ai::{AIProviderConfig, AIProtocol};
+        let ctx = AgentContext {
+            project_root: "/tmp/test".to_string(),
+            task_description: "测试".to_string(),
+            initial_prompt: String::new(),
+            variables: vars,
+            provider_config: AIProviderConfig {
+                id: String::new(),
+                name: String::new(),
+                api_key: String::new(),
+                base_url: String::new(),
+                models: Vec::new(),
+                protocol: AIProtocol::OpenAI,
+                enabled: false,
+            },
+            current_model: None,
+            cancellation_token: None,
+        };
+        let prompt = super::fallback_test_prompt(&ctx);
+
+        assert!(
+            prompt.contains("agent_write_file"),
+            "Test fallback prompt 必须列出 agent_write_file 工具（LLM 据此决定是否调用写入）"
+        );
+
+        // 验证工具描述中包含重要的说明信息
+        assert!(
+            prompt.contains("写入磁盘"),
+            "Prompt 应说明写入功能: {}",
+            &prompt[..200]
+        );
     }
 }

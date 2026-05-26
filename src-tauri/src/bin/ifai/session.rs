@@ -3509,7 +3509,7 @@ fn build_cli_system_prompt(
 
     // 3. 使用 Handlebars 渲染（元编程）
     let mut rendered =
-        match prompt_manager::template::render_template(&template_content, &variables) {
+        match prompt_manager::template::render_template(&template_content, &variables, None) {
             Ok(r) => r,
             Err(e) => {
                 // 渲染失败时返回原始模板

@@ -92,10 +92,20 @@ export class IntentHandler {
             timestamp: Date.now(),
           });
 
-          // 即使失败也返回结果，让流程继续
+          // 🔥 FIX: 即使执行失败也不回退到 chat 流程，
+          // 否则 Orchestrator 会发送消息到 AI（→ Router → LocalModel 错误处理）
+          // 返回 shouldSkipChat: true 跳过 AI 聊天流程
           return {
-            type: 'chat',
-            confidence: 0,
+            type: 'workflow',
+            category: workflowIntent.workflowType,
+            confidence: workflowIntent.confidence,
+            shouldSkipChat: true,
+            metadata: {
+              workflowType: workflowIntent.workflowType,
+              targetPath: workflowIntent.targetPath,
+              error: error instanceof Error ? error.message : '未知错误',
+              response: workflowIntent.response || undefined,
+            },
           };
         }
       }
@@ -122,6 +132,63 @@ export class IntentHandler {
       this.emitIntent(result, payload);
 
       return result;
+    }
+
+    // 🔥 1.5 自然语言工作流意图补充识别（比率匹配法）
+    // 当 recognizeWorkflowIntent 未匹配时，使用比率匹配法再次检测
+    // checkKeywords 使用逐模式匹配，recognizeNaturalLanguage 使用全关键词比率计算
+    if (!textInput.startsWith('/')) {
+      const nlIntent = workflowIntentHandler.recognizeNaturalLanguage(textInput);
+      if (nlIntent.isWorkflow && nlIntent.confidence >= 0.65) {
+        console.log('[IntentHandler] 🌐 Natural language workflow detected (ratio):', nlIntent.workflowType);
+
+        let workflowId: string | undefined;
+        if (nlIntent.workflowType) {
+          try {
+            workflowId = await workflowIntentHandler.executeWorkflow(
+              nlIntent.workflowType,
+              nlIntent.targetPath || '.',
+              payload
+            );
+          } catch (error) {
+            console.error('[IntentHandler] ❌ Natural language workflow execution failed:', error);
+            chatEventBus.emit('workflow:error', {
+              ...payload,
+              error: error instanceof Error ? error.message : '未知错误',
+              timestamp: Date.now(),
+            });
+            // 🔥 FIX: 不回退到 chat 流程，避免消息发送到 AI 模型
+            return {
+              type: 'workflow',
+              category: nlIntent.workflowType,
+              confidence: nlIntent.confidence,
+              shouldSkipChat: true,
+              metadata: {
+                workflowType: nlIntent.workflowType,
+                targetPath: nlIntent.targetPath,
+                error: error instanceof Error ? error.message : '未知错误',
+                response: nlIntent.response || undefined,
+              },
+            };
+          }
+        }
+
+        const result: IntentResult = {
+          type: 'workflow',
+          category: nlIntent.workflowType,
+          confidence: nlIntent.confidence,
+          shouldSkipChat: true,
+          metadata: {
+            workflowType: nlIntent.workflowType,
+            targetPath: nlIntent.targetPath,
+            response: nlIntent.response,
+            workflowId,
+          }
+        };
+
+        this.emitIntent(result, payload);
+        return result;
+      }
     }
 
     // 1. 斜杠命令拦截 (优先)

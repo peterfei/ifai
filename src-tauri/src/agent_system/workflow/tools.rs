@@ -526,6 +526,57 @@ impl DefaultToolExecutor {
 
         Ok(summary)
     }
+
+    /// 执行 agent_write_file — 写入文件到磁盘
+    async fn write_file(&self, rel_path: &str, content: &str) -> Result<String> {
+        let root_canonical = std::path::Path::new(&self.project_root).canonicalize()?;
+
+        // 🔥 手动解析 rel_path 中的 .. 组件，防止路径遍历
+        // 不依赖 canonicalize（新文件的路径还不存在）
+        let mut resolved = root_canonical.clone();
+        for component in std::path::Path::new(rel_path).components() {
+            match component {
+                std::path::Component::ParentDir => {
+                    let parent = resolved
+                        .parent()
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("路径越权: '{}' 超出项目根目录", rel_path)
+                        })?
+                        .to_path_buf();
+                    // `..` 不能跳出项目根目录
+                    if !parent.starts_with(&root_canonical) {
+                        return Err(anyhow::anyhow!(
+                            "路径越权: '{}' 不在项目根目录内",
+                            rel_path
+                        ));
+                    }
+                    resolved = parent;
+                }
+                std::path::Component::Normal(c) => {
+                    resolved = resolved.join(c);
+                }
+                // RootDir("/" 开头), CurDir("."), Prefix(Win) — 跳过
+                _ => {}
+            }
+        }
+
+        // 创建父目录（如果不存在）
+        if let Some(parent) = resolved.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                anyhow::anyhow!("创建目录失败 '{}': {}", parent.display(), e)
+            })?;
+        }
+
+        tokio::fs::write(&resolved, content).await.map_err(|e| {
+            anyhow::anyhow!("写入文件失败 '{}': {}", rel_path, e)
+        })?;
+
+        let file_size = content.len();
+        Ok(format!(
+            "✅ 文件已写入: {}\n路径: {}\n大小: {} 字节",
+            rel_path, resolved.display(), file_size
+        ))
+    }
 }
 
 #[async_trait::async_trait]
@@ -588,8 +639,17 @@ impl ToolExecutor for DefaultToolExecutor {
                     .ok_or_else(|| anyhow::anyhow!("缺少 message 参数"))?;
                 self.git_commit(message).await
             }
+            "agent_write_file" => {
+                let rel_path = input["rel_path"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 rel_path 参数。工具调用格式: {{\"type\": \"function\", \"function\": {{\"name\": \"agent_write_file\", \"arguments\": {{\"rel_path\": \"文件路径\", \"content\": \"文件内容\"}}}}}}"))?;
+                let content = input["content"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 content 参数"))?;
+                self.write_file(rel_path, content).await
+            }
             _ => Err(anyhow::anyhow!(
-                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project, agent_search, git_status, git_snapshot, secret_scanner, git_commit",
+                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project, agent_search, agent_write_file, git_status, git_snapshot, secret_scanner, git_commit",
                 name
             )),
         }
@@ -702,6 +762,28 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
                         }
                     },
                     "required": ["pattern"]
+                }
+            }
+        }),
+        // 🔥 写入文件工具（用于 Test/Doc/Refactor/Proposal Agent 的输出）
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "agent_write_file",
+                "description": "将内容写入指定文件。如果文件已存在会覆盖。父目录不存在会自动创建。用于生成测试文件、文档、代码等。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "rel_path": {
+                            "type": "string",
+                            "description": "相对于项目根目录的文件路径，例如 \"src/__tests__/user.test.ts\""
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "要写入的文件内容"
+                        }
+                    },
+                    "required": ["rel_path", "content"]
                 }
             }
         }),
@@ -1195,5 +1277,281 @@ fn test_main() {
         // 清理后应该为空
         super::file_cache_clear();
         assert_eq!(super::file_cache_get("/test/path.rs"), None);
+    }
+
+    // ========================================================================
+    // E2E 高保真仿真测试: agent_write_file
+    //
+    // 模拟 LLM Test Agent 的完整工具调用流程:
+    //   1. LLM 收到 system prompt + tool definitions
+    //   2. LLM 调用 agent_read_file 读取源代码
+    //   3. LLM 分析代码后生成测试内容
+    //   4. LLM 调用 agent_write_file 将测试写入磁盘
+    //   5. 验证文件实际存在于磁盘，内容正确
+    //
+    // 对应配置: .ifai/prompts/agents/test.md（可用工具 + create_tool_definitions）
+    // ========================================================================
+
+    #[test]
+    fn test_agent_write_file_registered_in_definitions() {
+        let definitions = super::create_tool_definitions();
+        let names: std::collections::HashSet<&str> = definitions
+            .iter()
+            .filter_map(|d| d["function"]["name"].as_str())
+            .collect();
+
+        assert!(
+            names.contains("agent_write_file"),
+            "agent_write_file 必须在 workflow tool definitions 中，否则 LLM function calling 看不到它"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_agent_write_file_simulate_llm_flow() {
+        // 高保真仿真: LLM Test Agent 读取源代码 → 生成测试 → 写入磁盘
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 模拟用户项目中的待测源代码
+        let source_code = r#"
+pub fn calculate_discount(price: f64, percent: f64) -> f64 {
+    if percent < 0.0 || percent > 100.0 {
+        panic!("折扣百分比必须在 0 到 100 之间");
+    }
+    price * (1.0 - percent / 100.0)
+}
+
+pub fn is_even(n: i32) -> bool {
+    n % 2 == 0
+}
+"#;
+        fs::write(temp_dir.path().join("src/discount.rs"), source_code).unwrap();
+
+        // == Phase 1: LLM 读取源代码（agent_read_file）==
+        let read_result = executor
+            .execute(
+                "agent_read_file",
+                &serde_json::json!({ "rel_path": "src/discount.rs" }),
+            )
+            .await
+            .unwrap();
+        assert!(read_result.contains("calculate_discount"), "LLM 必须能读取到源码中的函数");
+        assert!(read_result.contains("is_even"), "LLM 必须能读取到源码中的函数");
+        assert!(read_result.contains("panic!"), "LLM 必须能看到错误处理逻辑");
+
+        // == Phase 2: LLM 生成测试文件并写入（agent_write_file）==
+        let test_code = r#"#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_discount_normal() {
+        assert_eq!(calculate_discount(100.0, 20.0), 80.0);
+    }
+
+    #[test]
+    fn test_calculate_discount_zero_percent() {
+        assert_eq!(calculate_discount(100.0, 0.0), 100.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "折扣百分比必须在 0 到 100 之间")]
+    fn test_calculate_discount_invalid() {
+        calculate_discount(100.0, 150.0);
+    }
+
+    #[test]
+    fn test_is_even() {
+        assert!(is_even(2));
+        assert!(!is_even(3));
+    }
+}
+"#;
+
+        let write_result = executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({
+                    "rel_path": "tests/discount_test.rs",
+                    "content": test_code
+                }),
+            )
+            .await
+            .unwrap();
+
+        // == Phase 3: 验证返回结果 ==
+        assert!(write_result.contains("✅"), "写入结果应包含成功标志 emoji: {}", write_result);
+        assert!(
+            write_result.contains("tests/discount_test.rs"),
+            "写入结果应包含文件路径: {}",
+            write_result
+        );
+        assert!(write_result.contains("字节"), "写入结果应包含文件大小: {}", write_result);
+
+        // == Phase 4: 验证文件实际存在于磁盘 ==
+        let written_path = temp_dir.path().join("tests/discount_test.rs");
+        assert!(
+            written_path.exists(),
+            "测试文件必须实际写入磁盘: {:?}",
+            written_path
+        );
+
+        // == Phase 5: 验证文件内容正确 ==
+        let written_content = fs::read_to_string(&written_path).unwrap();
+        assert!(
+            written_content.contains("test_calculate_discount_normal"),
+            "文件内容应包含生成的测试用例"
+        );
+        assert!(written_content.contains("test_is_even"), "文件内容应包含生成的测试用例");
+        assert!(written_content.contains("assert_eq"), "文件内容应包含断言");
+        assert!(
+            written_content.contains("should_panic"),
+            "文件内容应包含异常场景测试"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_agent_write_file_overwrite() {
+        // 验证覆写已有文件
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({
+                    "rel_path": "tests/overwrite_test.rs",
+                    "content": "// Version 1\n"
+                }),
+            )
+            .await
+            .unwrap();
+
+        // 覆写为新版本（模拟 LLM 重新生成测试）
+        executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({
+                    "rel_path": "tests/overwrite_test.rs",
+                    "content": "// Version 2 - Regenerated\n"
+                }),
+            )
+            .await
+            .unwrap();
+
+        let content = fs::read_to_string(temp_dir.path().join("tests/overwrite_test.rs")).unwrap();
+        assert_eq!(content.trim(), "// Version 2 - Regenerated", "覆写应替换旧内容");
+    }
+
+    #[tokio::test]
+    async fn test_agent_write_file_auto_create_directory() {
+        // 验证自动创建父目录（LLM 写入深层路径时的场景）
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({
+                    "rel_path": "src/__tests__/deep/nested/calculator.test.ts",
+                    "content": "// LLM 自动创建深层目录\n"
+                }),
+            )
+            .await
+            .unwrap();
+
+        assert!(result.contains("✅"), "应自动创建深层目录并写入: {}", result);
+        assert!(
+            temp_dir
+                .path()
+                .join("src/__tests__/deep/nested/calculator.test.ts")
+                .exists(),
+            "深层嵌套目录中的文件应被创建"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_agent_write_file_path_traversal_prevention() {
+        // 验证路径遍历攻击防御（安全边界）
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({
+                    "rel_path": "../../../etc/evil.rs",
+                    "content": "malicious content"
+                }),
+            )
+            .await;
+
+        assert!(result.is_err(), "路径遍历必须被拒绝");
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("越权") || err_msg.contains("不在项目根目录") || err_msg.contains("超出项目根目录"),
+            "错误信息应说明权限问题: {}",
+            err_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_agent_write_file_missing_params() {
+        // 验证参数校验 — LLM 调用时可能遗漏参数
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 缺少 content
+        let err = executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({ "rel_path": "tests/foo.rs" }),
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("content"), "缺少 content 参数应有提示: {}", err);
+
+        // 缺少 rel_path
+        let err = executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({ "content": "some code" }),
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("rel_path"), "缺少 rel_path 参数应有提示: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_agent_write_file_round_trip() {
+        // 验证写入后读取一致 — LLM 写入测试后验证内容的典型模式
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+        let content = "// Round-trip: generated by LLM Test Agent\nfn test_add() {}\n";
+
+        executor
+            .execute(
+                "agent_write_file",
+                &serde_json::json!({
+                    "rel_path": "tests/roundtrip_test.rs",
+                    "content": content
+                }),
+            )
+            .await
+            .unwrap();
+
+        // 模拟 LLM 写入后再次读取验证
+        let read_back = executor
+            .execute("agent_read_file", &serde_json::json!({ "rel_path": "tests/roundtrip_test.rs" }))
+            .await
+            .unwrap();
+        assert!(
+            read_back.contains("Round-trip"),
+            "写入后再读取内容应一致: {}",
+            read_back
+        );
     }
 }

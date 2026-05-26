@@ -21,6 +21,7 @@ version: "1.0.0"
 - `agent_batch_read(paths)` - 批量读取多个测试文件
 - `grep` - 搜索测试模式和覆盖范围
 - `agent_scan_project(rel_path, max_depth)` - 扫描测试目录结构
+- `agent_write_file(rel_path, content)` - **将生成的测试文件写入磁盘**。读取完源代码后，使用此工具创建实际的测试文件。`rel_path` 是相对于项目根目录的文件路径（如 `"tests/test_game.js"`），`content` 是完整的测试代码。
 
 ## 工作流程
 

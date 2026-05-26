@@ -272,7 +272,7 @@ pub async fn render_prompt_template(
     content: String,
     variables: HashMap<String, String>,
 ) -> Result<String, String> {
-    template::render_template(&content, &variables).map_err(|e| e.to_string())
+    template::render_template(&content, &variables, None).map_err(|e| e.to_string())
 }
 
 // === 版本管理命令 ===

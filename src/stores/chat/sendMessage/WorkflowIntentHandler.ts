@@ -29,13 +29,20 @@ export interface WorkflowIntentResult {
 const WORKFLOW_KEYWORDS = {
   code_review: {
     patterns: [
+      // 中文
       '代码审查',
-      'code review',
       '审查代码',
       '代码检查',
-      'review code',
       '运行审查',
       '执行审查',
+      '审查项目',
+      '代码评审',
+      // 英文
+      'code review',
+      'review code',
+      'review project',
+      'review changes',
+      'code audit',
     ],
     workflowType: 'code_review' as const,
     name: '代码审查',
@@ -43,15 +50,47 @@ const WORKFLOW_KEYWORDS = {
   },
   exploration: {
     patterns: [
+      // 中文
       '代码探索',
       '探索代码',
       '探索项目',
       '分析代码',
       '代码分析',
-      'explore code',
-      'exploration',
       '了解代码',
       '查看项目',
+      '分析项目',
+      '项目结构',
+      '项目分析',
+      '项目架构',
+      '代码结构',
+      '代码概览',
+      '项目概览',
+      '项目布局',
+      // 🔥 新增：常见自然语言变体
+      '帮我看',
+      '看看项目',
+      '看下项目',
+      '看一下',
+      '了解项目',
+      '项目情况',
+      '项目信息',
+      '项目详情',
+      '项目内容',
+      '项目文件',
+      '看看这个',
+      '看下这个',
+      // 英文
+      'explore code',
+      'exploration',
+      'explore project',
+      'analyze project',
+      'project structure',
+      'project architecture',
+      'code analysis',
+      'project overview',
+      'show me',
+      'look at this',
+      'tell me about',
     ],
     workflowType: 'exploration' as const,
     name: '代码探索',
@@ -59,14 +98,20 @@ const WORKFLOW_KEYWORDS = {
   },
   quality_check: {
     patterns: [
+      // 中文
       '质量检查',
       '代码质量',
       '质量分析',
       '检查质量',
-      'quality check',
       '检测问题',
       '代码体检',
       '健康检查',
+      '质量评估',
+      // 英文
+      'quality check',
+      'code quality',
+      'quality analysis',
+      'quality audit',
     ],
     workflowType: 'quality_check' as const,
     name: '质量检查',
@@ -74,12 +119,26 @@ const WORKFLOW_KEYWORDS = {
   },
   test: {
     patterns: [
+      // 中文
       '生成测试',
       '编写测试',
       '生成单元测试',
       '自动测试',
+      '写测试',
+      '单元测试',
+      '测试用例',
+      '自动化测试',
+      '添加测试',
+      '创建测试',
+      '测试代码',
+      // 英文
       'add tests',
       'write tests',
+      'generate test',
+      'unit test',
+      'test case',
+      'create test',
+      'test coverage',
     ],
     workflowType: 'test' as const,
     name: '生成测试',
@@ -87,13 +146,23 @@ const WORKFLOW_KEYWORDS = {
   },
   doc: {
     patterns: [
+      // 中文
       '生成文档',
       '编写文档',
       '添加注释',
       '生成注释',
+      '写文档',
+      '文档生成',
+      'api文档',
+      'readme',
+      '文档说明',
+      // 英文
       'generate docs',
       'write docs',
       'add comments',
+      'generate documentation',
+      'create readme',
+      'documentation',
     ],
     workflowType: 'doc' as const,
     name: '生成文档',
@@ -101,12 +170,24 @@ const WORKFLOW_KEYWORDS = {
   },
   refactor: {
     patterns: [
+      // 中文
       '重构代码',
       '代码重构',
       '优化代码',
       '重构模块',
-      'refactor',
       '重构',
+      '重写',
+      '改进代码',
+      '代码优化',
+      '优化',
+      '改进',
+      // 英文
+      'refactor',
+      'optimize code',
+      'rewrite',
+      'improve code',
+      'code improvement',
+      'restructure',
     ],
     workflowType: 'refactor' as const,
     name: '代码重构',
@@ -114,11 +195,22 @@ const WORKFLOW_KEYWORDS = {
   },
   proposal: {
     patterns: [
+      // 中文
       '生成提案',
       '编写提案',
       '变更提案',
-      'proposal',
       '生成计划',
+      '修改计划',
+      '项目计划',
+      '改进计划',
+      '提案',
+      '计划书',
+      // 英文
+      'proposal',
+      'generate proposal',
+      'change plan',
+      'improvement plan',
+      'project plan',
     ],
     workflowType: 'proposal' as const,
     name: '生成提案',
@@ -126,11 +218,21 @@ const WORKFLOW_KEYWORDS = {
   },
   task: {
     patterns: [
+      // 中文
       '任务拆解',
       '拆解任务',
       '分解任务',
-      'task breakdown',
       '任务分解',
+      '任务规划',
+      '拆分任务',
+      '任务分配',
+      '工作计划',
+      // 英文
+      'task breakdown',
+      'task planning',
+      'break down task',
+      'task plan',
+      'task decomposition',
     ],
     workflowType: 'task' as const,
     name: '任务拆解',
@@ -196,6 +298,52 @@ export class WorkflowIntentHandler {
       isWorkflow: false,
       confidence: 0,
     };
+  }
+
+  /**
+   * 从自然语言中识别工作流意图（不依赖 / 前缀）
+   * 使用多关键词匹配和比率计算置信度
+   * 置信度阈值：0.65
+   */
+  recognizeNaturalLanguage(input: string): WorkflowIntentResult {
+    const lowerInput = input.toLowerCase().trim();
+
+    // 跳过斜杠命令（由 checkSlashCommands 处理）
+    if (lowerInput.startsWith('/')) {
+      return { isWorkflow: false, confidence: 0 };
+    }
+
+    let bestScore = 0;
+    let bestType: string | undefined;
+
+    for (const [wfType, config] of Object.entries(WORKFLOW_KEYWORDS)) {
+      const matchCount = config.patterns.filter(kw =>
+        lowerInput.includes(kw.toLowerCase())
+      ).length;
+      // 匹配比率：匹配数 / 总关键词数
+      const score = matchCount / config.patterns.length;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestType = wfType;
+      }
+    }
+
+    // 归一化：单关键词命中 = 0.70，全部命中 = 0.95
+    const confidence = Math.min(bestScore * 3, 0.95);
+
+    if (bestType && confidence >= 0.65) {
+      const targetPath = this.extractTargetPath(input);
+      return {
+        isWorkflow: true,
+        workflowType: bestType,
+        targetPath,
+        confidence,
+        response: this.getExecutionResponse(bestType, targetPath),
+      };
+    }
+
+    return { isWorkflow: false, confidence: 0 };
   }
 
   /**
