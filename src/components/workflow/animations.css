@@ -1,0 +1,65 @@
+/* ============================================================
+   Explore 工作流可视化动画
+   reference: design.md §5
+   ============================================================ */
+
+/* 5.1 scan-beam — 运行中文件行的扫描光效 */
+@keyframes scan-beam {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.scan-beam {
+  position: relative;
+  overflow: hidden;
+}
+.scan-beam::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(139,92,246,0.12),
+    rgba(139,92,246,0.18),
+    rgba(139,92,246,0.12),
+    transparent
+  );
+  animation: scan-beam 1.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 5.2 tree-in — 文件行入场 */
+@keyframes tree-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.tree-node {
+  animation: tree-in 0.25s ease-out both;
+}
+
+/* 5.3 progress-stripe — 进度条条纹 */
+@keyframes progress-stripe {
+  0%   { background-position: 0 0; }
+  100% { background-position: 20px 0; }
+}
+.progress-stripe {
+  background: linear-gradient(45deg,
+    rgba(168,85,247,0.6) 25%,
+    rgba(139,92,246,0.8) 25%,
+    rgba(139,92,246,0.8) 50%,
+    rgba(168,85,247,0.6) 50%,
+    rgba(168,85,247,0.6) 75%,
+    rgba(139,92,246,0.8) 75%
+  );
+  background-size: 20px 20px;
+  animation: progress-stripe 0.8s linear infinite;
+}
+
+/* 5.4 fade-slide-up — 卡片入场 */
+@keyframes fade-slide-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.phase-card {
+  animation: fade-slide-up 0.35s ease-out both;
+}

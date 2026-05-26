@@ -582,27 +582,19 @@ ${workflowInfo.description}
             ...payload
           });
 
-          // 模拟一些典型的探索工作流节点
-          const mockNodes = [
-            { node_id: 'Search(pattern:"**/*.ts",path:".")', message: '搜索 TypeScript 文件' },
-            { node_id: 'Read(package.json)', message: '读取 package.json' },
-            { node_id: 'Analyze(project_structure)', message: '分析项目结构' },
-            { node_id: 'Generate(summary)', message: '生成项目摘要' },
-          ];
+          // 使用与 mockPlannedNodes 相同的 node_id 发送进度事件
+          for (let i = 0; i < mockPlannedNodes.length; i++) {
+            await new Promise(resolve => setTimeout(resolve, 800));
 
-          // 模拟发送进度事件
-          for (let i = 0; i < mockNodes.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, 800)); // 每 800ms 发送一个节点
-
-            const node = mockNodes[i];
+            const node = mockPlannedNodes[i];
             console.log('[WorkflowIntentHandler] 📊 Simulating workflow:progress:', node);
 
             // 发送节点开始事件
             chatEventBus.emit('workflow:progress', {
               workflowId: mockWorkflowId,
               event_type: 'node_started',
-              node_id: node.node_id,
-              message: node.message,
+              node_id: node.id,
+              message: `${node.label}`,
               timestamp: Date.now()
             });
 
@@ -612,8 +604,8 @@ ${workflowInfo.description}
             chatEventBus.emit('workflow:progress', {
               workflowId: mockWorkflowId,
               event_type: 'node_completed',
-              node_id: node.node_id,
-              message: `✓ ${node.message}`,
+              node_id: node.id,
+              message: `✓ ${node.label}`,
               timestamp: Date.now()
             });
           }
@@ -642,7 +634,7 @@ ${workflowInfo.description}
 目标路径: \`${targetPath}\`
 
 **执行步骤**:
-${mockNodes.map(n => `- ${n.message}`).join('\n')}
+${mockPlannedNodes.map(n => `- ${n.label}`).join('\n')}
 
 💡 这是开发环境的模拟响应。在生产环境中，将显示真实的执行结果。`,
             timestamp: Date.now(),
@@ -750,15 +742,27 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
       console.log('[WorkflowIntentHandler] ✅ Workflow ID received:', workflowId);
 
       // 🔥 CRITICAL FIX: 立即发出工作流启动事件，确保监控器能显示
+      // 根据 workflowType 生成预计算节点（用于 PhaseData 初始化）
+      // node.id 必须与 Rust 后端 WorkflowNode::new(id) 一致，progress 事件才能匹配更新
+      const plannedNodes = (() => {
+        if (workflowType === 'exploration') {
+          return [
+            { id: 'explore', label: '探索项目', agent_type: 'explore' },
+          ];
+        }
+        return [{ id: 'task', label: '执行任务', agent_type: 'general_purpose' }];
+      })();
+
       // 不等待异步监听器设置完成
       chatEventBus.emit('workflow:started', {
         workflowId,
         workflowType,
         targetPath,
         timestamp: Date.now(),
+        nodes: plannedNodes,  // 🔥 重要：添加计划节点 PhaseData 初始化
         ...payload
       });
-      console.log('[WorkflowIntentHandler] 📢 workflow:started event emitted for:', workflowId);
+      console.log('[WorkflowIntentHandler] 📢 workflow:started event emitted for:', workflowId, 'with', plannedNodes.length, 'planned nodes');
 
       // 🔥 异步设置事件监听器，不阻塞返回
       // 即使监听器设置失败，也不影响工作流的正常执行

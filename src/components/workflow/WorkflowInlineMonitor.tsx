@@ -314,6 +314,8 @@ interface WorkflowInfo {
   nodes?: WorkflowNode[];
   /** 🔥 所属的 session/thread ID，用于标签页隔离 */
   sessionId?: string;
+  /** 🔥 工作流类型，exploration 由消息内 ExploreWorkflowView 处理，不显示 DAG Monitor */
+  workflowType?: string;
 }
 
 interface WorkflowInlineMonitorProps {
@@ -2006,22 +2008,29 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     // 监听工作流启动
     const unsubscribeStarted = chatEventBus.on('workflow:started' as any, (payload: any) => {
       const workflowId = payload.workflowId || payload.workflow_id;
-      console.log('[WorkflowInlineMonitorContainer] 📋 Workflow started:', workflowId);
+      const workflowType = payload.workflowType || payload.workflow_type;
+      console.log('[WorkflowInlineMonitorContainer] 📋 Workflow started:', workflowId, 'type:', workflowType);
 
       // 🔥 提取 sessionId（用于标签页隔离）
       const sessionId = payload.sessionId || payload.session_id;
-      console.log('[WorkflowInlineMonitorContainer] 🏷️ Workflow sessionId:', sessionId);
 
-      // 初始化全局状态
+      // 🔥 FIX: 存储 workflowType 到全局状态（供 progress 过滤检查）
       updateGlobalWorkflowState(workflowId, {
-        name: payload.workflowType || payload.workflow_type || t('workflowInline.running'),
+        name: workflowType || t('workflowInline.running'),
         status: 'running' as const,
         startTime: Date.now(),
         nodes: payload.nodes || [],
         sessionId,  // 🔥 保存 sessionId，用于标签页隔离
+        workflowType,  // 🔥 保存 workflowType，用于 progress 过滤
       });
 
-      // 添加活跃工作流
+      // 🔥 FIX: exploration 工作流由消息内的 ExploreWorkflowView 处理，不触发 DAG Monitor
+      if (workflowType === 'exploration') {
+        console.log('[WorkflowInlineMonitorContainer] ⏭️ Skipping exploration workflow (handled by ExploreWorkflowView)');
+        return;
+      }
+
+      // 添加活跃工作流（非 exploration 类型）
       addActiveWorkflow(workflowId);
     });
 
@@ -2039,6 +2048,13 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
 
       // 如果这是新工作流，自动添加到活跃工作流列表
       if (workflowId && !globalActiveWorkflows.has(workflowId)) {
+        // 🔥 FIX: 过滤 exploration 类型（已在 workflow:started 中跳过，这里防止 progress 事件触发自动添加）
+        const existingState = globalWorkflowStates.get(workflowId);
+        if (existingState?.workflowType === 'exploration') {
+          console.log('[WorkflowInlineMonitorContainer] ⏭️ Skipping exploration workflow progress (handled by ExploreWorkflowView)');
+          return;
+        }
+
         console.log('[WorkflowInlineMonitorContainer] 🆕 Detected new workflow from progress event:', workflowId);
         addActiveWorkflow(workflowId);
 

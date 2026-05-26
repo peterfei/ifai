@@ -16,6 +16,7 @@ import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { toast } from 'sonner';
 import { createLogger } from '../../utils/logger';
 import { initCrossThreadPersistence } from './CrossThreadPersistenceService';
+import type { PhaseData } from '../../types/workflow';
 
 // 🔥 Logger instance for StoreMapper
 const logger = createLogger('StoreMapper');
@@ -448,63 +449,80 @@ export const initStoreMapper = () => {
         isWorkflowMessage  // 🔥 检查是否是工作流消息
       });
 
-      // 🔥 FIX: 如果是工作流消息，只创建用户消息，不创建空的 assistant 消息
-      // 参考 claw-code 的做法：工作流执行期间只显示 Monitor，完成后才创建 assistant 消息
+      // 🔥 FIX: 工作流消息 → 创建用户消息 + 带 phaseData 的助手进度消息
       if (isWorkflowMessage) {
-        console.log('[StoreMapper] 🔥 This is a workflow message, creating ONLY user message (no empty assistant message)');
-        console.log('[StoreMapper] 🔥 Creating user message:', { messageId, content: content?.substring(0, 30), assistantId });
+        console.log('[StoreMapper] 🔥 Workflow message — creating user + assistant progress message');
 
-        // 🔥 DEBUG: 检查当前 store 状态
-        const currentStateBefore = useChatStore.getState();
-        console.log('[StoreMapper] 🔍 State BEFORE update:', {
-          messageCount: currentStateBefore.messages.length,
-          messages: currentStateBefore.messages.map((m: any) => ({ id: m.id.substring(0, 15), role: m.role })),
-          isLoading: currentStateBefore.isLoading
+        const wfId = (payloadData as any).workflowId as string | undefined;
+        const wfType = (payloadData as any).workflowType as string | undefined;
+
+        // 🔥 生成 PhaseData（与 WorkflowIntentHandler 的 plannedNodes 一致）
+        const plannedNodes = wfType === 'exploration'
+          ? [{ id: 'explore', label: '探索项目' }]
+          : [{ id: 'task', label: '执行任务' }];
+
+        const phaseData: PhaseData[] = plannedNodes.map((node) => ({
+          nodeId: node.id,
+          mode: 'sequential' as const,
+          intent: node.label,
+          progress: 0,
+          status: 'pending' as const,
+        }));
+
+        console.log('[StoreMapper] 📋 Workflow progress message with phaseData:', {
+          workflowId: wfId, workflowType: wfType, phaseCount: phaseData.length,
         });
 
-        // 🔥 FIX: 只创建用户消息，不创建空的 assistant 消息
-        // assistant 消息将在工作流完成时（workflow:response 事件）创建
         const updater = (state: any) => {
-          console.log('[StoreMapper] 🔍 updater function called, state.messages.length:', state?.messages?.length || 0);
+          if (!state || !state.messages) return state;
 
           const filtered = state.messages.filter((m: any) => m.id !== messageId);
           const now = Date.now();
-          const newMessages = [
-            ...filtered,
-            {
-              id: messageId,
-              role: 'user',
-              content,
-              timestamp: now,
-              segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
-              // 🔥 添加标记，表明这是工作流的用户消息
-              workflowRelated: true
-            }
-          ];
-          console.log('[StoreMapper] 🔥 New messages to set (workflow - NO assistant message):', newMessages.map((m: any) => ({ id: m.id.substring(0, 15), role: m.role, content: m.content?.substring(0, 20) })));
 
-          const result = {
-            messages: newMessages,
-            isLoading: false  // 🔥 关键：不设置 isLoading，防止触发 AI 回复
+          // 如果已存在此 workflowId 的助手消息，只更新 phaseData
+          const existingIdx = filtered.findIndex(
+            (m: any) => m.role === 'assistant' && m.metadata?.workflowId === wfId
+          );
+
+          if (existingIdx !== -1) {
+            const newMsgs = [...filtered];
+            newMsgs[existingIdx] = {
+              ...newMsgs[existingIdx],
+              metadata: { ...newMsgs[existingIdx].metadata, phaseData },
+            };
+            return {
+              messages: [...newMsgs, {
+                id: messageId, role: 'user', content, timestamp: now,
+                segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
+                workflowRelated: true,
+              }],
+              isLoading: false,
+            };
+          }
+
+          // 创建用户消息 + 助手进度消息（带 phaseData）
+          return {
+            messages: [
+              ...filtered,
+              {
+                id: messageId, role: 'user', content, timestamp: now,
+                segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
+                workflowRelated: true,
+              },
+              {
+                id: assistantId || `wf-progress-${wfId}`,
+                role: 'assistant',
+                content: '',
+                timestamp: now,
+                metadata: { workflowId: wfId, phaseData },
+              },
+            ],
+            isLoading: false,
           };
-          console.log('[StoreMapper] 🔥 updater returning:', { messageCount: result.messages.length, isLoading: result.isLoading });
-          return result;
         };
 
-        console.log('[StoreMapper] 🔍 Calling setState with updater...');
         useChatStore.setState(updater as any);
-        console.log('[StoreMapper] 🔍 setState called, waiting for state to update...');
-
-        // 🔥 DEBUG: 验证状态是否真的被更新了
-        setTimeout(() => {
-          const currentState = useChatStore.getState();
-          console.log('[StoreMapper] 🔍 State after update:', {
-            messageCount: currentState.messages.length,
-            lastMessage: currentState.messages[currentState.messages.length - 1],
-            hasUserMessage: currentState.messages.some((m: any) => m.id === messageId),
-            isLoading: currentState.isLoading
-          });
-        }, 50);
+        console.log('[StoreMapper] ✅ Workflow progress message created with phaseData');
 
         return;  // 🔥 提前返回，不执行后续逻辑
       }
@@ -660,6 +678,64 @@ export const initStoreMapper = () => {
       }, 100);
     });
 
+    // P3: 映射工作流启动 — 创建 assistant 进度消息 + 初始化 PhaseData
+    chatEventBus.on('workflow:started', (payload) => {
+      const { workflowId, nodes, correlationId } = payload as any;
+
+      if (!workflowId || !nodes || !Array.isArray(nodes) || nodes.length === 0) {
+        return;
+      }
+
+      // 将 PlannedNode[] 转为 PhaseData[]
+      const phaseData: PhaseData[] = nodes.map((node: any) => ({
+        nodeId: node.id || '',
+        mode: 'sequential' as const,
+        intent: node.label || node.id || '',
+        progress: 0,
+        status: 'pending' as const,
+      }));
+
+      console.log('[StoreMapper] 📋 workflow:started — initializing phaseData:', {
+        workflowId,
+        phaseCount: phaseData.length,
+        phases: phaseData.map((p: PhaseData) => `${p.nodeId}:${p.intent}`),
+      });
+
+      const updater = (state: any) => {
+        if (!state || !state.messages) return state;
+
+        // 如果已存在此 workflowId 的 assistant 消息，只更新 phaseData
+        const existingIdx = state.messages.findIndex(
+          (m: any) => m.role === 'assistant' && m.metadata?.workflowId === workflowId
+        );
+
+        if (existingIdx !== -1) {
+          const newMsgs = [...state.messages];
+          newMsgs[existingIdx] = {
+            ...newMsgs[existingIdx],
+            metadata: { ...newMsgs[existingIdx].metadata, phaseData },
+          };
+          return { messages: newMsgs };
+        }
+
+        // 创建新的 assistant 进度占位消息
+        return {
+          messages: [
+            ...state.messages,
+            {
+              id: correlationId || `wf-progress-${workflowId}`,
+              role: 'assistant',
+              content: '',
+              timestamp: Date.now(),
+              metadata: { workflowId, phaseData },
+            },
+          ],
+        };
+      };
+
+      useChatStore.setState(updater as any);
+    });
+
     // P4: 映射工作流响应
     // 🔥 FIX: 工作流完成后才创建 assistant 消息
     // 参考 claw-code：工作流执行期间不显示空白气泡，完成后一次性显示总结
@@ -690,10 +766,10 @@ export const initStoreMapper = () => {
         }
 
         // 🔥 FIX: 检查是否已存在 assistant 消息
-        // 注意：由于我们修改了 chat:message:sent 逻辑，工作流消息不会预先创建空的 assistant 消息
-        // 所以这里通常会找不到，需要创建新的
+        // 优先按 correlationId 匹配；若不存在（如进度占位消息用 wf-progress-xxx ID），
+        // 再按 workflowId 回退查找
         const assistantIndex = state.messages.findIndex((m: any) =>
-          m.id === correlationId && m.role === 'assistant'
+          m.role === 'assistant' && (m.id === correlationId || m.metadata?.workflowId === workflowId)
         );
 
         console.log('[StoreMapper] 🔍 assistantIndex:', assistantIndex);
@@ -748,6 +824,7 @@ export const initStoreMapper = () => {
             timestamp: Date.now(),
           }],
           metadata: {
+            ...newMessages[assistantIndex].metadata,
             workflowId,
             workflowType,
             correlationId,
@@ -936,6 +1013,7 @@ export const initStoreMapper = () => {
           timestamp: Date.now(),
           metadata: {
             ...existingMessage.metadata,
+            phaseData: deriveUpdatedPhaseData(existingMessage.metadata?.phaseData, event_type, node_id),
             lastProgressUpdate: Date.now(),
           },
         };
@@ -945,6 +1023,33 @@ export const initStoreMapper = () => {
 
       useChatStore.setState(updater as any);
     });
+
+    /** 根据 event_type 推导 PhaseData 的 status 和 progress */
+    function derivePhaseStatus(event_type: string): { status: PhaseData['status']; progress: number } {
+      switch (event_type) {
+        case 'node_started':
+          return { status: 'running', progress: 0 };
+        case 'node_progress':
+          return { status: 'running', progress: 50 };
+        case 'node_completed':
+          return { status: 'done', progress: 100 };
+        default:
+          return { status: 'running', progress: 0 };
+      }
+    }
+
+    /** 更新 phaseData 中匹配 nodeId 的状态 */
+    function deriveUpdatedPhaseData(
+      phaseData: PhaseData[] | undefined,
+      event_type: string,
+      node_id: string | undefined
+    ): PhaseData[] | undefined {
+      if (!phaseData || !node_id) return phaseData;
+      const update = derivePhaseStatus(event_type);
+      return phaseData.map((p: PhaseData) =>
+        p.nodeId === node_id ? { ...p, status: update.status, progress: update.progress } : p
+      );
+    }
 
     // 🔥 工作流完成结果缓存（解决 workflow:completed 早于消息创建的问题）
     const workflowCompletionCache = new Map<string, {
@@ -1100,6 +1205,14 @@ export const initStoreMapper = () => {
           ? existingContent  // 已有完成标记，不重复追加
           : `${existingContent}\n\n${responseContent}`;  // 追加完成结果
 
+        // 工作流完成 → 将所有非 done 的 phase 标记为 done
+        const currentPhaseData: PhaseData[] = existingMessage.metadata?.phaseData || [];
+        const finalizedPhaseData = currentPhaseData.length > 0
+          ? currentPhaseData.map((p: PhaseData) =>
+              p.status !== 'done' ? { ...p, status: 'done' as const, progress: 100 } : p
+            )
+          : currentPhaseData;
+
         newMessages[assistantIndex] = {
           ...existingMessage,
           // 🔥 CRITICAL: 追加工作流完成结果到现有内容
@@ -1120,6 +1233,7 @@ export const initStoreMapper = () => {
           ],
           metadata: {
             ...existingMessage.metadata,
+            phaseData: finalizedPhaseData,
             completed: true,
             completedAt: completed_at,
           }

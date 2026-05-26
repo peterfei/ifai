@@ -35,6 +35,8 @@ import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { PivoProjectTree } from './PivoProjectTree';
 import { TaskSummary } from './TaskSummary';
 import { TaskCompletionBanner } from './TaskCompletionBanner';
+import { ExploreWorkflowView } from '../workflow/ExploreWorkflowView';
+import type { PhaseData } from '../../types/workflow';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
@@ -184,8 +186,11 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     if ((prevProps.message.references?.length || 0) !== (nextProps.message.references?.length || 0)) {
         return false;
     }
-    // Re-render if metadata changes (like exploreProgress)
+    // Re-render if metadata changes (exploreProgress or phaseData)
     if ((prevProps.message as any).exploreProgress !== (nextProps.message as any).exploreProgress) {
+        return false;
+    }
+    if ((prevProps.message as any).metadata?.phaseData !== (nextProps.message as any).metadata?.phaseData) {
         return false;
     }
     // Otherwise skip re-render
@@ -1292,8 +1297,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
 
-                        {/* Explore Agent Progress & Tree UI */}
-                        {(message as any).exploreProgress && (
+                        {/* PhaseData 工作流进度可视化（优先于旧的 exploreProgress） */}
+                        {(message as any).metadata?.phaseData ? (
+                            <div className="my-2">
+                                <ExploreWorkflowView
+                                    phaseData={(message as any).metadata.phaseData as PhaseData[]}
+                                    isRunning={((message as any).metadata.phaseData as PhaseData[]).some(p => p.status === 'running')}
+                                />
+                            </div>
+                        ) : (message as any).exploreProgress ? (
                             <div className="space-y-2 my-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 {/* 🏆 v0.4.1: 当探索完成时，物理渲染 PivoProjectTree 项目树 */}
                                 {(message as any).exploreProgress.phase === 'completed' && (message as any).exploreProgress.scannedFiles && (
@@ -1304,7 +1316,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 )}
                                 <ExploreProgressNew progress={(message as any).exploreProgress} mode="minimal" />
                             </div>
-                        )}
+                        ) : null}
 
                         {/* Task Completion Banner */}
                         {!effectivelyStreaming && (

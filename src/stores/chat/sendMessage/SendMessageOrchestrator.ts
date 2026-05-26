@@ -112,6 +112,7 @@ export class SendMessageOrchestrator {
           content: textInput,
           messageId: messageId,  // 🔥 FIX: 使用独立的 messageId
           workflowId: intentResult.metadata?.workflowId,
+          workflowType: intentResult.metadata?.workflowType,  // 🔥 传递 workflowType 给 StoreMapper
           isWorkflowMessage: true,  // 🔥 标记为工作流消息
         });
         console.log('[SendMessageOrchestrator] 📤 Emitted chat:message:sent with isWorkflowMessage=true');
@@ -119,14 +120,20 @@ export class SendMessageOrchestrator {
         // 等待一小段时间确保消息被创建
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // 🔥 FIX: 重新触发 workflow:started 事件，确保 WorkflowInlineMonitorContainer 能捕获到
+        // 重新触发 workflow:started 事件（带 nodes，用于 StoreMapper 初始化 PhaseData）
         if (intentResult.metadata?.workflowId) {
-          console.log('[SendMessageOrchestrator] 📤 Re-emitting workflow:started event for monitor');
+          const wfType = intentResult.metadata.workflowType;
+          const plannedNodes = wfType === 'exploration'
+            ? [{ id: 'explore', label: '探索项目', agent_type: 'explore' }]
+            : [{ id: 'task', label: '执行任务', agent_type: 'general_purpose' }];
+
+          console.log('[SendMessageOrchestrator] 📤 Re-emitting workflow:started with', plannedNodes.length, 'nodes');
           chatEventBus.emit('workflow:started', {
             workflowId: intentResult.metadata.workflowId,
-            workflowType: intentResult.metadata.workflowType,
+            workflowType: wfType,
             targetPath: intentResult.metadata?.targetPath,
             timestamp: Date.now(),
+            nodes: plannedNodes,
             ...basePayload,
           });
         }
