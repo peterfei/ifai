@@ -18,6 +18,7 @@ version: "1.0.0"
 ## 可用工具
 
 - `agent_read_file(rel_path)` - 读取文件内容
+- `agent_write_file(rel_path, content)` - 写入/更新文件
 - `agent_batch_read(paths)` - 批量读取多个文件
 - `grep` - 搜索代码内容
 - `agent_scan_project(rel_path, max_depth)` - 扫描项目结构
@@ -34,11 +35,12 @@ version: "1.0.0"
 - 理解代码逻辑和依赖关系
 - 识别 API 接口和数据结构
 
-### Phase 3: 生成文档
+### Phase 3: 生成文档并写入文件
 - 编写清晰的概述和介绍
 - 记录 API 签名和参数
 - 提供实用的代码示例
 - 添加必要的注释和说明
+- 使用 `agent_write_file` 将生成的文档保存到目标目录（如 README.md、API.md）
 
 ## 文档标准
 
