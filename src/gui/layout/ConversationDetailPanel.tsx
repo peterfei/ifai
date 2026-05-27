@@ -13,6 +13,9 @@ import React, { useState } from 'react';
 import { FileText, Package, Eye, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useThreadStore } from '../../stores/threadStore';
+import { useConversationStore, selectTokenStats } from '../../stores/conversationStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { getModelMaxTokens, formatTokenCount, calculateTokenUsagePercentage } from '../../utils/tokenCounter';
 import { WorkLogPanel } from './panels/WorkLogPanel';
 import { ArtifactsPanel } from './panels/ArtifactsPanel';
 import { PreviewPanel } from './panels/PreviewPanel';
@@ -36,6 +39,16 @@ export function ConversationDetailPanel() {
   const activeThreadId = useThreadStore((s) => s.activeThreadId);
   const threads = useThreadStore((s) => s.threads);
   const activeThread = activeThreadId ? threads[activeThreadId] : null;
+  const tokenStats = useConversationStore(selectTokenStats);
+  const currentModel = useSettingsStore((s) => s.currentModel);
+  const maxTokens = currentModel ? getModelMaxTokens(currentModel) : 0;
+  const percentage = tokenStats && maxTokens > 0
+    ? Math.min(100, Math.round((tokenStats.total_tokens / maxTokens) * 100))
+    : 0;
+  const barColor = percentage < 50 ? 'bg-[#10B981]'
+    : percentage < 75 ? 'bg-[#F59E0B]'
+    : percentage < 90 ? 'bg-[#F97316]'
+    : 'bg-[#EF4444]';
 
   const handleFileSelect = (file: FileChangeData) => {
     setSelectedFile(file);
@@ -84,9 +97,27 @@ export function ConversationDetailPanel() {
             <MessageSquare size={12} />
             <span>对话：{activeThread?.messageCount ?? 0}条</span>
           </div>
-          <div className="flex items-center gap-1.5 text-[12px] text-[#9CA3AF]">
-            <span className="font-mono">tokens: {(activeThread?.messageCount ?? 0) * 103}</span>
-          </div>
+          {tokenStats && maxTokens > 0 ? (
+            <div className="flex items-center gap-2 text-[12px] text-[#9CA3AF]">
+              {/* 进度条 */}
+              <div className="w-14 h-1.5 bg-[#2D2D2D] rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+              <span className="font-mono whitespace-nowrap">
+                {formatTokenCount(tokenStats.total_tokens)}/{formatTokenCount(maxTokens)}
+              </span>
+              <span className={`font-mono ${percentage >= 75 ? 'text-[#EF4444]' : ''}`}>
+                {percentage}%
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-[12px] text-[#9CA3AF]">
+              <span className="font-mono">tokens: —</span>
+            </div>
+          )}
         </div>
         <span className="w-2 h-2 rounded-full bg-[#10B981]" />
       </div>

@@ -1,11 +1,16 @@
 /**
  * ConversationDetailPanel 集成测试
  *
- * CDP-1 ~ CDP-7: 验证 Tab 并排布局 + 真实数据
+ * CDP-1 ~ CDP-9: 验证 Tab 并排布局 + 真实数据 + Token 进度条
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+
+// 可动态修改的 tokenStats，用于 CDP-9 测试进度条渲染
+const mockStore = vi.hoisted(() => ({
+  tokenStatsValue: null as any,
+}));
 
 // Mock threadStore
 vi.mock('../../../stores/threadStore', () => ({
@@ -22,6 +27,19 @@ vi.mock('../../../stores/threadStore', () => ({
 vi.mock('../../../stores/useChatStore', () => ({
   useChatStore: (selector: (s: any) => any) =>
     selector({ messages: [] }),
+}));
+
+// Mock conversationStore — 支持 CDP-8(null) 和 CDP-9(有值) 两种场景
+vi.mock('../../../stores/conversationStore', () => ({
+  useConversationStore: (selector: (s: any) => any) =>
+    selector({ tokenStats: mockStore.tokenStatsValue }),
+  selectTokenStats: (s: any) => s.tokenStats,
+}));
+
+// Mock settingsStore — 固定模型返回方便测试进度条
+vi.mock('../../../stores/settingsStore', () => ({
+  useSettingsStore: (selector: (s: any) => any) =>
+    selector({ currentModel: 'gpt-4o' }),
 }));
 
 // Mock sub-panel hooks
@@ -104,6 +122,25 @@ describe('ConversationDetailPanel', () => {
     await renderPanel();
 
     expect(screen.getByTestId('conversation-detail-panel')).toBeTruthy();
+  });
+
+  // CDP-8: 无 tokenStats 时显示 —
+  it('CDP-8: 无 tokenStats 时显示 tokens: —', async () => {
+    mockStore.tokenStatsValue = null;
+    await renderPanel();
+
+    expect(screen.getByText(/tokens:\s*—/)).toBeTruthy();
+  });
+
+  // CDP-9: 有 tokenStats 时显示进度条: 524/128.0K 0%
+  it('CDP-9: 有 tokenStats 时显示 token 进度条', async () => {
+    mockStore.tokenStatsValue = { total_tokens: 524, message_count: 5 };
+    await renderPanel();
+
+    // 验证格式: "524/128.0K"
+    expect(screen.getByText(/524\/128\.0K/)).toBeTruthy();
+    // 验证百分比
+    expect(screen.getByText('0%')).toBeTruthy();
   });
 
 });
