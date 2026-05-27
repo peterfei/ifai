@@ -22,6 +22,7 @@ const mockSkill = {
   tags: ['test', 'e2e'],
   rating: 4.5,
   downloads: 6234,
+  isInstalled: false,
 };
 
 describe('SkillDetailPanel', () => {
@@ -72,5 +73,78 @@ describe('SkillDetailPanel', () => {
     const closeBtn = screen.getByText('✕');
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // #57: 已安装时显示"已安装 ✓"
+  it('isInstalled=true 时显示"已安装 ✓"按钮', () => {
+    render(
+      <SkillDetailPanel
+        {...defaultProps}
+        skill={{ ...mockSkill, isInstalled: true }}
+      />
+    );
+    expect(screen.getByText('已安装 ✓')).toBeDefined();
+    expect(screen.queryByText('安装')).toBeNull();
+  });
+
+  // #58: 安装中显示 spinner
+  it('isInstalling=true 时显示 spinner 动画', () => {
+    const { container } = render(
+      <SkillDetailPanel
+        {...defaultProps}
+        skill={{ ...mockSkill, isInstalling: true }}
+      />
+    );
+    const spinner = container.querySelector('.animate-spin');
+    expect(spinner).toBeDefined();
+    expect(screen.queryByText('安装')).toBeNull();
+  });
+
+  // #59: 已安装时显示"卸载"按钮
+  it('已安装状态下显示"卸载"按钮', () => {
+    render(
+      <SkillDetailPanel
+        {...defaultProps}
+        skill={{ ...mockSkill, isInstalled: true }}
+      />
+    );
+    expect(screen.getByText('卸载')).toBeDefined();
+  });
+
+  // #60: 点击"卸载"后需确认，点击"确认卸载"触发 onUninstall
+  it('点击"卸载"→"确认卸载"触发 onUninstall', () => {
+    const onUninstall = vi.fn();
+    render(
+      <SkillDetailPanel
+        {...defaultProps}
+        skill={{ ...mockSkill, isInstalled: true }}
+        onUninstall={onUninstall}
+      />
+    );
+    // 第一步：点击"卸载"
+    fireEvent.click(screen.getByText('卸载'));
+    // 应出现"确认卸载"按钮
+    expect(screen.getByText('确认卸载')).toBeDefined();
+    // 第二步：点击"确认卸载"
+    fireEvent.click(screen.getByText('确认卸载'));
+    expect(onUninstall).toHaveBeenCalledWith('test-skill');
+  });
+
+  // #61: 点击"卸载"后点"取消"不触发 onUninstall
+  it('点击"卸载"→"取消"不触发 onUninstall', () => {
+    const onUninstall = vi.fn();
+    render(
+      <SkillDetailPanel
+        {...defaultProps}
+        skill={{ ...mockSkill, isInstalled: true }}
+        onUninstall={onUninstall}
+      />
+    );
+    fireEvent.click(screen.getByText('卸载'));
+    expect(screen.getByText('取消')).toBeDefined();
+    fireEvent.click(screen.getByText('取消'));
+    expect(onUninstall).not.toHaveBeenCalled();
+    // 取消后应恢复显示"卸载"
+    expect(screen.getByText('卸载')).toBeDefined();
   });
 });

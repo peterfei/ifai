@@ -269,4 +269,5 @@ describe('SkillMarketModal', () => {
     // ✅ 修复后：onInstall 应被调用
     expect(onInstall).toHaveBeenCalledWith('code-review-pro');
   });
+
 });

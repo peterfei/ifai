@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Plus, Search, Gamepad2, Shield, Cpu, ChevronRight, Users, Edit, Pin, Trash2 } from 'lucide-react';
 import { useThreadStore } from '../../stores/threadStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useSkillStore } from '../../stores/skillStore';
 import { ThreadManager } from '../../stores/threadManager';
 import { ConversationContextMenu, type MenuItem, type MenuStrategy, type MenuContext } from '../conversation/ConversationContextMenu';
 import { ConfirmDialog } from '../../components/UI/ConfirmDialog';
@@ -37,6 +38,7 @@ export function ConversationListPanel() {
   const threads = useThreadStore((s) => s.threads);
   const activeThreadId = useThreadStore((s) => s.activeThreadId);
   const searchQuery = useThreadStore((s) => s.searchQuery);
+  const installedCount = useSkillStore((s) => s.stats?.installed ?? 0);
   const setSearchQuery = useThreadStore((s) => s.setSearchQuery);
 
   // 右键菜单状态
@@ -187,7 +189,7 @@ export function ConversationListPanel() {
             <span className="text-sm font-medium text-[#D1D5DB]">技能广场</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#9CA3AF]">42个</span>
+            <span className="text-xs text-[#9CA3AF]">{installedCount}个</span>
             <ChevronRight size={14} className="text-[#6B7280] group-hover:text-[#9CA3AF] transition-colors" />
           </div>
         </div>

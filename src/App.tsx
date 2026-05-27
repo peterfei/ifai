@@ -202,32 +202,31 @@ function App() {
   // 技能市场数据 — 从 store 加载，空时使用内置技能作为 fallback
   const { availableSkills, stats, fetchSkills, installSkill, uninstallSkill } = useSkillStore();
   const activeSkillIds = useSkillStore((s) => s.activeSkillIds);
+  const [installingIds, setInstallingIds] = useState<Set<string>>(new Set());
 
   const marketSkills = useMemo<Record<string, unknown>[]>(() => {
-    if (availableSkills.length > 0) {
-      // 从后端加载的技能：根据 activeSkillIds 动态计算 isInstalled
-      return availableSkills.map((s) => ({
-        ...s,
+    // 始终以 builtinSkills 为完整目录，合并后端加载的技能信息
+    const backendMap = new Map(
+      availableSkills.map((s) => [s.id, s])
+    );
+    return builtinSkills.map((s) => {
+      const backend = backendMap.get(s.id);
+      return {
+        id: s.id,
+        name: s.displayName || s.name,
+        description: backend?.description || s.description,
+        version: backend?.version || s.version,
+        rating: s.rating,
+        downloads: s.downloads,
+        featured: s.featured,
         isInstalled: activeSkillIds.includes(s.id),
-        isInstalling: false,
-      })) as any;
-    }
-    // fallback: 用内置技能保证市场不为空，isInstalled 动态取决于 activeSkillIds
-    return builtinSkills.map((s) => ({
-      id: s.id,
-      name: s.displayName || s.name,
-      description: s.description,
-      version: s.version,
-      rating: s.rating,
-      downloads: s.downloads,
-      featured: s.featured,
-      isInstalled: activeSkillIds.includes(s.id),
-      isInstalling: false,
-      tags: s.tags,
-      author: s.author,
-      systemPrompt: s.systemPrompt,
-    }));
-  }, [availableSkills, activeSkillIds]);
+        isInstalling: installingIds.has(s.id),
+        tags: backend?.tags || s.tags,
+        author: backend?.author || s.author,
+        systemPrompt: backend?.system_prompt || s.systemPrompt,
+      };
+    });
+  }, [availableSkills, activeSkillIds, installingIds]);
 
   // 打开技能市场时尝试从后端加载技能
   useEffect(() => {
@@ -1164,9 +1163,18 @@ function App() {
             onClose={() => useLayoutStore.getState().setSkillMarketOpen(false)}
             skills={marketSkills as any}
             installedCount={stats?.installed ?? 0}
-            onInstall={(id) => {
-              const skillData = marketSkills.find((s: any) => s.id === id);
-              installSkill(id, undefined, skillData as Record<string, unknown> | undefined);
+            onInstall={async (id) => {
+              setInstallingIds(prev => new Set(prev).add(id));
+              try {
+                const skillData = marketSkills.find((s: any) => s.id === id);
+                await installSkill(id, undefined, skillData as Record<string, unknown> | undefined);
+              } finally {
+                setInstallingIds(prev => {
+                  const next = new Set(prev);
+                  next.delete(id);
+                  return next;
+                });
+              }
             }}
             onUninstall={(id) => { uninstallSkill(id); }}
           />

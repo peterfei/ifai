@@ -19,6 +19,8 @@ interface DetailSkill {
   rating?: number;
   downloads?: number;
   thumbnail?: string;
+  isInstalled?: boolean;
+  isInstalling?: boolean;
 }
 
 export interface SkillDetailPanelProps {
@@ -42,8 +44,10 @@ export function SkillDetailPanel({
   skill,
   onClose,
   onInstall,
+  onUninstall,
 }: SkillDetailPanelProps) {
   const [promptOpen, setPromptOpen] = useState(false);
+  const [confirmingUninstall, setConfirmingUninstall] = useState(false);
 
   if (!skill) return null;
 
@@ -151,12 +155,60 @@ export function SkillDetailPanel({
 
       {/* 底部固定操作栏 */}
       <div className="flex-shrink-0 flex items-center gap-2 px-5 py-3 border-t border-white/[0.04]">
-        <button
-          onClick={() => onInstall(skill.id)}
-          className="flex-1 px-4 py-2 rounded-lg bg-brand-500 text-[11px] font-medium text-white hover:bg-brand-600 transition-colors"
-        >
-          安装
-        </button>
+        {skill.isInstalling ? (
+          <div className="flex-1 px-4 py-2 rounded-lg bg-brand-500 flex items-center justify-center">
+            <svg
+              className="animate-spin"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          </div>
+        ) : skill.isInstalled ? (
+          <>
+            <div className="flex-1 px-4 py-2 rounded-lg bg-white/[0.06] text-[11px] font-medium text-white/50 border border-white/[0.06] text-center cursor-default">
+              已安装 ✓
+            </div>
+            <button
+              onClick={() => setConfirmingUninstall(true)}
+              className="px-4 py-2 rounded-lg bg-white/[0.04] text-[11px] font-medium text-red-400/70 hover:text-red-400 hover:bg-white/[0.08] transition-colors"
+            >
+              卸载
+            </button>
+            {confirmingUninstall && (
+              <button
+                onClick={() => {
+                  onUninstall(skill.id);
+                  setConfirmingUninstall(false);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-red-400/20 text-[10px] font-medium text-red-400 hover:bg-red-400/30 transition-colors"
+              >
+                确认卸载
+              </button>
+            )}
+            {confirmingUninstall && (
+              <button
+                onClick={() => setConfirmingUninstall(false)}
+                className="text-[10px] text-white/40 hover:text-white/60 transition-colors whitespace-nowrap"
+              >
+                取消
+              </button>
+            )}
+          </>
+        ) : (
+          <button
+            onClick={() => onInstall(skill.id)}
+            className="flex-1 px-4 py-2 rounded-lg bg-brand-500 text-[11px] font-medium text-white hover:bg-brand-600 transition-colors"
+          >
+            安装
+          </button>
+        )}
         <button
           onClick={onClose}
           className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-white/30 hover:text-white/60 transition-all"

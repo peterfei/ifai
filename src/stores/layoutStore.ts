@@ -85,6 +85,7 @@ export interface LayoutState {
   toggleCommandBar: () => void; // v0.2.7 新增
   setSettingsOpen: (isOpen: boolean) => void;
   toggleSettings: () => void;
+  setActiveSettingsTab: (tab: LayoutState['activeSettingsTab']) => void;
   setChatWidth: (width: number) => void;
 
   // v0.2.6 新增：侧边栏操作
@@ -239,6 +240,7 @@ export const useLayoutStore = create<LayoutState>()(
       toggleCommandBar: () => set((state) => ({ isCommandBarOpen: !state.isCommandBarOpen })),
       setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
       toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
+      setActiveSettingsTab: (tab) => set({ activeSettingsTab: tab }),
       setChatWidth: (width) => set({ chatWidth: width }),
 
       // v0.2.6 新增：侧边栏操作函数
