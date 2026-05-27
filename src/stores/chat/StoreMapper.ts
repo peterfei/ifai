@@ -760,6 +760,15 @@ export const initStoreMapper = () => {
     // P4: 映射工作流响应
     // 🔥 FIX: 工作流完成后才创建 assistant 消息
     // 参考 claw-code：工作流执行期间不显示空白气泡，完成后一次性显示总结
+
+    /** 声明式纯函数：从消息列表中查找指定工作流的 toolCalls（workflow:progress 期间累积） */
+    function findToolCallsForWorkflow(messages: any[], wfId: string): any[] {
+      const progress = messages.find(
+        (m: any) => m.role === 'assistant' && m.metadata?.workflowId === wfId && m.toolCalls?.length > 0
+      );
+      return progress?.toolCalls || [];
+    }
+
     chatEventBus.on('workflow:response', (payload) => {
       const { correlationId, response, workflowId, workflowType } = payload as any;
 
@@ -786,6 +795,9 @@ export const initStoreMapper = () => {
           return state;
         }
 
+        // 🎯 声明式：toolCalls 是进度消息的属性，响应消息继承之
+        const carriedToolCalls = findToolCallsForWorkflow(state.messages, workflowId);
+
         // 🔥 FIX: 检查是否已存在 assistant 消息
         // 优先按 correlationId 匹配；若不存在（如进度占位消息用 wf-progress-xxx ID），
         // 再按 workflowId 回退查找
@@ -793,7 +805,7 @@ export const initStoreMapper = () => {
           m.role === 'assistant' && (m.id === correlationId || m.metadata?.workflowId === workflowId)
         );
 
-        console.log('[StoreMapper] 🔍 assistantIndex:', assistantIndex);
+        console.log('[StoreMapper] 🔍 assistantIndex:', assistantIndex, 'carriedToolCalls:', carriedToolCalls.length);
 
         if (assistantIndex === -1) {
           // 🔥 正常流程：创建 assistant 消息（工作流执行期间没有空白气泡）
@@ -804,6 +816,7 @@ export const initStoreMapper = () => {
             content: response,
             status: 'completed',
             timestamp: Date.now(),
+            toolCalls: carriedToolCalls, // 声明式继承进度消息的 toolCalls
             segments: [{
               id: `seg-workflow-${workflowId}`,
               type: 'text' as const,
@@ -830,6 +843,7 @@ export const initStoreMapper = () => {
         const newMessages = [...state.messages];
         const originalTimestamp = newMessages[assistantIndex].timestamp;
 
+        // 声明式：spread 保留所有已有属性（含 toolCalls），只覆盖需变更的字段
         newMessages[assistantIndex] = {
           ...newMessages[assistantIndex],
           content: response,

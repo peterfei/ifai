@@ -576,4 +576,123 @@ test.describe('Test Agent 工具调用数据验证', () => {
     expect(state.listArgs).toEqual({ path: 'src/' });
     expect(state.listResult?.entries).toContain('src/main.rs');
   });
+
+  /**
+   * 场景 6: toolCalls 在工作流生命周期中的传播
+   *
+   * 验证 workflow:progress 累积的 toolCalls 在 workflow:response
+   * 更新消息后不被丢弃（产出物面板的数据源）。
+   *
+   * 模拟 StoreMapper 中 workflow:response 处理器的"更新现有消息"路径：
+   * 用 spread 保留所有属性，只覆写 content/status/segments/metadata。
+   *
+   * @see StoreMapper.ts workflow:response handler
+   */
+  test('toolCalls 在 workflow:response 后保留', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const chatStore = (window as any).__chatStore;
+      const now = Date.now();
+      const workflowId = 'test-wf-001';
+
+      // ── 阶段 1: workflow:started 创建进度消息 ──────────────
+      const progressMsg = {
+        id: 'wf-msg-001',
+        role: 'assistant',
+        content: '正在为 src/main.rs 生成测试...',
+        timestamp: now,
+        metadata: { workflowId, workflowType: 'test', phaseData: [] },
+      };
+      chatStore.setState({ messages: [progressMsg] });
+
+      // ── 阶段 2: workflow:progress（tool_call 事件）累积 toolCalls ──
+      const messagesWithToolCalls = chatStore.getState().messages.map((m: any) => {
+        if (m.metadata?.workflowId === workflowId) {
+          return {
+            ...m,
+            toolCalls: [
+              {
+                id: `wf-${workflowId}-agent_write_file-${now}`,
+                type: 'function',
+                function: {
+                  name: 'agent_write_file',
+                  arguments: JSON.stringify({ path: 'tests/test_main.rs', content: '// test' }),
+                },
+                tool: 'agent_write_file',
+                args: { path: 'tests/test_main.rs', content: '// test' },
+                status: 'completed',
+                result: JSON.stringify({
+                  success: true,
+                  filePath: 'tests/test_main.rs',
+                  originalContent: '',
+                  newContent: '// test',
+                  message: 'File written successfully',
+                }),
+                isPartial: false,
+              },
+            ],
+          };
+        }
+        return m;
+      });
+      chatStore.setState({ messages: messagesWithToolCalls });
+
+      // ── 阶段 3: workflow:response 更新消息（spread 保留 toolCalls）──
+      const beforeUpdate = chatStore.getState().messages;
+      const assistantIndex = beforeUpdate.findIndex(
+        (m: any) => m.metadata?.workflowId === workflowId
+      );
+      const newMessages = [...beforeUpdate];
+      newMessages[assistantIndex] = {
+        ...newMessages[assistantIndex],
+        content: '测试文件已生成完毕！\n- tests/test_main.rs',
+        status: 'completed',
+        segments: [{
+          id: `seg-workflow-${workflowId}`,
+          type: 'text' as const,
+          phase: 'pre-tool' as const,
+          content: '测试文件已生成完毕！\n- tests/test_main.rs',
+          order: 1,
+          timestamp: Date.now(),
+        }],
+        metadata: { ...newMessages[assistantIndex].metadata, workflowId, workflowType: 'test' },
+      };
+
+      // ── 验证 ──
+      const updatedMsg = newMessages[assistantIndex];
+
+      // Parse the toolCall result like useArtifactData.parseAgentWriteFile does
+      const tc = updatedMsg.toolCalls?.[0];
+      const parsed = tc?.result ? JSON.parse(tc.result) : null;
+
+      return {
+        // toolCalls 未被丢弃
+        hasToolCalls: Array.isArray(updatedMsg.toolCalls) && updatedMsg.toolCalls.length > 0,
+        toolCallsCount: updatedMsg.toolCalls?.length || 0,
+        toolName: tc?.tool,
+        toolStatus: tc?.status,
+        // 解析结果兼容 useArtifactData
+        artifactParsable: parsed?.filePath === 'tests/test_main.rs' && parsed?.success === true,
+        parsedFilePath: parsed?.filePath,
+        parsedNewContent: parsed?.newContent,
+        // 响应内容正确
+        responseContent: updatedMsg.content,
+        responseStatus: updatedMsg.status,
+      };
+    });
+
+    // toolCalls 传播验证
+    expect(state.hasToolCalls).toBe(true);
+    expect(state.toolCallsCount).toBe(1);
+    expect(state.toolName).toBe('agent_write_file');
+    expect(state.toolStatus).toBe('completed');
+
+    // 产出物解析兼容性（useArtifactData 的解析链路）
+    expect(state.artifactParsable).toBe(true);
+    expect(state.parsedFilePath).toBe('tests/test_main.rs');
+    expect(state.parsedNewContent).toBe('// test');
+
+    // 响应内容
+    expect(state.responseContent).toContain('测试文件已生成完毕');
+    expect(state.responseStatus).toBe('completed');
+  });
 });
