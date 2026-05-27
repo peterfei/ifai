@@ -1208,4 +1208,83 @@ test.describe('商用 GUI 路径 InteractionCard', () => {
     expect(state.invokeQuestionAnswers).toEqual([{ questionId: 'q1', selectedIds: ['a'] }]);
     expect(state.statusAnswered).toBe(true);
   });
+
+  /* GUI-E2E-3: 消息排序 — card 插入位置验证 */
+  test('GUI-E2E-3: card 应插入到 assistant 消息之前，确保 LLM 续播内容在 card 下方', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      // 初始：用户消息 + assistant 消息（含分析内容和 toolCalls）
+      chatStore.setState({ messages: [
+        {
+          id: 'user-msg',
+          role: 'user',
+          content: '我有两个方案...',
+          timestamp: 1000,
+        },
+        {
+          id: 'assistant-msg',
+          role: 'assistant',
+          content: '我来分析：方案A是重构，方案B是增量修改...',
+          timestamp: 1001,
+          toolCalls: [{ id: 'tc-1', name: 'request_user_input', status: 'pending' }],
+        },
+      ] });
+
+      // 模拟 tool_done → 注入 interaction card（当前行为：append 到末尾）
+      eventBus.emit('chat:tool:completed', {
+        toolId: 'tc-1',
+        result: JSON.stringify({
+          _feedback_req_id: 'gui-req-3',
+          title: '选择方案',
+          questions: [{ id: 'q1', type: 'single', question: '选哪个？', options: [{ id: 'a', label: '方案A', desc: '' }, { id: 'b', label: '方案B', desc: '' }] }],
+        }),
+        correlationId: 'assistant-msg',
+        shouldContinue: true,
+      });
+
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+
+          // 查找各消息的索引
+          const userIdx = msgs.findIndex((m: any) => m.id === 'user-msg');
+          const assistantIdx = msgs.findIndex((m: any) => m.id === 'assistant-msg');
+          const cardIdx = msgs.findIndex((m: any) => m.id?.startsWith('interaction-'));
+
+          // 模拟 LLM 续播：追加内容到 assistant 消息
+          chatStore.setState((state: any) => {
+            const updated = state.messages.map((m: any) => {
+              if (m.id === 'assistant-msg') {
+                return { ...m, content: m.content + '\n\n好的，选择了方案A，开始实施...' };
+              }
+              return m;
+            });
+            return { messages: updated };
+          });
+
+          // 确认 card 和 assistant 的相对位置
+          resolve({
+            // 当前 bug: card 在 assistant 之后（cardIdx > assistantIdx）
+            // 期望: card 在 assistant 之前（cardIdx < assistantIdx）
+            assistantIndex: assistantIdx,
+            cardIndex: cardIdx,
+            cardAfterAssistant: cardIdx > assistantIdx,
+            cardBeforeAssistant: cardIdx < assistantIdx,
+            assistantContent: (chatStore.getState().messages.find((m: any) => m.id === 'assistant-msg') as any)?.content,
+          });
+        }, 300);
+      });
+    });
+
+    // 确认 bug 存在：card 在 assistant 之后，续播内容出现在 card 上方
+    console.log('[Ordering Bug] assistant index:', state.assistantIndex, 'card index:', state.cardIndex);
+    console.log('[Ordering Bug] card after assistant:', state.cardAfterAssistant);
+    console.log('[Ordering Bug] assistant content:', state.assistantContent?.substring(0, 60));
+
+    // 修复前：cardAfterAssistant = true（BUG：续播内容在 card 上面）
+    // 修复后：cardAfterAssistant = false（card 在 assistant 之前，续播内容在 card 下面）
+    expect(state.cardAfterAssistant).toBe(false);
+  });
 });

@@ -1066,6 +1066,16 @@ export const initStoreMapper = () => {
             };
             useChatStore.setState((state: any) => {
               if (!state?.messages) return state;
+              // 🔥 FIX: 插入到 workflow 对应 assistant 消息之前（而非追加到末尾）
+              // 确保 LLM 后续续播内容出现在 card 下方
+              const assistantIndex = state.messages.findIndex((m: any) =>
+                m.role === 'assistant' && m.metadata?.workflowId === workflowId
+              );
+              if (assistantIndex !== -1) {
+                const before = state.messages.slice(0, assistantIndex);
+                const after = state.messages.slice(assistantIndex);
+                return { messages: [...before, interactionMsg, ...after] };
+              }
               return { messages: [...state.messages, interactionMsg] };
             });
             console.log('[StoreMapper] 💬 Injected interaction card:', { workflowId, feedbackRequestId, questions: interactionData.questions.length });
@@ -2128,21 +2138,25 @@ export const initStoreMapper = () => {
             if (interactionData) {
               useChatStore.setState((state: any) => {
                 if (!state?.messages) return state;
-                return {
-                  messages: [
-                    ...state.messages,
-                    {
-                      id: `interaction-${toolId}-${Date.now()}`,
-                      role: 'assistant',
-                      content: '',
-                      timestamp: Date.now(),
-                      metadata: {
-                        feedbackRequestId: parsedResult._feedback_req_id,
-                        interactionData,
-                      },
-                    },
-                  ],
+                const interactionMsg = {
+                  id: `interaction-${toolId}-${Date.now()}`,
+                  role: 'assistant',
+                  content: '',
+                  timestamp: Date.now(),
+                  metadata: {
+                    feedbackRequestId: parsedResult._feedback_req_id,
+                    interactionData,
+                  },
                 };
+                // 🔥 FIX: 插入到 correlationId 对应消息之前（而非追加到末尾）
+                // 确保 LLM 后续续播内容出现在 card 下方
+                const assistantIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+                if (assistantIndex !== -1) {
+                  const before = state.messages.slice(0, assistantIndex);
+                  const after = state.messages.slice(assistantIndex);
+                  return { messages: [...before, interactionMsg, ...after] };
+                }
+                return { messages: [...state.messages, interactionMsg] };
               });
               console.log('[StoreMapper] 💬 Injected interaction card (GUI path):', { toolId, questions: interactionData.questions.length });
             }
