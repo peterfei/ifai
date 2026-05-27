@@ -14,6 +14,42 @@ import {
   type FileMenuContext,
 } from './FileReferenceContextMenu';
 
+/* ===== 文件扩展名列表（用于裸文件名检测） ===== */
+
+const FILENAME_EXTENSIONS = [
+  'html','css','js','jsx','ts','tsx','json','xml','svg',
+  'yaml','yml','toml','md','mdx','txt',
+  'py','rs','go','java','cpp','c','h','rb','php','swift','kt','sh',
+  'env','ini','cfg','log','lock',
+  'gitignore','dockerignore',
+  'png','jpg','jpeg','gif','ico','webp','pdf',
+];
+
+/** 文件名匹配正则（编译一次） */
+const BARE_FILENAME_RE = new RegExp(
+  `(?<=^|[^\\w-])([\\w./\\\\-]+)\\.(${FILENAME_EXTENSIONS.join('|')})(?![\\w-])`,
+  'gi'
+);
+
+/**
+ * 将裸文件名包裹反引号，防止 markdown 解析器将其断行为独立段落。
+ * 跳过已处于反引号内的内容（代码块、行内代码）。
+ */
+export function wrapBareFilenames(text: string): string {
+  // 按反引号包裹的片段分割（代码块和行内代码）
+  const segments = text.split(/(```[\s\S]*?```|`[^`]*`)/);
+  return segments.map((seg, i) => {
+    // 奇数下标 = 反引号包裹段（保持原样）
+    if (i % 2 === 1) return seg;
+    // 偶数下标 = 纯文本段
+    return seg.replace(BARE_FILENAME_RE, (match, path) => {
+      // 跳过 URL（含协议相对路径）
+      if (/^https?:\/\//i.test(path) || /^\/\//.test(path)) return match;
+      return `\`${match}\``;
+    });
+  }).join('');
+}
+
 interface MarkdownRendererProps {
   content: string;
   isStreaming?: boolean;
@@ -222,10 +258,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     ),
     code: ({ node, className, children, ...rest }: any) => {
       const match = /language-(\w+)/.exec(className || '');
-      const { inline } = rest as any;
+      const codeString = String(children).replace(/\n$/, '');
 
-      // 行内代码
-      if (inline) {
+      // 行内代码：无 language class 且内容无换行
+      if (!match && !codeString.includes('\n')) {
         return (
           <code
             {...rest}
@@ -243,7 +279,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         <div className="my-2">
           <SyntaxHighlighter
             {...rest}
-            children={String(children).replace(/\n$/, '')}
+            children={codeString}
             style={prismTheme}
             language={language}
             PreTag="div"
@@ -269,7 +305,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   return (
     <div className={`${styles.markdownContent} allow-select`}>
       <ReactMarkdown
-        children={getDisplayContent()}
+        children={wrapBareFilenames(getDisplayContent())}
         components={markdownComponents}
         remarkPlugins={[remarkGfm]}
       />
@@ -332,26 +368,26 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
       <div {...props} className="mb-2 last:mb-0 theme-text-muted" />
     ),
     code: ({ node, className, children, ...rest }: any) => {
-      const { inline } = rest as any;
+      const match = /language-(\w+)/.exec(className || '');
+      const codeString = String(children);
 
-      if (!inline) {
-        // 代码块 - 无语法高亮
-        // ⚡️ FIX: 统一代码块样式，与 SyntaxHighlighter 保持一致，避免布局跳动
+      // 行内代码：无 language class 且内容无换行
+      if (!match && !codeString.includes('\n')) {
         return (
-          <pre className="whitespace-pre-wrap break-word text-[12px] font-mono theme-text-muted theme-code-surface p-4 rounded border theme-border my-2 overflow-x-auto min-h-[60px]">
-            {String(children)}
-          </pre>
+          <code
+            {...rest}
+            className="px-1 py-0.5 theme-code-inline theme-text-muted rounded text-sm font-mono"
+          >
+            {children}
+          </code>
         );
       }
 
-      // 行内代码
+      // 代码块 - 无语法高亮
       return (
-        <code
-          {...rest}
-          className="px-1 py-0.5 theme-code-inline theme-text-muted rounded text-sm font-mono"
-        >
-          {children}
-        </code>
+        <pre className="whitespace-pre-wrap break-word text-[12px] font-mono theme-text-muted theme-code-surface p-4 rounded border theme-border my-2 overflow-x-auto">
+          {codeString}
+        </pre>
       );
     },
     strong: ({ node, ...props }: any) => (
@@ -423,7 +459,7 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
   return (
     <div className={`${styles.markdownContent} markdown-body allow-select`}>
       <ReactMarkdown
-        children={content}
+        children={wrapBareFilenames(content)}
         components={markdownComponents}
         remarkPlugins={[remarkGfm]}
       />

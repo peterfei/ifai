@@ -56,16 +56,19 @@ describe('StreamingPulseBanner', () => {
     expect(screen.getByText('思考中...')).toBeTruthy();
   });
 
-  // SPB-2: Pulse 右侧显示上下文估算
-  it('SPB-2: Pulse 阶段右侧显示上下文估算', async () => {
+  // SPB-2: Pulse 阶段显示上下文 + 输出估算
+  it('SPB-2: Pulse 阶段显示上下文 + 输出估算', async () => {
     mockIsLoading = true;
-    mockMessages = [{ id: '1', role: 'user', content: 'hi' }];
+    mockMessages = [
+      { id: '1', role: 'user', content: 'a'.repeat(400) },
+    ];
 
     await renderBanner();
 
-    const ctx = screen.getByTestId('pulse-context');
-    expect(ctx).toBeTruthy();
-    expect(ctx.textContent).toContain('~');
+    // 用户消息 400 chars / 4 = 100 tokens → "上下文 100"
+    expect(screen.getByText(/上下文 100/)).toBeTruthy();
+    // 无 assistant 消息 → "输出 0"
+    expect(screen.getByText(/输出 0/)).toBeTruthy();
   });
 
   // SPB-3: 无消息 + 未加载 → 不渲染

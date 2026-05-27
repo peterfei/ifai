@@ -224,6 +224,9 @@ export const AIChat = ({ width, onResizeStart, compact }: AIChatProps) => {
   useEffect(() => {
     if (rawMessages.length > 0 && currentModel) {
       getTokenStats(rawMessages, currentModel);
+    } else if (rawMessages.length === 0) {
+      // 切到空对话时清除旧 token 统计
+      useConversationStore.setState({ tokenStats: null });
     }
   }, [rawMessages, currentModel, getTokenStats]);
 

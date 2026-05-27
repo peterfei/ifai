@@ -55,9 +55,8 @@ export function StreamingPulseBanner() {
 
   // Pulse 阶段
   if (showPulse) {
-    const ctxEstimate = messages.length > 0
-      ? formatTokenCount(messages.length * 350)
-      : '0';
+    const inputEstimate = estimateTokensFromMessages(messages, 'all');
+    const outputEstimate = estimateTokensFromMessages(messages, 'assistant');
 
     return (
       <div
@@ -65,24 +64,22 @@ export function StreamingPulseBanner() {
         className="border-t border-white/5 overflow-hidden"
         style={{ backgroundColor: BG_BANNER }}
       >
-        <div className="px-3 py-1.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span
-              style={{
-                color: COLOR_GREEN,
-                fontSize: 11,
-                animation: PULSE_ANIMATION,
-              }}
-            >
-              ●
-            </span>
-            <span className="text-[10px] text-gray-400">思考中...</span>
-          </div>
+        <div className="px-3 py-1.5 flex items-center gap-3">
           <span
-            data-testid="pulse-context"
-            className="text-[10px] text-gray-600 font-mono"
+            style={{
+              color: COLOR_GREEN,
+              fontSize: 11,
+              animation: PULSE_ANIMATION,
+            }}
           >
-            ~{ctxEstimate}
+            ●
+          </span>
+          <span className="text-[10px] text-gray-400">思考中...</span>
+          <span className="text-[10px] text-gray-500 font-mono">
+            上下文 {formatTokenCount(inputEstimate)}
+          </span>
+          <span className="text-[10px] text-gray-500 font-mono">
+            输出 {formatTokenCount(outputEstimate)}
           </span>
         </div>
       </div>
