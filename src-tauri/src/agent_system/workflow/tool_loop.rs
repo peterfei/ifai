@@ -1575,3 +1575,451 @@ async fn call_ai_with_tools_filtered(
         Err("AI 响应格式错误".to_string())
     }
 }
+
+// ============================================================================
+// E2E 高保真测试 — 使用 wiremock 模拟 LLM API，验证完整工具循环
+// ============================================================================
+
+#[cfg(test)]
+#[cfg(not(feature = "commercial"))]
+mod e2e_tests {
+    use super::*;
+    use crate::agent_system::workflow::tools::DefaultToolExecutor;
+    use crate::core_traits::ai::AIProviderConfig;
+    use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tempfile::TempDir;
+    use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+    use wiremock::matchers::{method, path};
+
+    /// E2E 测试响应器：多轮非流式响应
+    ///
+    /// 模拟 LLM 的三轮对话（不解析请求体，按调用次数返回固定响应）：
+    /// - Turn 0: 返回 agent_read_file 工具调用
+    /// - Turn 1: 返回 agent_write_file 工具调用
+    /// - Turn 2+: 返回文本完成响应
+    struct E2EMockResponder {
+        turn: AtomicUsize,
+    }
+
+    impl E2EMockResponder {
+        fn new() -> Self {
+            Self {
+                turn: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl Respond for E2EMockResponder {
+        fn respond(&self, _request: &Request) -> ResponseTemplate {
+            let turn = self.turn.fetch_add(1, Ordering::SeqCst);
+
+            match turn {
+                0 => {
+                    // Turn 0: 模拟 LLM 首次调用 agent_read_file
+                    let response = json!({
+                        "id": "chatcmpl-e2e-0",
+                        "object": "chat.completion",
+                        "created": 1234567890,
+                        "model": "gpt-4",
+                        "choices": [{
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": null,
+                                "tool_calls": [{
+                                    "id": "call_read_main",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "agent_read_file",
+                                        "arguments": json!({"rel_path": "src/main.rs"}).to_string()
+                                    }
+                                }]
+                            },
+                            "finish_reason": "tool_calls"
+                        }]
+                    });
+                    ResponseTemplate::new(200)
+                        .set_body_json(response)
+                        .insert_header("Content-Type", "application/json")
+                }
+                1 => {
+                    // Turn 1: 模拟 LLM 读取源码后调用 agent_write_file
+                    let response = json!({
+                        "id": "chatcmpl-e2e-1",
+                        "object": "chat.completion",
+                        "created": 1234567890,
+                        "model": "gpt-4",
+                        "choices": [{
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": null,
+                                "tool_calls": [{
+                                    "id": "call_write_test",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "agent_write_file",
+                                        "arguments": json!({
+                                            "rel_path": "tests/test_e2e_generated.rs",
+                                            "content": "// E2E generated test\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn test_generated_by_llm() {\n        assert_eq!(1 + 1, 2);\n    }\n}\n"
+                                        }).to_string()
+                                    }
+                                }]
+                            },
+                            "finish_reason": "tool_calls"
+                        }]
+                    });
+                    ResponseTemplate::new(200)
+                        .set_body_json(response)
+                        .insert_header("Content-Type", "application/json")
+                }
+                _ => {
+                    // Turn 2+: 模拟 LLM 最终文本响应
+                    let response = json!({
+                        "id": "chatcmpl-e2e-2",
+                        "object": "chat.completion",
+                        "created": 1234567890,
+                        "model": "gpt-4",
+                        "choices": [{
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "✅ 测试文件已成功生成。"
+                            },
+                            "finish_reason": "stop"
+                        }]
+                    });
+                    ResponseTemplate::new(200)
+                        .set_body_json(response)
+                        .insert_header("Content-Type", "application/json")
+                }
+            }
+        }
+    }
+
+    /// 高保真 E2E 测试：模拟 LLM 通过工具循环读取源码 → 生成测试 → 写入文件
+    ///
+    /// 验证完整链路：
+    /// 1. `execute_with_tools` 正确发送 HTTP POST 到 LLM API（wiremock 验证请求到达）
+    /// 2. tool_loop 正确解析 LLM 返回的工具调用 JSON
+    /// 3. ParallelDispatcher 正确调度 agent_read_file 并读取源文件
+    /// 4. tool_loop 将读取结果发回"LLM"后，"LLM"返回 agent_write_file
+    /// 5. DefaultToolExecutor.write_file() 正确将测试文件写入磁盘
+    /// 6. 文件系统上确实存在写入的文件，且内容正确
+    #[tokio::test]
+    async fn test_e2e_llm_tool_call_read_and_write_files() {
+        // ── 1. 创建临时项目目录 ──────────────────────────────────
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().to_str().unwrap().to_string();
+
+        // 创建源文件（待读取）
+        let src_dir = temp_dir.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("main.rs"), "fn main() { println!(\"Hello\"); }\n").unwrap();
+
+        // 创建目标写入目录
+        let tests_dir = temp_dir.path().join("tests");
+        std::fs::create_dir_all(&tests_dir).unwrap();
+
+        // ── 2. 启动 wiremock 服务器 ──────────────────────────────
+        let mock_server = MockServer::start().await;
+        let mock_uri = mock_server.uri();
+
+        // 设置多轮非流式响应
+        let responder = E2EMockResponder::new();
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(responder)
+            .mount(&mock_server)
+            .await;
+
+        // ── 3. 配置 AIProviderConfig 指向 wiremock ──────────────
+        let provider_config = AIProviderConfig {
+            id: "mock".to_string(),
+            name: "Mock LLM".to_string(),
+            api_key: "test-key".to_string(),
+            base_url: format!("{}/v1/chat/completions", mock_uri),
+            models: vec!["gpt-4".to_string()],
+            protocol: crate::core_traits::ai::AIProtocol::OpenAI,
+            enabled: true,
+        };
+
+        // ── 4. 创建 DefaultToolExecutor ──────────────────────────
+        let executor = DefaultToolExecutor::new(project_root.clone());
+
+        // ── 5. 执行工具循环 ──────────────────────────────────────
+        let result = execute_with_tools(
+            provider_config,
+            "你是一个测试生成助手。请读取源代码并生成对应的测试文件。".to_string(),
+            "请为 src/main.rs 生成测试文件".to_string(),
+            &executor,
+            ToolLoopConfig {
+                max_iterations: 10,
+                max_tools_per_turn: 5,
+            },
+            None,  // progress_callback
+            None,  // cancellation_token
+        ).await;
+
+        // ── 6. 验证工具循环执行结果 ──────────────────────────────
+        assert!(result.is_ok(),
+            "工具循环应该成功完成，但收到错误: {:?}", result.err());
+        let response_text = result.unwrap();
+        assert!(response_text.contains("测试文件已成功生成") || response_text.contains("已执行"),
+            "最终响应应该包含完成消息，实际内容: {}", response_text);
+
+        // ── 7. 验证 agent_write_file 确实写入文件到磁盘 ──────────
+        let written_file = temp_dir.path().join("tests/test_e2e_generated.rs");
+        assert!(written_file.exists(),
+            "agent_write_file 应该创建文件: {:?}", written_file);
+
+        let written_content = std::fs::read_to_string(&written_file)
+            .expect("应该能读取写入的测试文件");
+        assert!(written_content.contains("test_generated_by_llm"),
+            "写入的内容应该包含测试函数名，实际内容:\n{}", written_content);
+        assert!(written_content.contains("assert_eq!(1 + 1, 2)"),
+            "写入的内容应该包含断言，实际内容:\n{}", written_content);
+
+        // ── 8. 验证原始源文件未被修改 ──────────────────────────
+        let original_source = std::fs::read_to_string(temp_dir.path().join("src/main.rs"))
+            .expect("应该能读取原始源文件");
+        assert_eq!(original_source, "fn main() { println!(\"Hello\"); }\n",
+            "原始源文件不应被修改");
+    }
+}
+
+// ============================================================================
+// 真实 LLM E2E 测试 — 加载实际 test.md 提示词，使用真实 LLM API 高保真还原
+// ============================================================================
+//
+// 与 wiremock 测试不同，本测试直接调用真实 LLM API：
+// 1. 加载 .ifai/prompts/agents/test.md（用户实际使用的提示词文件）
+// 2. 配置真实 LLM（从环境变量读取 API key）
+// 3. 完整执行 execute_with_tools 工具循环
+// 4. 验证 LLM 确实调用了 agent_write_file 并写入文件到磁盘
+//
+// 运行方法：
+//   export IFAI_API_KEY="your-api-key"
+//   cargo test -p ifainew --lib real_llm -- --nocapture --ignored
+//
+// 环境变量说明：
+//   IFAI_API_KEY | ZHIPU_API_KEY | DEEPSEEK_API_KEY | OPENAI_API_KEY  (必填)
+//   IFAI_API_BASE                                                (可选，默认智谱)
+//   IFAI_MODEL                                                   (可选，默认 glm-4.6)
+
+#[cfg(test)]
+mod real_llm_e2e_tests {
+    use super::*;
+    use crate::agent_system::workflow::prompt_loader::{AgentPromptLoader, PromptContext};
+    use crate::agent_system::workflow::tools::DefaultToolExecutor;
+    use crate::agent_system::workflow::types::AgentType;
+    use crate::core_traits::ai::AIProviderConfig;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    /// 从环境变量构建 AIProviderConfig
+    fn build_provider_config_from_env() -> Option<AIProviderConfig> {
+        let api_key = std::env::var("IFAI_API_KEY")
+            .or_else(|_| std::env::var("ZHIPU_API_KEY"))
+            .or_else(|_| std::env::var("DEEPSEEK_API_KEY"))
+            .or_else(|_| std::env::var("OPENAI_API_KEY"))
+            .ok()?;
+
+        let base_url = std::env::var("IFAI_API_BASE").unwrap_or_else(|_| {
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string()
+        });
+
+        let model = std::env::var("IFAI_MODEL").unwrap_or_else(|_| "glm-4.6".to_string());
+
+        Some(AIProviderConfig {
+            id: "e2e-test".to_string(),
+            name: "E2E Test Provider".to_string(),
+            api_key,
+            base_url,
+            models: vec![model],
+            protocol: crate::core_traits::ai::AIProtocol::OpenAI,
+            enabled: true,
+        })
+    }
+
+    /// 真实 LLM E2E 测试：加载实际 test.md 提示词 → 调用真实 LLM → 验证文件写入
+    ///
+    /// ## 测试覆盖
+    /// - 提示词加载链路：AgentPromptLoader → 读取 test.md → 替换变量
+    /// - LLM API 调用链路：execute_with_tools → HTTP POST → LLM → 解析 tool_calls
+    /// - 工具执行链路：agent_read_file → 读取源码 → agent_write_file → 写入磁盘
+    ///
+    /// ## 验证点
+    /// 1. test.md 提示词能正确加载并包含 agent_write_file 指令
+    /// 2. 真实 LLM 收到提示词后调用 agent_write_file
+    /// 3. agent_write_file 写入的文件在文件系统中物理存在
+    /// 4. 生成的测试文件是有效的 Rust 测试代码
+    #[ignore]
+    #[tokio::test]
+    async fn test_real_llm_test_agent_writes_files() {
+        // ── 1. 检查 API key 配置 ──────────────────────────────────
+        let Some(provider_config) = build_provider_config_from_env() else {
+            eprintln!("⚠️  跳过真实 LLM 测试：未设置 API key 环境变量");
+            eprintln!("   请设置 IFAI_API_KEY、ZHIPU_API_KEY、DEEPSEEK_API_KEY 或 OPENAI_API_KEY");
+            return;
+        };
+
+        let used_base_url = provider_config.base_url.clone();
+        let used_model = provider_config.models.first().cloned().unwrap_or_default();
+        eprintln!("🔑 API key 已配置");
+        eprintln!("🌐 API Base: {}", used_base_url);
+        eprintln!("🤖 Model: {}", used_model);
+
+        // ── 2. 创建临时项目目录 ──────────────────────────────────
+        let temp_dir = TempDir::new().unwrap();
+        let project_root = temp_dir.path().to_str().unwrap().to_string();
+
+        // 创建源文件（有实际内容的计算器模块）
+        let src_dir = temp_dir.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(
+            src_dir.join("main.rs"),
+            r#"/// 计算器模块
+fn add(a: i32, b: i32) -> i32 { a + b }
+fn subtract(a: i32, b: i32) -> i32 { a - b }
+fn multiply(a: i32, b: i32) -> i32 { a * b }
+fn divide(a: i32, b: i32) -> i32 {
+    if b == 0 { panic!("除数不能为0") }
+    a / b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add() {
+        assert_eq!(add(2, 3), 5);
+    }
+}
+"#,
+        ).unwrap();
+
+        // 创建 tests 目录
+        let tests_dir = temp_dir.path().join("tests");
+        std::fs::create_dir_all(&tests_dir).unwrap();
+
+        // ── 3. 确定项目根目录（查找 .ifai/prompts/agents/test.md）─
+        let cargo_manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo_root = cargo_manifest.parent().unwrap().to_str().unwrap().to_string();
+        let test_md_path = PathBuf::from(&repo_root).join(".ifai/prompts/agents/test.md");
+        assert!(
+            test_md_path.exists(),
+            "test.md 文件不存在: {:?}",
+            test_md_path
+        );
+        eprintln!("📄 加载提示词文件: {:?}", test_md_path);
+
+        // ── 4. 加载实际 test.md 提示词（与生产代码完全一致） ──────
+        let mut variables = HashMap::new();
+        variables.insert("test_target".to_string(), "src/main.rs".to_string());
+
+        let prompt_context = PromptContext {
+            project_root: project_root.clone(),
+            task_description: "为 src/main.rs 中的计算器模块生成完整的单元测试".to_string(),
+            variables,
+        };
+
+        let loader = AgentPromptLoader::new(&repo_root);
+        let system_prompt = loader.load_for(&AgentType::Test, &prompt_context);
+
+        // 验证提示词确实包含了 agent_write_file 指令
+        assert!(
+            system_prompt.contains("agent_write_file"),
+            "加载的 test.md 提示词必须包含 agent_write_file 指令\n实际内容前 500 字符:\n{}",
+            &system_prompt[..system_prompt.len().min(500)]
+        );
+        assert!(
+            system_prompt.contains("写入") || system_prompt.contains("agent_write_file"),
+            "加载的 test.md 提示词必须包含写入指令"
+        );
+
+        eprintln!("✅ 提示词加载成功 ({} 字符)", system_prompt.len());
+
+        // ── 5. 创建 DefaultToolExecutor ──────────────────────────
+        let executor = DefaultToolExecutor::new(project_root.clone());
+
+        // ── 6. 执行工具循环 — 调用真实 LLM ───────────────────────
+        eprintln!("⏳ 开始调用真实 LLM...（可能需要 15-60 秒）");
+        let start = std::time::Instant::now();
+
+        let result = execute_with_tools(
+            provider_config,
+            system_prompt,
+            "请为 src/main.rs 中的计算器函数生成单元测试文件，覆盖 add/subtract/multiply/divide 四个函数。"
+                .to_string(),
+            &executor,
+            ToolLoopConfig {
+                max_iterations: 8,
+                max_tools_per_turn: 5,
+            },
+            None, // progress_callback
+            None, // cancellation_token
+        )
+        .await;
+
+        let elapsed = start.elapsed();
+        eprintln!("⏱️  LLM 调用耗时: {:.1}s", elapsed.as_secs_f64());
+
+        // ── 7. 验证工具循环执行成功 ──────────────────────────────
+        assert!(
+            result.is_ok(),
+            "工具循环应该成功完成，收到错误: {:?}",
+            result.err()
+        );
+
+        let response_text = result.unwrap();
+        eprintln!(
+            "✅ LLM 最终响应 (前 300 字符): {}",
+            &response_text[..response_text.len().min(300)]
+        );
+
+        // ── 8. 验证文件被写入磁盘 ────────────────────────────────
+        let test_files: Vec<_> = std::fs::read_dir(&tests_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
+            .collect();
+
+        assert!(
+            !test_files.is_empty(),
+            "❌ LLM 应该通过 agent_write_file 创建至少一个测试文件，但 tests/ 目录为空\n\
+             LLM 最终响应: {}\n\
+             这意味着 test.md 提示词未能让 LLM 调用 agent_write_file。",
+            &response_text[..response_text.len().min(500)]
+        );
+
+        for file in &test_files {
+            let path = file.path();
+            let content = std::fs::read_to_string(&path).unwrap();
+            eprintln!(
+                "📄 生成的文件: {:?} ({} 字符)",
+                path.file_name().unwrap(),
+                content.len()
+            );
+
+            // 验证是有效的 Rust 测试代码
+            assert!(
+                content.contains("#[test]") || content.contains("#[cfg(test)]"),
+                "生成的测试文件应该包含测试属性 (#[test] 或 #[cfg(test)]): {:?}\n文件内容:\n{}",
+                path,
+                &content[..content.len().min(300)]
+            );
+        }
+
+        eprintln!(
+            "🎉 高保真 E2E 测试通过！LLM ({} -> {}) 成功生成并写入了 {} 个测试文件",
+            used_base_url,
+            used_model,
+            test_files.len()
+        );
+    }
+}

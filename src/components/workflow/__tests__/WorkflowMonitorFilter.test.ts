@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 const WORKFLOW_DISPLAY_STRATEGY: Record<string, 'message-embedded' | 'dag'> = {
   exploration: 'message-embedded',
+  test: 'message-embedded',
 };
 
 const DEFAULT_DISPLAY_STRATEGY: 'dag' | 'message-embedded' = 'dag';
@@ -26,6 +27,10 @@ function getWorkflowDisplayStrategy(workflowType: string | undefined): 'message-
 describe('getWorkflowDisplayStrategy - 声明式策略表', () => {
   it('exploration → message-embedded', () => {
     expect(getWorkflowDisplayStrategy('exploration')).toBe('message-embedded');
+  });
+
+  it('test → message-embedded', () => {
+    expect(getWorkflowDisplayStrategy('test')).toBe('message-embedded');
   });
 
   it('task → dag (默认)', () => {
@@ -103,6 +108,18 @@ describe('addActiveWorkflow 声明式过滤（单一阻塞点）', () => {
     expect(mockActiveWorkflows.has('wf-2')).toBe(true);
   });
 
+  it('test started → 不添加到活跃列表', () => {
+    handleWorkflowStarted({ workflowId: 'wf-test', workflowType: 'test' });
+    expect(mockActiveWorkflows.has('wf-test')).toBe(false);
+    expect(mockWorkflowStates.has('wf-test')).toBe(true);
+  });
+
+  it('test progress → 不触发自动添加', () => {
+    handleWorkflowStarted({ workflowId: 'wf-test-2', workflowType: 'test' });
+    handleWorkflowProgress({ workflowId: 'wf-test-2' });
+    expect(mockActiveWorkflows.has('wf-test-2')).toBe(false);
+  });
+
   it('混合场景：exploration 和 task 同时触发', () => {
     handleWorkflowStarted({ workflowId: 'wf-3', workflowType: 'exploration' });
     handleWorkflowStarted({ workflowId: 'wf-4', workflowType: 'task' });
@@ -147,6 +164,34 @@ describe('addActiveWorkflow 声明式过滤（单一阻塞点）', () => {
     handleWorkflowStarted({ workflowId: 'exp-2', workflowType: 'exploration' });
     expect(mockActiveWorkflows.size).toBe(1);
     expect(mockActiveWorkflows.has('task-1')).toBe(true);
+  });
+
+  it('端到端：test 和 task 混合交替', () => {
+    handleWorkflowStarted({ workflowId: 'test-1', workflowType: 'test' });
+    expect(mockActiveWorkflows.size).toBe(0);
+
+    handleWorkflowStarted({ workflowId: 'task-1', workflowType: 'task' });
+    expect(mockActiveWorkflows.size).toBe(1);
+    expect(mockActiveWorkflows.has('task-1')).toBe(true);
+
+    handleWorkflowStarted({ workflowId: 'test-2', workflowType: 'test' });
+    expect(mockActiveWorkflows.size).toBe(1);
+  });
+
+  it('端到端：test → exploration → test 三种类型交替', () => {
+    handleWorkflowStarted({ workflowId: 't-1', workflowType: 'test' });
+    expect(mockActiveWorkflows.has('t-1')).toBe(false);
+
+    handleWorkflowStarted({ workflowId: 'e-1', workflowType: 'exploration' });
+    expect(mockActiveWorkflows.has('e-1')).toBe(false);
+
+    handleWorkflowStarted({ workflowId: 'task-1', workflowType: 'task' });
+    expect(mockActiveWorkflows.size).toBe(1);
+    expect(mockActiveWorkflows.has('task-1')).toBe(true);
+
+    handleWorkflowStarted({ workflowId: 't-2', workflowType: 'test' });
+    handleWorkflowStarted({ workflowId: 'e-2', workflowType: 'exploration' });
+    expect(mockActiveWorkflows.size).toBe(1);
   });
 });
 

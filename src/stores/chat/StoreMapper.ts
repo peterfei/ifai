@@ -459,6 +459,8 @@ export const initStoreMapper = () => {
         // 🔥 生成 PhaseData（与 WorkflowIntentHandler 的 plannedNodes 一致）
         const plannedNodes = wfType === 'exploration'
           ? [{ id: 'explore', label: '探索项目' }]
+          : wfType === 'test'
+          ? [{ id: 'test', label: '生成测试' }]
           : [{ id: 'task', label: '执行任务' }];
 
         const phaseData: PhaseData[] = plannedNodes.map((node) => ({
