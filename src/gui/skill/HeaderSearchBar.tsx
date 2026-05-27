@@ -49,7 +49,7 @@ export function HeaderSearchBar({
   }, []);
 
   return (
-    <div className="flex items-center gap-2 bg-white/[0.04] rounded-lg border border-white/[0.06] px-3 py-1.5 w-56 focus-within:border-brand-500/30 transition-all">
+    <div className="flex items-center gap-2 bg-white/[0.04] rounded-lg border border-white/[0.06] px-3 py-1.5 w-40 lg:w-56 focus-within:border-brand-500/30 transition-all">
       <span className="text-xs text-white/25">🔍</span>
       <input
         type="text"
