@@ -26,6 +26,8 @@ const SkillsDock = React.lazy(() => import('./components/Skills/SkillsDock').the
 const ToolExplorerPanel = React.lazy(() => import('./components/ToolExplorer').then(m => ({ default: m.ToolExplorerPanel })));
 // P4: 多智能体工作流
 const WorkflowsPage = React.lazy(() => import('./pages/workflows').then(m => ({ default: m.WorkflowsPage })));
+// 技能市场弹窗
+const SkillMarketModal = React.lazy(() => import('./gui/skill/SkillMarketModal').then(m => ({ default: m.SkillMarketModal })));
 
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -41,7 +43,6 @@ import { ApprovalToolbar } from './components/AIChat/ApprovalToolbar';
 import { TerminalPanel } from './components/Terminal/TerminalPanel';
 import { PromptManager } from './components/PromptManager/PromptManager';
 import { SkillsPanel } from './components/Skills/SkillsPanel';
-import { SkillMarket } from './components/Skills/SkillMarket';
 import { StorageQuotaBanner } from './components/Storage/StorageQuotaBanner';
 
 
@@ -65,6 +66,7 @@ import { ThreadManager, migrateLegacyStatus } from './stores/threadManager';
 import { useCodeReviewStore } from './stores/codeReviewStore';
 import { useInlineEditStore } from './stores/inlineEditStore';
 import { useHelpStore } from './stores/helpStore';
+import { useSkillStore } from './stores/skillStore.enhanced';
 // v0.3.0: Code Analysis Panel
 import { useCodeSmellStore } from './stores/codeSmellStore';
 
@@ -195,6 +197,9 @@ function App() {
 
   // Onboarding state
   const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | 'apikey' | null>(null);
+
+  // 技能市场数据
+  const { availableSkills, stats } = useSkillStore();
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -845,7 +850,12 @@ function App() {
       e.preventDefault();
       const { toggleToolClassificationTest } = useDebugStore.getState();
       toggleToolClassificationTest();
-    }
+    },
+    // 技能市场
+    'view.toggleSkillMarket': (e: KeyboardEvent) => {
+      e.preventDefault();
+      useLayoutStore.getState().toggleSkillMarket();
+    },
   };
 
   useShortcuts(shortcutHandlers);
@@ -1029,12 +1039,7 @@ function App() {
           <ApprovalToolbar />
           <div className="flex-1 relative overflow-hidden">
 
-            {isSkillMarketOpen ? (
-              <SkillMarket onClose={() => {
-                const { setSkillMarketOpen } = useLayoutStore.getState();
-                setSkillMarketOpen(false);
-              }} />
-            ) : isSkillsPanelOpen ? (
+            {isSkillsPanelOpen ? (
               <SkillsPanel />
             ) : isPromptManagerOpen ? (
               <PromptManager />
@@ -1117,6 +1122,15 @@ function App() {
           isOpen={isKeyboardShortcutsOpen}
           onClose={closeKeyboardShortcuts}
         />
+        {/* 技能市场弹窗 */}
+        <Suspense fallback={null}>
+          <SkillMarketModal
+            isOpen={isSkillMarketOpen}
+            onClose={() => useLayoutStore.getState().setSkillMarketOpen(false)}
+            skills={availableSkills as any}
+            installedCount={stats?.installed ?? 0}
+          />
+        </Suspense>
         {/* 🏆 PIVO 3.0: 工作流内嵌监控器 - 在聊天消息流中显示（集成在 AIChat 组件内） */}
         {useSettingsStore((state) => state.showPerformanceMonitor) && (
           <PerformancePanel

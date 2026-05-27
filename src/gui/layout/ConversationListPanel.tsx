@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Search, Gamepad2, Shield, Cpu, ChevronRight, Users, Edit, Pin, Trash2 } from 'lucide-react';
 import { useThreadStore } from '../../stores/threadStore';
+import { useLayoutStore } from '../../stores/layoutStore';
 import { ThreadManager } from '../../stores/threadManager';
 import { ConversationContextMenu, type MenuItem, type MenuStrategy, type MenuContext } from '../conversation/ConversationContextMenu';
 import { ConfirmDialog } from '../../components/UI/ConfirmDialog';
@@ -177,7 +178,10 @@ export function ConversationListPanel() {
 
       {/* 技能广场 */}
       <div className="px-4 py-2">
-        <div className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#2D2D2D] cursor-pointer transition-colors group">
+        <div
+          onClick={() => useLayoutStore.getState().setSkillMarketOpen(true)}
+          className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#2D2D2D] cursor-pointer transition-colors group"
+        >
           <div className="flex items-center gap-2.5">
             <Gamepad2 size={16} className="text-[#9CA3AF]" />
             <span className="text-sm font-medium text-[#D1D5DB]">技能广场</span>

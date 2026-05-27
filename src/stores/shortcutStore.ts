@@ -44,6 +44,7 @@ const IFAI_DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { id: 'layout.focusPane3', commandId: 'layout.focusPane3', keys: 'Mod+3', label: 'Focus Pane 3', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.focusPane4', commandId: 'layout.focusPane4', keys: 'Mod+4', label: 'Focus Pane 4', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.toggleSidebar', commandId: 'layout.toggleSidebar', keys: 'Mod+b', label: 'Toggle Sidebar', category: 'Layout', scheme: 'ifai' },
+  { id: 'view.toggleSkillMarket', commandId: 'view.toggleSkillMarket', keys: 'Mod+Shift+m', label: 'Toggle Skill Market', category: 'View', scheme: 'ifai' },
 ];
 
 const VSCODE_KEYBINDINGS: KeyBinding[] = [
@@ -64,6 +65,7 @@ const VSCODE_KEYBINDINGS: KeyBinding[] = [
   { id: 'layout.focusPane3', commandId: 'layout.focusPane3', keys: 'Mod+3', label: 'Focus Pane 3', category: 'Layout', scheme: 'vscode' },
   { id: 'layout.focusPane4', commandId: 'layout.focusPane4', keys: 'Mod+4', label: 'Focus Pane 4', category: 'Layout', scheme: 'vscode' },
   { id: 'layout.toggleSidebar', commandId: 'layout.toggleSidebar', keys: 'Mod+b', label: 'Toggle Sidebar', category: 'Layout', scheme: 'vscode' },
+  { id: 'view.toggleSkillMarket', commandId: 'view.toggleSkillMarket', keys: 'Mod+Shift+m', label: 'Toggle Skill Market', category: 'View', scheme: 'vscode' },
 ];
 
 const INTELLIJ_KEYBINDINGS: KeyBinding[] = [
@@ -81,6 +83,7 @@ const INTELLIJ_KEYBINDINGS: KeyBinding[] = [
   { id: 'layout.focusPane4', commandId: 'layout.focusPane4', keys: 'Alt+4', label: 'Focus Pane 4', category: 'Layout', scheme: 'intellij' }, // Different binding
   { id: 'layout.toggleSidebar', commandId: 'layout.toggleSidebar', keys: 'Mod+b', label: 'Toggle Sidebar', category: 'Layout', scheme: 'intellij' },
   { id: 'debug.openToolClassificationTest', commandId: 'debug.openToolClassificationTest', keys: 'Mod+Shift+d', label: 'Tool Classification Test', category: 'Developer', scheme: 'intellij' },
+  { id: 'view.toggleSkillMarket', commandId: 'view.toggleSkillMarket', keys: 'Mod+Shift+m', label: 'Toggle Skill Market', category: 'View', scheme: 'intellij' },
 ];
 
 const PRESET_SCHEMES = {

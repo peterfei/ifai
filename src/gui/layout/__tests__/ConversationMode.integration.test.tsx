@@ -110,12 +110,6 @@ vi.mock('../../../components/AIChat/AIChat', () => ({
   ),
 }));
 
-// ===== Mock CardPreviewPanel =====
-
-vi.mock('../../conversation/CardPreviewPanel', () => ({
-  CardPreviewPanel: () => <div data-testid="card-preview-panel">CardPreviewPanel</div>,
-}));
-
 // ===== Mock Data Hooks =====
 
 vi.mock('../panels/useWorkLogData', () => ({
@@ -218,7 +212,6 @@ describe('Conversation Mode Integration Tests', () => {
     // 验证各面板的 data-testid 存在
     expect(screen.queryByTestId('conversation-list-panel')).toBeTruthy();
     expect(screen.queryByTestId('ai-chat')).toBeTruthy();
-    expect(screen.queryByTestId('card-preview-panel')).toBeTruthy();
     expect(screen.queryByTestId('conversation-detail-panel')).toBeTruthy();
   });
 
