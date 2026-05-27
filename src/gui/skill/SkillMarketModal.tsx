@@ -26,6 +26,8 @@ export interface SkillMarketModalProps {
   onClose: () => void;
   skills: DisplaySkill[];
   installedCount: number;
+  onInstall?: (skillId: string) => void;
+  onUninstall?: (skillId: string) => void;
 }
 
 // ==================== 主组件 ====================
@@ -35,6 +37,8 @@ export function SkillMarketModal({
   onClose,
   skills,
   installedCount,
+  onInstall,
+  onUninstall,
 }: SkillMarketModalProps) {
   const {
     selectedCategory,
@@ -168,7 +172,7 @@ export function SkillMarketModal({
                   key={s.id}
                   skill={s}
                   onSelect={(id) => selectSkill(id)}
-                  onInstall={(id) => selectSkill(id)}
+                  onInstall={onInstall || ((id) => selectSkill(id))}
                 />
               ))}
             </div>
@@ -187,7 +191,7 @@ export function SkillMarketModal({
                 key={s.id}
                 skill={s}
                 onSelect={(id) => selectSkill(id)}
-                onInstall={(id) => selectSkill(id)}
+                onInstall={onInstall || ((id) => selectSkill(id))}
               />
             ))}
           </div>
@@ -206,8 +210,8 @@ export function SkillMarketModal({
           <SkillDetailPanel
             skill={selectedSkill}
             onClose={() => selectSkill(null)}
-            onInstall={(id) => selectSkill(id)}
-            onUninstall={() => {}}
+            onInstall={onInstall || ((id) => selectSkill(id))}
+            onUninstall={onUninstall || (() => {})}
           />
         )}
       </div>

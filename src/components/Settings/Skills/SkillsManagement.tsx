@@ -17,7 +17,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSkillStore } from '@/stores/skillStore.enhanced';
+import { useSkillStore } from '@/stores/skillStore';
 import { SkillStateIndicator, StateStatsCard, StateTransitionDiagram } from './SkillStateIndicator';
 import { SkillSearchBar, TagCloud } from './SkillSearchBar';
 import { SkillDetailPanel } from './SkillDetailPanel';

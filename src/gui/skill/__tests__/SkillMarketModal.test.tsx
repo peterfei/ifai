@@ -221,4 +221,52 @@ describe('SkillMarketModal', () => {
     fireEvent.click(overlay!);
     expect(onClose).toHaveBeenCalled();
   });
+
+  // #71: 点击"安装"按钮应调用 onInstall（修复后：安装而非打开详情面板）
+  it('点击卡片"安装"按钮应调用 onInstall 回调', () => {
+    const onInstall = vi.fn();
+    render(
+      <SkillMarketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        skills={mockSkills}
+        installedCount={0}
+        onInstall={onInstall}
+        onUninstall={vi.fn()}
+      />
+    );
+    // 找到第一个"安装"按钮（未安装技能的卡片上）
+    const installBtns = screen.getAllByText('安装');
+    fireEvent.click(installBtns[0]);
+
+    // ✅ 修复后：onInstall 应被调用
+    expect(onInstall).toHaveBeenCalledWith('code-review-pro');
+  });
+
+  // #72: 详情面板中的"安装"按钮也应调用 onInstall
+  it('详情面板中的"安装"按钮应调用 onInstall 回调', () => {
+    const onInstall = vi.fn();
+    render(
+      <SkillMarketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        skills={mockSkills}
+        installedCount={0}
+        onInstall={onInstall}
+        onUninstall={vi.fn()}
+      />
+    );
+    // 先点击卡片打开详情面板
+    const skillCards = screen.getAllByText('代码审查专家 Pro');
+    fireEvent.click(skillCards[0]);
+    expect(screen.getByText('标签')).toBeDefined(); // 确认详情面板已打开
+
+    // 点击详情面板中的"安装"按钮
+    const installBtns = screen.getAllByText('安装');
+    // 取最后一个 — 这是详情面板中的按钮
+    fireEvent.click(installBtns[installBtns.length - 1]);
+
+    // ✅ 修复后：onInstall 应被调用
+    expect(onInstall).toHaveBeenCalledWith('code-review-pro');
+  });
 });

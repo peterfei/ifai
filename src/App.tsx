@@ -1,4 +1,4 @@
-import React, { useEffect, Fragment, useState, Suspense } from 'react';
+import React, { useEffect, Fragment, useState, Suspense, useMemo } from 'react';
 import clsx from 'clsx';
 import { ModalSkeleton, MessageSkeleton } from './components/UI/Skeleton';
 import { ensureTauriInitialized } from './utils/tauriInitializer';
@@ -66,7 +66,8 @@ import { ThreadManager, migrateLegacyStatus } from './stores/threadManager';
 import { useCodeReviewStore } from './stores/codeReviewStore';
 import { useInlineEditStore } from './stores/inlineEditStore';
 import { useHelpStore } from './stores/helpStore';
-import { useSkillStore } from './stores/skillStore.enhanced';
+import { useSkillStore } from './stores/skillStore';
+import { builtinSkills } from './components/Skills/builtinSkills';
 // v0.3.0: Code Analysis Panel
 import { useCodeSmellStore } from './stores/codeSmellStore';
 
@@ -198,8 +199,42 @@ function App() {
   // Onboarding state
   const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | 'apikey' | null>(null);
 
-  // 技能市场数据
-  const { availableSkills, stats } = useSkillStore();
+  // 技能市场数据 — 从 store 加载，空时使用内置技能作为 fallback
+  const { availableSkills, stats, fetchSkills, installSkill, uninstallSkill } = useSkillStore();
+  const activeSkillIds = useSkillStore((s) => s.activeSkillIds);
+
+  const marketSkills = useMemo<Record<string, unknown>[]>(() => {
+    if (availableSkills.length > 0) {
+      // 从后端加载的技能：根据 activeSkillIds 动态计算 isInstalled
+      return availableSkills.map((s) => ({
+        ...s,
+        isInstalled: activeSkillIds.includes(s.id),
+        isInstalling: false,
+      })) as any;
+    }
+    // fallback: 用内置技能保证市场不为空，isInstalled 动态取决于 activeSkillIds
+    return builtinSkills.map((s) => ({
+      id: s.id,
+      name: s.displayName || s.name,
+      description: s.description,
+      version: s.version,
+      rating: s.rating,
+      downloads: s.downloads,
+      featured: s.featured,
+      isInstalled: activeSkillIds.includes(s.id),
+      isInstalling: false,
+      tags: s.tags,
+      author: s.author,
+      systemPrompt: s.systemPrompt,
+    }));
+  }, [availableSkills, activeSkillIds]);
+
+  // 打开技能市场时尝试从后端加载技能
+  useEffect(() => {
+    if (isSkillMarketOpen && availableSkills.length === 0) {
+      fetchSkills();
+    }
+  }, [isSkillMarketOpen, availableSkills.length, fetchSkills]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -427,7 +462,7 @@ function App() {
 
       // 技能 Store
       try {
-        const { useSkillStore } = await import('./stores/skillStore.enhanced');
+        const { useSkillStore } = await import('./stores/skillStore');
         (window as any).__skillStore = useSkillStore;
         console.log('[App] ✅ SkillStore exposed to window.__skillStore');
       } catch (error) {
@@ -1127,8 +1162,13 @@ function App() {
           <SkillMarketModal
             isOpen={isSkillMarketOpen}
             onClose={() => useLayoutStore.getState().setSkillMarketOpen(false)}
-            skills={availableSkills as any}
+            skills={marketSkills as any}
             installedCount={stats?.installed ?? 0}
+            onInstall={(id) => {
+              const skillData = marketSkills.find((s: any) => s.id === id);
+              installSkill(id, undefined, skillData as Record<string, unknown> | undefined);
+            }}
+            onUninstall={(id) => { uninstallSkill(id); }}
           />
         </Suspense>
         {/* 🏆 PIVO 3.0: 工作流内嵌监控器 - 在聊天消息流中显示（集成在 AIChat 组件内） */}

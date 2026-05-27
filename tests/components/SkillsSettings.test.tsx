@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SkillsSettings } from '../../src/components/Settings/SkillsSettings';
-import { useSkillStore } from '../../src/stores/skillStore.enhanced';
+import { useSkillStore } from '../../src/stores/skillStore';
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({

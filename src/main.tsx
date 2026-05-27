@@ -267,7 +267,7 @@ const exposeDebugStores = () => {
     // 使用 requestIdleCallback 确保在浏览器空闲时执行
     const runExpose = () => {
       Promise.all([
-        import('./stores/skillStore.enhanced'),
+        import('./stores/skillStore'),
         import('./stores/fileStore'),
         import('./stores/useChatStore'),
         import('./stores/conversationStore'), // 🔥 添加 conversationStore

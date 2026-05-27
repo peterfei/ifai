@@ -54,7 +54,7 @@ try {
 // 2. 检查Store实现
 console.log('📋 检查Store实现...');
 try {
-  const storePath = path.join(process.cwd(), 'src/stores/skillStore.enhanced.ts');
+  const storePath = path.join(process.cwd(), 'src/stores/skillStore.ts');
   const storeContent = fs.readFileSync(storePath, 'utf-8');
 
   // 检查关键方法

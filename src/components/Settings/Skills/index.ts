@@ -29,4 +29,4 @@ export type {
 } from './types';
 
 // Store
-export { useSkillStore } from '@/stores/skillStore.enhanced';
+export { useSkillStore } from '@/stores/skillStore';

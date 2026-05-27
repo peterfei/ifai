@@ -9,7 +9,7 @@ import { ShieldCheck, Download, X } from 'lucide-react';
 import { SkillsManagement } from './Skills/SkillsManagement';
 import { SkillInstaller } from './Skills/SkillInstaller';
 import { SkillEditor } from './Skills/SkillEditor';
-import { useSkillStore } from '@/stores/skillStore.enhanced';
+import { useSkillStore } from '@/stores/skillStore';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '@/stores/fileStore';
 import { cn } from '@/lib/utils';

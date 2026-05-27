@@ -161,7 +161,7 @@ const mockStoreState = {
 // Mock useSkillStore as a selector-based hook
 // SkillsSettings uses selectors: useSkillStore(state => state.availableSkills)
 // SkillsManagement uses no selector: useSkillStore()
-vi.mock('@/stores/skillStore.enhanced', () => ({
+vi.mock('@/stores/skillStore', () => ({
   useSkillStore: ((selector?: any) => selector ? selector(mockStoreState) : mockStoreState),
 }));
 

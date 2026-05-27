@@ -1,10 +1,13 @@
 /**
  * 技能面板 - 侧边栏技能管理界面
+ *
+ * @deprecated 新技能市场使用 SkillMarketModal 全屏弹窗，
+ *             此面板保留仅用于向后兼容，后续版本将移除。
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Puzzle, Star, Tag, Check, Loader2, Search, Filter, X, ChevronLeft, Eye, Download, Trash2, BookOpen, Users, Award, Clock, ShoppingCart } from 'lucide-react';
-import { useSkillStore } from '@/stores/skillStore.enhanced';
+import { useSkillStore } from '@/stores/skillStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useFileStore } from '@/stores/fileStore';
 import { toast } from 'sonner';

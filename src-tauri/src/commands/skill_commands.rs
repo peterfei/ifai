@@ -223,27 +223,33 @@ pub async fn install_skill(
             })
             .unwrap_or_else(|| String::new());
 
-        // 构建 Markdown 内容
+        // 将 system_prompt 格式化为 YAML 多行字符串（literal block scalar）
+        let yaml_prompt = if system_prompt.contains('\n') {
+            format!("|\n{}", system_prompt.lines()
+                .map(|l| format!("  {}", l))
+                .collect::<Vec<_>>()
+                .join("\n"))
+        } else {
+            system_prompt.to_string()
+        };
+
+        // 构建 Markdown 内容（YAML frontmatter 包含 from_markdown 需要的所有字段）
         let markdown_content = format!(
             r#"---
 name: {}
 id: {}
 description: {}
+version: "{}"
+system_prompt: {}
+author: {}
+tags: [{}]
 license: MIT
 compatibility: 通用
-metadata:
-  author: {}
-  version: "{}"
-  tags: {}
 ---
 
 {}
-
-## System Prompt
-
-{}
 "#,
-            name, skill_id, description, author, version_str, tags, long_description, system_prompt
+            name, skill_id, description, version_str, yaml_prompt, author, tags, long_description
         );
 
         // 写入 skill.md 文件

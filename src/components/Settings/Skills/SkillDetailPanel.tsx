@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SkillStateIndicator } from './SkillStateIndicator';
-import { useSkillStore } from '@/stores/skillStore.enhanced';
+import { useSkillStore } from '@/stores/skillStore';
 import type { Skill } from './types';
 
 interface SkillDetailPanelProps {
