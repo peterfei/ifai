@@ -96,7 +96,7 @@ export function SkillMarketModal({
   return (
     <div
       onClick={handleClose}
-      className="fixed inset-0 z-50 animate-overlay"
+      className="fixed inset-0 z-[200] animate-overlay"
       style={{
         background: 'rgba(0,0,0,0.7)',
         backdropFilter: 'blur(12px)',
