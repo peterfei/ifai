@@ -1125,6 +1125,55 @@ async fn ai_chat(
                 "parameters": crate::memory::memory_save_schema()
             }
         }),
+        // 🆕 request_user_input 工具（用户交互反馈）
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "request_user_input",
+                "description": "向用户展示一组问题并等待反馈。当需要用户决策、选择策略、确认方案时使用此工具。调用后用户会看到选项卡片进行选择。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "交互标题，概括需要用户决策的事项"
+                        },
+                        "questions": {
+                            "type": "array",
+                            "description": "问题列表（支持单选/多选）",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "id": { "type": "string", "description": "问题唯一标识" },
+                                    "type": { "type": "string", "enum": ["single", "multiple"], "description": "选择类型：single-单选，multiple-多选" },
+                                    "question": { "type": "string", "description": "问题文本" },
+                                    "compactAsk": { "type": "string", "description": "紧凑模式提示文本（可选）" },
+                                    "options": {
+                                        "type": "array",
+                                        "description": "选项列表",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": { "type": "string", "description": "选项标识" },
+                                                "label": { "type": "string", "description": "选项显示文本" },
+                                                "desc": { "type": "string", "description": "选项描述（可选）" }
+                                            },
+                                            "required": ["id", "label"]
+                                        }
+                                    }
+                                },
+                                "required": ["id", "type", "question", "options"]
+                            }
+                        },
+                        "onSelect": {
+                            "type": "string",
+                            "description": "选中后触发的操作类型（可选）"
+                        }
+                    },
+                    "required": ["title", "questions"]
+                }
+            }
+        }),
     ];
 
     // 🚀 v0.5.0: 双模引擎工具策略
@@ -1920,6 +1969,7 @@ pub fn run() {
             commands::workflow_commands::get_workflow_schedule,
             commands::workflow_commands::execute_workflow,
             commands::workflow_commands::cancel_workflow,
+            commands::workflow_commands::submit_user_feedback,
             commands::workflow_commands::get_workflow_status,
             commands::workflow_commands::get_default_workflows,
             commands::workflow_commands::create_custom_workflow,

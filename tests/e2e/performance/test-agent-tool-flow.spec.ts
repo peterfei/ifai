@@ -696,3 +696,516 @@ test.describe('Test Agent 工具调用数据验证', () => {
     expect(state.responseStatus).toBe('completed');
   });
 });
+
+/**
+ * InteractionCard E2E 测试
+ *
+ * 验证 InteractionCard 的工作流集成：
+ * - workflow:progress(request_user_input) → 消息注入
+ * - 单选/多选/多问题模式
+ * - feedback 事件回传
+ */
+test.describe('InteractionCard 交互反馈', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupE2ETestEnvironment(page, {
+      useRealAI: false,
+      skipWelcome: true,
+    });
+  });
+
+  /* E2E-E.1: InteractionCard 消息注入 */
+  test('E2E-E.1: workflow:progress(request_user_input) → interaction 消息被注入', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const chatStore = (window as any).__chatStore;
+      const now = Date.now();
+
+      // 预置一条 workflow 消息
+      chatStore.setState({
+        messages: [{
+          id: 'wf-msg',
+          role: 'assistant',
+          content: '',
+          timestamp: now,
+          metadata: { workflowId: 'e2e-wf-1', workflowType: 'test', phaseData: [] },
+        }],
+      });
+
+      // 通过 EventBus 触发 ask_user 事件（模拟后端 request_user_input）
+      const eventBus = (window as any).__chatEventBus;
+      eventBus.emit('workflow:progress', {
+        workflowId: 'e2e-wf-1',
+        event_type: 'tool_call',
+        node_id: 'node-1',
+        message: '请求用户输入',
+        tool_details: {
+          tool_name: 'request_user_input',
+          tool_input: JSON.stringify({
+            title: '选择迁移策略',
+            questions: [{
+              id: 'q1',
+              type: 'single',
+              question: '请选择迁移方案',
+              options: [
+                { id: 'blue-green', label: '蓝绿部署', desc: '零停机切换' },
+                { id: 'rolling', label: '滚动更新', desc: '逐步替换实例' },
+              ],
+            }],
+          }),
+          tool_output: JSON.stringify({
+            _feedback_req_id: 'e2e-req-1',
+            title: '选择迁移策略',
+            questions: [{
+              id: 'q1',
+              type: 'single',
+              question: '请选择迁移方案',
+              options: [
+                { id: 'blue-green', label: '蓝绿部署', desc: '零停机切换' },
+                { id: 'rolling', label: '滚动更新', desc: '逐步替换实例' },
+              ],
+            }],
+          }),
+        },
+      });
+
+      // 等待 StoreMapper 处理
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+          const interactionMsg = msgs.find((m: any) => m.metadata?.interactionData);
+          resolve({
+            hasInteractionCard: !!interactionMsg,
+            questionsCount: interactionMsg?.metadata?.interactionData?.questions?.length || 0,
+            feedbackRequestId: interactionMsg?.metadata?.feedbackRequestId,
+          });
+        }, 200);
+      });
+    });
+
+    expect(state.hasInteractionCard).toBe(true);
+    expect(state.questionsCount).toBe(1);
+    expect(state.feedbackRequestId).toBe('e2e-req-1');
+  });
+
+  /* E2E-E.2 + E2E-E.3: 卡片标题和问题文本 */
+  test('E2E-E.2+E.3: interaction card 包含标题和问题文本', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      chatStore.setState({ messages: [{
+        id: 'wf-msg', role: 'assistant', content: '', timestamp: Date.now(),
+        metadata: { workflowId: 'e2e-wf-2', workflowType: 'test', phaseData: [] },
+      }] });
+
+      eventBus.emit('workflow:progress', {
+        workflowId: 'e2e-wf-2',
+        event_type: 'tool_call',
+        tool_details: {
+          tool_name: 'request_user_input',
+          tool_input: JSON.stringify({
+            title: '选择部署策略',
+            questions: [{
+              id: 'q1', type: 'single',
+              question: '请选择策略？',
+              options: [{ id: 'a', label: '方案A', desc: 'desc A' }],
+            }],
+          }),
+          tool_output: JSON.stringify({
+            _feedback_req_id: 'e2e-req-2',
+            title: '选择部署策略',
+            questions: [{ id: 'q1', type: 'single', question: '请选择策略？', options: [{ id: 'a', label: '方案A', desc: 'desc A' }] }],
+          }),
+        },
+      });
+
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+          const interactionMsg = msgs.find((m: any) => m.metadata?.interactionData);
+          const data = interactionMsg?.metadata?.interactionData;
+          resolve({
+            hasCard: !!interactionMsg,
+            title: data?.title,
+            questionText: data?.questions?.[0]?.question,
+          });
+        }, 200);
+      });
+    });
+
+    expect(state.title).toBe('选择部署策略');
+    expect(state.questionText).toBe('请选择策略？');
+  });
+
+  /* E2E-E.4: 选项列表渲染 */
+  test('E2E-E.4: interaction card 包含选项列表', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      chatStore.setState({ messages: [{
+        id: 'wf-msg', role: 'assistant', content: '', timestamp: Date.now(),
+        metadata: { workflowId: 'e2e-wf-3', workflowType: 'test', phaseData: [] },
+      }] });
+
+      eventBus.emit('workflow:progress', {
+        workflowId: 'e2e-wf-3',
+        event_type: 'tool_call',
+        tool_details: {
+          tool_name: 'request_user_input',
+          tool_input: JSON.stringify({
+            title: '选择选项',
+            questions: [{
+              id: 'q1', type: 'single', question: '选哪个？',
+              options: [
+                { id: 'opt1', label: '选项一', desc: '描述一', tag: '推荐', tagColor: 'emerald' },
+                { id: 'opt2', label: '选项二', desc: '描述二' },
+                { id: 'opt3', label: '选项三', desc: '描述三', tag: '谨慎', tagColor: 'amber' },
+              ],
+            }],
+          }),
+          tool_output: JSON.stringify({
+            _feedback_req_id: 'e2e-req-3',
+            title: '选择选项',
+            questions: [{ id: 'q1', type: 'single', question: '选哪个？', options: [
+              { id: 'opt1', label: '选项一', desc: '描述一' },
+              { id: 'opt2', label: '选项二', desc: '描述二' },
+              { id: 'opt3', label: '选项三', desc: '描述三' },
+            ]}],
+          }),
+        },
+      });
+
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+          const data = msgs.find((m: any) => m.metadata?.interactionData)?.metadata?.interactionData;
+          resolve({
+            optionsCount: data?.questions?.[0]?.options?.length || 0,
+            optionLabels: data?.questions?.[0]?.options?.map((o: any) => o.label) || [],
+          });
+        }, 200);
+      });
+    });
+
+    expect(state.optionsCount).toBe(3);
+    expect(state.optionLabels).toContain('选项一');
+    expect(state.optionLabels).toContain('选项二');
+    expect(state.optionLabels).toContain('选项三');
+  });
+
+  /* E2E-E.7 + E2E-E.9: 单选确认 → feedback 事件 + 携带选中项 */
+  test('E2E-E.7+E.9: 单选确认 → feedback 事件携带选中项', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      // 记录 feedback 事件
+      let capturedFeedback: any = null;
+      eventBus.on('workflow:feedback', (payload: any) => {
+        capturedFeedback = payload;
+      });
+
+      // 注入 interaction 消息
+      chatStore.setState({ messages: [{
+        id: 'interaction-msg',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        metadata: {
+          workflowId: 'e2e-wf-fb',
+          feedbackRequestId: 'e2e-req-fb',
+          interactionData: {
+            type: 'single',
+            title: '测试',
+            questions: [{
+              id: 'q1', type: 'single', question: '选哪个？',
+              options: [{ id: 'a', label: 'A方案', desc: '' }],
+            }],
+          },
+        },
+      }] });
+
+      // 模拟用户确认（触发 workflow:feedback）
+      eventBus.emit('workflow:feedback', {
+        workflowId: 'e2e-wf-fb',
+        questionAnswers: [{ questionId: 'q1', selectedIds: ['a'] }],
+        action: 'continue',
+      });
+
+      // 等待处理
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          resolve({
+            feedbackReceived: !!capturedFeedback,
+            workflowId: capturedFeedback?.workflowId,
+            hasQuestionAnswers: Array.isArray(capturedFeedback?.questionAnswers),
+            questionId: capturedFeedback?.questionAnswers?.[0]?.questionId,
+            selectedIds: capturedFeedback?.questionAnswers?.[0]?.selectedIds,
+          });
+        }, 200);
+      });
+    });
+
+    expect(state.feedbackReceived).toBe(true);
+    expect(state.workflowId).toBe('e2e-wf-fb');
+    expect(state.questionId).toBe('q1');
+    expect(state.selectedIds).toEqual(['a']);
+  });
+
+  /* E2E-E.11 + E2E-E.12: 多问题模式渲染 + 统一确认 */
+  test('E2E-E.11+E.12: 多问题模式渲染 + 统一确认', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      chatStore.setState({ messages: [{
+        id: 'wf-msg', role: 'assistant', content: '', timestamp: Date.now(),
+        metadata: { workflowId: 'e2e-wf-mq', workflowType: 'test', phaseData: [] },
+      }] });
+
+      // 模拟多问题 ask_user 事件
+      eventBus.emit('workflow:progress', {
+        workflowId: 'e2e-wf-mq',
+        event_type: 'tool_call',
+        tool_details: {
+          tool_name: 'request_user_input',
+          tool_input: JSON.stringify({
+            title: '配置迁移',
+            questions: [
+              { id: 'strategy', type: 'single', question: '选择策略', options: [
+                { id: 'rehost', label: '直接迁移', desc: '最快的方案' },
+                { id: 'refactor', label: '重构迁移', desc: '最安全的方案' },
+              ]},
+              { id: 'testing', type: 'multiple', question: '勾选测试类型', options: [
+                { id: 'unit', label: '单元测试', desc: '验证单个函数' },
+                { id: 'intg', label: '集成测试', desc: '验证组件交互' },
+                { id: 'e2e', label: '端到端测试', desc: '验证完整流程' },
+              ]},
+            ],
+          }),
+          tool_output: JSON.stringify({
+            _feedback_req_id: 'e2e-req-mq',
+            title: '配置迁移',
+            questions: [
+              { id: 'strategy', type: 'single', question: '选择策略', options: [{ id: 'rehost', label: '直接迁移', desc: '最快的方案' }, { id: 'refactor', label: '重构迁移', desc: '最安全的方案' }] },
+              { id: 'testing', type: 'multiple', question: '勾选测试类型', options: [{ id: 'unit', label: '单元测试', desc: '' }, { id: 'intg', label: '集成测试', desc: '' }, { id: 'e2e', label: '端到端测试', desc: '' }] },
+            ],
+          }),
+        },
+      });
+
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+          const data = msgs.find((m: any) => m.metadata?.interactionData)?.metadata?.interactionData;
+          resolve({
+            hasMultipleQ: data?.questions?.length === 2,
+            firstType: data?.questions?.[0]?.type,
+            secondType: data?.questions?.[1]?.type,
+            firstOptions: data?.questions?.[0]?.options?.length || 0,
+            secondOptions: data?.questions?.[1]?.options?.length || 0,
+            cardType: data?.type,
+          });
+        }, 200);
+      });
+    });
+
+    expect(state.hasMultipleQ).toBe(true);
+    expect(state.firstType).toBe('single');
+    expect(state.secondType).toBe('multiple');
+    expect(state.firstOptions).toBe(2);
+    expect(state.secondOptions).toBe(3);
+    expect(state.cardType).toBe('multiple');
+  });
+
+  /* E2E-E.10: resolved 卡片不可操作（通过状态验证） */
+  test('E2E-E.10: feedback 后消息状态变为 answered', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      chatStore.setState({ messages: [{
+        id: 'interaction-msg',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        metadata: {
+          workflowId: 'e2e-wf-resolved',
+          feedbackRequestId: 'e2e-req-resolved',
+          interactionData: {
+            type: 'single',
+            title: '测试',
+            questions: [{
+              id: 'q1', type: 'single', question: '确定?',
+              options: [{ id: 'yes', label: '是', desc: '' }],
+            }],
+          },
+        },
+      }] });
+
+      // 触发 feedback
+      eventBus.emit('workflow:feedback', {
+        workflowId: 'e2e-wf-resolved',
+        questionAnswers: [{ questionId: 'q1', selectedIds: ['yes'] }],
+      });
+
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+          const interactionMsg = msgs.find((m: any) => m.metadata?.interactionData);
+          resolve({ status: interactionMsg?.status });
+        }, 200);
+      });
+    });
+
+    expect(state.status).toBe('answered');
+  });
+});
+
+/* ========================================================================== */
+/* 商用 GUI 路径：chat:tool:completed → InteractionCard                       */
+/* ========================================================================== */
+test.describe('商用 GUI 路径 InteractionCard', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupE2ETestEnvironment(page, {
+      useRealAI: false,
+      skipWelcome: true,
+    });
+  });
+
+  /* GUI-E2E-1 */
+  test('GUI-E2E-1: chat:tool:completed(request_user_input) → interaction card 注入', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      // 先注入一条含 toolCalls 的 assistant 消息
+      chatStore.setState({ messages: [{
+        id: 'gui-msg-1',
+        role: 'assistant',
+        content: '我来帮您分析方案',
+        timestamp: Date.now(),
+        toolCalls: [{
+          id: 'tc-1',
+          name: 'request_user_input',
+          status: 'pending',
+        }],
+      }] });
+
+      // 模拟后端发送 tool_done → chat:tool:completed
+      eventBus.emit('chat:tool:completed', {
+        toolId: 'tc-1',
+        result: JSON.stringify({
+          _feedback_req_id: 'gui-req-1',
+          title: '选择方案',
+          questions: [{
+            id: 'q1', type: 'single', question: '请选择方案：',
+            options: [
+              { id: 'a', label: '方案A', desc: '全面重构' },
+              { id: 'b', label: '方案B', desc: '增量修改' },
+            ],
+          }],
+          onSelect: 'continue',
+        }),
+        correlationId: 'gui-msg-1',
+        shouldContinue: true,
+      });
+
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+          const interactionMsg = msgs.find((m: any) => m.id?.startsWith('interaction-'));
+          const originalMsg = msgs.find((m: any) => m.id === 'gui-msg-1');
+          const toolCallStatus = originalMsg?.toolCalls?.[0]?.status;
+          resolve({
+            hasInteractionCard: !!interactionMsg,
+            feedbackRequestId: interactionMsg?.metadata?.feedbackRequestId,
+            title: interactionMsg?.metadata?.interactionData?.title,
+            questionsCount: interactionMsg?.metadata?.interactionData?.questions?.length,
+            questionText: interactionMsg?.metadata?.interactionData?.questions?.[0]?.question,
+            firstOption: interactionMsg?.metadata?.interactionData?.questions?.[0]?.options?.[0]?.label,
+            toolCallCompleted: toolCallStatus === 'completed',
+          });
+        }, 300);
+      });
+    });
+
+    expect(state.hasInteractionCard).toBe(true);
+    expect(state.feedbackRequestId).toBe('gui-req-1');
+    expect(state.title).toBe('选择方案');
+    expect(state.questionsCount).toBe(1);
+    expect(state.questionText).toBe('请选择方案：');
+    expect(state.firstOption).toBe('方案A');
+    expect(state.toolCallCompleted).toBe(true);
+  });
+
+  /* GUI-E2E-2 */
+  test('GUI-E2E-2: workflow:feedback(feedbackRequestId) → submit_user_feedback + answered', async ({ page }) => {
+    const state = await page.evaluate(() => {
+      const eventBus = (window as any).__chatEventBus;
+      const chatStore = (window as any).__chatStore;
+
+      // 捕获 invoke 调用
+      let capturedInvoke: any = null;
+      const internals = (window as any).__TAURI_INTERNALS__;
+      if (internals?.invoke) {
+        const origInvoke = internals.invoke.bind(internals);
+        internals.invoke = async (cmd: string, args: any) => {
+          if (cmd === 'submit_user_feedback') {
+            capturedInvoke = { cmd, args };
+          }
+          return origInvoke(cmd, args);
+        };
+      }
+
+      // 注入 interaction 消息（GUI 路径格式：无 workflowId，有 feedbackRequestId）
+      chatStore.setState({ messages: [{
+        id: 'interaction-gui-2',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        metadata: {
+          feedbackRequestId: 'gui-req-2',
+          interactionData: {
+            type: 'single',
+            title: '选择方案',
+            questions: [{
+              id: 'q1', type: 'single', question: '选哪个？',
+              options: [
+                { id: 'a', label: '方案A', desc: '' },
+                { id: 'b', label: '方案B', desc: '' },
+              ],
+            }],
+          },
+        },
+      }] });
+
+      // 模拟 MessageItem onAction → workflow:feedback（不带 workflowId）
+      eventBus.emit('workflow:feedback', {
+        feedbackRequestId: 'gui-req-2',
+        questionAnswers: [{ questionId: 'q1', selectedIds: ['a'] }],
+        action: 'continue',
+      });
+
+      return new Promise<any>((resolve) => {
+        setTimeout(() => {
+          const msgs = chatStore.getState().messages;
+          const interactionMsg = msgs.find((m: any) => m.id === 'interaction-gui-2');
+          resolve({
+            invokeCalled: !!capturedInvoke,
+            invokeCmd: capturedInvoke?.cmd,
+            invokeFeedbackRequestId: capturedInvoke?.args?.feedbackRequestId,
+            invokeQuestionAnswers: capturedInvoke?.args?.feedback?.questionAnswers,
+            statusAnswered: interactionMsg?.status === 'answered',
+          });
+        }, 300);
+      });
+    });
+
+    expect(state.invokeCalled).toBe(true);
+    expect(state.invokeCmd).toBe('submit_user_feedback');
+    expect(state.invokeFeedbackRequestId).toBe('gui-req-2');
+    expect(state.invokeQuestionAnswers).toEqual([{ questionId: 'q1', selectedIds: ['a'] }]);
+    expect(state.statusAnswered).toBe(true);
+  });
+});

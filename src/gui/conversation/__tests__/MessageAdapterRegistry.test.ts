@@ -298,12 +298,13 @@ describe('AD: 消息适配', () => {
         cardType: msg.cardType, id: msg.id, role: msg.role, content: msg.content, data: msg.data || {},
       }),
     });
-    const options = [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }];
+    const questions = [{ id: 'q1', type: 'single', question: '?', options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }] }];
     const result = adaptMessageToCard({
       id: 'm1', role: 'assistant', content: '',
-      cardType: 'interaction', data: { type: 'single', options },
+      cardType: 'interaction', data: { type: 'single', questions },
     });
-    expect(result?.data.options).toHaveLength(2);
+    expect(result?.data.questions).toHaveLength(1);
+    expect(result?.data.questions[0].options).toHaveLength(2);
   });
 
   /* ---- AD-5: 纯文本降级 ---- */

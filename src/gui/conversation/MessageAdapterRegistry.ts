@@ -38,9 +38,11 @@ export const MessageAdapterRegistry = new Registry<MessageAdapter>();
 
 import { cardTypePassthroughAdapter } from './adapters/cardTypePassthroughAdapter';
 import { toolCallAdapter } from './adapters/toolCallAdapter';
+import { interactionAdapter } from './adapters/interactionAdapter';
 
 MessageAdapterRegistry.register('cardType-passthrough', cardTypePassthroughAdapter);
 MessageAdapterRegistry.register('tool-call', toolCallAdapter);
+MessageAdapterRegistry.register('interaction', interactionAdapter);
 
 /* ===== 引擎 — 零分支 ===== */
 

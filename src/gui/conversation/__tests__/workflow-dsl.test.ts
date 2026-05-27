@@ -20,6 +20,7 @@ import {
   MOCK_APPROVAL_DATA_HIGH_RISK,
   MOCK_INTERACTION_DATA_SINGLE,
   MOCK_INTERACTION_DATA_MULTIPLE,
+  MOCK_INTERACTION_DATA_MULTI_QUESTION,
   MOCK_FILE_CHANGE_DATA,
   MOCK_FILE_CHANGE_MODIFY,
   MOCK_TOOL_CALL_DATA,
@@ -74,13 +75,15 @@ describe('WORKFLOW_DSL', () => {
     it('MOCK_INTERACTION_DATA_SINGLE 应为单选模式', () => {
       expect(MOCK_INTERACTION_DATA_SINGLE.type).toBe('single');
       expect(MOCK_INTERACTION_DATA_SINGLE.title).toBeTruthy();
-      expect(MOCK_INTERACTION_DATA_SINGLE.question).toBeTruthy();
-      expect(MOCK_INTERACTION_DATA_SINGLE.compactAsk).toBeTruthy();
-      expect(MOCK_INTERACTION_DATA_SINGLE.options.length).toBeGreaterThanOrEqual(2);
+      expect(MOCK_INTERACTION_DATA_SINGLE.questions.length).toBe(1);
+      expect(MOCK_INTERACTION_DATA_SINGLE.questions[0].id).toBe('_default');
+      expect(MOCK_INTERACTION_DATA_SINGLE.questions[0].question).toBeTruthy();
+      expect(MOCK_INTERACTION_DATA_SINGLE.questions[0].compactAsk).toBeTruthy();
+      expect(MOCK_INTERACTION_DATA_SINGLE.questions[0].options.length).toBeGreaterThanOrEqual(2);
     });
 
     it('MOCK_INTERACTION_DATA_SINGLE 选项应包含 id、label、desc', () => {
-      for (const opt of MOCK_INTERACTION_DATA_SINGLE.options) {
+      for (const opt of MOCK_INTERACTION_DATA_SINGLE.questions[0].options) {
         expect(opt.id).toBeTruthy();
         expect(opt.label).toBeTruthy();
         expect(opt.desc).toBeTruthy();
@@ -89,18 +92,25 @@ describe('WORKFLOW_DSL', () => {
 
     it('MOCK_INTERACTION_DATA_MULTIPLE 应为多选模式', () => {
       expect(MOCK_INTERACTION_DATA_MULTIPLE.type).toBe('multiple');
-      expect(MOCK_INTERACTION_DATA_MULTIPLE.options.length).toBeGreaterThanOrEqual(2);
+      expect(MOCK_INTERACTION_DATA_MULTIPLE.questions.length).toBe(1);
+      expect(MOCK_INTERACTION_DATA_MULTIPLE.questions[0].options.length).toBeGreaterThanOrEqual(2);
     });
 
     it('选项 tag 和 tagColor 应有效', () => {
       const allOptions = [
-        ...MOCK_INTERACTION_DATA_SINGLE.options,
-        ...MOCK_INTERACTION_DATA_MULTIPLE.options,
+        ...MOCK_INTERACTION_DATA_SINGLE.questions[0].options,
+        ...MOCK_INTERACTION_DATA_MULTIPLE.questions[0].options,
       ];
       for (const opt of allOptions) {
         if (opt.tag) expect(typeof opt.tag).toBe('string');
         if (opt.tagColor) expect(typeof opt.tagColor).toBe('string');
       }
+    });
+
+    it('MOCK_INTERACTION_DATA_MULTI_QUESTION 应包含 2 个问题', () => {
+      expect(MOCK_INTERACTION_DATA_MULTI_QUESTION.questions.length).toBe(2);
+      expect(MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[0].type).toBe('single');
+      expect(MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[1].type).toBe('multiple');
     });
   });
 

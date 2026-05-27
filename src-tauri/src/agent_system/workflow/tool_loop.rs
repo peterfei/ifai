@@ -5,7 +5,7 @@
 use super::cancellation::CancellationManager;
 use super::parallel::ParallelDispatcher;
 use super::runner::ToolCallDetails;
-use super::tools::{create_tool_definitions, ToolCall, ToolExecutor, ToolResult};
+use super::tools::{create_tool_definitions, wait_for_feedback, ToolCall, ToolExecutor, ToolResult};
 use crate::core_traits::ai::{Content, ContentPart, Message};
 use futures_util::StreamExt;
 use serde_json::json;
@@ -336,6 +336,31 @@ pub async fn execute_with_tools(
             tool_duration,
             tool_calls.len()
         );
+
+        // 🔥 检测 request_user_input 工具 — 等待用户反馈
+        let mut results: Vec<(ToolCall, ToolResult)> = results;
+        for (tool_call, ref mut result) in results.iter_mut() {
+            if tool_call.name == "request_user_input" && !result.is_error {
+                // 从输出中提取 _feedback_req_id
+                if let Ok(output_json) = serde_json::from_str::<serde_json::Value>(&result.output) {
+                    if let Some(feedback_req_id) = output_json.get("_feedback_req_id").and_then(|v| v.as_str()) {
+                        wf_log!("[ToolLoop] 💬 request_user_input: 等待用户反馈 (id={})", feedback_req_id);
+                        match wait_for_feedback(feedback_req_id).await {
+                            Ok(feedback) => {
+                                let feedback_str = serde_json::to_string_pretty(&feedback).unwrap_or_default();
+                                wf_log!("[ToolLoop] ✅ 收到用户反馈，长度: {} 字符", feedback_str.len());
+                                result.output = feedback_str;
+                            }
+                            Err(e) => {
+                                wf_log!("[ToolLoop] ⚠️ 用户反馈等待失败: {}", e);
+                                result.output = format!("用户反馈等待失败: {}", e);
+                                result.is_error = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // 将工具结果添加到消息历史
         for (tool_call, result) in results {

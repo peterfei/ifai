@@ -28,6 +28,7 @@ const TypewriterText: React.FC<{
 };
 import { useThreadStore } from '../../stores/threadStore';
 import { toast } from 'sonner';
+import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
 import { ToolApproval } from './ToolApproval';
 import { ToolBatchApproval } from './ToolBatchApproval';
 import { ExploreProgress } from './ExploreProgress';
@@ -982,6 +983,20 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     }
                                 } else if (action === 'openComposer') {
                                     onOpenComposer?.(message.id);
+                                } else if (action === 'confirm') {
+                                    const questionAnswers = data?.questionAnswers || [];
+                                    const cardAction = data?.action;
+                                    const feedbackRequestId = (message as any)?.metadata?.feedbackRequestId;
+                                    if (feedbackRequestId) {
+                                        chatEventBus.emit('workflow:feedback', {
+                                            workflowId: (message as any)?.metadata?.workflowId,
+                                            feedbackRequestId,
+                                            questionAnswers,
+                                            action: cardAction,
+                                        });
+                                    } else {
+                                        console.warn('[MessageItem] ⚠️ confirm action: no feedbackRequestId found');
+                                    }
                                 }
                             }}
                             compact={!isUser}

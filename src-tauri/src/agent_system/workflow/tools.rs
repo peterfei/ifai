@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
+use tokio::sync::oneshot;
+use uuid::Uuid;
 
 /// 🔥 Phase 7: 文件内容缓存（并行 Agent 共享读优化）
 ///
@@ -44,6 +46,66 @@ fn file_cache_insert(canonical_path: String, content: String) {
             guard.entry(canonical_path).or_insert(content);
         }
     }
+}
+
+/// 🔥 用户反馈通道（request_user_input 工具用）
+/// Sender 和 Receiver 分开存储，submit_user_feedback 用 Sender，wait_for_feedback 用 Receiver
+static PENDING_FEEDBACK_TXS: OnceLock<Mutex<HashMap<String, oneshot::Sender<serde_json::Value>>>> = OnceLock::new();
+static PENDING_FEEDBACK_RXS: OnceLock<Mutex<HashMap<String, oneshot::Receiver<serde_json::Value>>>> = OnceLock::new();
+
+fn get_feedback_txs() -> &'static Mutex<HashMap<String, oneshot::Sender<serde_json::Value>>> {
+    PENDING_FEEDBACK_TXS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn get_feedback_rxs() -> &'static Mutex<HashMap<String, oneshot::Receiver<serde_json::Value>>> {
+    PENDING_FEEDBACK_RXS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 等待用户反馈（tool_loop 在 join_all 后调用）
+pub async fn wait_for_feedback(feedback_req_id: &str) -> Result<serde_json::Value> {
+    let rx = get_feedback_rxs()
+        .lock()
+        .unwrap()
+        .remove(feedback_req_id)
+        .ok_or_else(|| anyhow::anyhow!("未找到反馈请求: {}", feedback_req_id))?;
+    tokio::time::timeout(Duration::from_secs(300), rx)
+        .await
+        .map_err(|_| anyhow::anyhow!("用户反馈等待超时(5分钟)"))?
+        .map_err(|_| anyhow::anyhow!("反馈通道已关闭"))
+}
+
+/// 创建反馈通道并返回交互数据 JSON（供 HarnessAIService 等外部调用）
+pub fn create_feedback_channel(
+    title: &str,
+    questions: &[serde_json::Value],
+    on_select: Option<&str>,
+) -> Result<serde_json::Value> {
+    let feedback_req_id = Uuid::new_v4().to_string();
+    let (tx, rx) = oneshot::channel();
+    get_feedback_txs()
+        .lock()
+        .unwrap()
+        .insert(feedback_req_id.clone(), tx);
+    get_feedback_rxs()
+        .lock()
+        .unwrap()
+        .insert(feedback_req_id.clone(), rx);
+    Ok(serde_json::json!({
+        "_feedback_req_id": feedback_req_id,
+        "title": title,
+        "questions": questions,
+        "onSelect": on_select,
+    }))
+}
+
+/// 提交用户反馈（由 submit_user_feedback Tauri command 调用）
+pub fn submit_feedback(feedback_req_id: &str, feedback: serde_json::Value) -> Result<(), String> {
+    let tx = get_feedback_txs()
+        .lock()
+        .map_err(|e| e.to_string())?
+        .remove(feedback_req_id)
+        .ok_or_else(|| "没有待处理的反馈请求".to_string())?;
+    tx.send(feedback).map_err(|_| "反馈发送失败".to_string())
 }
 
 /// 工具调用请求
@@ -757,8 +819,34 @@ impl ToolExecutor for DefaultToolExecutor {
                 let working_dir = input["working_dir"].as_str();
                 self.execute_command(command, working_dir).await
             }
+            "request_user_input" => {
+                let title = input["title"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 title 参数"))?;
+                let questions = input["questions"]
+                    .as_array()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 questions 数组参数"))?;
+                if questions.is_empty() {
+                    return Err(anyhow::anyhow!("questions 数组不能为空"));
+                }
+                // 验证每个 question 至少包含 id/type/question/options
+                for (i, q) in questions.iter().enumerate() {
+                    if q.get("id").and_then(|v| v.as_str()).is_none() {
+                        return Err(anyhow::anyhow!("questions[{}] 缺少 id", i));
+                    }
+                    if q.get("type").and_then(|v| v.as_str()).is_none() {
+                        return Err(anyhow::anyhow!("questions[{}] 缺少 type", i));
+                    }
+                    if q.get("options").and_then(|v| v.as_array()).map_or(true, |a| a.is_empty()) {
+                        return Err(anyhow::anyhow!("questions[{}] 缺少非空 options 数组", i));
+                    }
+                }
+                let on_select = input.get("onSelect").and_then(|v| v.as_str());
+                let result = create_feedback_channel(title, questions, on_select)?;
+                Ok(serde_json::to_string(&result)?)
+            }
             _ => Err(anyhow::anyhow!(
-                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project, agent_search, agent_write_file, agent_execute_command, git_status, git_snapshot, secret_scanner, git_commit",
+                "未知的工具: {}。可用工具: agent_read_file, agent_list_dir, agent_scan_project, agent_search, agent_write_file, agent_execute_command, request_user_input, git_status, git_snapshot, secret_scanner, git_commit",
                 name
             )),
         }
@@ -915,6 +1003,53 @@ fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
                         }
                     },
                     "required": ["command"]
+                }
+            }
+        }),
+        // request_user_input — 向用户发起交互式提问
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "request_user_input",
+                "description": "向用户发起交互式提问，展示一个交互卡片让用户选择选项后继续。用于需要用户做出决策的场景，如选择实现方案、确认配置、勾选测试类型等。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "交互卡片的标题，例如 \"选择迁移策略\"、\"确认配置项\""
+                        },
+                        "questions": {
+                            "type": "array",
+                            "description": "问题列表。单个问题 = 单选自动确认；多个问题 = 各题独立选择 + 统一确认按钮",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "id": { "type": "string", "description": "问题唯一标识" },
+                                    "type": { "type": "string", "enum": ["single", "multiple"], "description": "single=单选, multiple=多选" },
+                                    "question": { "type": "string", "description": "问题文本" },
+                                    "compactAsk": { "type": "string", "description": "（可选）紧凑模式下的提问文本" },
+                                    "options": {
+                                        "type": "array",
+                                        "description": "选项列表",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": { "type": "string", "description": "选项唯一标识" },
+                                                "label": { "type": "string", "description": "选项显示文本" },
+                                                "desc": { "type": "string", "description": "选项描述" },
+                                                "tag": { "type": "string", "description": "（可选）选项标签" },
+                                                "tagColor": { "type": "string", "enum": ["brand", "emerald", "amber", "red"], "description": "（可选）标签颜色" }
+                                            },
+                                            "required": ["id", "label"]
+                                        }
+                                    }
+                                },
+                                "required": ["id", "type", "question", "options"]
+                            }
+                        }
+                    },
+                    "required": ["title", "questions"]
                 }
             }
         }),
@@ -1812,5 +1947,189 @@ mod tests {
             .execute("agent_execute_command", &serde_json::json!({ "command": "" }))
             .await;
         assert!(result.is_ok(), "空命令应不崩溃: {:?}", result.err());
+    }
+
+    // ========================================================================
+    // request_user_input 测试
+    // ========================================================================
+
+    #[test]
+    fn test_request_user_input_registered_in_definitions() {
+        // UT-D.1
+        let definitions = super::create_tool_definitions();
+        let names: std::collections::HashSet<&str> = definitions
+            .iter()
+            .filter_map(|d| d["function"]["name"].as_str())
+            .collect();
+        assert!(names.contains("request_user_input"), "request_user_input 必须在 workflow tool definitions 中");
+    }
+
+    #[test]
+    fn test_request_user_input_has_questions_param() {
+        // UT-D.2: questions 是 required 参数
+        let definitions = super::create_tool_definitions();
+        let tool_def = definitions
+            .iter()
+            .find(|d| d["function"]["name"].as_str() == Some("request_user_input"))
+            .expect("request_user_input 必须存在");
+        let required = tool_def["function"]["parameters"]["required"]
+            .as_array()
+            .expect("必须有 required 数组");
+        let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+        assert!(required_strs.contains(&"questions"), "questions 必须在 required 中");
+        assert!(required_strs.contains(&"title"), "title 必须在 required 中");
+    }
+
+    #[test]
+    fn test_request_user_input_type_enum() {
+        // UT-D.4: type 的 enum 包含 single 和 multiple
+        let definitions = super::create_tool_definitions();
+        let tool_def = definitions
+            .iter()
+            .find(|d| d["function"]["name"].as_str() == Some("request_user_input"))
+            .expect("request_user_input 必须存在");
+        let questions_items = &tool_def["function"]["parameters"]["properties"]["questions"]["items"];
+        let type_enum = questions_items["properties"]["type"]["enum"]
+            .as_array()
+            .expect("type 必须有 enum");
+        let enum_strs: Vec<&str> = type_enum.iter().filter_map(|v| v.as_str()).collect();
+        assert!(enum_strs.contains(&"single"), "enum 应包含 single");
+        assert!(enum_strs.contains(&"multiple"), "enum 应包含 multiple");
+    }
+
+    #[tokio::test]
+    async fn test_request_user_input_missing_params() {
+        // UT-D.6: 缺少参数时返回错误
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 缺少 title
+        let err = executor
+            .execute("request_user_input", &serde_json::json!({ "questions": [] }))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("title"), "缺少 title 应有提示: {}", err);
+
+        // 缺少 questions
+        let err = executor
+            .execute("request_user_input", &serde_json::json!({ "title": "test" }))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("questions"), "缺少 questions 应有提示: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_request_user_input_valid_params() {
+        // 验证完整参数返回正确的交互数据 JSON
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let result = executor
+            .execute("request_user_input", &serde_json::json!({
+                "title": "选择策略",
+                "questions": [{
+                    "id": "q1",
+                    "type": "single",
+                    "question": "请选择迁移策略",
+                    "options": [{
+                        "id": "opt1",
+                        "label": "全面重构",
+                        "desc": "从头重写整个模块"
+                    }]
+                }]
+            }))
+            .await
+            .unwrap();
+
+        // 结果应包含 feedback_req_id, title, questions
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed.get("_feedback_req_id").and_then(|v| v.as_str()).is_some(), "应有 _feedback_req_id");
+        assert_eq!(parsed["title"], "选择策略");
+        assert!(parsed["questions"].is_array());
+        assert_eq!(parsed["questions"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_request_user_input_questions_validation() {
+        // 验证 questions 数组为空的错误
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let err = executor
+            .execute("request_user_input", &serde_json::json!({
+                "title": "test",
+                "questions": []
+            }))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("不能为空"), "空 questions 应有提示: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_request_user_input_question_item_validation() {
+        // 验证 question 缺少 id 时报错
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        let err = executor
+            .execute("request_user_input", &serde_json::json!({
+                "title": "test",
+                "questions": [{
+                    "type": "single",
+                    "question": "?",
+                    "options": [{"id": "a", "label": "A"}]
+                }]
+            }))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("缺少 id"), "question 缺少 id 应有提示: {}", err);
+    }
+
+    #[tokio::test]
+    async fn test_feedback_oneshot_roundtrip() {
+        // UT-D.7: oneshot channel 正常回传
+        let temp_dir = setup_test_dir();
+        let executor = DefaultToolExecutor::new(temp_dir.path().to_str().unwrap().to_string());
+
+        // 执行 request_user_input 创建 oneshot channel
+        let result = executor
+            .execute("request_user_input", &serde_json::json!({
+                "title": "test",
+                "questions": [{"id": "q1", "type": "single", "question": "?", "options": [{"id": "a", "label": "A", "desc": ""}]}]
+            }))
+            .await
+            .unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let feedback_req_id = parsed["_feedback_req_id"].as_str().unwrap().to_string();
+
+        // 从另一个任务发送反馈
+        let feedback = serde_json::json!({"questionAnswers": [{"questionId": "q1", "selectedIds": ["a"]}]});
+        let send_result = super::submit_feedback(&feedback_req_id, feedback.clone());
+        assert!(send_result.is_ok(), "submit_feedback 应成功: {:?}", send_result);
+
+        // 等待反馈（有超时保护）
+        let received = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            super::wait_for_feedback(&feedback_req_id)
+        )
+        .await
+        .expect("wait_for_feedback 应不超时")
+        .expect("wait_for_feedback 应成功");
+        assert_eq!(received["questionAnswers"][0]["questionId"], "q1");
+        assert_eq!(received["questionAnswers"][0]["selectedIds"][0], "a");
+    }
+
+    #[tokio::test]
+    async fn test_feedback_submit_nonexistent_id() {
+        // UT-D.11: 不存在的 feedback_req_id 返回错误
+        let result = super::submit_feedback("nonexistent-id", serde_json::json!({"answer": "yes"}));
+        assert!(result.is_err(), "不存在的 ID 应返回错误");
+        let err = result.unwrap_err();
+        assert!(err.contains("没有待处理"), "错误信息应包含提示: {}", err);
     }
 }

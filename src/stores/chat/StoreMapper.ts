@@ -13,6 +13,7 @@ import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolic
 import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
+import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { createLogger } from '../../utils/logger';
 import { initCrossThreadPersistence } from './CrossThreadPersistenceService';
@@ -26,6 +27,42 @@ const MULTI_MODAL_LOGGING_ENABLED = true;
 
 // 🏆 声明式：活跃 stream 计数器 — isLoading 由此推导，消除时间耦合
 let activeStreamCount = 0;
+
+/**
+ * normalizeInteractionData — 归一化 InteractionData
+ *
+ * 兼容旧格式 { question, options, compactAsk } 和新格式 { questions: [...] }。
+ * 统一输出 { title, questions, type, onSelect } 结构。
+ * 单归一化点：消除 adapter / StoreMapper / InteractionCard 三处分叉。
+ */
+export function normalizeInteractionData(raw: any): any | null {
+  if (!raw) return null;
+  // 新格式：直接是 questions 数组
+  if (raw.questions && Array.isArray(raw.questions) && raw.questions.length > 0) {
+    return {
+      type: raw.questions.length > 1 ? 'multiple' : (raw.type || raw.questions[0].type || 'single'),
+      title: raw.title || '',
+      questions: raw.questions,
+      onSelect: raw.onSelect,
+    };
+  }
+  // 旧格式：{ question, options, compactAsk } → 包装为 questions 数组
+  if (raw.options && Array.isArray(raw.options) && raw.options.length > 0) {
+    return {
+      type: raw.type || 'single',
+      title: raw.title || '',
+      questions: [{
+        id: '_default',
+        type: raw.type || 'single',
+        question: raw.question || '',
+        compactAsk: raw.compactAsk,
+        options: raw.options,
+      }],
+      onSelect: raw.onSelect,
+    };
+  }
+  return null;
+}
 
 export const initStoreMapper = () => {
     // 🔥 CRITICAL: 防止同一页面重复初始化（HMR）
@@ -769,6 +806,9 @@ export const initStoreMapper = () => {
       return progress?.toolCalls || [];
     }
 
+    // normalizeInteractionData 是模块级导出函数，供测试访问
+    // 见文件顶部的 export function normalizeInteractionData
+
     chatEventBus.on('workflow:response', (payload) => {
       const { correlationId, response, workflowId, workflowType } = payload as any;
 
@@ -996,6 +1036,46 @@ export const initStoreMapper = () => {
         hasCompletionStats: !!completion_stats,
       });
 
+      // 🔥 ask_user 或 request_user_input 工具调用：注入 interaction card
+      const isAskUser = event_type === 'ask_user' || (event_type === 'tool_call' && tool_details?.tool_name === 'request_user_input');
+      if (isAskUser && tool_details) {
+        try {
+          const toolInput = typeof tool_details.tool_input === 'string'
+            ? JSON.parse(tool_details.tool_input)
+            : (tool_details.tool_input || {});
+          const interactionData = normalizeInteractionData(toolInput);
+          // 从 tool_output 中提取 _feedback_req_id
+          let feedbackRequestId: string | undefined;
+          try {
+            const toolOutput = typeof tool_details.tool_output === 'string'
+              ? JSON.parse(tool_details.tool_output)
+              : tool_details.tool_output;
+            feedbackRequestId = toolOutput?._feedback_req_id;
+          } catch { /* ignore parse errors */ }
+          if (interactionData) {
+            const interactionMsg = {
+              id: `interaction-${workflowId}-${Date.now()}`,
+              role: 'assistant' as const,
+              content: '',
+              timestamp: Date.now(),
+              metadata: {
+                workflowId,
+                feedbackRequestId,
+                interactionData,
+              },
+            };
+            useChatStore.setState((state: any) => {
+              if (!state?.messages) return state;
+              return { messages: [...state.messages, interactionMsg] };
+            });
+            console.log('[StoreMapper] 💬 Injected interaction card:', { workflowId, feedbackRequestId, questions: interactionData.questions.length });
+          }
+        } catch (err) {
+          console.warn('[StoreMapper] ⚠️ Failed to process ask_user event:', err);
+        }
+        return; // ask_user 不执行后续进度更新逻辑
+      }
+
       // 更新工作流消息，显示实时进度
       const updater = (state: any) => {
         if (!state || !state.messages) {
@@ -1094,6 +1174,57 @@ export const initStoreMapper = () => {
       };
 
       useChatStore.setState(updater as any);
+    });
+
+    // 🏆 workflow:feedback — 用户反馈回传（InteractionCard ➔ Tauri command）
+    chatEventBus.on('workflow:feedback', (payload: any) => {
+      const { workflowId, questionAnswers, action, feedbackRequestId: directFeedbackReqId } = payload;
+
+      console.log('[StoreMapper] 📤 workflow:feedback received:', { workflowId, questionAnswers, action });
+
+      // 从 store 中查找 feedbackRequestId
+      let feedbackRequestId = directFeedbackReqId;
+      if (!feedbackRequestId) {
+        const currentState = useChatStore.getState();
+        if (currentState?.messages && workflowId) {
+          const interactionMsg = currentState.messages.find(
+            (m: any) => m.metadata?.workflowId === workflowId && m.metadata?.feedbackRequestId
+          );
+          feedbackRequestId = (interactionMsg as any)?.metadata?.feedbackRequestId;
+        }
+      }
+
+      if (!feedbackRequestId) {
+        console.warn('[StoreMapper] ⚠️ workflow:feedback: no feedbackRequestId found');
+        return;
+      }
+
+      // 调用 Tauri command 回传反馈
+      invoke('submit_user_feedback', {
+        feedbackRequestId: feedbackRequestId,
+        feedback: { questionAnswers, action },
+      }).then(() => {
+        console.log('[StoreMapper] ✅ Feedback submitted:', workflowId);
+      }).catch((err: any) => {
+        console.error('[StoreMapper] ❌ Feedback submission failed:', err);
+      });
+
+      // 更新对应 interaction 消息的状态为 answered
+      useChatStore.setState((state: any) => {
+        if (!state?.messages) return state;
+        const updated = state.messages.map((m: any) => {
+          if (m.metadata?.interactionData) {
+            if (workflowId && m.metadata?.workflowId === workflowId) {
+              return { ...m, status: 'answered' as const };
+            }
+            if (feedbackRequestId && m.metadata?.feedbackRequestId === feedbackRequestId) {
+              return { ...m, status: 'answered' as const };
+            }
+          }
+          return m;
+        });
+        return { messages: updated };
+      });
     });
 
     /** 根据 event_type 推导 PhaseData 的 status 和 progress */
@@ -1986,6 +2117,39 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:tool:completed', (payload) => {
       const { toolId, result, error, correlationId, shouldContinue } = payload;
 
+      // 🔥 request_user_input: 检测并注入 interaction card（商用 GUI 路径）
+      let isRequestUserInput = false;
+      if (result && typeof result === 'string') {
+        try {
+          const parsedResult = JSON.parse(result);
+          if (parsedResult._feedback_req_id && parsedResult.questions) {
+            isRequestUserInput = true;
+            const interactionData = normalizeInteractionData(parsedResult);
+            if (interactionData) {
+              useChatStore.setState((state: any) => {
+                if (!state?.messages) return state;
+                return {
+                  messages: [
+                    ...state.messages,
+                    {
+                      id: `interaction-${toolId}-${Date.now()}`,
+                      role: 'assistant',
+                      content: '',
+                      timestamp: Date.now(),
+                      metadata: {
+                        feedbackRequestId: parsedResult._feedback_req_id,
+                        interactionData,
+                      },
+                    },
+                  ],
+                };
+              });
+              console.log('[StoreMapper] 💬 Injected interaction card (GUI path):', { toolId, questions: interactionData.questions.length });
+            }
+          }
+        } catch { /* ignore parse errors */ }
+      }
+
       const updater = (state: any) => {
         // 🏆 注意：保持原始结果格式（JSON 对象或字符串），由 UI 层的 toolResultFormatter 负责格式化
         const content = error || (typeof result === 'string' ? result : JSON.stringify(result));
@@ -2008,6 +2172,11 @@ export const initStoreMapper = () => {
           }
           return msg;
         });
+
+        // 🔥 request_user_input: 跳过 tool 结果消息（interaction card 已替代）
+        if (isRequestUserInput) {
+          return { messages: updatedMessages };
+        }
 
         // 检查是否已存在工具结果消息
         const hasToolResult = state.messages.some((m: any) => m.id === `res-${toolId}`);

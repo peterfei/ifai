@@ -132,19 +132,34 @@ export interface InteractionOption {
 }
 
 /**
- * 交互卡片数据
+ * 交互问题项（多问题模式的单个问题）
  */
-export interface InteractionData {
+export interface InteractionQuestionItem {
+  /** 问题唯一标识 */
+  id: string;
   /** 交互类型 */
   type: 'single' | 'multiple';
-  /** 交互标题 */
-  title: string;
   /** 问题文本 */
   question: string;
   /** 紧凑模式下的提示文本 */
-  compactAsk: string;
+  compactAsk?: string;
   /** 选项列表 */
   options: InteractionOption[];
+}
+
+/**
+ * 交互卡片数据 — 统一数据模型
+ *
+ * 无论是单问题还是多问题，统一使用 `questions` 数组表达。
+ * 单问题 = questions.length === 1。
+ */
+export interface InteractionData {
+  /** 交互类型（多问题时固定为 'multiple'） */
+  type: 'single' | 'multiple';
+  /** 交互标题 */
+  title: string;
+  /** 问题列表（单问题 = length 1，多问题 = length N） */
+  questions: InteractionQuestionItem[];
   /** 选择后的动作 */
   onSelect: ApprovalAction;
 }
@@ -315,32 +330,39 @@ export const MOCK_APPROVAL_DATA_HIGH_RISK: ApprovalData = {
  * MOCK_INTERACTION_DATA_SINGLE — Mock 单选交互数据
  *
  * 场景：询问用户偏好的迁移策略
+ * 格式：单问题（questions.length === 1）
  */
 export const MOCK_INTERACTION_DATA_SINGLE: InteractionData = {
   type: 'single',
   title: '选择迁移策略',
-  question: '请选择您偏好的登录模块迁移策略：',
-  compactAsk: '正在征求您的意见...',
-  options: [
+  questions: [
     {
-      id: 'full',
-      label: '全面重构',
-      desc: '重新实现整个登录模块，代码更整洁',
-      tag: '推荐',
-      tagColor: 'brand',
-    },
-    {
-      id: 'incr',
-      label: '渐进式改造',
-      desc: '保留现有接口，逐步替换内部实现',
-      tag: '稳妥',
-    },
-    {
-      id: 'hybrid',
-      label: '混合方案',
-      desc: '核心逻辑重写，UI 层渐进替换',
-      tag: '平衡',
-      tagColor: 'amber',
+      id: '_default',
+      type: 'single',
+      question: '请选择您偏好的登录模块迁移策略：',
+      compactAsk: '正在征求您的意见...',
+      options: [
+        {
+          id: 'full',
+          label: '全面重构',
+          desc: '重新实现整个登录模块，代码更整洁',
+          tag: '推荐',
+          tagColor: 'brand',
+        },
+        {
+          id: 'incr',
+          label: '渐进式改造',
+          desc: '保留现有接口，逐步替换内部实现',
+          tag: '稳妥',
+        },
+        {
+          id: 'hybrid',
+          label: '混合方案',
+          desc: '核心逻辑重写，UI 层渐进替换',
+          tag: '平衡',
+          tagColor: 'amber',
+        },
+      ],
     },
   ],
   onSelect: 'continue',
@@ -350,40 +372,83 @@ export const MOCK_INTERACTION_DATA_SINGLE: InteractionData = {
  * MOCK_INTERACTION_DATA_MULTIPLE — Mock 多选交互数据
  *
  * 场景：选择安全扫描范围
+ * 格式：单问题（questions.length === 1），但问题类型为 multiple
  */
 export const MOCK_INTERACTION_DATA_MULTIPLE: InteractionData = {
   type: 'multiple',
   title: '选择扫描范围',
-  question: '请选择需要安全扫描的检查项（可多选）：',
-  compactAsk: '请选择扫描范围...',
-  options: [
+  questions: [
     {
-      id: 'sqli',
-      label: 'SQL 注入检测',
-      desc: '扫描数据库查询中的拼接注入风险',
-      tag: '高危',
-      tagColor: 'red',
+      id: '_default',
+      type: 'multiple',
+      question: '请选择需要安全扫描的检查项（可多选）：',
+      compactAsk: '请选择扫描范围...',
+      options: [
+        {
+          id: 'sqli',
+          label: 'SQL 注入检测',
+          desc: '扫描数据库查询中的拼接注入风险',
+          tag: '高危',
+          tagColor: 'red',
+        },
+        {
+          id: 'xss',
+          label: 'XSS 漏洞检测',
+          desc: '扫描前端模板中的跨站脚本风险',
+          tag: '高危',
+          tagColor: 'red',
+        },
+        {
+          id: 'dep',
+          label: '依赖漏洞检查',
+          desc: '检查第三方库的已知 CVE 漏洞',
+          tag: '中危',
+          tagColor: 'amber',
+        },
+        {
+          id: 'secret',
+          label: '密钥泄露检测',
+          desc: '扫描硬编码密钥和凭据泄露风险',
+          tag: '中危',
+          tagColor: 'amber',
+        },
+      ],
+    },
+  ],
+  onSelect: 'continue',
+};
+
+/**
+ * MOCK_INTERACTION_DATA_MULTI_QUESTION — Mock 多问题交互数据
+ *
+ * 场景：LLM 同时询问迁移策略 + 测试策略
+ * 格式：多问题（questions.length === 2）
+ */
+export const MOCK_INTERACTION_DATA_MULTI_QUESTION: InteractionData = {
+  type: 'multiple',
+  title: '选择重构方案',
+  questions: [
+    {
+      id: 'strategy',
+      type: 'single',
+      question: '请选择您偏好的登录模块迁移策略：',
+      compactAsk: '正在征求您的意见...',
+      options: [
+        { id: 'full',  label: '全面重构',   desc: '重新实现整个登录模块，代码更整洁', tag: '推荐', tagColor: 'brand' },
+        { id: 'incr',  label: '渐进式改造', desc: '保留现有接口，逐步替换内部实现',   tag: '稳妥' },
+        { id: 'hybrid', label: '混合方案',   desc: '核心逻辑重写，UI 层渐进替换',     tag: '平衡', tagColor: 'amber' },
+      ],
     },
     {
-      id: 'xss',
-      label: 'XSS 漏洞检测',
-      desc: '扫描前端模板中的跨站脚本风险',
-      tag: '高危',
-      tagColor: 'red',
-    },
-    {
-      id: 'dep',
-      label: '依赖漏洞检查',
-      desc: '检查第三方库的已知 CVE 漏洞',
-      tag: '中危',
-      tagColor: 'amber',
-    },
-    {
-      id: 'secret',
-      label: '密钥泄露检测',
-      desc: '扫描硬编码密钥和凭据泄露风险',
-      tag: '中危',
-      tagColor: 'amber',
+      id: 'testing',
+      type: 'multiple',
+      question: '请选择需要生成的测试类型（可多选）：',
+      compactAsk: '请选择测试类型...',
+      options: [
+        { id: 'unit', label: '单元测试', desc: '覆盖核心逻辑函数',       tag: '必须', tagColor: 'red' },
+        { id: 'intg', label: '集成测试', desc: '验证模块间交互',         tag: '推荐', tagColor: 'brand' },
+        { id: 'e2e',  label: 'E2E 测试', desc: '端到端用户流程验证',     tag: '可选', tagColor: 'amber' },
+      ],
     },
   ],
   onSelect: 'continue',

@@ -865,6 +865,53 @@ impl AIService for HarnessAIService {
                                             .unwrap_or("TodoWrite")
                                             .to_string();
 
+                                        // 🔥 request_user_input: 创建反馈通道并等待用户交互
+                                        // 不走 router.execute()，而是通过 oneshot channel 等待前端反馈
+                                        if tool_name == "request_user_input" {
+                                            let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                                            let questions = args.get("questions").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+                                            let on_select = args.get("onSelect").and_then(|v| v.as_str());
+
+                                            match crate::agent_system::workflow::tools::create_feedback_channel(title, &questions, on_select) {
+                                                Ok(interaction_json) => {
+                                                    let interaction_str = serde_json::to_string(&interaction_json).unwrap_or_default();
+
+                                                    // 发送 tool_done 事件给前端（包含 interaction 数据）
+                                                    let done_event = json!({
+                                                        "type": "tool_done",
+                                                        "tool_call_id": tool_id,
+                                                        "tool": "request_user_input",
+                                                        "result": interaction_str,
+                                                    });
+                                                    callback(done_event.to_string());
+
+                                                    // 等待用户反馈（5 分钟超时，复用 wait_for_feedback）
+                                                    let feedback_req_id = interaction_json["_feedback_req_id"].as_str().unwrap_or("");
+                                                    match crate::agent_system::workflow::tools::wait_for_feedback(feedback_req_id).await {
+                                                        Ok(feedback) => {
+                                                            let feedback_str = serde_json::to_string(&feedback).unwrap_or_default();
+                                                            (tool_name.clone(), feedback_str)
+                                                        }
+                                                        Err(e) => {
+                                                            let err_str = json!({
+                                                                "error": true, "success": false,
+                                                                "message": format!("用户反馈等待失败: {}", e),
+                                                                "tool_name": "request_user_input"
+                                                            }).to_string();
+                                                            (tool_name.clone(), err_str)
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    let err_str = json!({
+                                                        "error": true, "success": false,
+                                                        "message": format!("创建反馈通道失败: {}", e),
+                                                        "tool_name": "request_user_input"
+                                                    }).to_string();
+                                                    (tool_name.clone(), err_str)
+                                                }
+                                            }
+                                        } else {
                                         // 🔥 FIX: 为 bash 工具自动注入 working_dir 参数
                                         if tool_name == "bash" || tool_name == "PowerShell" {
                                             if let Some(obj) = args.as_object_mut() {
@@ -1068,6 +1115,7 @@ impl AIService for HarnessAIService {
                                         callback(done_event.to_string());
 
                                         (tool_name, exec_result)
+                                        }
                                     } else {
                                         // JSON 解析失败：使用 tool_name_map 中的名称尝试执行
                                         println!("[AI] ⚠️ Failed to parse tool args as JSON, trying fallback. result_str preview: {}",

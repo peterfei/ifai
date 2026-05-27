@@ -88,6 +88,8 @@ pub fn required_permission_for(tool_name: &str) -> PermissionMode {
             | "execute_command"
             | "PowerShell"
             => PermissionMode::DangerFullAccess,
+        "request_user_input"
+            => PermissionMode::Prompt,
         _ => PermissionMode::DangerFullAccess, // 未知工具默认最高权限
     }
 }

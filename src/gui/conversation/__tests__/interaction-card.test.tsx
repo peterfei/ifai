@@ -13,7 +13,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { InteractionCard } from '../cards/InteractionCard';
-import { MOCK_INTERACTION_DATA_SINGLE, MOCK_INTERACTION_DATA_MULTIPLE } from '../WORKFLOW_DSL';
+import { MOCK_INTERACTION_DATA_SINGLE, MOCK_INTERACTION_DATA_MULTIPLE, MOCK_INTERACTION_DATA_MULTI_QUESTION } from '../WORKFLOW_DSL';
 
 function makeMessage(data: any) {
   return { id: 'test', role: 'assistant' as const, content: '', timestamp: Date.now(), data };
@@ -28,7 +28,7 @@ describe('InteractionCard', () => {
       render(<InteractionCard message={msg} />);
 
       expect(screen.getByText(MOCK_INTERACTION_DATA_SINGLE.title)).toBeTruthy();
-      expect(screen.getByText(MOCK_INTERACTION_DATA_SINGLE.question)).toBeTruthy();
+      expect(screen.getByText(MOCK_INTERACTION_DATA_SINGLE.questions[0].question)).toBeTruthy();
     });
 
     it('应显示"LLM 提问"标签', () => {
@@ -42,7 +42,7 @@ describe('InteractionCard', () => {
       const msg = makeMessage(MOCK_INTERACTION_DATA_SINGLE);
       render(<InteractionCard message={msg} />);
 
-      for (const opt of MOCK_INTERACTION_DATA_SINGLE.options) {
+      for (const opt of MOCK_INTERACTION_DATA_SINGLE.questions[0].options) {
         expect(screen.getByText(opt.label)).toBeTruthy();
         expect(screen.getByText(opt.desc)).toBeTruthy();
       }
@@ -53,7 +53,7 @@ describe('InteractionCard', () => {
       render(<InteractionCard message={msg} />);
 
       // 有 tag 的选项应显示
-      const taggedOption = MOCK_INTERACTION_DATA_SINGLE.options.find(o => o.tag);
+      const taggedOption = MOCK_INTERACTION_DATA_SINGLE.questions[0].options.find(o => o.tag);
       if (taggedOption?.tag) {
         expect(screen.getByText(taggedOption.tag)).toBeTruthy();
       }
@@ -77,7 +77,7 @@ describe('InteractionCard', () => {
       const msg = makeMessage(MOCK_INTERACTION_DATA_SINGLE);
       render(<InteractionCard message={msg} />);
 
-      const firstOption = MOCK_INTERACTION_DATA_SINGLE.options[0];
+      const firstOption = MOCK_INTERACTION_DATA_SINGLE.questions[0].options[0];
       const optionEl = screen.getByText(firstOption.label).closest('[class*="rounded-lg"]')!;
       fireEvent.click(optionEl);
 
@@ -109,7 +109,7 @@ describe('InteractionCard', () => {
       const msg = makeMessage(MOCK_INTERACTION_DATA_MULTIPLE);
       render(<InteractionCard message={msg} />);
 
-      for (const opt of MOCK_INTERACTION_DATA_MULTIPLE.options) {
+      for (const opt of MOCK_INTERACTION_DATA_MULTIPLE.questions[0].options) {
         expect(screen.getByText(opt.label)).toBeTruthy();
         expect(screen.getByText(opt.desc)).toBeTruthy();
       }
@@ -119,7 +119,7 @@ describe('InteractionCard', () => {
       const msg = makeMessage(MOCK_INTERACTION_DATA_MULTIPLE);
       render(<InteractionCard message={msg} />);
 
-      const firstOption = MOCK_INTERACTION_DATA_MULTIPLE.options[0];
+      const firstOption = MOCK_INTERACTION_DATA_MULTIPLE.questions[0].options[0];
       const optionEl = screen.getByText(firstOption.label).closest('[class*="rounded-lg"]')!;
       fireEvent.click(optionEl);
 
@@ -138,7 +138,7 @@ describe('InteractionCard', () => {
       const msg = makeMessage(MOCK_INTERACTION_DATA_MULTIPLE);
       render(<InteractionCard message={msg} />);
 
-      const firstOption = MOCK_INTERACTION_DATA_MULTIPLE.options[0];
+      const firstOption = MOCK_INTERACTION_DATA_MULTIPLE.questions[0].options[0];
       const optionEl = screen.getByText(firstOption.label).closest('[class*="rounded-lg"]')!;
       fireEvent.click(optionEl);
 
@@ -150,7 +150,7 @@ describe('InteractionCard', () => {
       const msg = makeMessage(MOCK_INTERACTION_DATA_MULTIPLE);
       render(<InteractionCard message={msg} />);
 
-      const firstOption = MOCK_INTERACTION_DATA_MULTIPLE.options[0];
+      const firstOption = MOCK_INTERACTION_DATA_MULTIPLE.questions[0].options[0];
       const optionEl = screen.getByText(firstOption.label).closest('[class*="rounded-lg"]')!;
 
       fireEvent.click(optionEl); // 选中
@@ -158,6 +158,114 @@ describe('InteractionCard', () => {
 
       fireEvent.click(optionEl); // 取消选中
       expect(screen.getByText('确认选择 (0)')).toBeTruthy();
+    });
+  });
+
+  /* ===== 多问题模式 ===== */
+
+  describe('多问题模式', () => {
+    /* UT-C.2 */
+    it('UT-C.2: 应渲染多组独立选项', () => {
+      const msg = makeMessage(MOCK_INTERACTION_DATA_MULTI_QUESTION);
+      render(<InteractionCard message={msg} />);
+
+      // 两个问题各自渲染
+      expect(screen.getByText(MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[0].question)).toBeTruthy();
+      expect(screen.getByText(MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[1].question)).toBeTruthy();
+      // 选项也分别渲染
+      for (const opt of MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[0].options) {
+        expect(screen.getByText(opt.label)).toBeTruthy();
+      }
+      for (const opt of MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[1].options) {
+        expect(screen.getByText(opt.label)).toBeTruthy();
+      }
+    });
+
+    /* UT-C.9 */
+    it('UT-C.9: 每个问题的问题文本正确显示', () => {
+      const msg = makeMessage(MOCK_INTERACTION_DATA_MULTI_QUESTION);
+      render(<InteractionCard message={msg} />);
+
+      expect(screen.getByText(MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[0].question)).toBeTruthy();
+      expect(screen.getByText(MOCK_INTERACTION_DATA_MULTI_QUESTION.questions[1].question)).toBeTruthy();
+    });
+
+    /* 多问题模式应显示统一确认按钮 */
+    it('多问题模式应显示确认按钮', () => {
+      const msg = makeMessage(MOCK_INTERACTION_DATA_MULTI_QUESTION);
+      render(<InteractionCard message={msg} />);
+
+      expect(screen.getByText('确认选择 (0)')).toBeTruthy();
+    });
+
+    /* 确认按钮在无选择时禁用 */
+    it('确认按钮在无选择时禁用', () => {
+      const msg = makeMessage(MOCK_INTERACTION_DATA_MULTI_QUESTION);
+      render(<InteractionCard message={msg} />);
+
+      const confirmBtn = screen.getByText('确认选择 (0)').closest('button')!;
+      expect(confirmBtn.disabled).toBe(true);
+    });
+  });
+
+  /* ===== onAction 回调 ===== */
+
+  describe('onAction 回调', () => {
+    /* UT-C.8 */
+    it('UT-C.8: 多选确认触发 onAction 携带 questionAnswers', () => {
+      const onAction = vi.fn();
+      const msg = makeMessage({
+        type: 'single',
+        title: '测试',
+        questions: [{
+          id: 'q1',
+          type: 'multiple',
+          question: '选择类型',
+          options: [
+            { id: 'a', label: '单元测试', desc: '测试单个函数' },
+            { id: 'b', label: '集成测试', desc: '测试组件交互' },
+          ],
+        }],
+      });
+      render(<InteractionCard message={msg} onAction={onAction} />);
+
+      // 选中选项
+      fireEvent.click(screen.getByText('单元测试').closest('[class*="rounded-lg"]')!);
+      // 点击确认
+      fireEvent.click(screen.getByText('确认选择 (1)').closest('button')!);
+
+      expect(onAction).toHaveBeenCalledWith('confirm', expect.objectContaining({
+        questionAnswers: expect.arrayContaining([
+          expect.objectContaining({ questionId: 'q1', selectedIds: ['a'] }),
+        ]),
+      }));
+    });
+  });
+
+  /* ===== 已解决状态 ===== */
+
+  describe('已解决状态', () => {
+    /* UT-C.7 */
+    it('UT-C.7: resolved 后选项不可点击', () => {
+      const onAction = vi.fn();
+      const msg = makeMessage({
+        type: 'single',
+        title: '测试',
+        questions: [{
+          id: 'q1',
+          type: 'multiple',
+          question: '选择类型',
+          options: [{ id: 'a', label: '选项A', desc: 'desc' }],
+        }],
+      });
+      render(<InteractionCard message={msg} onAction={onAction} />);
+
+      // 选中并确认
+      fireEvent.click(screen.getByText('选项A').closest('[class*="rounded-lg"]')!);
+      fireEvent.click(screen.getByText('确认选择 (1)').closest('button')!);
+
+      // resolved 后再次点击不应触发回调
+      expect(onAction).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -2,6 +2,7 @@
 //!
 //! 提供前端 UI 与工作流系统的集成
 
+use crate::agent_system::workflow::tools::submit_feedback;
 use crate::agent_system::workflow::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -390,6 +391,15 @@ pub async fn cancel_workflow(workflow_id: String, window: tauri::Window) -> Resu
     } else {
         Err("工作流不存在".to_string())
     }
+}
+
+/// 提交用户反馈（给 request_user_input 工具）
+#[tauri::command]
+pub async fn submit_user_feedback(
+    feedback_request_id: String,
+    feedback: serde_json::Value,
+) -> Result<(), String> {
+    submit_feedback(&feedback_request_id, feedback)
 }
 
 /// 获取工作流状态

@@ -549,6 +549,54 @@ impl ToolRegistry {
             }),
             required_permission: ToolPermissionMode::ReadOnly,
         });
+
+        // 🆕 request_user_input - 用户交互反馈工具
+        self.register(ToolSpec {
+            name: "request_user_input",
+            description: "向用户展示一组问题并等待反馈。用于需要用户决策的场景，例如选择策略、确认方案等。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "交互标题"
+                    },
+                    "questions": {
+                        "type": "array",
+                        "description": "问题列表（支持单/多选）",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string", "description": "问题唯一标识" },
+                                "type": { "type": "string", "enum": ["single", "multiple"], "description": "选择类型" },
+                                "question": { "type": "string", "description": "问题文本" },
+                                "compactAsk": { "type": "string", "description": "紧凑模式提示文本" },
+                                "options": {
+                                    "type": "array",
+                                    "description": "选项列表",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": { "type": "string", "description": "选项标识" },
+                                            "label": { "type": "string", "description": "选项显示文本" },
+                                            "desc": { "type": "string", "description": "选项描述" }
+                                        },
+                                        "required": ["id", "label"]
+                                    }
+                                }
+                            },
+                            "required": ["id", "type", "question", "options"]
+                        }
+                    },
+                    "onSelect": {
+                        "type": "string",
+                        "description": "选中后触发的操作类型（可选）"
+                    }
+                },
+                "required": ["title", "questions"]
+            }),
+            required_permission: ToolPermissionMode::Prompt,
+        });
     }
 
     /// 获取工具白名单（用于子 Agent）

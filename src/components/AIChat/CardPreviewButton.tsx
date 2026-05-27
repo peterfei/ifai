@@ -81,9 +81,7 @@ function createAllMockMessages() {
     makeMessage('interaction', {
       type: MOCK_INTERACTION_DATA_SINGLE.type,
       title: MOCK_INTERACTION_DATA_SINGLE.title,
-      question: MOCK_INTERACTION_DATA_SINGLE.question,
-      compactAsk: MOCK_INTERACTION_DATA_SINGLE.compactAsk,
-      options: MOCK_INTERACTION_DATA_SINGLE.options,
+      questions: MOCK_INTERACTION_DATA_SINGLE.questions,
       onSelect: MOCK_INTERACTION_DATA_SINGLE.onSelect,
     }),
 
@@ -91,9 +89,7 @@ function createAllMockMessages() {
     makeMessage('interaction', {
       type: MOCK_INTERACTION_DATA_MULTIPLE.type,
       title: MOCK_INTERACTION_DATA_MULTIPLE.title,
-      question: MOCK_INTERACTION_DATA_MULTIPLE.question,
-      compactAsk: MOCK_INTERACTION_DATA_MULTIPLE.compactAsk,
-      options: MOCK_INTERACTION_DATA_MULTIPLE.options,
+      questions: MOCK_INTERACTION_DATA_MULTIPLE.questions,
       onSelect: MOCK_INTERACTION_DATA_MULTIPLE.onSelect,
     }),
 
