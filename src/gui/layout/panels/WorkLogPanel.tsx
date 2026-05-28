@@ -5,9 +5,10 @@
  * 使用 AGENT_DSL 颜色查表渲染 Agent 头像和名称
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useWorkLogData } from './useWorkLogData';
 import { getAgent } from '../../conversation/AGENT_DSL';
+import { useAgentStore } from '../../../stores/agentStore';
 
 /** 文件类型 → 图标标签 */
 function getFileTypeLabel(type: string): string {
@@ -24,6 +25,17 @@ function getFileTypeLabel(type: string): string {
 
 export function WorkLogPanel() {
   const logs = useWorkLogData();
+  const runningAgents = useAgentStore((s) => s.runningAgents);
+
+  // 提取当前活跃的 Agent 类型集合（用于高亮）
+  const activeAgentTypes = useMemo(() => {
+    const activeStatuses = new Set(['running', 'waitingfortool', 'initializing']);
+    return new Set(
+      runningAgents
+        .filter((a) => activeStatuses.has(a.status))
+        .map((a) => a.type)
+    );
+  }, [runningAgents]);
 
   if (logs.length === 0) {
     return (
@@ -39,13 +51,16 @@ export function WorkLogPanel() {
         const agent = getAgent(log.agentId);
         const color = log.agentColor || agent?.color?.text || '#6B7280';
         const abbr = agent?.abbr ?? log.agentName.charAt(0).toUpperCase();
+        const isActive = activeAgentTypes.has(log.agentId);
 
         return (
           <div
             key={`${log.timestamp}-${i}`}
             className="flex items-start gap-2 px-2 py-1.5 rounded-lg"
             style={{
-              backgroundColor: 'rgba(0, 122, 204, 0.02)',
+              backgroundColor: isActive
+                ? 'rgba(0, 122, 204, 0.05)'
+                : 'rgba(0, 122, 204, 0.02)',
             }}
           >
             {/* Agent 彩色圆点 */}
