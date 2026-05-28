@@ -151,6 +151,7 @@ pub async fn execute_workflow(
 
     // 🔥 创建 window_clone 用于 progress_callback（必须在 tokio::spawn 外部）
     let window_for_progress = window.clone();
+    let window_for_collab = window.clone();
 
     // 创建运行器
     let runner = WorkflowRunner::with_default_config(workflow)
@@ -179,7 +180,18 @@ pub async fn execute_workflow(
             } else {
                 println!("[Workflow] ✅ Progress event sent successfully");
             }
-        });
+        })
+        // 🔥 设置 Agent 协作事件回调（发射 agent:spawn:begin/end/close 等事件）
+        .with_collab_event_callback(CollabEventCallback(std::sync::Arc::new(move |event| {
+            let json = serde_json::to_value(&event).unwrap();
+            let event_type = json["type"].as_str().unwrap().to_string();
+            let data = json["data"].clone();
+            println!("[Workflow] 📤 Emitting collab event: {} for agent: {:?}",
+                event_type, data.get("agent_id"));
+            if let Err(e) = window_for_collab.emit(&event_type, &data) {
+                eprintln!("[Workflow] ⚠️ Failed to emit collab event {}: {}", event_type, e);
+            }
+        })));
 
     println!("[Workflow] ✅ WorkflowRunner created with progress callback");
 
@@ -542,6 +554,10 @@ pub async fn execute_quick_workflow(
             println!("[Workflow] ✅ Creating refactor workflow");
             create_quick_refactor_workflow(&target_path)
         }
+        "refactor_test" => {
+            println!("[Workflow] ✅ Creating refactor+test workflow");
+            create_quick_refactor_test_workflow(&target_path)
+        }
         "proposal" => {
             println!("[Workflow] ✅ Creating proposal workflow");
             create_quick_proposal_workflow(&target_path)
@@ -753,7 +769,7 @@ fn create_quick_test_workflow(target_path: &str) -> Workflow {
                         "分析该目录下的源文件并生成单元测试。
 
 流程：
-1. 读取源文件了解代码结构
+1. 使用 agent_read_file 读取关键源文件（目录结构已预提供，无需 agent_scan_project）
 2. 生成对应的测试文件
 3. 使用 agent_write_file 创建测试文件
 
@@ -827,6 +843,60 @@ fn create_quick_refactor_workflow(target_path: &str) -> Workflow {
                     ..Default::default()
                 }),
         );
+
+    workflow
+        .variables
+        .insert("target_path".to_string(), target_path.to_string());
+
+    workflow
+}
+
+fn create_quick_refactor_test_workflow(target_path: &str) -> Workflow {
+    let mut workflow = Workflow::new("quick-refactor-test", "生成代码并测试")
+        .with_description("先生成/重构代码，再自动生成单元测试");
+
+    use crate::agent_system::workflow::types::AgentConfig;
+
+    workflow
+        .add_node(
+            WorkflowNode::new("refactor", AgentType::Refactor)
+                .with_label("生成代码")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "根据用户需求实现或修改代码。
+
+流程：
+1. 使用 agent_read_file 读取现有文件了解项目结构（目录结构已预提供，无需扫描）
+2. 根据用户需求实现新功能或改进现有代码
+3. 使用 agent_write_file 写入代码文件
+
+**输出**：列出创建/修改了哪些文件、变更摘要"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        )
+        .add_node(
+            WorkflowNode::new("test", AgentType::Test)
+                .with_label("生成测试")
+                .with_config(AgentConfig {
+                    target: Some(target_path.to_string()),
+                    task_description: Some(
+                        "为刚创建的代码及现有项目文件生成单元测试。
+
+流程：
+1. 使用 agent_read_file 读取源代码（目录结构已预提供，无需 agent_scan_project）
+2. 生成对应的测试文件
+3. 使用 agent_write_file 创建测试文件
+
+**输出**：列出创建了哪些测试文件、测试覆盖内容"
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }),
+        )
+        .add_edge(WorkflowEdge::new("refactor", "test"));
 
     workflow
         .variables

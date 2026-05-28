@@ -130,6 +130,7 @@ impl AgentRegistry {
         #[cfg(not(feature = "commercial"))]
         {
             let agent_name = format!("{:?}", agent_type);
+            ctx.decrement_depth();
             Ok(json!({
                 "agent": agent_name,
                 "input": input,
@@ -283,6 +284,7 @@ impl AgentRegistry {
                 #[cfg(not(feature = "commercial"))]
                 {
                     let agent_name = format!("{:?}", agent_type_clone);
+                    ctx_fork.decrement_depth();
                     (
                         agent_type_clone.clone(),
                         Ok(json!({

@@ -1,0 +1,115 @@
+# Agent 协作事件 schema
+# 单一事实来源：修改此文件 → 重新 cargo build → 自动更新 Rust enum + emit 宏 + TS 类型
+# 语法：serde_yaml 兼容
+events:
+  # ── Agent 生命周期事件 ────────────────────────────────────
+  - name: AgentSpawnBegin
+    tauri_event: "agent:spawn:begin"
+    trigger: "execute_node_entry"
+    description: "Agent 开始执行"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+      agent_type:
+        type: String
+        desc: "Agent 类型（如 Refactor, Test）"
+      task:
+        type: String
+        desc: "任务描述"
+
+  - name: AgentSpawnEnd
+    tauri_event: "agent:spawn:end"
+    trigger: "execute_node_exit"
+    description: "Agent 执行完成"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+      result:
+        type: String
+        desc: "执行结果（completed/failed）"
+      duration_ms:
+        type: u64
+        desc: "执行耗时（毫秒）"
+
+  - name: AgentClose
+    tauri_event: "agent:close"
+    trigger: "workflow_node_complete"
+    description: "Agent 工作完成，从界面移除"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+
+  - name: AgentResume
+    tauri_event: "agent:resume"
+    trigger: "workflow_resume"
+    description: "Agent 恢复执行"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+      phase:
+        type: String
+        desc: "恢复的阶段"
+
+  # ── 交互事件 ──────────────────────────────────────────────
+  - name: InteractionBegin
+    tauri_event: "agent:interaction:begin"
+    trigger: "request_user_input"
+    description: "Agent 请求用户输入（选项选择）"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+      question:
+        type: String
+        desc: "问题描述"
+      options:
+        type: "Vec<String>"
+        desc: "可选选项列表"
+
+  - name: InteractionEnd
+    tauri_event: "agent:interaction:end"
+    trigger: "user_input_received"
+    description: "用户已确认输入"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+      response:
+        type: String
+        desc: "用户响应内容"
+
+  # ── 审批事件 ──────────────────────────────────────────────
+  - name: ApprovalWaiting
+    tauri_event: "agent:waiting:approval"
+    trigger: "tool_call_requires_approval"
+    description: "Agent 等待用户审批"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+      title:
+        type: String
+        desc: "审批标题"
+      files:
+        type: "Vec<String>"
+        desc: "受影响文件列表"
+
+  # ── 进度事件 ──────────────────────────────────────────────
+  - name: ProgressUpdate
+    tauri_event: "workflow:progress"
+    trigger: "node_progress_change"
+    description: "Agent 进度更新"
+    fields:
+      agent_id:
+        type: String
+        desc: "Agent 唯一标识"
+      progress:
+        type: u32
+        desc: "进度百分比（0-100）"
+      message:
+        type: String
+        desc: "进度描述"

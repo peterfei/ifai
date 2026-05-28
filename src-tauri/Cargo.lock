@@ -3257,6 +3257,7 @@ dependencies = [
  "notify",
  "num_cpus",
  "once_cell",
+ "paste",
  "portable-pty",
  "pretty_assertions",
  "proc-macro2",

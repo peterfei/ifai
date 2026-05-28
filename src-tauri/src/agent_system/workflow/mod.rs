@@ -51,13 +51,17 @@ macro_rules! wf_log {
 
 pub mod cancellation;
 pub mod condition;
+pub mod condition_rules;
+pub mod events_gen;
 pub mod executor;
 pub mod parallel;
 pub mod parser;
 pub mod prompt_loader;
 pub mod runner;
 pub mod macros;
+pub mod quick_workflows;
 pub mod scheduler;
+pub mod state;
 pub mod spec;
 pub mod tool_loop;
 pub mod tools;
@@ -70,8 +74,10 @@ pub mod integration_tests;
 pub mod examples;
 
 pub use executor::{
-    AgentNodeExecutor, ConditionEvaluator, DataPassingManager, NodeExecutionContext, NodeExecutor,
+    AgentNodeExecutor, CollabEventCallback, ConditionEvaluator, DataPassingManager,
+    NodeExecutionContext, NodeExecutor,
 };
+pub use events_gen::CollabEvent;
 pub use parser::{ParseError, WorkflowParser};
 pub use spec::{AgentWorkflowSpec, PhaseMode, PhaseSpec, SpecError};
 pub use runner::{

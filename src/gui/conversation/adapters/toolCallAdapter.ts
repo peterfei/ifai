@@ -85,7 +85,7 @@ function groupConsecutive(calls: any[]): any[] {
   if (calls.length === 0) return [];
 
   const result: any[] = [];
-  let current = null;
+  let current: { id: any; name: string; count: number; status?: string; statuses: Set<string>; args: any; result: any } | null = null;
 
   for (const tc of calls) {
     const name = getToolName(tc);
@@ -93,7 +93,7 @@ function groupConsecutive(calls: any[]): any[] {
     if (current && current.name === name) {
       // 追加到当前组
       current.count++;
-      current.statuses.add(tc.status);
+      current.statuses.add(tc.status as string);
       // 取最新的 args（后面的可能覆盖前面的）
       if (tc.args) current.args = tc.args;
     } else {
@@ -110,7 +110,7 @@ function groupConsecutive(calls: any[]): any[] {
         id: tc.id,
         name,
         count: 1,
-        statuses: new Set([tc.status]),
+        statuses: new Set<string>([tc.status]),
         args: tc.args,
         result: tc.result,
       };

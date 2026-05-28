@@ -66,6 +66,20 @@ impl std::fmt::Debug for ContentDeltaCallback {
     }
 }
 
+/// 🔥 Agent 协作事件回调（用于发射 CollabEvent 到前端）
+#[derive(Clone)]
+pub struct CollabEventCallback(
+    pub std::sync::Arc<dyn Fn(super::events_gen::CollabEvent) + Send + Sync>,
+);
+
+impl std::fmt::Debug for CollabEventCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("CollabEventCallback")
+            .field(&"<callback>")
+            .finish()
+    }
+}
+
 /// 节点执行上下文
 #[derive(Debug, Clone)]
 pub struct NodeExecutionContext {
@@ -87,6 +101,8 @@ pub struct NodeExecutionContext {
     pub content_delta_callback: Option<ContentDeltaCallback>,
     /// 🔥 取消令牌（用于中断执行）
     pub cancellation_token: Option<tokio_util::sync::CancellationToken>,
+    /// 🔥 Agent 协作事件回调（可选，用于向前端发射 CollabEvent）
+    pub collab_event_callback: Option<CollabEventCallback>,
 }
 
 impl NodeExecutionContext {
@@ -102,6 +118,7 @@ impl NodeExecutionContext {
             tool_progress_callback: None,
             content_delta_callback: None,
             cancellation_token: None,
+            collab_event_callback: None,
         }
     }
 
@@ -147,6 +164,15 @@ impl NodeExecutionContext {
     /// 🔥 设置取消令牌
     pub fn with_cancellation_token(mut self, token: tokio_util::sync::CancellationToken) -> Self {
         self.cancellation_token = Some(token);
+        self
+    }
+
+    /// 🔥 设置 Agent 协作事件回调
+    pub fn with_collab_event_callback(
+        mut self,
+        callback: std::sync::Arc<dyn Fn(super::events_gen::CollabEvent) + Send + Sync>,
+    ) -> Self {
+        self.collab_event_callback = Some(CollabEventCallback(callback));
         self
     }
 
@@ -253,6 +279,8 @@ impl NodeExecutor for AgentNodeExecutor {
 
         // 构建任务描述
         let task_description = Self::build_task_description(node, ctx);
+        // 🔥 为 CollabEvent 准备副本（task_description 随后会被 move 到 full_description）
+        let task_desc_for_event = task_description.clone();
 
         // 构建完整的任务描述（包含前驱节点的输出）
         let full_description = if ctx.inputs.is_empty() {
@@ -282,6 +310,15 @@ impl NodeExecutor for AgentNodeExecutor {
             cancellation_token: ctx.cancellation_token.clone(), // 🔥 传递取消令牌
         };
 
+        // 🔥 发射 AgentSpawnBegin 事件
+        if let Some(ref cb) = ctx.collab_event_callback {
+            cb.0(super::events_gen::CollabEvent::AgentSpawnBegin {
+                agent_id: node_id.clone(),
+                agent_type: agent_type_str.clone(),
+                task: task_desc_for_event,
+            });
+        }
+
         // 🔥 执行真实的智能体调用
         let tool_progress_callback = ctx.tool_progress_callback.clone().map(|cb| cb.0);
         let content_delta_callback = ctx.content_delta_callback.clone().map(|cb| cb.0);
@@ -290,10 +327,24 @@ impl NodeExecutor for AgentNodeExecutor {
             &agent_ctx,
             tool_progress_callback,
             content_delta_callback,
+            ctx.collab_event_callback.clone(),
         )
         .await?;
 
         let end_time = chrono::Utc::now().timestamp_millis();
+
+        // 🔥 发射 AgentSpawnEnd 事件
+        if let Some(ref cb) = ctx.collab_event_callback {
+            cb.0(super::events_gen::CollabEvent::AgentSpawnEnd {
+                agent_id: node_id.clone(),
+                result: "completed".to_string(),
+                duration_ms: (end_time - start_time) as u64,
+            });
+            // 🔥 发射 AgentClose 事件（标记 agent 工作完成、可从界面移除）
+            cb.0(super::events_gen::CollabEvent::AgentClose {
+                agent_id: node_id.clone(),
+            });
+        }
 
         Ok(NodeResult {
             node_id: node_id.clone(),
@@ -347,6 +398,7 @@ impl AgentNodeExecutor {
             std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>,
         >,
         content_delta_callback: Option<std::sync::Arc<dyn Fn(String, bool) + Send + Sync>>,
+        collab_event_callback: Option<CollabEventCallback>,
     ) -> Result<String> {
         wf_log!(
             "[WorkflowExecutor] 🤖 Executing real agent: {:?}",
@@ -441,7 +493,8 @@ impl AgentNodeExecutor {
                 // 🔥 使用工具调用循环（参考 claw-code 的 ConversationRuntime）
                 let tool_executor =
                     super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
-                let tool_config = super::tool_loop::ToolLoopConfig::default();
+                let mut tool_config = super::tool_loop::ToolLoopConfig::default();
+                tool_config.agent_id = Some(node.id.clone());
 
                 // 🔥 准备工具调用进度回调
                 let tool_progress_callback_clone = tool_progress_callback.clone();
@@ -454,6 +507,7 @@ impl AgentNodeExecutor {
                     tool_config,
                     tool_progress_callback_clone,
                     ctx.cancellation_token.clone(),
+                    collab_event_callback.clone(),
                 )
                 .await
                 .map_err(|e| {
@@ -537,7 +591,7 @@ impl AgentNodeExecutor {
             )
         } else {
             format!(
-                "{}\n\n# 项目上下文\n\n项目根目录: {}\n\n## 目录结构（已预扫描）\n```\n{}\n```\n\n⚠️ 目录结构已提供，无需再调用 agent_scan_project。使用多个 agent_read_file 并行读取需要的文件。",
+                "{}\n\n# 项目上下文\n\n项目根目录: {}\n\n## 目录结构（已预扫描）\n```\n{}\n```\n\n## ⚠️ 重要约束\n\n目录结构已在上面完整提供，**严禁调用 agent_scan_project 或 agent_list_dir**。\n如果需要读取文件内容，请直接使用 agent_read_file 或 agent_batch_read。",
                 base_prompt, ctx.project_root, project_tree
             )
         };

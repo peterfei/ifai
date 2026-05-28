@@ -9,7 +9,7 @@
 import { BasePayload, chatEventBus } from '../eventBus/ChatEventBus';
 
 export interface WorkflowIntent {
-  workflowType: 'code_review' | 'exploration' | 'quality_check' | 'test' | 'doc' | 'refactor' | 'proposal' | 'task' | 'custom';
+  workflowType: 'code_review' | 'exploration' | 'quality_check' | 'test' | 'doc' | 'refactor' | 'proposal' | 'task' | 'custom' | 'refactor_test';
   targetPath?: string;
   confidence: number;
   matched: boolean;
@@ -241,6 +241,12 @@ const WORKFLOW_KEYWORDS = {
 };
 
 /**
+ * 代码生成指示词（用于复合意图检测）
+ * 当输入同时匹配「生成代码」和「测试」模式时，路由到 refactor_test 双节点工作流
+ */
+const CODE_GEN_PATTERNS = ['生成', '创建', '实现', '添加'];
+
+/**
  * 斜杠命令映射
  */
 const WORKFLOW_SLASH_COMMANDS = {
@@ -468,6 +474,28 @@ export class WorkflowIntentHandler {
       }
     }
 
+    // 🔥 复合意图检测：同时匹配「生成代码」和「测试」→ refactor_test
+    const hasCodeGen = CODE_GEN_PATTERNS.some(p => {
+      // "生成" 跟 "测试" → 是 test 关键词的一部分，不算 code gen
+      if (p === '生成') {
+        const genIdx = text.indexOf('生成');
+        return genIdx >= 0 && !text.slice(genIdx).startsWith('生成测试');
+      }
+      return text.includes(p);
+    });
+    const testPatterns = WORKFLOW_KEYWORDS.test.patterns;
+    const hasTestPattern = testPatterns.some(p => text.includes(p.toLowerCase()));
+    if (hasCodeGen && hasTestPattern) {
+      const targetPath = this.extractTargetPath(text);
+      return {
+        isWorkflow: true,
+        workflowType: 'refactor_test',
+        targetPath,
+        confidence: 0.85,
+        response: this.getExecutionResponse('refactor_test', targetPath),
+      };
+    }
+
     if (bestMatch && bestMatch.confidence >= 0.6) {
       const targetPath = this.extractTargetPath(text);
 
@@ -531,6 +559,17 @@ export class WorkflowIntentHandler {
    */
   private getExecutionResponse(workflowType: string, targetPath?: string): string {
     const path = targetPath || '.';  // 🔥 修复：默认使用当前目录
+    // 🔥 复合工作流特殊处理
+    if (workflowType === 'refactor_test') {
+      return `🚀 正在启动 **生成代码 + 测试** 复合工作流
+
+1. 先生成/重构代码
+2. 再为代码生成单元测试
+
+目标路径: \`${path}\`
+
+工作流已开始执行，您可以在对话中查看实时进度。`;
+    }
     const workflowInfo = Object.values(WORKFLOW_KEYWORDS).find(w => w.workflowType === workflowType);
 
     if (!workflowInfo) {
@@ -649,6 +688,11 @@ ${workflowInfo.description}
           } else if (workflowType === 'refactor') {
             return [
               { id: 'refactor', label: '重构代码', agent_type: 'refactor' }
+            ];
+          } else if (workflowType === 'refactor_test') {
+            return [
+              { id: 'refactor', label: '生成代码', agent_type: 'refactor' },
+              { id: 'test', label: '生成测试', agent_type: 'test' },
             ];
           } else if (workflowType === 'proposal') {
             return [
@@ -818,6 +862,11 @@ ${workflowInfo.description}
             } else if (workflowType === 'refactor') {
               return [
                 { id: 'refactor', label: '重构代码', agent_type: 'refactor' }
+              ];
+            } else if (workflowType === 'refactor_test') {
+              return [
+                { id: 'refactor', label: '生成代码', agent_type: 'refactor' },
+                { id: 'test', label: '生成测试', agent_type: 'test' },
               ];
             } else if (workflowType === 'proposal') {
               return [
@@ -1022,6 +1071,12 @@ ${mockPlannedNodes.map(n => `- ${n.label}`).join('\n')}
         }
         if (workflowType === 'refactor') {
           return [{ id: 'refactor', label: '重构代码', agent_type: 'refactor' }];
+        }
+        if (workflowType === 'refactor_test') {
+          return [
+            { id: 'refactor', label: '生成代码', agent_type: 'refactor' },
+            { id: 'test', label: '生成测试', agent_type: 'test' },
+          ];
         }
         if (workflowType === 'proposal') {
           return [{ id: 'proposal', label: '生成提案', agent_type: 'proposal' }];

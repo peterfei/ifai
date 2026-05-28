@@ -2,7 +2,7 @@
 //!
 //! 负责执行工作流，追踪节点状态，处理错误和重试
 
-use super::executor::{AgentNodeExecutor, NodeExecutionContext, NodeExecutor};
+use super::executor::{AgentNodeExecutor, CollabEventCallback, NodeExecutionContext, NodeExecutor};
 use super::scheduler::{Schedule, ScheduleError, WorkflowScheduler};
 use super::types::{AgentType, Workflow, WorkflowNode, WorkflowValidationError};
 use anyhow::Result;
@@ -227,6 +227,8 @@ pub struct WorkflowRunner {
     progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
     /// 🔥 取消令牌（用于中断正在执行的工具）
     cancellation_token: tokio_util::sync::CancellationToken,
+    /// 🔥 Agent 协作事件回调（用于向前端发射 CollabEvent）
+    collab_event_callback: Option<CollabEventCallback>,
 }
 
 /// 🔥 工具调用详细信息
@@ -294,6 +296,7 @@ impl WorkflowRunner {
             node_results: Arc::new(RwLock::new(HashMap::new())),
             progress_callback: Arc::new(RwLock::new(None)),
             cancellation_token: tokio_util::sync::CancellationToken::new(),
+            collab_event_callback: None,
         })
     }
 
@@ -313,6 +316,13 @@ impl WorkflowRunner {
             tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(cb.write()));
         *cb_guard = Some(Box::new(callback));
         wf_log!("[WorkflowRunner] ✅ Progress callback set successfully");
+        self
+    }
+
+    /// 🔥 设置 Agent 协作事件回调
+    pub fn with_collab_event_callback(mut self, callback: CollabEventCallback) -> Self {
+        wf_log!("[WorkflowRunner] 🔧 with_collab_event_callback called");
+        self.collab_event_callback = Some(callback);
         self
     }
 
@@ -539,6 +549,7 @@ impl WorkflowRunner {
         let config = self.config.clone();
         let progress_callback = self.progress_callback.clone();
         let cancellation_token = self.cancellation_token.clone();
+        let collab_event_callback = self.collab_event_callback.clone();
 
         wf_log!("[WorkflowRunner] 🔧 progress_callback cloned, checking if it exists...");
         {
@@ -562,6 +573,7 @@ impl WorkflowRunner {
                 let config_clone = config.clone();
                 let progress_callback_clone = progress_callback.clone();
                 let cancellation_token_clone = cancellation_token.clone();
+                let collab_event_callback_clone = collab_event_callback.clone();
 
                 tasks.push(async move {
                     // 🔥 执行节点（内联版本，避免生命周期问题）
@@ -572,6 +584,7 @@ impl WorkflowRunner {
                         config_clone,
                         progress_callback_clone,
                         cancellation_token_clone,
+                        collab_event_callback_clone,
                     )
                     .await
                 });
@@ -615,6 +628,7 @@ impl WorkflowRunner {
         config: RunnerConfig,
         progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
         cancellation_token: tokio_util::sync::CancellationToken,
+        collab_event_callback: Option<CollabEventCallback>,
     ) -> (String, NodeResult) {
         let node_id = node.id.clone();
 
@@ -708,7 +722,7 @@ impl WorkflowRunner {
         let result = match tokio::time::timeout(timeout_duration, async {
             let mut retry_count = 0;
             loop {
-                match Self::execute_node_once_static(&node, &workflow, stats_callback.clone(), cancellation_token.clone()).await
+                match Self::execute_node_once_static(&node, &workflow, stats_callback.clone(), cancellation_token.clone(), collab_event_callback.clone()).await
                 {
                     Ok(result) => break result,
                     Err(e) if retry_count < config.max_retries => {
@@ -811,6 +825,7 @@ impl WorkflowRunner {
         workflow: &Workflow,
         progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
         cancellation_token: tokio_util::sync::CancellationToken,
+        collab_event_callback: Option<CollabEventCallback>,
     ) -> Result<NodeResult> {
         wf_log!(
             "[WorkflowRunner] 🔧 Executing node: {} ({:?})",
@@ -1031,6 +1046,20 @@ impl WorkflowRunner {
             ));
             wf_log!(
                 "[WorkflowRunner] ✅ Content delta callback set up for Doc agent: {}",
+                node.id
+            );
+        }
+
+        // 🔥 添加 Agent 协作事件回调
+        if let Some(ref cb) = collab_event_callback {
+            ctx = ctx.with_collab_event_callback(cb.0.clone());
+            wf_log!(
+                "[WorkflowRunner] ✅ Collab event callback set up for node: {}",
+                node.id
+            );
+        } else {
+            wf_log!(
+                "[WorkflowRunner] ℹ️ No collab event callback for node: {}",
                 node.id
             );
         }

@@ -6,7 +6,6 @@ pub mod debugger;
 pub mod persistence;
 
 // 🆕 元编程模块（v0.5.1）
-#[cfg(feature = "commercial")]
 pub mod macros;
 
 pub mod pivo_controller;
@@ -25,10 +24,8 @@ pub use supervisor::Supervisor;
 
 // 🆕 声明式注册所有 Agent（v0.5.1）
 // 注意：宏通过 #[macro_export] 导出到 crate root，需要重新导入
-#[cfg(feature = "commercial")]
 use crate::global_agent_registry;
 
-#[cfg(feature = "commercial")]
 global_agent_registry! {
     agents: [
         Explore,

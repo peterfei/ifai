@@ -3,6 +3,8 @@
 //! 参考 claw-code 的 ConversationRuntime 实现，支持 AI 工具调用的循环执行
 
 use super::cancellation::CancellationManager;
+use super::executor::CollabEventCallback;
+use super::events_gen::CollabEvent;
 use super::parallel::ParallelDispatcher;
 use super::runner::ToolCallDetails;
 use super::tools::{create_tool_definitions, wait_for_feedback, ToolCall, ToolExecutor, ToolResult};
@@ -17,6 +19,8 @@ use tokio_util::sync::CancellationToken;
 pub struct ToolLoopConfig {
     pub max_iterations: usize,
     pub max_tools_per_turn: usize,
+    /// 当前 agent 标识（用于 CollabEvent 发射）
+    pub agent_id: Option<String>,
 }
 
 impl Default for ToolLoopConfig {
@@ -24,6 +28,7 @@ impl Default for ToolLoopConfig {
         Self {
             max_iterations: 10,
             max_tools_per_turn: 5,
+            agent_id: None,
         }
     }
 }
@@ -54,6 +59,7 @@ pub async fn execute_with_tools(
     config: ToolLoopConfig,
     progress_callback: Option<ToolProgressCallback>,
     cancellation_token: Option<CancellationToken>,
+    collab_event_callback: Option<CollabEventCallback>,
 ) -> Result<String, String> {
     let workflow_start = std::time::Instant::now();
     let mut ai_time_total = std::time::Duration::ZERO;
@@ -352,14 +358,44 @@ pub async fn execute_with_tools(
                 if let Ok(output_json) = serde_json::from_str::<serde_json::Value>(&result.output) {
                     if let Some(feedback_req_id) = output_json.get("_feedback_req_id").and_then(|v| v.as_str()) {
                         wf_log!("[ToolLoop] 💬 request_user_input: 等待用户反馈 (id={})", feedback_req_id);
+
+                        // 🔥 发射 InteractionBegin 事件
+                        let agent_id = config.agent_id.clone().unwrap_or_default();
+                        let question = output_json.get("title").and_then(|v| v.as_str()).unwrap_or("交互式提问").to_string();
+                        if let Some(ref cb) = collab_event_callback {
+                            cb.0(CollabEvent::InteractionBegin {
+                                agent_id: agent_id.clone(),
+                                question: question.clone(),
+                                options: Vec::new(),
+                            });
+                                        }
+
                         match wait_for_feedback(feedback_req_id).await {
                             Ok(feedback) => {
                                 let feedback_str = serde_json::to_string_pretty(&feedback).unwrap_or_default();
                                 wf_log!("[ToolLoop] ✅ 收到用户反馈，长度: {} 字符", feedback_str.len());
+
+                                // 🔥 发射 InteractionEnd 事件
+                                if let Some(ref cb) = collab_event_callback {
+                                    cb.0(CollabEvent::InteractionEnd {
+                                        agent_id,
+                                        response: feedback_str.clone(),
+                                    });
+                                }
+
                                 result.output = feedback_str;
                             }
                             Err(e) => {
                                 wf_log!("[ToolLoop] ⚠️ 用户反馈等待失败: {}", e);
+
+                                // 🔥 发射 InteractionEnd 事件（失败）
+                                if let Some(ref cb) = collab_event_callback {
+                                    cb.0(CollabEvent::InteractionEnd {
+                                        agent_id,
+                                        response: format!("用户反馈等待失败: {}", e),
+                                    });
+                                }
+
                                 result.output = format!("用户反馈等待失败: {}", e);
                                 result.is_error = true;
                             }
@@ -411,6 +447,57 @@ pub async fn execute_with_tools(
                     "⚠️ 多次扫描结果为空，项目目录中没有源文件。\
                      无法完成需要分析源代码的任务。请基于已有信息直接给出结论，无需继续尝试。"
                         .to_string(),
+                ),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+
+        // 🛡️ 重复扫描守卫：agent_scan_project 已被调用 >= 2 次 → 禁止继续扫描
+        let scan_call_count = collected_tool_summary
+            .iter()
+            .filter(|(name, _, _)| name == "agent_scan_project" || name == "agent_list_dir")
+            .count();
+        if scan_call_count >= 2 {
+            wf_log!(
+                "[ToolLoop] 🛡️ agent_scan_project 已调用 {} 次，注入停止扫描指令",
+                scan_call_count
+            );
+            messages.push(Message {
+                role: "system".to_string(),
+                content: Content::Text(
+                    "⚠️ 你已经多次调用 agent_scan_project。项目目录结构已在系统消息中完整提供，\
+                     无需重复扫描。请直接使用 agent_read_file 读取目标文件并继续任务。\
+                     不要再调用任何扫描工具（agent_scan_project / agent_list_dir）。".to_string(),
+                ),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+
+        // 🛡️ 空转检测：最近 4+ 次工具调用全是读取/扫描，没有写入 → 强制输出
+        let recent_tools: Vec<&str> = collected_tool_summary
+            .iter()
+            .rev()
+            .take(6)
+            .map(|(name, _, _)| name.as_str())
+            .collect();
+        let has_write = recent_tools.iter().any(|n| *n == "agent_write_file");
+        let all_readonly = recent_tools.len() >= 4 && recent_tools.iter().all(|n| {
+            matches!(*n, "agent_scan_project" | "agent_list_dir" | "agent_read_file" | "agent_batch_read" | "grep")
+        });
+        if !has_write && all_readonly {
+            wf_log!(
+                "[ToolLoop] 🛡️ 检测到空转：连续 {} 次工具调用只有读取/扫描，无写入操作",
+                recent_tools.len()
+            );
+            messages.push(Message {
+                role: "system".to_string(),
+                content: Content::Text(
+                    "⚠️ 你已连续多次只读取文件而没有执行任何写入操作。\
+                     请立即停止扫描和读取，基于已获得的信息直接生成最终输出。\
+                     如果你有测试代码需要写入，请使用 agent_write_file。\
+                     如果不需要写入，直接输出分析结论。".to_string(),
                 ),
                 tool_calls: None,
                 tool_call_id: None,
@@ -1817,9 +1904,11 @@ mod e2e_tests {
             ToolLoopConfig {
                 max_iterations: 10,
                 max_tools_per_turn: 5,
+                agent_id: None,
             },
             None,  // progress_callback
             None,  // cancellation_token
+            None,  // collab_event_callback
         ).await;
 
         // ── 6. 验证工具循环执行结果 ──────────────────────────────
@@ -2019,9 +2108,11 @@ mod tests {
             ToolLoopConfig {
                 max_iterations: 8,
                 max_tools_per_turn: 5,
+                agent_id: None,
             },
             None, // progress_callback
             None, // cancellation_token
+            None, // collab_event_callback
         )
         .await;
 

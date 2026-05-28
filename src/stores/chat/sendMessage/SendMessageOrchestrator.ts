@@ -131,6 +131,11 @@ export class SendMessageOrchestrator {
             ? [{ id: 'doc', label: '生成文档', agent_type: 'doc' }]
             : wfType === 'refactor'
             ? [{ id: 'refactor', label: '重构代码', agent_type: 'refactor' }]
+            : wfType === 'refactor_test'
+            ? [
+                { id: 'refactor', label: '生成代码', agent_type: 'refactor' },
+                { id: 'test', label: '生成测试', agent_type: 'test' },
+              ]
             : wfType === 'proposal'
             ? [{ id: 'proposal', label: '生成提案', agent_type: 'proposal' }]
             : wfType === 'task'
