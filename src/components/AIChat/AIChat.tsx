@@ -83,7 +83,7 @@ import clsx from 'clsx';
 import { useSkeletonEngine } from './skeleton';
 import { AI_CHAT_SKELETON_CONFIG } from './skeleton/config/skeleton.config';
 import './skeleton/styles.css';
-import { useAgentCollabState } from '../../hooks/useAgentCollabState';
+import { useCollabEvents } from '../../hooks/useCollabEvents';
 import { AgentCompactBar } from './AgentCompactBar';
 
 interface AIChatProps {
@@ -371,8 +371,8 @@ export const AIChat = ({ width, onResizeStart, compact }: AIChatProps) => {
     // enabled 由 useChatScrollController 内部从 featureFlags.newScrollController 读取
   });
 
-  // Agent 协作状态同步
-  useAgentCollabState();
+  // Agent 协作状态同步（Tauri CollabEvent 监听）
+  useCollabEvents();
 
   // 用户手动滚动处理
   const handleScroll = () => {

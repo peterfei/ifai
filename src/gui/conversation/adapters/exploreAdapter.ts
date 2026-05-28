@@ -13,7 +13,11 @@ import type { ExploreData, ExplorePhase, ExploreSubItem } from '../../../types/a
 
 export const exploreAdapter: MessageAdapter = {
   id: 'explore',
-  match: (msg: any) => !!msg.exploreProgress || !!msg.exploreFindings,
+  match: (msg: any) => {
+    // 仅在无 workflowData 时匹配，避免与 agentWorkspaceAdapter 冲突
+    if (msg.metadata?.workflowData || msg.metadata?.phaseData) return false;
+    return !!msg.exploreProgress || !!msg.exploreFindings;
+  },
   adapt: (msg: any) => {
     const phases: ExplorePhase[] = [];
     const progress = msg.exploreProgress;

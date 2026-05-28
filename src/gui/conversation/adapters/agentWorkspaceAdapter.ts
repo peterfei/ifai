@@ -89,17 +89,14 @@ function getActiveAgentsFromPhaseData(phases: PhaseData[]): string[] {
   return Array.from(agents);
 }
 
-/** 检查是否应该匹配（多 agent 或多 phase） */
+/** 检查是否应该匹配（任何 workflowData 或 phaseData 存在即可） */
 function shouldMatch(msg: any): boolean {
   const wf: WorkflowData | undefined = msg.metadata?.workflowData;
   const phases: PhaseData[] | undefined = msg.metadata?.phaseData;
 
-  if (wf) {
-    const agentTypes = new Set(wf.nodes.map((n) => n.agentType));
-    if (agentTypes.size >= 2) return true;
-  }
-
-  if (phases && phases.length >= 2) return true;
+  // 匹配任何 workflow 消息（只要有 workflow 数据就渲染 AgentWorkspaceCard）
+  if (wf && wf.nodes && wf.nodes.length > 0) return true;
+  if (phases && phases.length > 0) return true;
 
   return false;
 }

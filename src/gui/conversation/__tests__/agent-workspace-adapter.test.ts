@@ -56,8 +56,8 @@ describe('agentWorkspaceAdapter', () => {
     expect(result?.cardType).toBe('agent_workspace');
   });
 
-  // AW-A-3: 不匹配（单 agent workflowData）
-  test('AW-A-3: 单 agent workflowData 时不匹配', () => {
+  // AW-A-3: 单 agent workflowData 也匹配（任何 workflow 消息都渲染 AgentWorkspaceCard）
+  test('AW-A-3: 单 agent workflowData 时匹配', () => {
     const msg = makeMessage({
       metadata: {
         workflowData: {
@@ -70,7 +70,9 @@ describe('agentWorkspaceAdapter', () => {
         },
       },
     });
-    expect(adaptMessageToCard(msg)).toBeNull();
+    const result = adaptMessageToCard(msg);
+    expect(result).not.toBeNull();
+    expect(result?.cardType).toBe('agent_workspace');
   });
 
   // AW-A-4: 不匹配（无 workflowData/phaseData）
@@ -161,8 +163,8 @@ describe('agentWorkspaceAdapter', () => {
     expect(data.compactMsg).toContain('性能优化');
   });
 
-  // AW-A-8: 单 phase phaseData 不匹配
-  test('AW-A-8: 单 phase phaseData 不匹配', () => {
+  // AW-A-8: 单 phase phaseData 也匹配（任何 phase 数据都渲染 AgentWorkspaceCard）
+  test('AW-A-8: 单 phase phaseData 时匹配', () => {
     const msg = makeMessage({
       metadata: {
         phaseData: [
@@ -170,6 +172,8 @@ describe('agentWorkspaceAdapter', () => {
         ],
       },
     });
-    expect(adaptMessageToCard(msg)).toBeNull();
+    const result = adaptMessageToCard(msg);
+    expect(result).not.toBeNull();
+    expect(result?.cardType).toBe('agent_workspace');
   });
 });

@@ -1266,8 +1266,10 @@ export const initStoreMapper = () => {
     ): PhaseData[] | undefined {
       if (!phaseData || !node_id) return phaseData;
       const update = derivePhaseStatus(event_type);
-      return phaseData.map((p: PhaseData) => {
+      let phaseMatched = false;
+      const updated = phaseData.map((p: PhaseData) => {
         if (p.nodeId !== node_id) return p;
+        phaseMatched = true;
         const base = { ...p, status: update.status, progress: update.progress };
         // 🔥 从 tool_details 提取 sub items（PhaseCard FileTree 的数据源）
         if (tool_details) {
@@ -1288,6 +1290,25 @@ export const initStoreMapper = () => {
         }
         return base;
       });
+      // 如果没有 phase 匹配 node_id，且 event 不是 pending 初始态，则新建一个 phase
+      if (!phaseMatched && event_type !== 'workflow:started') {
+        const newSub: import('../../types/workflow').SubItem[] = [];
+        if (tool_details) {
+          const toolName = tool_details.tool_name || '';
+          const toolInput = tool_details.tool_input || '';
+          const parsedSub = parseToolDetailsToSubItems(toolName, toolInput, tool_details, event_type);
+          newSub.push(...parsedSub);
+        }
+        updated.push({
+          nodeId: node_id,
+          mode: 'sequential',
+          intent: node_id.replace(/[_-]/g, ' '),
+          progress: update.progress,
+          status: update.status,
+          sub: newSub.length > 0 ? newSub : undefined,
+        });
+      }
+      return updated;
     }
 
     /** 从 tool_details 解析 SubItem[]（声明式映射表驱动） */

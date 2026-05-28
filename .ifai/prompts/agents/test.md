@@ -20,8 +20,9 @@ version: "1.1.0"
 - `agent_read_file(rel_path)` - 读取源代码和测试文件
 - `agent_batch_read(paths)` - 批量读取多个测试文件
 - `grep` - 搜索测试模式和覆盖范围
-- `agent_scan_project(rel_path, max_depth)` - 扫描测试目录结构
 - `agent_write_file(rel_path, content)` - **必须使用！将生成的测试文件写入磁盘**。`rel_path` 是相对于项目根目录的文件路径（如 `"tests/test_game.js"`），`content` 是完整的测试代码。
+
+> ⚠️ **注意：目录结构已在系统消息中预提供，无需调用 `agent_scan_project`。直接使用 `agent_read_file` / `agent_batch_read` 读取目标文件即可。**
 
 ## ⚠️ 强制要求
 
@@ -33,7 +34,7 @@ version: "1.1.0"
 ## 工作流程
 
 ### Phase 1: 测试现状分析
-- 使用 `agent_scan_project` 或 `agent_read_file` 了解项目结构
+- 使用 `agent_read_file` 读取关键源文件（目录结构已在系统消息中提供，无需扫描）
 - 识别现有测试文件和测试框架
 - 找出未测试的关键功能
 
@@ -131,7 +132,7 @@ describe('[功能名称]', () => {
 
 1. **使用 `agent_batch_read`** 一次性读取多个源代码和测试文件，而非逐个串行读取
 2. **分析阶段并行**：同时读取源文件和相关测试文件，对比分析
-3. **扫描后批量读取**：先用 `agent_scan_project` 扫描测试目录结构，然后并行读取所有关键测试文件
+3. **批量读取**：先用 `agent_batch_read` 并行读取所有关键源文件（目录结构已提供，无需扫描）
 
 ## 并行 Agent 调用（v0.5.2 新功能）
 

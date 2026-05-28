@@ -21,6 +21,32 @@ import { useEffect, useRef } from 'react';
 import { useAgentCollabStore } from '../stores/agentCollabStore';
 
 // ============================================================
+// Agent 类型 → dot 配置映射（与 AGENT_DOT_CONFIG 对齐）
+// ============================================================
+
+const AGENT_DOT_MAP: Record<string, { label: string; gradient: string }> = {
+  explore:           { label: 'EX', gradient: 'from-purple-400 to-purple-600' },
+  review:            { label: 'RV', gradient: 'from-pink-400 to-pink-600' },
+  refactor:          { label: 'RF', gradient: 'from-emerald-400 to-emerald-600' },
+  test:              { label: 'TS', gradient: 'from-sky-400 to-sky-600' },
+  doc:               { label: 'DC', gradient: 'from-amber-400 to-amber-600' },
+  debug:             { label: 'DB', gradient: 'from-red-400 to-red-600' },
+  proposal_generator:{ label: 'PG', gradient: 'from-brand-400 to-brand-600' },
+  websearch:         { label: 'WS', gradient: 'from-cyan-400 to-cyan-600' },
+  git_commit:        { label: 'GC', gradient: 'from-slate-400 to-slate-500' },
+  react:             { label: 'RE', gradient: 'from-orange-400 to-orange-600' },
+  general_purpose:   { label: 'GP', gradient: 'from-gray-400 to-gray-600' },
+  task_breakdown:    { label: 'TB', gradient: 'from-brand-400 to-brand-600' },
+};
+
+function getDotConfig(agentType: string): { label: string; gradient: string } {
+  return AGENT_DOT_MAP[agentType] || {
+    label: agentType.slice(0, 2).toUpperCase(),
+    gradient: 'from-brand-400 to-brand-600',
+  };
+}
+
+// ============================================================
 // 事件负载类型（与 schemas/events.yaml 字段对齐）
 // ============================================================
 
@@ -91,16 +117,24 @@ export function useCollabEvents(): void {
           (event) => {
             if (cancelled) return;
             const payload = event.payload as SpawnBeginPayload;
-            // 在 agentCollabStore 中记录活跃 agent
-            useAgentCollabStore.getState().setAgentDots(
-              [
-                {
-                  id: payload.agent_id,
-                  label: payload.agent_type.slice(0, 2).toUpperCase(),
-                  gradient: 'from-brand-400 to-brand-600',
-                  isActive: true,
-                },
-              ],
+            const store = useAgentCollabStore.getState();
+            // 追加或更新 dot（不替换已有 dots）
+            const existingIndex = store.agentDots.findIndex(
+              (dot) => dot.id === payload.agent_id,
+            );
+            const newDot = {
+              id: payload.agent_id,
+              ...getDotConfig(payload.agent_type),
+              isActive: true,
+            };
+            const updatedDots =
+              existingIndex >= 0
+                ? store.agentDots.map((dot, i) =>
+                    i === existingIndex ? newDot : dot,
+                  )
+                : [...store.agentDots, newDot];
+            store.setAgentDots(
+              updatedDots,
               `${payload.agent_type} 正在 ${payload.task.slice(0, 40)}`,
             );
           },

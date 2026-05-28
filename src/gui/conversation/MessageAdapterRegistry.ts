@@ -43,8 +43,8 @@ import { toolCallAdapter } from './adapters/toolCallAdapter';
 import { interactionAdapter } from './adapters/interactionAdapter';
 
 MessageAdapterRegistry.register('cardType-passthrough', cardTypePassthroughAdapter);
-MessageAdapterRegistry.register('explore', exploreAdapter);
 MessageAdapterRegistry.register('agent-workspace', agentWorkspaceAdapter);
+MessageAdapterRegistry.register('explore', exploreAdapter);
 MessageAdapterRegistry.register('tool-call', toolCallAdapter);
 MessageAdapterRegistry.register('interaction', interactionAdapter);
 
