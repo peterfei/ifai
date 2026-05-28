@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 const WORKFLOW_DISPLAY_STRATEGY: Record<string, 'message-embedded' | 'dag'> = {
   exploration: 'message-embedded',
   test: 'message-embedded',
+  code_review: 'message-embedded',
 };
 
 const DEFAULT_DISPLAY_STRATEGY: 'dag' | 'message-embedded' = 'dag';
@@ -31,6 +32,10 @@ describe('getWorkflowDisplayStrategy - 声明式策略表', () => {
 
   it('test → message-embedded', () => {
     expect(getWorkflowDisplayStrategy('test')).toBe('message-embedded');
+  });
+
+  it('code_review → message-embedded', () => {
+    expect(getWorkflowDisplayStrategy('code_review')).toBe('message-embedded');
   });
 
   it('task → dag (默认)', () => {

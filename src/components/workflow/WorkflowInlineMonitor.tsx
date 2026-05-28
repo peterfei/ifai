@@ -568,6 +568,7 @@ function parseNodeType(nodeId: string, parsedInfo: ParsedNodeInfo): WorkflowNode
 const WORKFLOW_DISPLAY_STRATEGY: Record<string, 'message-embedded' | 'dag'> = {
   exploration: 'message-embedded',
   test: 'message-embedded',
+  code_review: 'message-embedded',
   // 其他类型默认走 DAG
 };
 

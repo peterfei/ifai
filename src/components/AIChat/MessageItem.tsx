@@ -1314,6 +1314,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                         {/* WorkflowData 工作流进度可视化（TUI 格式，优先于旧的 exploreProgress） */}
                         {(() => {
+                            // 🔥 HIFI FIX: AgentWorkspaceCard/ExploreCard 已通过适配器渲染，
+                            // 跳过遗留 WorkflowView/ExploreProgressNew 避免重复。
+                            if (resolvedCardType === 'agent_workspace' || resolvedCardType === 'explore') return null;
+
                             const metadata = (message as any).metadata || {};
                             const workflowData = metadata.workflowData;
                             // doc 类型使用 DAG Monitor，不在消息内重复展示 WorkflowView

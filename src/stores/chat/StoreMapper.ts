@@ -542,10 +542,16 @@ export const initStoreMapper = () => {
             newMsgs.splice(existingIdx, 0, userMessage);
             // splice 后 assistant 消息索引后移 1 位
             // 🔥 CRITICAL: 同时修正 assistant 时间戳，确保 user.timestamp < assistant.timestamp
+            // 🔥 FIX: 保留工作流已存在的 phaseData（workflow:started 设置的多节点数据），
+            // 不应用 chat:message:sent 的合成单节点 phaseData（[ {nodeId: 'task'} ]）。
+            // 否则工作流进度事件 node_id（explore_0/review_0/refactor_0）无法匹配 'task'
             newMsgs[existingIdx + 1] = {
               ...newMsgs[existingIdx + 1],
               timestamp: assistantTimestamp,
-              metadata: { ...newMsgs[existingIdx + 1].metadata, phaseData },
+              metadata: {
+                ...newMsgs[existingIdx + 1].metadata,
+                phaseData: newMsgs[existingIdx + 1].metadata?.phaseData || phaseData,
+              },
             };
             return {
               messages: newMsgs,
