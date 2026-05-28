@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { useArtifactData, type FileChangeData } from './useArtifactData';
+import { isHtmlFile } from './previewRules';
 
 /** 文件类型 → 图标标签 */
 function getFileTypeIcon(type: string): string {
@@ -80,6 +81,9 @@ export function ArtifactsPanel({ onFileSelect }: ArtifactsPanelProps) {
 
           {/* 文件名 */}
           <span style={{ flex: 1, fontSize: 13, color: '#fff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {isHtmlFile(file.name) && (
+              <span style={{ marginRight: 6 }}>🔗</span>
+            )}
             {file.name}
           </span>
 

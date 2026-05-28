@@ -1,7 +1,9 @@
 #[cfg(feature = "commercial")]
 use ifainew_core;
 use serde_json::json;
+use std::path::PathBuf;
 use std::sync::Arc;
+use tauri::http;
 use tauri::{async_runtime, Emitter, Manager};
 
 pub mod agent_system; // 🔥 公开 agent_system 供 CLI 使用
@@ -45,6 +47,8 @@ pub mod symbol_scanner;
 
 #[cfg(feature = "commercial")]
 mod commercial;
+
+pub mod preview_server; // 内置预览协议 preview://
 
 use crate::commands::atomic_commands::SessionStore;
 use crate::commands::error_commands::ErrorParserState;
@@ -114,6 +118,12 @@ async fn get_file_metadata(path: String) -> Result<analysis::FileMetadata, Strin
         mtime,
         fingerprint,
     })
+}
+
+#[tauri::command]
+fn read_preview_file(path: String) -> Result<Vec<u8>, String> {
+    let p = std::path::Path::new(&path);
+    std::fs::read(p).map_err(|e| format!("[Preview] 读取文件失败: {} ({})", path, e))
 }
 
 #[tauri::command]
@@ -1630,6 +1640,56 @@ pub fn run() {
             .build(),
     );
 
+    // =========================================================
+    // 🆕 注册 preview:// 自定义协议 — 零 HTTP server、零端口
+    // =========================================================
+    let root_dir = std::env::current_dir()
+        .map(|p| {
+            if p.ends_with("src-tauri") {
+                p.parent().unwrap().to_path_buf()
+            } else {
+                p
+            }
+        })
+        .unwrap_or_else(|_| PathBuf::from("."));
+    log::info!("[Preview] root_dir = {:?}", root_dir);
+
+    builder = builder.register_uri_scheme_protocol("preview", move |_ctx, request| {
+        let uri = request.uri().to_string();
+        let path = uri
+            .strip_prefix("preview://localhost/")
+            .unwrap_or(&uri);
+
+        match crate::preview_server::sanitize_path(&root_dir, path) {
+            Some(full_path) => {
+                match std::fs::read(&full_path) {
+                    Ok(data) => {
+                        let mime = crate::preview_server::mime_from_path(&full_path);
+                        http::Response::builder()
+                            .status(200)
+                            .header("Content-Type", mime)
+                            .body(data)
+                            .unwrap()
+                    }
+                    Err(e) => {
+                        log::warn!("[Preview] 404: {:?} ({})", full_path, e);
+                        http::Response::builder()
+                            .status(404)
+                            .body(Vec::new())
+                            .unwrap()
+                    }
+                }
+            }
+            None => {
+                log::warn!("[Preview] 403: path traversal blocked: {}", path);
+                http::Response::builder()
+                    .status(403)
+                    .body(Vec::new())
+                    .unwrap()
+            }
+        }
+    });
+
     builder = builder.setup(|app| {
         let app_handle = app.handle().clone();
 
@@ -1974,6 +2034,8 @@ pub fn run() {
             commands::workflow_commands::get_default_workflows,
             commands::workflow_commands::create_custom_workflow,
             commands::workflow_commands::execute_quick_workflow,
+            // PreviewPanel: Tauri 模式读取文件
+            read_preview_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

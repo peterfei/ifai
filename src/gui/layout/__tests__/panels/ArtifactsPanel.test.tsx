@@ -12,6 +12,10 @@ import type { FileChangeData } from '../../panels/useArtifactData';
 // Mock useArtifactData
 const mockArtifacts: FileChangeData[] = [];
 
+vi.mock('../../panels/previewRules', () => ({
+  isHtmlFile: (name: string) => /\.html?$/i.test(name),
+}));
+
 vi.mock('../../panels/useArtifactData', () => ({
   useArtifactData: () => mockArtifacts,
 }));
@@ -74,5 +78,20 @@ describe('ArtifactsPanel', () => {
     render(<ArtifactsPanel />);
 
     expect(screen.getByTestId('artifacts-panel')).toBeTruthy();
+  });
+
+  // AP-6: HTML 文件显示预览图标
+  it('AP-6: HTML 文件显示预览图标', () => {
+    mockArtifacts.push(
+      { name: 'index.html', size: '3.2 KB', type: 'html', path: '/src/index.html', additions: 100, deletions: 0 },
+      { name: 'app.js', size: '1.2 KB', type: 'js', path: '/src/app.js', additions: 40, deletions: 0 },
+    );
+
+    render(<ArtifactsPanel />);
+
+    // HTML 文件名旁应有预览图标
+    expect(screen.getByText('🔗')).toBeTruthy();
+    // JS 文件名旁不应有预览图标
+    expect(screen.getByText('app.js')).toBeTruthy();
   });
 });

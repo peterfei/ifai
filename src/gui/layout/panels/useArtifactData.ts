@@ -139,7 +139,7 @@ function extractFileChange(tc: ToolCall): FileChangeData | null {
 }
 
 /** 从消息列表计算产出物（同名文件去重） */
-function computeArtifacts(messages: any[]): FileChangeData[] {
+export function computeArtifacts(messages: any[]): FileChangeData[] {
   const fileMap = new Map<string, FileChangeData>();
 
   for (const msg of messages) {
