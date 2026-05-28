@@ -35,7 +35,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { openFile, activeFileId, openedFiles, setFileDirty, fetchGitStatuses, addWorkspaceRoot, saveWorkspaceConfig, loadWorkspaceConfig } = useFileStore();
-  const { toggleSettings, isSidebarOpen, toggleSidebar } = useLayoutStore();
+  const { toggleSettings, isSidebarOpen, toggleSidebar, guiMode } = useLayoutStore();
   const theme = useSettingsStore(state => state.theme);
   const setTheme = useSettingsStore(state => state.setTheme);
   // v0.3.0: Code Smell Store
@@ -311,6 +311,8 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
       <div className="h-full min-w-6" aria-hidden="true" />
 
       <div className="flex items-center justify-self-end space-x-2" data-no-drag="true">
+        {guiMode !== 'conversation' && (
+          <>
         <button
           className={clsx(
             'rounded-[var(--radius-sm)] p-1 transition-colors',
@@ -337,9 +339,6 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
           title={t('titlebar.codeAnalysis')}
         >
           <Shield size={16} />
-        </button>
-        <button className={iconButtonBaseClass} data-no-drag="true" onClick={toggleSettings} title={t('chat.settings')}>
-          <Settings size={16} />
         </button>
         <button
           className={clsx(
@@ -369,6 +368,11 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
         </button>
         <button className={iconButtonBaseClass} data-no-drag="true" onClick={handleThemeToggle} title={t('titlebar.toggleTheme')}>
           {theme === 'vs-dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+        </>
+        )}
+        <button className={iconButtonBaseClass} data-no-drag="true" onClick={toggleSettings} title={t('chat.settings')}>
+          <Settings size={16} />
         </button>
       </div>
     </div>
