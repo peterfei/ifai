@@ -34,7 +34,7 @@ export class IntentHandler {
     console.log('[IntentHandler] 🔍 Trimmed textInput:', JSON.stringify(textInput));
 
     // P4: 0. 工作流命令优先检测（自然语言 + 斜杠）
-    const workflowIntent = workflowIntentHandler.recognizeWorkflowIntent(textInput);
+    const workflowIntent = await workflowIntentHandler.recognizeWorkflowIntent(textInput);
     console.log('[IntentHandler] Workflow intent check:', {
       input: textInput,
       isWorkflow: workflowIntent.isWorkflow,

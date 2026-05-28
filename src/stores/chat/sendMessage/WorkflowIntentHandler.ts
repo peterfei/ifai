@@ -7,6 +7,7 @@
  */
 
 import { BasePayload, chatEventBus } from '../eventBus/ChatEventBus';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface WorkflowIntent {
   workflowType: 'code_review' | 'exploration' | 'quality_check' | 'test' | 'doc' | 'refactor' | 'proposal' | 'task' | 'custom' | 'refactor_test';
@@ -283,7 +284,7 @@ export class WorkflowIntentHandler {
   /**
    * 识别工作流意图（自然语言）
    */
-  recognizeWorkflowIntent(text: string): WorkflowIntentResult {
+  async recognizeWorkflowIntent(text: string): Promise<WorkflowIntentResult> {
     const normalizedText = text.toLowerCase().trim();
     console.log('[WorkflowIntentHandler] 🔍 Checking text:', text, '-> normalized:', normalizedText);
 
@@ -294,7 +295,7 @@ export class WorkflowIntentHandler {
     }
 
     // 2. 检查自然语言关键词
-    const keywordResult = this.checkKeywords(normalizedText);
+    const keywordResult = await this.checkKeywords(normalizedText);
     if (keywordResult.isWorkflow) {
       return keywordResult;
     }
@@ -454,7 +455,7 @@ export class WorkflowIntentHandler {
   /**
    * 检查关键词
    */
-  private checkKeywords(text: string): WorkflowIntentResult {
+  private async checkKeywords(text: string): Promise<WorkflowIntentResult> {
     let bestMatch: { type: string; confidence: number } | null = null;
 
     // 遍历所有工作流类型
@@ -486,6 +487,13 @@ export class WorkflowIntentHandler {
     const testPatterns = WORKFLOW_KEYWORDS.test.patterns;
     const hasTestPattern = testPatterns.some(p => text.includes(p.toLowerCase()));
     if (hasCodeGen && hasTestPattern) {
+      // 🔥 LLM 消歧：判断是"创建新项目"还是"重构已有代码"
+      const userIntent = await this.disambiguateRefactorTestIntent(text);
+      if (userIntent === 'create_new') {
+        // 创建新项目 → 不走工作流，交给正常 AI 聊天
+        return { isWorkflow: false, confidence: 0 };
+      }
+      // refactor_existing → 继续走 refactor_test 工作流
       const targetPath = this.extractTargetPath(text);
       return {
         isWorkflow: true,
@@ -629,6 +637,84 @@ ${workflowInfo.description}
 请选择您要执行的工作流！`;
 
     return response;
+  }
+
+  /**
+   * 🔥 LLM 消歧：判断用户是想创建新项目还是重构已有代码
+   *
+   * 当复合意图（代码生成 + 测试）触发时调用，避免误将"创建新项目"路由到工作流。
+   * 使用轻量级 ai_completion 调用，失败时保守回退到 refactor_existing（走工作流）。
+   */
+  private async disambiguateRefactorTestIntent(text: string): Promise<'create_new' | 'refactor_existing'> {
+    try {
+      const { useSettingsStore } = await import('../../settingsStore');
+      const settings = useSettingsStore.getState();
+      const provider = settings.providers.find(p => p.id === settings.currentProviderId);
+      if (!provider) {
+        console.warn('[WorkflowIntentHandler] ⚠️ No provider found for LLM disambiguation, falling back to refactor');
+        return 'refactor_existing';
+      }
+
+      const systemPrompt = `你是用户意图分类器。输出只能是 "new" 或 "refactor"，不要输出任何其他内容。
+
+分类规则：
+- new: 用户想创建全新的项目/应用/游戏/网站/脚本/工具等（从零开始）
+- refactor: 用户想修改、优化、重构、审查、分析、测试已有项目/代码
+
+关键原则：如果用户的首要意图是创建新项目，即使同时提到"测试"、"审查"等，也返回 new。
+如果用户的首要意图是修改已有代码，返回 refactor。
+
+示例：
+用户：帮我生成2048小游戏 并写测试用例
+答案：new
+
+用户：帮我写一个贪吃蛇游戏
+答案：new
+
+用户：重构这个模块的代码，补充单元测试
+答案：refactor
+
+用户：给现有项目添加测试
+答案：refactor
+
+用户：创建新网站，带登录功能
+答案：new
+
+用户：优化这段代码的性能
+答案：refactor
+
+用户：生成一个计算器应用，并编写测试
+答案：new
+
+只输出 new 或 refactor。`;
+
+      const userPrompt = `用户：${text}`;
+
+      console.log('[WorkflowIntentHandler] 🤖 LLM disambiguation for:', text);
+
+      const result = await invoke<string>('ai_completion', {
+        providerConfig: {
+          ...provider,
+          models: [settings.currentModel || 'gpt-4o'],
+        },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+
+      const raw = result?.trim().toLowerCase();
+      console.log('[WorkflowIntentHandler] 🤖 LLM disambiguation raw result:', JSON.stringify(result));
+      console.log('[WorkflowIntentHandler] 🤖 LLM disambiguation trimmed:', JSON.stringify(raw));
+
+      // 宽松匹配：只要响应中包含 "new" 就视为 create_new
+      // 这兼容 LLM 可能返回 "new"、" new"、"new\n"、"new." 等情况
+      if (raw?.includes('new')) return 'create_new';
+      return 'refactor_existing';
+    } catch (error) {
+      console.warn('[WorkflowIntentHandler] ⚠️ LLM disambiguation failed, falling back to refactor:', error);
+      return 'refactor_existing';
+    }
   }
 
   /**
@@ -1427,7 +1513,7 @@ ${mockPlannedNodes.map(n => `- ${n.label}`).join('\n')}
    * 处理用户输入并执行工作流（如果识别到意图）
    */
   async handleAndExecute(text: string, payload?: BasePayload): Promise<{ handled: boolean; response?: string; workflowId?: string }> {
-    const intent = this.recognizeWorkflowIntent(text);
+    const intent = await this.recognizeWorkflowIntent(text);
 
     if (!intent.isWorkflow) {
       return { handled: false };

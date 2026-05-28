@@ -2,8 +2,8 @@
  * TDD: 声明式工作流显示策略过滤
  *
  * 核心设计：WORKFLOW_DISPLAY_STRATEGY 优先级表驱动，单一阻塞点 addActiveWorkflow
- * - exploration → 'message-embedded'（由消息内 WorkflowView 处理）
- * - 其他类型 → 'dag'（由 WorkflowInlineMonitor DAG 视图处理）
+ * - 所有 agent 协作类型 → 'message-embedded'（由 AgentWorkspaceCard 内联处理）
+ * - 未注册的自动回退 → 'dag'（由 WorkflowInlineMonitor DAG 视图处理）
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -14,6 +14,9 @@ const WORKFLOW_DISPLAY_STRATEGY: Record<string, 'message-embedded' | 'dag'> = {
   exploration: 'message-embedded',
   test: 'message-embedded',
   code_review: 'message-embedded',
+  task: 'message-embedded',
+  general_purpose: 'message-embedded',
+  doc: 'message-embedded',
 };
 
 const DEFAULT_DISPLAY_STRATEGY: 'dag' | 'message-embedded' = 'dag';
@@ -38,12 +41,16 @@ describe('getWorkflowDisplayStrategy - 声明式策略表', () => {
     expect(getWorkflowDisplayStrategy('code_review')).toBe('message-embedded');
   });
 
-  it('task → dag (默认)', () => {
-    expect(getWorkflowDisplayStrategy('task')).toBe('dag');
+  it('task → message-embedded', () => {
+    expect(getWorkflowDisplayStrategy('task')).toBe('message-embedded');
   });
 
-  it('general_purpose → dag (默认)', () => {
-    expect(getWorkflowDisplayStrategy('general_purpose')).toBe('dag');
+  it('general_purpose → message-embedded', () => {
+    expect(getWorkflowDisplayStrategy('general_purpose')).toBe('message-embedded');
+  });
+
+  it('doc → message-embedded', () => {
+    expect(getWorkflowDisplayStrategy('doc')).toBe('message-embedded');
   });
 
   it('undefined → dag (向后兼容)', () => {
@@ -108,9 +115,10 @@ describe('addActiveWorkflow 声明式过滤（单一阻塞点）', () => {
     expect(mockWorkflowStates.has('wf-1')).toBe(true);
   });
 
-  it('task started → 添加到活跃列表', () => {
+  it('task started → 不添加到活跃列表（message-embedded）', () => {
     handleWorkflowStarted({ workflowId: 'wf-2', workflowType: 'task' });
-    expect(mockActiveWorkflows.has('wf-2')).toBe(true);
+    expect(mockActiveWorkflows.has('wf-2')).toBe(false);
+    expect(mockWorkflowStates.has('wf-2')).toBe(true);
   });
 
   it('test started → 不添加到活跃列表', () => {
@@ -125,12 +133,10 @@ describe('addActiveWorkflow 声明式过滤（单一阻塞点）', () => {
     expect(mockActiveWorkflows.has('wf-test-2')).toBe(false);
   });
 
-  it('混合场景：exploration 和 task 同时触发', () => {
+  it('混合场景：exploration 和 task 同时触发（均不添加到 DAG）', () => {
     handleWorkflowStarted({ workflowId: 'wf-3', workflowType: 'exploration' });
     handleWorkflowStarted({ workflowId: 'wf-4', workflowType: 'task' });
-    expect(mockActiveWorkflows.size).toBe(1);
-    expect(mockActiveWorkflows.has('wf-3')).toBe(false);
-    expect(mockActiveWorkflows.has('wf-4')).toBe(true);
+    expect(mockActiveWorkflows.size).toBe(0);  // 全量 message-embedded
   });
 
   it('exploration progress → 不触发自动添加', () => {
@@ -159,44 +165,21 @@ describe('addActiveWorkflow 声明式过滤（单一阻塞点）', () => {
     expect(mockActiveWorkflows.size).toBe(0);
   });
 
-  it('端到端：exploration → task 交替调用', () => {
+  it('端到端：全量 message-embedded 无 DAG 渲染', () => {
     handleWorkflowStarted({ workflowId: 'exp-1', workflowType: 'exploration' });
     expect(mockActiveWorkflows.size).toBe(0);
 
     handleWorkflowStarted({ workflowId: 'task-1', workflowType: 'task' });
-    expect(mockActiveWorkflows.size).toBe(1);
-
-    handleWorkflowStarted({ workflowId: 'exp-2', workflowType: 'exploration' });
-    expect(mockActiveWorkflows.size).toBe(1);
-    expect(mockActiveWorkflows.has('task-1')).toBe(true);
-  });
-
-  it('端到端：test 和 task 混合交替', () => {
-    handleWorkflowStarted({ workflowId: 'test-1', workflowType: 'test' });
     expect(mockActiveWorkflows.size).toBe(0);
 
-    handleWorkflowStarted({ workflowId: 'task-1', workflowType: 'task' });
-    expect(mockActiveWorkflows.size).toBe(1);
-    expect(mockActiveWorkflows.has('task-1')).toBe(true);
-
-    handleWorkflowStarted({ workflowId: 'test-2', workflowType: 'test' });
-    expect(mockActiveWorkflows.size).toBe(1);
+    handleWorkflowStarted({ workflowId: 'exp-2', workflowType: 'exploration' });
+    expect(mockActiveWorkflows.size).toBe(0);
   });
 
-  it('端到端：test → exploration → test 三种类型交替', () => {
-    handleWorkflowStarted({ workflowId: 't-1', workflowType: 'test' });
-    expect(mockActiveWorkflows.has('t-1')).toBe(false);
-
-    handleWorkflowStarted({ workflowId: 'e-1', workflowType: 'exploration' });
-    expect(mockActiveWorkflows.has('e-1')).toBe(false);
-
-    handleWorkflowStarted({ workflowId: 'task-1', workflowType: 'task' });
+  it('端到端：自定义类型回退到 dag', () => {
+    handleWorkflowStarted({ workflowId: 'custom-1', workflowType: 'some_custom_wf' });
     expect(mockActiveWorkflows.size).toBe(1);
-    expect(mockActiveWorkflows.has('task-1')).toBe(true);
-
-    handleWorkflowStarted({ workflowId: 't-2', workflowType: 'test' });
-    handleWorkflowStarted({ workflowId: 'e-2', workflowType: 'exploration' });
-    expect(mockActiveWorkflows.size).toBe(1);
+    expect(mockActiveWorkflows.has('custom-1')).toBe(true);
   });
 });
 
@@ -210,8 +193,9 @@ describe('WORKFLOW_DISPLAY_STRATEGY 扩展性', () => {
       doc_generation: 'message-embedded' as const,
     };
     expect(extendedStrategy['doc_generation']).toBe('message-embedded');
-    // getWorkflowDisplayStrategy 会自动返回正确的策略
+    // 原有策略不受影响
     expect(extendedStrategy['exploration']).toBe('message-embedded');
-    expect(extendedStrategy['task']).toBeUndefined(); // fallback to default
+    // 未注册类型回退 undefined → default 'dag'
+    expect(extendedStrategy['unknown_type']).toBeUndefined();
   });
 });

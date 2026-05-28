@@ -430,10 +430,11 @@ impl HarnessAIService {
 impl AIService for HarnessAIService {
     async fn chat(
         &self,
-        _config: &AIProviderConfig,
-        _messages: Vec<Message>,
+        config: &AIProviderConfig,
+        messages: Vec<Message>,
     ) -> Result<Message, String> {
-        Err("HarnessAIService::chat not implemented yet".to_string())
+        // 复用已有的非流式 HTTP 实现（与 BasicAIService 相同）
+        crate::ai_utils::fetch_ai_completion(config, messages, None).await
     }
 
     async fn stream_chat(
