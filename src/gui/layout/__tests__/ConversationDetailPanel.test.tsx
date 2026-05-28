@@ -23,10 +23,11 @@ vi.mock('../../../stores/threadStore', () => ({
     }),
 }));
 
-// Mock useChatStore (for sub-panels)
+// Mock useChatStore — 消息列表由测试用例侧 mockMessages 控制
+const mockMessages = vi.hoisted(() => ({ value: [] as any[] }));
 vi.mock('../../../stores/useChatStore', () => ({
   useChatStore: (selector: (s: any) => any) =>
-    selector({ messages: [] }),
+    selector({ messages: mockMessages.value }),
 }));
 
 // Mock conversationStore — 支持 CDP-8(null) 和 CDP-9(有值) 两种场景
@@ -110,11 +111,20 @@ describe('ConversationDetailPanel', () => {
     expect((module as any).AGENT_COLORS).toBeUndefined();
   });
 
-  // CDP-6: 底部状态栏仍对接 threadStore
-  it('CDP-6: 底部状态栏仍对接 threadStore', async () => {
+  // CDP-6: 底部状态栏显示 chatStore 消息数
+  it('CDP-6: 底部状态栏显示 chatStore 消息数', async () => {
+    mockMessages.value = Array(5).fill({ role: 'user', content: 'hi' });
     await renderPanel();
 
     expect(screen.getByText(/对话：5条/)).toBeTruthy();
+  });
+
+  // CDP-10: 空消息时显示 0 条
+  it('CDP-10: 空消息时显示 0 条', async () => {
+    mockMessages.value = [];
+    await renderPanel();
+
+    expect(screen.getByText(/对话：0条/)).toBeTruthy();
   });
 
   // CDP-7: data-testid="conversation-detail-panel" 兼容

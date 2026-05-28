@@ -37,10 +37,14 @@ export const MessageAdapterRegistry = new Registry<MessageAdapter>();
 /* ===== 注册适配器（集中注册，避免循环依赖） ===== */
 
 import { cardTypePassthroughAdapter } from './adapters/cardTypePassthroughAdapter';
+import { exploreAdapter } from './adapters/exploreAdapter';
+import { agentWorkspaceAdapter } from './adapters/agentWorkspaceAdapter';
 import { toolCallAdapter } from './adapters/toolCallAdapter';
 import { interactionAdapter } from './adapters/interactionAdapter';
 
 MessageAdapterRegistry.register('cardType-passthrough', cardTypePassthroughAdapter);
+MessageAdapterRegistry.register('explore', exploreAdapter);
+MessageAdapterRegistry.register('agent-workspace', agentWorkspaceAdapter);
 MessageAdapterRegistry.register('tool-call', toolCallAdapter);
 MessageAdapterRegistry.register('interaction', interactionAdapter);
 

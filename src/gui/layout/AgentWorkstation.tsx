@@ -1,4 +1,6 @@
 /**
+ * @deprecated 已由 inline-first 卡片方案替代。保留以兼容现有引用，将在后续清理中移除。
+ *
  * AgentWorkstation — 单个 Agent 工位组件
  *
  * 颜色/状态查表驱动：

@@ -22,6 +22,8 @@ export interface WorkLogEntry {
   content: string;
   /** 原始时间戳 */
   timestamp: number;
+  /** Agent 主色（十六进制，如 "#10B981"） */
+  agentColor?: string;
 }
 
 /**
@@ -87,6 +89,13 @@ function extractContent(tc: ToolCall, message: Message): string {
     WebSearch: '网络搜索',
     WebFetch: '获取网页',
     Task: '启动任务',
+    // agent 系统工具
+    agent_read_file: '读取文件',
+    agent_write_file: '写入文件',
+    agent_execute_command: '执行命令',
+    agent_list_dir: '列出目录',
+    agent_scan_project: '扫描项目',
+    agent_search: '搜索内容',
   };
 
   const base = contentMap[toolName] ?? `调用 ${toolName}`;
@@ -133,6 +142,7 @@ export function useWorkLogData(): WorkLogEntry[] {
           time: formatTime(msg.timestamp),
           content: extractContent(tc, msg),
           timestamp: msg.timestamp,
+          agentColor: agent?.color?.text,
         });
       }
     }

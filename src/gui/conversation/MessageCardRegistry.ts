@@ -106,6 +106,8 @@ const DEFAULT_TYPES: Array<{ type: string; component: MessageCardComponent }> = 
   { type: 'tool-call', component: PlaceholderCard },
   { type: 'composer', component: PlaceholderCard },
   { type: 'error-fix', component: PlaceholderCard },
+  { type: 'agent_workspace', component: PlaceholderCard },
+  { type: 'explore', component: PlaceholderCard },
 ];
 
 for (const { type, component } of DEFAULT_TYPES) {
@@ -121,6 +123,8 @@ import { FileChangeCard } from './cards/FileChangeCard';
 import { ToolCallCard } from './cards/ToolCallCard';
 import { ErrorFixCard } from './cards/ErrorFixCard';
 import { ComposerCard } from './cards/ComposerCard';
+import { AgentWorkspaceCard } from './cards/AgentWorkspaceCard';
+import { ExploreCard } from './cards/ExploreCard';
 
 // Declarative registration — 新增卡片 = 一行 register
 MessageCardRegistry.register('progress', ProgressCard);
@@ -130,6 +134,8 @@ MessageCardRegistry.register('file-change', FileChangeCard);
 MessageCardRegistry.register('tool-call', ToolCallCard);
 MessageCardRegistry.register('error-fix', ErrorFixCard);
 MessageCardRegistry.register('composer', ComposerCard);
+MessageCardRegistry.register('agent_workspace', AgentWorkspaceCard);
+MessageCardRegistry.register('explore', ExploreCard);
 
 /* ===== resolveCardType 函数 ===== */
 

@@ -52,21 +52,23 @@ describe('WorkLogPanel', () => {
 
     const { container } = render(<WorkLogPanel />);
 
-    // 找到 agent 头像元素，检查背景色来自 AGENT_DSL
-    const avatar = container.querySelector('[data-agent-avatar]');
-    expect(avatar).toBeTruthy();
-    expect((avatar as HTMLElement).style.backgroundColor).toBe('#3B82F6');
+    // 找到 agent 彩色圆点，检查背景色来自 AGENT_DSL
+    const dot = container.querySelector('[data-agent-avatar]');
+    expect(dot).toBeTruthy();
+    expect((dot as HTMLElement).style.backgroundColor).toBe('#3B82F6');
   });
 
-  // WLP-3: Agent 头像显示 abbr 缩写
-  it('WLP-3: Agent 头像显示 abbr 缩写', () => {
+  // WLP-3: Agent 彩色圆点 data-agent-avatar 包含 abbr 缩写作为 title
+  it('WLP-3: Agent 彩色圆点包含 abbr 缩写', () => {
     mockLogs.push(
       { agentId: 'explore', agentName: '探索代码库', time: '12:30', content: '读取文件', timestamp: Date.now() },
     );
 
-    render(<WorkLogPanel />);
+    const { container } = render(<WorkLogPanel />);
 
-    expect(screen.getByText('EXP')).toBeTruthy();
+    const avatar = container.querySelector('[data-agent-avatar]');
+    expect(avatar).toBeTruthy();
+    expect(avatar?.getAttribute('title')).toBe('EXP');
   });
 
   // WLP-4: 无日志时显示空状态

@@ -1,0 +1,143 @@
+/**
+ * Card Animations
+ *
+ * 从高保真原型复制的关键动画集合。
+ * 与 prototype.html <style> 块 1:1 对齐。
+ */
+
+/* ──── Agent 圆点脉冲 ──── */
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(0,122,204,0.35); }
+  50% { box-shadow: 0 0 28px rgba(0,122,204,0.6); }
+}
+.animate-glow { animation: glow 2s infinite; }
+
+@keyframes glow-blue {
+  0%, 100% { box-shadow: 0 0 8px rgba(0,122,204,0.2), 0 0 16px rgba(0,122,204,0.05); }
+  50% { box-shadow: 0 0 16px rgba(0,122,204,0.4), 0 0 32px rgba(0,122,204,0.1); }
+}
+.animate-glow-blue { animation: glow-blue 2.5s infinite; }
+
+@keyframes glow-subtle {
+  0%, 100% { box-shadow: 0 0 6px rgba(0,122,204,0.12); }
+  50% { box-shadow: 0 0 16px rgba(0,122,204,0.25); }
+}
+.animate-glow-subtle { animation: glow-subtle 3s infinite; }
+
+/* ──── 进度条条纹 ──── */
+@keyframes progress-stripe {
+  0% { background-position: 0 0; }
+  100% { background-position: 20px 0; }
+}
+
+/* ──── 通用入场 ──── */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in { animation: slide-in 0.3s ease-out; }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down { animation: slideDown 0.3s ease; }
+
+@keyframes progress-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+.animate-progress-pulse { animation: progress-pulse 1.5s ease-in-out infinite; }
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+.animate-breathe { animation: breathe 3s ease-in-out infinite; }
+
+/* ──── 审批卡片 ──── */
+@keyframes approval-slide-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-approval-slide { animation: approval-slide-in 0.4s cubic-bezier(0.16,1,0.3,1); }
+
+@keyframes approval-pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(0,122,204,0.3); }
+  70% { box-shadow: 0 0 0 12px rgba(0,122,204,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,122,204,0); }
+}
+.animate-approval-pulse-ring { animation: approval-pulse-ring 1.5s infinite; }
+
+@keyframes approval-approved {
+  0%, 100% { border-color: rgba(34,197,94,0.3); box-shadow: 0 0 12px rgba(34,197,94,0.1); }
+  50% { border-color: rgba(34,197,94,0.6); box-shadow: 0 0 24px rgba(34,197,94,0.2); }
+}
+.animate-approval-approved { animation: approval-approved 2s ease-in-out; }
+
+@keyframes approval-rejected {
+  0%, 100% { border-color: rgba(239,68,68,0.3); box-shadow: 0 0 12px rgba(239,68,68,0.1); }
+  50% { border-color: rgba(239,68,68,0.6); box-shadow: 0 0 24px rgba(239,68,68,0.2); }
+}
+.animate-approval-rejected { animation: approval-rejected 2s ease-in-out; }
+
+@keyframes checkmark-draw {
+  from { stroke-dashoffset: 50; }
+  to { stroke-dashoffset: 0; }
+}
+.animate-checkmark { animation: checkmark-draw 0.5s ease-out forwards; }
+
+/* ──── 交互问答卡片 ──── */
+@keyframes interaction-slide-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-interaction-slide { animation: interaction-slide-in 0.4s cubic-bezier(0.16,1,0.3,1); }
+
+@keyframes option-highlight {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
+.animate-option-highlight { animation: option-highlight 0.3s ease; }
+
+@keyframes option-selected-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,122,204,0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(0,122,204,0); }
+}
+.animate-option-pulse { animation: option-selected-pulse 1s ease-out; }
+
+@keyframes check-fade-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-check-fade { animation: check-fade-in 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+
+/* ──── 探索扫描 ──── */
+@keyframes scan-beam {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.scan-beam {
+  position: relative;
+  overflow: hidden;
+}
+.scan-beam::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(139,92,246,0.12), rgba(139,92,246,0.18), rgba(139,92,246,0.12), transparent);
+  animation: scan-beam 1.2s ease-in-out infinite;
+}
+
+@keyframes fade-slide-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-slide-up { animation: fade-slide-up 0.35s ease-out both; }
+
+@keyframes tree-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.tree-node { animation: tree-in 0.25s ease-out both; }

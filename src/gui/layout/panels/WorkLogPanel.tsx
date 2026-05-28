@@ -34,47 +34,41 @@ export function WorkLogPanel() {
   }
 
   return (
-    <div data-testid="work-log-panel" style={{ padding: '8px 12px', overflowY: 'auto' }}>
+    <div data-testid="work-log-panel" style={{ padding: '4px 8px', overflowY: 'auto' }}>
       {logs.map((log, i) => {
         const agent = getAgent(log.agentId);
-        const color = agent?.color;
+        const color = log.agentColor || agent?.color?.text || '#6B7280';
         const abbr = agent?.abbr ?? log.agentName.charAt(0).toUpperCase();
 
         return (
           <div
             key={`${log.timestamp}-${i}`}
-            style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}
+            className="flex items-start gap-2 px-2 py-1.5 rounded-lg"
+            style={{
+              backgroundColor: 'rgba(0, 122, 204, 0.02)',
+            }}
           >
-            {/* Agent 头像 */}
+            {/* Agent 彩色圆点 */}
             <div
               data-agent-avatar
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                backgroundColor: color?.bg ?? '#6B7280',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 700,
-              }}
-            >
-              {abbr}
-            </div>
+              className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0"
+              style={{ backgroundColor: color }}
+              title={abbr}
+            />
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {/* 名称 + 时间 */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: color?.text ?? '#eef2f6' }}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                {/* Agent 名称（彩色） */}
+                <span style={{ fontSize: '12px', fontWeight: 600, color }}>
                   {log.agentName}
                 </span>
-                <span style={{ fontSize: 12, color: '#9CA3AF' }}>{log.time}</span>
+                {/* 时间戳 */}
+                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.25)' }}>
+                  {log.time}
+                </span>
               </div>
               {/* 内容 */}
-              <p style={{ fontSize: 13, color: '#fff', lineHeight: 1.4, margin: 0 }}>
+              <p className="text-[11px] text-white/50 truncate" style={{ margin: 0 }}>
                 {log.content}
               </p>
             </div>

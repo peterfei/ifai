@@ -14,6 +14,8 @@ let mockIsLoading = false;
 let mockMessages: any[] = [];
 let mockPromptMeta: any = null;
 
+const mockTokenStats = vi.hoisted(() => ({ value: null as any }));
+
 vi.mock('../../../stores/useChatStore', () => ({
   useChatStore: (selector: (s: any) => any) =>
     selector({ isLoading: mockIsLoading, messages: mockMessages }),
@@ -22,6 +24,12 @@ vi.mock('../../../stores/useChatStore', () => ({
 vi.mock('../../../stores/transparencyStore', () => ({
   useTransparencyStore: (selector: (s: any) => any) =>
     selector({ currentPromptMeta: mockPromptMeta }),
+}));
+
+vi.mock('../../../stores/conversationStore', () => ({
+  useConversationStore: (selector: (s: any) => any) =>
+    selector({ tokenStats: mockTokenStats.value }),
+  selectTokenStats: (s: any) => s.tokenStats,
 }));
 
 vi.mock('../../../utils/tokenCounter', () => ({
@@ -42,6 +50,7 @@ describe('StreamingPulseBanner', () => {
     mockIsLoading = false;
     mockMessages = [];
     mockPromptMeta = null;
+    mockTokenStats.value = null;
     vi.resetModules();
   });
 
@@ -137,6 +146,22 @@ describe('StreamingPulseBanner', () => {
     expect(screen.getByTestId('streaming-summary')).toBeTruthy();
     // 输出估算：assistant content 800 chars / 4 = 200 tokens
     expect(screen.getByText(/输出 200/)).toBeTruthy();
+  });
+
+  // SPB-8: Pulse 阶段 tokenStats 优先于 chars/4 粗估
+  it('SPB-8: Pulse 阶段使用 tokenStats 精确值', async () => {
+    mockTokenStats.value = { total_tokens: 1900 };
+    mockIsLoading = true;
+    mockMessages = [
+      { id: '1', role: 'user', content: 'a'.repeat(400) },
+    ];
+
+    await renderBanner();
+
+    // tokenStats.total_tokens = 1900 → "上下文 1.9K"
+    expect(screen.getByText(/上下文 1\.9K/)).toBeTruthy();
+    // 无 assistant 消息 → "输出 0"
+    expect(screen.getByText(/输出 0/)).toBeTruthy();
   });
 
   // SPB-7: 再次 true → 切回 Pulse（Summary 消失）

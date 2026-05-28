@@ -14,6 +14,9 @@
 import React, { useState } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import type { MessageCardProps } from '../MessageCardRegistry';
+import { AGENT_DOT_CONFIG } from '../../../types/agent-collaboration';
+
+import '../../../gui/conversation/styles/card-animations.css';
 
 /* ===== 选项类型 ===== */
 
@@ -77,7 +80,7 @@ function OptionGroup({
             onClick={() => !resolved && onSelect(option.id)}
             className={`px-3 py-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
               isSelected
-                ? 'border-blue-500/50 bg-blue-500/10'
+                ? 'border-blue-500/50 bg-blue-500/10 animate-option-highlight'
                 : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
             } ${resolved ? 'cursor-not-allowed opacity-50' : ''}`}
             style={{
@@ -193,10 +196,11 @@ export function InteractionCard({ message, compact, onAction }: MessageCardProps
   };
 
   const hasMultipleType = data.questions.some(q => q.type === 'multiple');
+  const pmConfig = AGENT_DOT_CONFIG.PM;
 
   return (
     <div
-      className="rounded-lg border overflow-hidden transition-all duration-300"
+      className="rounded-lg border overflow-hidden transition-all duration-300 animate-interaction-slide"
       style={{
         backgroundColor: 'rgba(30, 30, 40, 0.9)',
         borderColor: 'rgba(0, 122, 204, 0.15)',
@@ -207,16 +211,28 @@ export function InteractionCard({ message, compact, onAction }: MessageCardProps
     >
       {/* 顶部标签 */}
       <div className="px-3 py-2 border-b border-white/5 flex items-center justify-between">
-        <div
-          className="px-2 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1"
-          style={{
-            backgroundColor: 'rgba(0, 122, 204, 0.15)',
-            color: '#007acc',
-            border: '1px solid rgba(0, 122, 204, 0.25)',
-          }}
-        >
-          <span>💬</span>
-          <span>LLM 提问</span>
+        <div className="flex items-center gap-2">
+          {/* PM 头像 */}
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0"
+            style={{
+              background: `linear-gradient(135deg, #007acc, #005999)`,
+              color: '#fff',
+            }}
+          >
+            {pmConfig.label}
+          </div>
+          <div
+            className="px-2 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1"
+            style={{
+              backgroundColor: 'rgba(0, 122, 204, 0.15)',
+              color: '#007acc',
+              border: '1px solid rgba(0, 122, 204, 0.25)',
+            }}
+          >
+            <span>💬</span>
+            <span>LLM 提问</span>
+          </div>
         </div>
       </div>
 
@@ -249,7 +265,7 @@ export function InteractionCard({ message, compact, onAction }: MessageCardProps
                     onClick={() => handleOptionClick(question.id, option.id)}
                     className={`px-3 py-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                       isSelected
-                        ? 'border-blue-500/50 bg-blue-500/10'
+                        ? 'border-blue-500/50 bg-blue-500/10 animate-option-highlight'
                         : 'border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]'
                     } ${resolved ? 'cursor-not-allowed opacity-50' : ''}`}
                     style={{
@@ -343,7 +359,7 @@ export function InteractionCard({ message, compact, onAction }: MessageCardProps
       {/* 底部等待提示 */}
       {!resolved && (
         <div className="px-3 pb-2 flex items-center gap-2">
-          <div className="w-1 h-1 rounded-full bg-blue-400/80 animate-pulse"></div>
+          <div className="w-1 h-1 rounded-full bg-blue-400/80 animate-progress-pulse"></div>
           <span className="text-[10px] text-blue-400/60">
             {isSingleQuestion && primaryQuestion.type === 'single'
               ? '请选择一个选项...'

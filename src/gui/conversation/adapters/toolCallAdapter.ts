@@ -16,6 +16,11 @@ import type { MessageAdapter } from '../MessageAdapterRegistry';
 /** 工具名称字段优先级（扩展只改此数组） */
 const TOOL_NAME_FIELDS = ['tool', 'name', 'functionName'];
 
+/** 从工具调用对象中提取名称（兼容 call.function.name 嵌套路径） */
+function getToolName(call: any): string {
+  return pickField(call, TOOL_NAME_FIELDS, call?.function?.name ?? 'Unknown Tool');
+}
+
 /** 状态映射表：源状态 → UI 状态（声明式查表） */
 const STATUS_MAP: Record<string, string> = {
   pending: 'pending',
@@ -47,7 +52,7 @@ function pickField(obj: any, fields: string[], fallback: string): string {
 
 function adaptSingle(call: any): Record<string, any> {
   return {
-    name: pickField(call, TOOL_NAME_FIELDS, 'Unknown Tool'),
+    name: getToolName(call),
     toolId: call.id,
     status: STATUS_MAP[call.status] ?? 'pending',
     args: call.args,
@@ -60,18 +65,68 @@ function adaptMulti(calls: any[]): Record<string, any> {
   const stats = new Set(calls.map(tc => tc.status));
   const overallStatus = AGGREGATE_PRIORITY.find(rule => rule.test(stats))?.status ?? 'completed';
 
+  // 聚合连续重复的工具调用
+  const grouped = groupConsecutive(calls);
+
   return {
     name: `${calls.length} 个工具调用`,
     status: STATUS_MAP[overallStatus] ?? 'pending',
     multiTool: true,
-    calls: calls.map((tc: any) => ({
-      id: tc.id,
-      name: pickField(tc, TOOL_NAME_FIELDS, 'Unknown Tool'),
-      status: STATUS_MAP[tc.status] ?? tc.status,
-      args: tc.args,
-      result: tc.result,
-    })),
+    calls: grouped,
   };
+}
+
+/**
+ * 将连续同名的工具调用合并为一组
+ *
+ * 例：agent_scan_project × 8 → [{ name: 'agent_scan_project', count: 8, ... }]
+ */
+function groupConsecutive(calls: any[]): any[] {
+  if (calls.length === 0) return [];
+
+  const result: any[] = [];
+  let current = null;
+
+  for (const tc of calls) {
+    const name = getToolName(tc);
+
+    if (current && current.name === name) {
+      // 追加到当前组
+      current.count++;
+      current.statuses.add(tc.status);
+      // 取最新的 args（后面的可能覆盖前面的）
+      if (tc.args) current.args = tc.args;
+    } else {
+      // 新组
+      if (current) {
+        // 计算最终状态
+        const groupStats = new Set(current.statuses);
+        const groupStatus = AGGREGATE_PRIORITY.find(rule => rule.test(groupStats))?.status ?? 'completed';
+        current.status = STATUS_MAP[groupStatus] ?? 'pending';
+        delete current.statuses;
+        result.push(current);
+      }
+      current = {
+        id: tc.id,
+        name,
+        count: 1,
+        statuses: new Set([tc.status]),
+        args: tc.args,
+        result: tc.result,
+      };
+    }
+  }
+
+  // 处理最后一组
+  if (current) {
+    const groupStats = new Set(current.statuses);
+    const groupStatus = AGGREGATE_PRIORITY.find(rule => rule.test(groupStats))?.status ?? 'completed';
+    current.status = STATUS_MAP[groupStatus] ?? 'pending';
+    delete current.statuses;
+    result.push(current);
+  }
+
+  return result;
 }
 
 export const toolCallAdapter: MessageAdapter = {

@@ -174,7 +174,12 @@ export function ToolCallCard({ message, compact, onAction }: MessageCardProps) {
                 <div className="flex items-center justify-between px-2 py-1.5 bg-white/[0.02]">
                   <div className="flex items-center gap-2 min-w-0">
                     <CallIcon className={`w-3 h-3 ${call.status === 'running' || call.status === 'executing' ? 'animate-spin' : ''}`} style={{ color: callConfig.color }} />
-                    <span className="text-[11px] text-gray-300 truncate">{call.name}</span>
+                    <span className="text-[11px] text-gray-300 truncate">
+                      {call.name}
+                      {call.count > 1 && (
+                        <span className="ml-1 text-[10px] text-gray-500">×{call.count}</span>
+                      )}
+                    </span>
                   </div>
                   <div
                     className="px-1.5 py-0.5 rounded text-[8px] font-medium flex-shrink-0"

@@ -83,6 +83,8 @@ import clsx from 'clsx';
 import { useSkeletonEngine } from './skeleton';
 import { AI_CHAT_SKELETON_CONFIG } from './skeleton/config/skeleton.config';
 import './skeleton/styles.css';
+import { useAgentCollabState } from '../../hooks/useAgentCollabState';
+import { AgentCompactBar } from './AgentCompactBar';
 
 interface AIChatProps {
   width?: number;
@@ -368,6 +370,9 @@ export const AIChat = ({ width, onResizeStart, compact }: AIChatProps) => {
     // 🔥 FIX v1.0.0: 移除硬编码，使用 feature flags 控制
     // enabled 由 useChatScrollController 内部从 featureFlags.newScrollController 读取
   });
+
+  // Agent 协作状态同步
+  useAgentCollabState();
 
   // 用户手动滚动处理
   const handleScroll = () => {
@@ -2484,6 +2489,9 @@ ${t('aiChat.errorFix.fixAndModify')}`;
 
       {/* Thread Tabs */}
       {!compact && <ThreadTabs width={width} maxVisibleTabs={5} showMessageCount={true} showCloseButton={true} />}
+
+      {/* Agent 协作紧凑状态栏 */}
+      {!compact && <AgentCompactBar />}
 
       {/* Segmented Control for View Switching */}
       {!compact && <div className="px-4 py-2 border-b border-white/5 bg-[#1e1e1e]/40 backdrop-blur-md" data-testid="ai-view-selector">

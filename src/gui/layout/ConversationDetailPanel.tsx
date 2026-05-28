@@ -14,6 +14,7 @@ import { FileText, Package, Eye, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useThreadStore } from '../../stores/threadStore';
 import { useConversationStore, selectTokenStats } from '../../stores/conversationStore';
+import { useChatStore } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { getModelMaxTokens, formatTokenCount, calculateTokenUsagePercentage } from '../../utils/tokenCounter';
 import { WorkLogPanel } from './panels/WorkLogPanel';
@@ -39,6 +40,7 @@ export function ConversationDetailPanel() {
   const activeThreadId = useThreadStore((s) => s.activeThreadId);
   const threads = useThreadStore((s) => s.threads);
   const activeThread = activeThreadId ? threads[activeThreadId] : null;
+  const messageCount = useChatStore(s => s.messages).length;
   const tokenStats = useConversationStore(selectTokenStats);
   const currentModel = useSettingsStore((s) => s.currentModel);
   const maxTokens = currentModel ? getModelMaxTokens(currentModel) : 0;
@@ -95,7 +97,7 @@ export function ConversationDetailPanel() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5 text-[12px] text-[#9CA3AF]">
             <MessageSquare size={12} />
-            <span>对话：{activeThread?.messageCount ?? 0}条</span>
+            <span>对话：{messageCount}条</span>
           </div>
           {tokenStats && maxTokens > 0 ? (
             <div className="flex items-center gap-2 text-[12px] text-[#9CA3AF]">

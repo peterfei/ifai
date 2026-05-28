@@ -1,4 +1,7 @@
 /**
+ * @deprecated 已由 inline-first 卡片方案替代（ExploreCard / AgentWorkspaceCard）。
+ * 保留以兼容现有引用，将在后续清理中移除。
+ *
  * 工作流 DAG 实时监控组件
  *
  * 类似 Claude Code 的 /explore 实时执行状态显示

@@ -1,4 +1,7 @@
 /**
+ * @deprecated 已由 inline-first 卡片方案替代（AgentWorkspaceCard / AgentCompactBar）。
+ * 保留以兼容现有引用，将在后续清理中移除。
+ *
  * AgentWorkspace — Agent 工作台紧凑/展开双模式
  *
  * 紧凑模式：嵌入右栏，显示最新 Agent 状态摘要

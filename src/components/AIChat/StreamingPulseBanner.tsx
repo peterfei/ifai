@@ -5,14 +5,19 @@
  * 直接订阅 chatStore + transparencyStore，零 props。
  *
  * 状态推导（零 useState）：
- * - isLoading=true        → Pulse（绿色脉冲 + 上下文估算）
+ * - isLoading=true        → Pulse（绿色脉冲 + 上下文 + 输出估算）
  * - isLoading=false + wasLoading=true  → Summary（上下文 + Token 消费）
  * - isLoading=false + wasLoading=false → null（不渲染）
+ *
+ * 数据来源优先级（与右侧 ConversationDetailPanel 面板一致）：
+ *  上下文 = tokenStats.total_tokens（Rust tiktoken）＞ chars/4 粗估
+ *  输出  = assistant 消息 chars/4 粗估（tokenStats 无法区分输入/输出）
  */
 
 import React, { useRef, useEffect } from 'react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useTransparencyStore } from '../../stores/transparencyStore';
+import { useConversationStore, selectTokenStats } from '../../stores/conversationStore';
 import { formatTokenCount } from '../../utils/tokenCounter';
 
 /* ===== 常量 ===== */
@@ -39,6 +44,7 @@ export function StreamingPulseBanner() {
   const isLoading = useChatStore(s => s.isLoading);
   const messages = useChatStore(s => s.messages);
   const promptMeta = useTransparencyStore(s => s.currentPromptMeta);
+  const tokenStats = useConversationStore(selectTokenStats);
 
   const wasLoading = useRef(false);
 
@@ -53,9 +59,10 @@ export function StreamingPulseBanner() {
 
   if (!showPulse && !showSummary) return null;
 
-  // Pulse 阶段
+  // Pulse 阶段 — tokenStats 优先，降级到 chars/4 粗估
   if (showPulse) {
-    const inputEstimate = estimateTokensFromMessages(messages, 'all');
+    const inputTokens = tokenStats?.total_tokens
+      ?? estimateTokensFromMessages(messages, 'all');
     const outputEstimate = estimateTokensFromMessages(messages, 'assistant');
 
     return (
@@ -76,7 +83,7 @@ export function StreamingPulseBanner() {
           </span>
           <span className="text-[10px] text-gray-400">思考中...</span>
           <span className="text-[10px] text-gray-500 font-mono">
-            上下文 {formatTokenCount(inputEstimate)}
+            上下文 {formatTokenCount(inputTokens)}
           </span>
           <span className="text-[10px] text-gray-500 font-mono">
             输出 {formatTokenCount(outputEstimate)}
@@ -86,10 +93,9 @@ export function StreamingPulseBanner() {
     );
   }
 
-  // Summary 阶段
-  // 数据源：currentPromptMeta.total_tokens_estimate（SSE 流式时设置）
-  // 降级：从消息内容长度估算（chars / 4）
-  const inputTokens = promptMeta?.total_tokens_estimate
+  // Summary 阶段 — tokenStats（Rust tiktoken）＞ promptMeta（SSE）＞ chars/4 粗估
+  const inputTokens = tokenStats?.total_tokens
+    ?? promptMeta?.total_tokens_estimate
     ?? estimateTokensFromMessages(messages, 'all');
   const outputTokens = estimateTokensFromMessages(messages, 'assistant');
 

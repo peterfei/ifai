@@ -104,7 +104,7 @@ pub async fn execute_with_tools(
 
         // 调用 AI（使用流式 API 实现实时工具调用显示）
         let ai_start = std::time::Instant::now();
-        let response = call_ai_with_tools_stream(
+        let (response, finish_reason) = call_ai_with_tools_stream(
             provider_config.clone(),
             &messages,
             progress_callback.clone(), // 🔥 传递进度回调给流式函数
@@ -131,6 +131,13 @@ pub async fn execute_with_tools(
             context_chars,
             messages.len()
         );
+
+        // TUI 风格：LLM 主动发 stop → 立即退出（即使响应中可能包含工具回显）
+        if finish_reason.as_deref() == Some("stop") {
+            wf_log!("[ToolLoop] ✅ LLM 主动停止 (finish_reason=stop)");
+            final_response = response;
+            break;
+        }
 
         // 检查是否有工具调用
         let tool_calls = extract_tool_calls(&response)?;
@@ -386,6 +393,29 @@ pub async fn execute_with_tools(
                 tool_call_id: None,
             });
         }
+
+        // 🛡️ 空目录检测：连续 agent_scan_project 返回空 → 注入系统消息终止循环
+        let consecutive_empty_scans = collected_tool_summary
+            .iter()
+            .rev()
+            .take(2)
+            .filter(|(name, _, len)| {
+                (name == "agent_scan_project" || name == "agent_list_dir") && *len == 0
+            })
+            .count();
+        if consecutive_empty_scans >= 2 {
+            wf_log!("[ToolLoop] 🛡️ 检测到{}次连续空扫描，注入空目录终止指令", consecutive_empty_scans);
+            messages.push(Message {
+                role: "system".to_string(),
+                content: Content::Text(
+                    "⚠️ 多次扫描结果为空，项目目录中没有源文件。\
+                     无法完成需要分析源代码的任务。请基于已有信息直接给出结论，无需继续尝试。"
+                        .to_string(),
+                ),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
     }
 
     // 🔥 输出性能统计
@@ -623,7 +653,7 @@ async fn call_ai_with_tools_stream(
     messages: &[Message],
     progress_callback: Option<ToolProgressCallback>,
     cancellation_token: Option<CancellationToken>,
-) -> Result<String, String> {
+) -> Result<(String, Option<String>), String> {
     wf_log!("[ToolLoop] 📤 [STREAM] 调用流式 AI API");
 
     #[cfg(feature = "commercial")]
@@ -720,6 +750,7 @@ async fn call_ai_with_tools_stream(
         // (id, name, arguments)
 
         let mut final_content = String::new();
+        let mut finish_reason: Option<String> = None;
         let mut chunk_count = 0;
         let mut sent_tool_notifications = std::collections::HashSet::new();
 
@@ -838,10 +869,11 @@ async fn call_ai_with_tools_stream(
                             }
 
                             // 检查是否完成
-                            if choice.finish_reason.is_some() {
+                            if let Some(reason) = &choice.finish_reason {
+                                finish_reason = Some(reason.clone());
                                 wf_log!(
                                     "[ToolLoop] 📤 [STREAM] 流结束，原因: {:?}",
-                                    choice.finish_reason
+                                    finish_reason
                                 );
                                 break;
                             }
@@ -887,14 +919,14 @@ async fn call_ai_with_tools_stream(
                 result_json.len()
             );
 
-            Ok(result_json)
+            Ok((result_json, finish_reason))
         } else {
             // 没有工具调用，返回内容
             wf_log!(
                 "[ToolLoop] ✅ [STREAM] 返回文本内容，长度: {} 字符",
                 final_content.len()
             );
-            Ok(final_content)
+            Ok((final_content, finish_reason))
         }
     }
 
@@ -902,7 +934,9 @@ async fn call_ai_with_tools_stream(
     #[cfg(not(feature = "commercial"))]
     {
         wf_log!("[ToolLoop] ⚠️ [STREAM] Community 版本，回退到非流式 API");
-        call_ai_with_tools_unified(provider_config, messages).await
+        call_ai_with_tools_unified(provider_config, messages)
+            .await
+            .map(|s| (s, None))
     }
 }
 
