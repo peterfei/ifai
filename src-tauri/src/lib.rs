@@ -48,7 +48,8 @@ pub mod symbol_scanner;
 #[cfg(feature = "commercial")]
 mod commercial;
 
-pub mod preview_server; // 内置预览协议 preview://
+pub mod preview_server;
+mod permission_gui; // 内置预览协议 preview://
 
 use crate::commands::atomic_commands::SessionStore;
 use crate::commands::error_commands::ErrorParserState;
@@ -2036,6 +2037,7 @@ pub fn run() {
             commands::workflow_commands::execute_quick_workflow,
             // PreviewPanel: Tauri 模式读取文件
             read_preview_file,
+            permission_gui::permission_invoke,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

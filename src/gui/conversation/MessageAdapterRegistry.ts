@@ -8,7 +8,8 @@
  * - 每个适配器自描述（match + adapt），新增卡片类型 = register 一个新适配器
  * - 与 MessageCardRegistry、blockingStepRegistry、layoutRegistry 一致的 Registry 模式
  *
- * 注意：approvalAdapter 已取消注册，审批操作由 ToolApproval 内联处理。
+ * 注意：approvalAdapter 由 ToolApproval 内联处理降级为走 MessageCard（数据驱动按钮）。
+ * 当 message.approvalMeta 存在时，ApprovalCard 接管审批 UI，ToolApproval 内联按钮隐藏。
  */
 import { Registry } from '../registry/registry';
 
@@ -41,10 +42,12 @@ import { exploreAdapter } from './adapters/exploreAdapter';
 import { agentWorkspaceAdapter } from './adapters/agentWorkspaceAdapter';
 import { toolCallAdapter } from './adapters/toolCallAdapter';
 import { interactionAdapter } from './adapters/interactionAdapter';
+import { approvalAdapter } from './adapters/approvalAdapter';
 
 MessageAdapterRegistry.register('cardType-passthrough', cardTypePassthroughAdapter);
 MessageAdapterRegistry.register('agent-workspace', agentWorkspaceAdapter);
 MessageAdapterRegistry.register('explore', exploreAdapter);
+MessageAdapterRegistry.register('approval', approvalAdapter);
 MessageAdapterRegistry.register('tool-call', toolCallAdapter);
 MessageAdapterRegistry.register('interaction', interactionAdapter);
 

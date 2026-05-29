@@ -96,6 +96,12 @@ export interface ApprovalData {
   onApprove: ApprovalAction;
   /** 拒绝后的动作 */
   onReject: ApprovalAction;
+  /** 工具名称（用于 available_decisions 数据驱动） */
+  toolName?: string;
+  /** 工具风险类别 safe/dangerous/destructive */
+  toolCategory?: string;
+  /** 参数预览（用于规则上下文） */
+  argsPreview?: string;
 }
 
 /* ===== 交互卡片类型 ===== */

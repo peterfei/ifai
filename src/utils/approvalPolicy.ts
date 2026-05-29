@@ -8,6 +8,7 @@
 export {
   categorizeTool,
   shouldAutoApprove,
+  shouldAutoApproveAsync,
   type ToolCategory,
   type ApprovalContext,
 } from '../core/approval/ToolApprovalRegistry';

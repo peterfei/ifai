@@ -311,6 +311,79 @@ export class ToolApprovalRegistry {
       }
       if (when?.requireSandbox && this._isSandbox) continue;
 
+      // permission-store-allow 需要异步 invoke，同步模式跳过
+      if (rule.name === 'permission-store-allow') continue;
+
+      // 规则命中
+      console.log(`${logPrefix} ✅ Rule "${rule.name}": ${rule.then.reason}`);
+      return rule.then.approve;
+    }
+
+    // 没有规则匹配
+    console.log(`${logPrefix} ✋ No rule matched, manual approval required`);
+    return false;
+  }
+
+  // ─── API: shouldAutoApproveAsync() — 包含异步权限检查 ──────
+
+  /** 从 Rust PermissionStore 检查工具是否在白名单中 */
+  protected async checkPermissionStore(toolName: string): Promise<boolean> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const payload = JSON.stringify({ tool: toolName, args: {} });
+      const result = await invoke<string>('permission_invoke', {
+        action: 'is_allowed',
+        payload,
+      });
+      return result === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 异步版 shouldAutoApprove — 支持 permission-store-allow 规则
+   *
+   * 与同步版的区别：
+   * - permission-store-allow 规则通过 invoke 异步检查 Rust PermissionStore
+   * - 其余规则逻辑与同步版一致
+   */
+  async shouldAutoApproveAsync(context: ApprovalContext): Promise<boolean> {
+    const { settings, editorMode, isSessionTrusted, toolName, userMessageHasAutoApprove } = context;
+    const category = this.categorizeTool(toolName);
+    const logPrefix = `[Approval] [${toolName}]`;
+
+    for (const rule of this.sortedRules) {
+      // 外部条件守卫
+      if (rule.name === 'user-message-override' && !userMessageHasAutoApprove) continue;
+      if (rule.name === 'global-auto-approve' && !settings.agentAutoApprove) continue;
+
+      const approvalMode = (settings as any).agentApprovalMode || 'session-once';
+      if (rule.name === 'always-approve' && approvalMode !== 'always') continue;
+      if (rule.name === 'session-trust' && !(approvalMode === 'session-once' && isSessionTrusted)) continue;
+
+      // when 条件匹配
+      const when = rule.when;
+      if (when?.category) {
+        const cats = Array.isArray(when.category) ? when.category : [when.category];
+        if (!cats.includes(category)) continue;
+      }
+      if (when?.editorMode) {
+        const modes = Array.isArray(when.editorMode) ? when.editorMode : [when.editorMode];
+        if (!modes.includes(editorMode)) continue;
+      }
+      if (when?.requireSandbox && this._isSandbox) continue;
+
+      // permission-store-allow: 异步检查 Rust PermissionStore
+      if (rule.name === 'permission-store-allow') {
+        const allowed = await this.checkPermissionStore(toolName);
+        if (allowed) {
+          console.log(`${logPrefix} ✅ Rule "${rule.name}": ${rule.then.reason}`);
+          return true;
+        }
+        continue; // 未命中白名单，继续下一规则
+      }
+
       // 规则命中
       console.log(`${logPrefix} ✅ Rule "${rule.name}": ${rule.then.reason}`);
       return rule.then.approve;
@@ -385,3 +458,6 @@ export const categorizeTool = (toolName: string): ToolCategory =>
 /** @deprecated 使用 toolApprovalRegistry.shouldAutoApprove() */
 export const shouldAutoApprove = (context: ApprovalContext): boolean =>
   toolApprovalRegistry.shouldAutoApprove(context);
+
+export const shouldAutoApproveAsync = (context: ApprovalContext): Promise<boolean> =>
+  toolApprovalRegistry.shouldAutoApproveAsync(context);

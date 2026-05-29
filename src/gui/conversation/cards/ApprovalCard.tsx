@@ -4,26 +4,36 @@
  * 对齐高保真原型 renderApprovalCard()：
  * - 头部：PM 头像 + 审批徽章 + 风险标签
  * - 文件列表
- * - 操作按钮（确认执行 / 拒绝 / 查看详情）
+ * - 操作按钮（数据驱动 / 硬编码 fallback）
  * - approve/reject 后动画 + 状态变更
  *
  * 设计原则：
  * - 交互状态由 useState 管理
  * - onAction 回调将决策传递到 chatStore
  * - 颜色从 RISK_CONFIG 查表
+ * - data.toolName 存在 → 从 Rust 获取可用决策选项，遍历渲染按钮
+ * - data.toolName 不存在 → 向后兼容，渲染硬编码按钮
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import type { MessageCardProps } from '../MessageCardRegistry';
 import type { ApprovalData, RiskLevel } from '../WORKFLOW_DSL';
 import { AGENT_DOT_CONFIG } from '../../../types/agent-collaboration';
 
 import '../../../gui/conversation/styles/card-animations.css';
 
-/* ===== 组件 Props ===== */
+/* ===== 类型定义 ===== */
 
 type Resolution = 'approved' | 'rejected' | null;
+
+/** Rust available_decisions 返回的决策选项 */
+interface DecisionDef {
+  type: 'once' | 'always' | 'session' | 'deny';
+  label: string;
+  icon: string;
+}
 
 /* ===== 风险等级颜色配置 ===== */
 
@@ -60,32 +70,206 @@ const riskDotColors: Record<RiskLevel, string> = {
   high: '#EF4444',
 };
 
+/* ===== 决策按钮样式表（数据驱动） ===== */
+
+const DECISION_STYLES: Record<string, { className: string; style: React.CSSProperties }> = {
+  once: {
+    className:
+      'flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-all duration-200 hover:opacity-90',
+    style: {
+      background: 'linear-gradient(135deg, #059669, #10B981)',
+      boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)',
+    },
+  },
+  always: {
+    className:
+      'flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-all duration-200 hover:opacity-90',
+    style: {
+      background: 'linear-gradient(135deg, #007acc, #0099ff)',
+      boxShadow: '0 2px 8px rgba(0, 122, 204, 0.25)',
+    },
+  },
+  session: {
+    className:
+      'flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-all duration-200 hover:opacity-90',
+    style: {
+      background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+      boxShadow: '0 2px 8px rgba(217, 119, 6, 0.25)',
+    },
+  },
+  deny: {
+    className:
+      'flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200',
+    style: {
+      backgroundColor: 'transparent',
+      color: '#EF4444',
+      border: '1px solid rgba(239, 68, 68, 0.3)',
+    },
+  },
+};
+
 /* ===== 主组件 ===== */
 
 export function ApprovalCard({ message, compact, onAction }: MessageCardProps) {
   const data = message.data as ApprovalData;
   const [resolution, setResolution] = useState<Resolution>(null);
+  const [decisions, setDecisions] = useState<DecisionDef[]>([]);
+  const [decisionsLoading, setDecisionsLoading] = useState(false);
 
   const riskConfig = RISK_CONFIG[data.overallRisk];
   const pmConfig = AGENT_DOT_CONFIG.PM;
 
-  const handleApprove = () => {
+  /* ---- 数据驱动：从 Rust 获取可用决策选项 ---- */
+
+  useEffect(() => {
+    if (!data.toolName) return; // 无工具上下文 → 使用硬编码按钮
+
+    let cancelled = false;
+    setDecisionsLoading(true);
+    setDecisions([]);
+
+    const payload = JSON.stringify({
+      tool_name: data.toolName,
+      category: data.toolCategory || '',
+      args_preview: data.argsPreview || '',
+    });
+
+    invoke<string>('permission_invoke', {
+      action: 'available_decisions',
+      payload,
+    })
+      .then((result) => {
+        if (!cancelled && result) {
+          setDecisions(JSON.parse(result));
+        }
+      })
+      .catch(() => {
+        // Rust 出错 → 保持 decisions=[]，使用硬编码 fallback
+      })
+      .finally(() => {
+        if (!cancelled) setDecisionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data.toolName, data.toolCategory, data.argsPreview]);
+
+  /* ---- 决策处理 ---- */
+
+  const handleDecision = (d: DecisionDef) => {
     if (resolution) return;
-    setResolution('approved');
-    onAction?.('approve', { toolCallId: message.id });
+
+    switch (d.type) {
+      case 'once':
+        setResolution('approved');
+        onAction?.('approve', { toolCallId: message.id });
+        break;
+
+      case 'always':
+        invoke('permission_invoke', {
+          action: 'add_rule',
+          payload: JSON.stringify({
+            rule_type: 'allow',
+            tool: data.toolName || '',
+            pattern: `${data.toolName || '*'}:*`,
+            pattern_type: 'prefix',
+          }),
+        });
+        setResolution('approved');
+        onAction?.('approve', { toolCallId: message.id });
+        break;
+
+      case 'session':
+        invoke('permission_invoke', {
+          action: 'add_session_rule',
+          payload: JSON.stringify({
+            rule_type: 'allow',
+            tool: data.toolName || '',
+            pattern: '*',
+            pattern_type: 'prefix',
+          }),
+        });
+        setResolution('approved');
+        onAction?.('approve', { toolCallId: message.id });
+        break;
+
+      case 'deny':
+        setResolution('rejected');
+        onAction?.('reject', { toolCallId: message.id });
+        break;
+    }
   };
 
-  const handleReject = () => {
-    if (resolution) return;
-    setResolution('rejected');
-    onAction?.('reject', { toolCallId: message.id });
-  };
+  /* ---- 动画 class ---- */
 
   const animClass = resolution === 'approved'
     ? 'animate-approval-approved'
     : resolution === 'rejected'
       ? 'animate-approval-rejected'
       : '';
+
+  /* ---- 渲染 ---- */
+
+  const renderButtons = () => {
+    // 数据驱动模式：有 toolName 且 decisions 已加载
+    if (data.toolName) {
+      if (decisionsLoading) {
+        return <span className="text-[11px] text-gray-400">获取审批选项...</span>;
+      }
+      if (decisions.length > 0) {
+        return decisions.map((d) => (
+          <button
+            key={d.type}
+            onClick={() => handleDecision(d)}
+            className={DECISION_STYLES[d.type]?.className ?? DECISION_STYLES.once.className}
+            style={DECISION_STYLES[d.type]?.style ?? DECISION_STYLES.once.style}
+          >
+            {d.icon} {d.label}
+          </button>
+        ));
+      }
+      // decisions 为空（Rust 返回空数组或出错）→ fall through 到硬编码按钮
+    }
+
+    // 硬编码 fallback：无 toolName 或数据驱动不可用
+    return (
+      <>
+        <button
+          onClick={() => {
+            if (resolution) return;
+            setResolution('approved');
+            onAction?.('approve', { toolCallId: message.id });
+          }}
+          className="flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-all duration-200 hover:opacity-90"
+          style={{
+            background: 'linear-gradient(135deg, #059669, #10B981)',
+            boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)',
+          }}
+        >
+          ✅ 确认执行
+        </button>
+        <button
+          onClick={() => {
+            if (resolution) return;
+            setResolution('rejected');
+            onAction?.('reject', { toolCallId: message.id });
+          }}
+          className="flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
+          style={{
+            backgroundColor: 'transparent',
+            color: '#EF4444',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+          }}
+        >
+          ❌ 拒绝
+        </button>
+        <button className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-gray-300 transition-colors">
+          查看详情
+        </button>
+      </>
+    );
+  };
 
   return (
     <div
@@ -208,37 +392,7 @@ export function ApprovalCard({ message, compact, onAction }: MessageCardProps) {
       {/* 操作按钮行 */}
       <div className="px-3 pb-3 flex items-center gap-2">
         {!resolution ? (
-          <>
-            {/* 确认执行 */}
-            <button
-              onClick={handleApprove}
-              className="flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white transition-all duration-200 hover:opacity-90"
-              style={{
-                background: 'linear-gradient(135deg, #059669, #10B981)',
-                boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)',
-              }}
-            >
-              ✅ 确认执行
-            </button>
-            {/* 拒绝 */}
-            <button
-              onClick={handleReject}
-              className="flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
-              style={{
-                backgroundColor: 'transparent',
-                color: '#EF4444',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-              }}
-            >
-              ❌ 拒绝
-            </button>
-            {/* 查看详情 */}
-            <button
-              className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
-            >
-              查看详情
-            </button>
-          </>
+          <>{renderButtons()}</>
         ) : (
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
@@ -263,7 +417,9 @@ export function ApprovalCard({ message, compact, onAction }: MessageCardProps) {
         <div className="px-3 pb-2 flex items-center gap-2">
           <div className="w-1 h-1 rounded-full bg-amber-400/80 animate-progress-pulse"></div>
           <span className="text-[10px] text-amber-400/60">
-            等待您的审批决定...
+            {!data.toolName || !decisionsLoading
+              ? '等待您的审批决定...'
+              : '获取审批选项...'}
           </span>
         </div>
       )}

@@ -279,22 +279,31 @@ export const initStoreMapper = () => {
                         isStreaming: false,
                         status: 'completed',
                         // 🏆 从 pending toolCalls 声明式推导 approvalMeta
-                        approvalMeta: m.toolCalls?.some((tc: any) => tc.status === 'pending')
-                            ? {
-                                title: `${m.toolCalls.filter((tc: any) => tc.status === 'pending').length} 个操作待确认`,
-                                summary: m.toolCalls.filter((tc: any) => tc.status === 'pending').map((tc: any) => tc.tool).join(', '),
-                                risk: m.toolCalls.some((tc: any) => tc.tool === 'bash' || tc.tool === 'execute_command') ? 'high'
-                                    : m.toolCalls.some((tc: any) => tc.tool === 'write_file' || tc.tool === 'create_file' || tc.tool === 'delete_file') ? 'medium'
+                        approvalMeta: (() => {
+                            const pendingCalls = m.toolCalls?.filter((tc: any) => tc.status === 'pending');
+                            if (!pendingCalls?.length) return undefined;
+                            const firstPending = pendingCalls[0];
+                            return {
+                                title: `${pendingCalls.length} 个操作待确认`,
+                                summary: pendingCalls.map((tc: any) => tc.tool).join(', '),
+                                risk: pendingCalls.some((tc: any) => tc.tool === 'bash' || tc.tool === 'execute_command') ? 'high'
+                                    : pendingCalls.some((tc: any) => tc.tool === 'write_file' || tc.tool === 'create_file' || tc.tool === 'delete_file') ? 'medium'
                                     : 'low',
-                                files: m.toolCalls
-                                    .filter((tc: any) => tc.status === 'pending' && tc.args?.path)
+                                files: pendingCalls
+                                    .filter((tc: any) => tc.args?.path)
                                     .map((tc: any) => ({
                                         path: tc.args.path,
                                         change: tc.tool,
                                         risk: tc.tool === 'bash' ? 'high' : tc.tool === 'write_file' || tc.tool === 'create_file' || tc.tool === 'delete_file' ? 'medium' : 'low',
                                     })),
-                            }
-                            : undefined,
+                                // ApprovalCard 数据驱动按钮所需的字段
+                                toolName: firstPending?.tool || '',
+                                argsPreview: firstPending?.args?.path
+                                    || firstPending?.args?.command
+                                    || firstPending?.args?.rel_path
+                                    || '',
+                            };
+                        })(),
                     } : m
                 ),
                 isLoading: activeStreamCount > 0,
@@ -2074,7 +2083,44 @@ export const initStoreMapper = () => {
         const needsBackendApproval = toolPermission !== undefined && toolPermission !== 'ReadOnly';
 
         if (needsBackendApproval) {
-          console.log(`[StoreMapper] 🔐 Tool "${name}" requires backend approval (permission=${toolPermission}), skipping auto-approve`);
+          console.log(`[StoreMapper] 🔐 Tool "${name}" requires backend approval (permission=${toolPermission}), checking permission store...`);
+
+          // 🏆 FIX: 异步检查 PermissionStore 白名单（来自"始终允许"）
+          // 即使是非 ReadOnly 工具，如果用户在 PermissionStore 中添加了 allow 规则，
+          // 也应自动审批，避免下次调用仍需手动确认。
+          setTimeout(async () => {
+            try {
+              const { shouldAutoApproveAsync } = await import('../../utils/approvalPolicy');
+              const settings = useSettingsStore.getState();
+              const editorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
+
+              const shouldAutoApprove = await shouldAutoApproveAsync({
+                settings,
+                editorMode: editorMode as any,
+                isSessionTrusted: false,
+                toolName: name,
+                userMessageHasAutoApprove: false,
+              });
+
+              if (shouldAutoApprove) {
+                console.log(`[StoreMapper] 🚀 Permission store hit, auto-approving tool:`, name);
+
+                if ((window as any).__EXECUTED_TOOLS__ && (window as any).__EXECUTED_TOOLS__.has(toolId)) {
+                  console.log('[StoreMapper] ⚠️ Tool already executed, skipping:', toolId);
+                  return;
+                }
+                if (!(window as any).__EXECUTED_TOOLS__) {
+                  (window as any).__EXECUTED_TOOLS__ = new Set();
+                }
+                (window as any).__EXECUTED_TOOLS__.add(toolId);
+
+                const chatStore = useChatStore.getState();
+                await chatStore.approveToolCall(correlationId, toolId);
+              }
+            } catch (error) {
+              console.error('[StoreMapper] ❌ Permission store check failed:', error);
+            }
+          }, 100);
         } else {
           // 延迟执行以确保 UI 先渲染
           setTimeout(async () => {
@@ -2125,11 +2171,41 @@ export const initStoreMapper = () => {
 
     // 3.5 🔐 后端审批请求处理：确保 toolCall 状态为 pending
     // 当后端发送 tool_approval_required 时，确保对应 toolCall 状态正确
-    // （防止前端自动审批已将状态改为 approved 的竞态条件）
-    chatEventBus.on('chat:tool:approval-required' as any, (payload: any) => {
+    // 注意：在重置为 pending 前会检查 PermissionStore 白名单，命中则自动审批
+    chatEventBus.on('chat:tool:approval-required' as any, async (payload: any) => {
       const { toolId, toolName } = payload;
 
-      // 确保 toolCall 状态为 pending（覆盖前端自动审批的竞态）
+      // 🏆 FIX: 先检查 PermissionStore 白名单（来自"始终允许"）
+      // 如果白名单命中则自动审批，跳过 pending 重置，避免审批弹窗
+      try {
+        const { shouldAutoApproveAsync } = await import('../../utils/approvalPolicy');
+        const settings = useSettingsStore.getState();
+        const editorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
+
+        const shouldAutoApprove = await shouldAutoApproveAsync({
+          settings,
+          editorMode: editorMode as any,
+          isSessionTrusted: false,
+          toolName: toolName,
+          userMessageHasAutoApprove: false,
+        });
+
+        if (shouldAutoApprove) {
+          console.log(`[StoreMapper] 🚀 Permission store hit (approval-required handler), auto-approving tool:`, toolName);
+          // 找到含此 toolCall 的 message 并自动审批，跳过 pending 重置
+          const state = useChatStore.getState();
+          for (const msg of state.messages) {
+            if (msg.toolCalls?.some((tc: any) => tc.id === toolId)) {
+              await state.approveToolCall(msg.id, toolId);
+              return; // 跳过下方的 pending 重置
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[StoreMapper] ❌ Permission store check in approval-required failed:', error);
+      }
+
+      // 原逻辑：确保 toolCall 状态为 pending（覆盖前端自动审批的竞态）
       const updater = (state: any) => {
         const updatedMessages = state.messages.map((msg: any) => {
           if (msg.toolCalls && msg.toolCalls.length > 0) {

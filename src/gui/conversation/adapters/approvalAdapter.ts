@@ -10,6 +10,7 @@
  */
 import type { MessageAdapter } from '../MessageAdapterRegistry';
 import type { RiskLevel } from '../WORKFLOW_DSL';
+import { categorizeTool } from '../../../core/approval/ToolApprovalRegistry';
 
 /* ===== 声明式配置 ===== */
 
@@ -40,6 +41,10 @@ export const approvalAdapter: MessageAdapter = {
       })),
       onApprove: 'continue' as const,
       onReject: 'stop' as const,
+      // ApprovalCard 数据驱动按钮所需字段
+      toolName: msg.approvalMeta.toolName || '',
+      toolCategory: msg.approvalMeta.toolName ? categorizeTool(msg.approvalMeta.toolName) : '',
+      argsPreview: msg.approvalMeta.argsPreview || '',
     },
   }),
 };

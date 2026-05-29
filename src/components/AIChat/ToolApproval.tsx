@@ -2,7 +2,7 @@ import { PivoProjectTree } from "./PivoProjectTree";
 import { useApprovalStore } from '../../core/approval/store/useApprovalStore';
 import { DiffPreview } from './DiffPreview';
 import { useTypewriter } from '../../hooks/useTypewriter';
-import React, { useState, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ExternalLink, Copy } from 'lucide-react';
 import { ToolCall, useChatStore } from '../../stores/useChatStore';
 import { useFileStore } from '../../stores/fileStore';
@@ -292,6 +292,98 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
     const [isExpanded, setIsExpanded] = useState(false);
     const [oldContent, setOldContent] = useState<string | null>(null);
     const [pathCopied, setPathCopied] = useState<string | null>(null);
+
+    // 数据驱动审批按钮：从 Rust 获取可用决策选项
+    const [decisions, setDecisions] = useState<Array<{ type: string; label: string; icon: string }>>([]);
+    const [decisionsLoading, setDecisionsLoading] = useState(false);
+
+    // pending 状态时从 Rust 拉取 available_decisions
+    useEffect(() => {
+        if (toolCall.status !== 'pending') return;
+
+        let cancelled = false;
+        setDecisionsLoading(true);
+        setDecisions([]);
+
+        const toolName = toolCall.tool || '';
+        const category = toolApprovalRegistry.categorizeTool(toolName);
+        const argsPreview = toolCall.args?.command || toolCall.args?.path || toolCall.args?.rel_path || '';
+
+        const payload = JSON.stringify({
+            tool_name: toolName,
+            category: category,
+            args_preview: argsPreview,
+        });
+
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+            return invoke<string>('permission_invoke', {
+                action: 'available_decisions',
+                payload,
+            });
+        }).then((result) => {
+            if (!cancelled && result) {
+                setDecisions(JSON.parse(result));
+            }
+        }).catch(() => {
+            // Rust 不可用 → 使用硬编码 fallback 按钮
+        }).finally(() => {
+            if (!cancelled) setDecisionsLoading(false);
+        });
+
+        return () => { cancelled = true; };
+    }, [toolCall.status, toolCall.tool, toolCall.args?.command, toolCall.args?.path, toolCall.args?.rel_path]);
+
+    // 处理数据驱动决策
+    const handleDecision = (d: { type: string; label: string; icon: string }) => {
+        const msgId = message?.id || '';
+        const toolId = toolCall.id;
+
+        switch (d.type) {
+            case 'once':
+                useChatStore.getState().approveToolCall(msgId, toolId);
+                break;
+            case 'always':
+                import('@tauri-apps/api/core').then(({ invoke }) => {
+                    invoke('permission_invoke', {
+                        action: 'add_rule',
+                        payload: JSON.stringify({
+                            rule_type: 'allow',
+                            tool: toolCall.tool || '',
+                            // 🏆 FIX: pattern=:* 空前缀匹配所有 target
+                            // Rust match_rule(":*", target) → target.starts_with("") → 始终为 true
+                            pattern: ':*',
+                        }),
+                    }).catch((err) => {
+                        console.error('[ToolApproval] ❌ add_rule failed:', err);
+                        toast.error('保存始终允许规则失败');
+                    });
+                });
+                useChatStore.getState().approveToolCall(msgId, toolId);
+                break;
+            case 'session':
+                import('@tauri-apps/api/core').then(({ invoke }) => {
+                    invoke('permission_invoke', {
+                        action: 'add_session_rule',
+                        payload: JSON.stringify({
+                            rule_type: 'allow',
+                            tool: toolCall.tool || '',
+                            pattern: '*',
+                        }),
+                    }).catch((err) => {
+                        console.error('[ToolApproval] ❌ add_session_rule failed:', err);
+                        toast.error('保存会话规则失败');
+                    });
+                });
+                useChatStore.getState().approveToolCall(msgId, toolId);
+                break;
+            case 'deny':
+                useChatStore.getState().rejectToolCall(msgId, toolId);
+                break;
+            default:
+                useChatStore.getState().approveToolCall(msgId, toolId);
+                break;
+        }
+    };
 
     // 🐛 DEBUG: 添加 ref 用于追踪 props 引用变化
     const previousNestedStructureRef = useRef<any>(null);
@@ -1039,28 +1131,59 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 )}
             </div>
 
-            {/* 🔥 审批操作 — pending 工具的内联确认/拒绝按钮（直调 store，绕过 props 链） */}
+            {/* 🔥 审批操作 — pending 工具的内联审批按钮（数据驱动：从 Rust 获取决策选项） */}
             {toolCall.status === 'pending' && (
                 <div className="flex border-t border-gray-700/30">
-                    <button
-                        onClick={() => useChatStore.getState().approveToolCall(message?.id || '', toolCall.id)}
-                        className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
-                                   text-green-400 hover:bg-green-500/10
-                                   flex items-center justify-center gap-2 transition-all duration-200"
-                    >
-                        <Check size={14} />
-                        确认执行
-                    </button>
-                    <div className="w-px bg-gray-700/30" />
-                    <button
-                        onClick={() => useChatStore.getState().rejectToolCall(message?.id || '', toolCall.id)}
-                        className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
-                                   text-red-400 hover:bg-red-500/10
-                                   flex items-center justify-center gap-2 transition-all duration-200"
-                    >
-                        <X size={14} />
-                        拒绝
-                    </button>
+                    {decisions.length > 0 ? (
+                        decisions.map((d) => {
+                            const isDeny = d.type === 'deny';
+                            return (
+                                <button
+                                    key={d.type}
+                                    onClick={() => handleDecision(d)}
+                                    className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
+                                               flex items-center justify-center gap-2 transition-all duration-200"
+                                    style={{
+                                        color: isDeny ? '#EF4444' : '#22C55E',
+                                        background: isDeny ? 'transparent' : 'transparent',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = isDeny
+                                            ? 'rgba(239, 68, 68, 0.08)'
+                                            : 'rgba(34, 197, 94, 0.08)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'transparent';
+                                    }}
+                                >
+                                    {d.icon} {d.label}
+                                </button>
+                            );
+                        })
+                    ) : (
+                        /* 硬编码 fallback：Rust 不可用或无 toolName 时的回退 */
+                        <>
+                            <button
+                                onClick={() => useChatStore.getState().approveToolCall(message?.id || '', toolCall.id)}
+                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
+                                           text-green-400 hover:bg-green-500/10
+                                           flex items-center justify-center gap-2 transition-all duration-200"
+                            >
+                                <Check size={14} />
+                                确认执行
+                            </button>
+                            <div className="w-px bg-gray-700/30" />
+                            <button
+                                onClick={() => useChatStore.getState().rejectToolCall(message?.id || '', toolCall.id)}
+                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
+                                           text-red-400 hover:bg-red-500/10
+                                           flex items-center justify-center gap-2 transition-all duration-200"
+                            >
+                                <X size={14} />
+                                拒绝
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
 
