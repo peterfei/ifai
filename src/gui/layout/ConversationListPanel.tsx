@@ -277,6 +277,10 @@ export function ConversationListPanel() {
                   )}>
                     {thread.title}
                   </span>
+                  {/* 🏆 Phase 3: 未读标记 */}
+                  {thread.hasUnreadActivity && !isActive && (
+                    <span className="inline-block h-2 w-2 rounded-full bg-red-500 flex-shrink-0" title="有新活动" />
+                  )}
 
                   {/* 置顶标识 */}
                   {thread.pinned && (

@@ -204,15 +204,29 @@ export const useThreadStore = create<ThreadStore>()(
         if (!thread || thread.status === 'deleted') return;
 
         const oldThreadId = state.activeThreadId;
+        const { useChatStore } = await import('./useChatStore');
+
+        // 🏆 Phase 3: 获取 PerThreadSessionStore（通过 window 全局引用，惰性初始化）
+        const pss = typeof window !== 'undefined' ? (window as any).__getPerThreadSessionStore?.() : null;
+
         if (oldThreadId && oldThreadId !== threadId) {
           // 持久化旧线程消息（belt-and-suspenders：subscribe 也会写，但切线程时再确认一次）
-          const [{ threadPersistence }, { useChatStore }, { useTodoWriteStore }] = await Promise.all([
+          const [{ threadPersistence }, { useTodoWriteStore }] = await Promise.all([
             import('./persistence/threadPersistence'),
-            import('./useChatStore'),
             import('./todoWriteStore'),
           ]);
-          await threadPersistence.saveThreadMessages(oldThreadId, useChatStore.getState().messages as any);
+          const currentMessages = useChatStore.getState().messages;
+          await threadPersistence.saveThreadMessages(oldThreadId, currentMessages as any);
           useTodoWriteStore.getState().saveTasksForThread(oldThreadId);
+
+          // 🏆 Phase 3: 保存 per-thread session 状态（isLoading, scrollPosition, inputContent）
+          // scrollPosition 由 AIChat 组件的 onScroll 实时写入 PerThreadSessionStore
+          // inputContent 由 ChatInputArea 组件在切换前写入 PerThreadSessionStore
+          if (pss) {
+            const chatState = useChatStore.getState();
+            pss.setLoading(oldThreadId, chatState.isLoading);
+            pss.setInputContent(oldThreadId, pss.getInputContent(oldThreadId) || chatState.input || '');
+          }
         }
 
         set(state => ({
@@ -221,7 +235,6 @@ export const useThreadStore = create<ThreadStore>()(
         }));
 
         // 冷启动：如果目标线程不在内存中，从 IndexedDB 加载到 _messagesByThread
-        const { useChatStore } = await import('./useChatStore');
         if (!useChatStore.getState()._messagesByThread?.[threadId]?.length) {
           const { threadPersistence } = await import('./persistence/threadPersistence');
           const saved = await threadPersistence.loadThreadMessages(threadId);
@@ -232,8 +245,39 @@ export const useThreadStore = create<ThreadStore>()(
           }
         }
 
+        // 🏆 Phase 3: 恢复 per-thread isLoading + 清除未读标记
+        let targetIsLoading = false;
+        if (pss) {
+          const session = pss.getSession(threadId);
+          targetIsLoading = session?.isLoading ?? false;
+          pss.clearUnreadUpdate(threadId);
+        }
+
+        // 🏆 Phase 3: 记录 thread:switch 事件到持久化日志
+        try {
+          const { getSessionPersistenceService } = await import('../services/sessionPersistence/SessionPersistenceService');
+          const sps = getSessionPersistenceService();
+          sps.persistEvent(oldThreadId || threadId, 'thread:switch', {
+            targetThreadId: threadId,
+            previousThreadId: oldThreadId,
+            isLoading: targetIsLoading,
+          });
+          await sps.flush();
+          if (await sps.shouldCreateSnapshot(threadId)) {
+            await sps.createSnapshot(threadId, {
+              messages: useChatStore.getState().messages,
+              isLoading: targetIsLoading,
+              scrollPosition: pss?.getScrollPosition(threadId) ?? 0,
+              inputContent: pss?.getInputContent(threadId) ?? '',
+              lastSequence: 0,
+            });
+          }
+        } catch (e) {
+          console.warn('[ThreadStore] ⚠️ Session persistence event log failed:', e);
+        }
+
         // Middleware 自动路由：messages = _messagesByThread[threadId] || []
-        useChatStore.setState({ currentThreadId: threadId, isLoading: false });
+        useChatStore.setState({ currentThreadId: threadId, isLoading: targetIsLoading });
 
         // 🏆 CRITICAL FIX: 切回后检测活跃 session，防止 isLoading 被错误清空或残留
         const { restoreIsLoadingIfActive } = await import('./useChatStore');

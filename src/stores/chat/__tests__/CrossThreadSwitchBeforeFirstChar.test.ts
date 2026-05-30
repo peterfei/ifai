@@ -509,10 +509,11 @@ describe('CT-1: 首字未到就切线程 — 完整 LLM 生命周期', () => {
     const aMsgAfterBug = state._messagesByThread[THREAD_A]?.find((m: any) => m.id === corrIdA);
     const bMsgAfterBug = state._messagesByThread[THREAD_B]?.find((m: any) => m.id === corrIdA);
     expect(aMsgAfterBug?.content || '').toBe('');  // 🐛 A 无内容
-    // sessionId=B 但 B 的 bucket 中无此消息 → 内容丢失（既不在 A 也不在 B）
+    // sessionId=B === currentThreadId=B, 非跨线程场景, Layer 2 不会触发（专为跨线程设计）
+    // 内容仍消失在虚空：既不在 A（sessionId 错误），也不在 B（同线程无对应消息）
     expect(bMsgAfterBug).toBeUndefined();  // 🐛 B 也没有（内容消失在虚空）
 
-    console.log('[CT-1.3] 🐛 BUG CONFIRMED — content lost in void:', {
+    console.log('[CT-1.3] 🐛 BUG CONFIRMED — content lost in void (same-thread routing, Layer 2 no-op):', {
       aContent: aMsgAfterBug?.content,
       aContentLen: aMsgAfterBug?.content?.length || 0,
       bExists: !!bMsgAfterBug,

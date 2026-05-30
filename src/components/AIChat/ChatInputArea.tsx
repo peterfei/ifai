@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Send, Hash, Image, AtSign, X, Cpu } from 'lucide-react';
 // 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
 import { useChatStore } from '../../stores/chat/CoreStoreProxy';
+// 🏆 Phase 3: 直接读取 currentThreadId（只读），用于 per-thread inputContent 的保存/恢复
+import { useChatStore as useRealChatStore } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
@@ -89,6 +91,26 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isModelPanelOpen]);
+
+  // 🏆 Phase 3: 线程切换时保存/恢复输入框内容
+  const inputRef = useRef(input);
+  inputRef.current = input;
+  const currentThreadId = useRealChatStore((s: any) => s.currentThreadId);
+
+  useEffect(() => {
+    // 恢复新线程的输入内容
+    const saved = typeof window !== 'undefined'
+      ? (window as any).__getPerThreadSessionStore?.()?.getInputContent(currentThreadId)
+      : '';
+    setInput(saved || '');
+
+    return () => {
+      // 保存旧线程的输入内容
+      if (typeof window !== 'undefined' && currentThreadId) {
+        (window as any).__getPerThreadSessionStore?.()?.setInputContent(currentThreadId, inputRef.current);
+      }
+    };
+  }, [currentThreadId]);
 
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [originalInput, setOriginalInput] = useState('');

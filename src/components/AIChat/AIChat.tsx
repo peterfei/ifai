@@ -406,6 +406,36 @@ export const AIChat = ({ width, onResizeStart, compact }: AIChatProps) => {
     return () => cancelAnimationFrame(raf);
   }, [isLoading]);
 
+  // 🏆 Phase 3: 线程切换时保存/恢复滚动位置
+  const activeThreadIdRef = useRef(activeThreadId);
+  activeThreadIdRef.current = activeThreadId;
+
+  useEffect(() => {
+    // 旧线程的滚动位置在 cleanup 中保存
+    return () => {
+      const prevTid = activeThreadIdRef.current;
+      if (prevTid && scrollContainerRef.current && typeof window !== 'undefined') {
+        (window as any).__getPerThreadSessionStore?.()?.setScrollPosition(prevTid, scrollContainerRef.current.scrollTop);
+      }
+    };
+  }, [activeThreadId]);
+
+  // 恢复滚动位置（在 DOM 更新后）
+  useEffect(() => {
+    if (!activeThreadId || !scrollContainerRef.current) return;
+    const saved = typeof window !== 'undefined'
+      ? (window as any).__getPerThreadSessionStore?.()?.getScrollPosition(activeThreadId)
+      : 0;
+    if (saved > 0) {
+      // 延迟一帧确保 DOM 已渲染
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = saved;
+        }
+      });
+    }
+  }, [activeThreadId]);
+
   // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
   useEffect(() => {
     const fetchVersion = async () => {

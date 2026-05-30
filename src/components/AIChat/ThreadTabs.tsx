@@ -179,6 +179,11 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
         {thread.pinned ? <Pin size={isSidekick ? 16 : 12} className="fill-[var(--warning-soft-bg)] text-[var(--warning-color)]" /> : getIntentIcon(thread.title)}
       </span>
 
+      {/* 🏆 Phase 3: 未读标记 */}
+      {thread.hasUnreadActivity && !isActive && (
+        <span className="flex-shrink-0 inline-block h-2 w-2 rounded-full bg-red-500" title="有新活动" />
+      )}
+
       {/* 标题 */}
       {!isSidekick && (
         editing ? (

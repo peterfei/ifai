@@ -270,6 +270,16 @@ function App() {
         await initThreadPersistence();
         console.log('[App] ✅ Thread persistence initialized');
 
+        // 🏆 Phase 3: 初始化 SessionPersistenceService（IndexedDB 会话持久化）
+        try {
+          const { getSessionPersistenceService } = await import('./services/sessionPersistence/SessionPersistenceService');
+          const sps = getSessionPersistenceService();
+          await sps.initialize();
+          console.log('[App] ✅ SessionPersistenceService initialized');
+        } catch (e) {
+          console.warn('[App] ⚠️ SessionPersistenceService init failed:', e);
+        }
+
         // restoreFromStorage() 已内部调用 switchThread() 恢复消息，无需重复调用
       } catch (error) {
         console.error('[App] ❌ Thread restoration failed:', error);

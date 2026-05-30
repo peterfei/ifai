@@ -309,6 +309,8 @@ export const initStoreMapper = () => {
 
         // 🏆 声明式计数器：per-thread activeStreamCount 推导 isLoading（跨线程均须递增）
         getPerThreadSessionStore().incrementStreamCount(streamSessionId);
+        // 🏆 Phase 4: 记录 streamingIds 到 per-thread session（用于断链检测和清理）
+        getPerThreadSessionStore().addStreamingId(streamSessionId, correlationId);
         debugLog({ category: 'stream:start', level: 'info', message: `Stream start: sessionId=${streamSessionId}`, threadId: streamSessionId, correlationId, data: { currentThreadId: useChatStore.getState().currentThreadId, isCrossThread: streamSessionId !== useChatStore.getState().currentThreadId } });
 
         // 🏆 设置 isStreaming 标记（仅在流所属线程 === 当前线程时更新 UI）
@@ -400,8 +402,73 @@ export const initStoreMapper = () => {
                             targetMsg.segments = csmSegments.map((s: any) => ({ ...s }));
                         }
                         newTargetMsgs[tIdx] = targetMsg;
+                        // 🏆 Phase 4: 跨线程 chunk 标记未读更新
+                        getPerThreadSessionStore().setHasUnreadUpdate(sessionId, true);
+                        useThreadStore.getState().markUnreadActivity(sessionId, true);
                         return { messages: newTargetMsgs, _threadId: sessionId, isLoading: true };
                     }
+
+                    // 🏆 Phase 4: Layer 2 auto-create — _messagesByThread 中消息不存在时自动创建（仅跨线程）
+                    const currentTidLayer2 = useChatStore.getState().currentThreadId;
+                    if (currentTidLayer2 && sessionId !== currentTidLayer2) {
+                      debugLog({
+                        category: 'layer2:recovery',
+                        level: 'warn',
+                        message: `Layer 2 auto-create: ${correlationId} not found in _messagesByThread[${sessionId}]`,
+                      threadId: sessionId,
+                      correlationId,
+                      data: { deltaLength: delta?.length, deltaIndex }
+                    });
+                    const csmSegmentsForAuto = contentSegmentManager.getSegments(correlationId);
+                    const csmContentForAuto = csmSegmentsForAuto
+                      ?.filter((s: any) => s.type === 'text' && s.content)
+                      .map((s: any) => s.content)
+                      .join('') || '';
+                    const autoCreatedMsg = {
+                      id: correlationId,
+                      role: 'assistant',
+                      content: csmContentForAuto || (delta || ''),
+                      status: 'streaming',
+                      isStreaming: true,
+                      timestamp: Date.now(),
+                      segments: csmSegmentsForAuto ? csmSegmentsForAuto.map((s: any) => ({ ...s })) : [],
+                    };
+                    const newTargetMsgsWithAuto = [...targetMsgs, autoCreatedMsg];
+                    // 🏆 Phase 4: 跨线程 chunk 标记未读更新（auto-create 场景）
+                    getPerThreadSessionStore().setHasUnreadUpdate(sessionId, true);
+                    useThreadStore.getState().markUnreadActivity(sessionId, true);
+                    return { messages: newTargetMsgsWithAuto, _threadId: sessionId, isLoading: true };
+                }  // ← closes cross-thread guard (auto-create)
+                }  // ← closes sessionId & bucket check
+
+                // 🏆 Phase 4: _messagesByThread bucket 不存在时，创建并初始化（仅跨线程）
+                const currentTidForLayer2 = useChatStore.getState().currentThreadId;
+                if (sessionId && currentTidForLayer2 && sessionId !== currentTidForLayer2) {
+                  debugLog({
+                    category: 'layer2:recovery',
+                    level: 'warn',
+                    message: `Layer 2 auto-create: creating bucket + message for ${correlationId}`,
+                    threadId: sessionId,
+                    correlationId,
+                    data: { deltaLength: delta?.length, deltaIndex }
+                  });
+                  const csmSegmentsForBucket = contentSegmentManager.getSegments(correlationId);
+                  const csmContentForBucket = csmSegmentsForBucket
+                    ?.filter((s: any) => s.type === 'text' && s.content)
+                    .map((s: any) => s.content)
+                    .join('') || '';
+                  const bucketAutoCreatedMsg = {
+                    id: correlationId,
+                    role: 'assistant',
+                    content: csmContentForBucket || (delta || ''),
+                    status: 'streaming',
+                    isStreaming: true,
+                    timestamp: Date.now(),
+                    segments: csmSegmentsForBucket ? csmSegmentsForBucket.map((s: any) => ({ ...s })) : [],
+                  };
+                  getPerThreadSessionStore().setHasUnreadUpdate(sessionId, true);
+                  useThreadStore.getState().markUnreadActivity(sessionId, true);
+                  return { messages: [bucketAutoCreatedMsg], _threadId: sessionId, isLoading: true };
                 }
                 return state;
             }
@@ -439,6 +506,10 @@ export const initStoreMapper = () => {
 
         // 🔥 序号校验：清理序号追踪器
         streamIndexTracker.delete(correlationId);
+
+        // 🏆 Phase 4: 清理 streamingIds（先于 CSM finish 和 decrement，确保清理在最前）
+        const streamTid = sessionId || useChatStore.getState().currentThreadId;
+        getPerThreadSessionStore().removeStreamingId(streamTid, correlationId);
 
         // A. 通知 ContentSegmentManager
         contentSegmentManager.onStreamFinish(correlationId);
@@ -540,6 +611,13 @@ export const initStoreMapper = () => {
               console.log('[StoreMapper] 🔀 Cross-thread stream finished:', {
                 correlationId, sessionId, contentLength: fullContent.length,
               });
+
+              // 🏆 Phase 3: 标记目标线程有未读更新（仅在非当前线程时标记）
+              const currentTid = useChatStore.getState().currentThreadId;
+              if (sessionId !== currentTid) {
+                getPerThreadSessionStore().setHasUnreadUpdate(sessionId, true);
+                useThreadStore.getState().markUnreadActivity(sessionId, true);
+              }
             }
           }
         }
@@ -629,6 +707,22 @@ export const initStoreMapper = () => {
             }
           }
         }, 100);
+
+        // 🏆 Phase 4: stream:finished → persistEvent + 惰性检查快照
+        const finishTid = sessionId || useChatStore.getState().currentThreadId;
+        if (finishTid) {
+          import('../../services/sessionPersistence/SessionPersistenceService').then(
+            ({ getSessionPersistenceService }) => {
+              try {
+                const sps = getSessionPersistenceService();
+                sps.persistEvent(finishTid, 'stream:finished', { correlationId, totalTokens });
+                sps.flush();
+              } catch (e) {
+                console.warn('[StoreMapper] ⚠️ stream:finished persistence failed:', e);
+              }
+            },
+          );
+        }
     });
 
     // ============================================
@@ -916,10 +1010,21 @@ export const initStoreMapper = () => {
               // 🔥 CRITICAL: 同时写入 _messagesByThread[sessionId]（不更新当前 messages 视图），
               // 确保 Part E (chat:stream:finished CSM 恢复) 能找到消息对象。
               // 否则 _messagesByThread 为空 → Part E 跳过 → 切回原线程时内容/骨架屏异常。
+              // 🏆 Phase 4: 增强 _messagesByThread 存在性验证 + bucket 惰性初始化
               useChatStore.setState((storeState: any) => {
-                const existingBucket = storeState._messagesByThread?.[payloadSessionId] || [];
+                const targetBucket = storeState._messagesByThread?.[payloadSessionId];
+                if (!targetBucket) {
+                  debugLog({
+                    category: 'cross-thread',
+                    level: 'warn',
+                    message: `_messagesByThread bucket not found for ${payloadSessionId}, creating on the fly`,
+                    threadId: payloadSessionId,
+                    correlationId: messageId,
+                  });
+                }
+                const existingBucket = targetBucket || [];
                 const filtered = existingBucket.filter(
-                  (m: any) => m.id !== messageId && m.id !== assistantId
+                  (m: any) => m.id !== messageId && m.id !== assistantId,
                 );
                 return {
                   _messagesByThread: {
@@ -2826,4 +2931,47 @@ export const initStoreMapper = () => {
       };
       threadSafeUpdate(sessionId, correlationId, updater as any);
     });
+
+    // 🏆 Phase 4: Periodic snapshot — 每 5 分钟检查所有活跃线程，超过 50 事件则创建快照
+    const PERSISTENCE_INTERVAL_MS = 5 * 60 * 1000;
+    setInterval(async () => {
+      try {
+        const { getSessionPersistenceService } = await import('../../services/sessionPersistence/SessionPersistenceService');
+        const sps = getSessionPersistenceService();
+        const state = useChatStore.getState();
+        const currentThreadId = state.currentThreadId;
+        const allThreadIds = currentThreadId
+          ? Object.keys(state._messagesByThread || {}).concat(currentThreadId)
+          : Object.keys(state._messagesByThread || {});
+        const uniqueThreadIds = [...new Set(allThreadIds)].filter(Boolean);
+
+        for (const tid of uniqueThreadIds) {
+          try {
+            if (await sps.shouldCreateSnapshot(tid)) {
+              const messages = state._messagesByThread?.[tid]
+                || (tid === currentThreadId ? state.messages : []);
+              if (messages.length === 0) continue;
+              const pss = getPerThreadSessionStore().getSession(tid);
+              await sps.createSnapshot(tid, {
+                messages,
+                isLoading: pss?.isLoading ?? false,
+                scrollPosition: pss?.scrollPosition ?? 0,
+                inputContent: pss?.inputContent ?? '',
+                lastSequence: 0,
+              });
+              debugLog({
+                category: 'storage',
+                level: 'info',
+                message: `Periodic snapshot created for ${tid.substring(0, 8)} (${messages.length} msgs)`,
+                threadId: tid,
+              });
+            }
+          } catch (e) {
+            // individual thread failure should not block other threads
+          }
+        }
+      } catch (e) {
+        // periodic snapshot failure is non-critical
+      }
+    }, PERSISTENCE_INTERVAL_MS);
 };

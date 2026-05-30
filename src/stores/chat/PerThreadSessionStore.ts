@@ -141,4 +141,74 @@ export class PerThreadSessionStore {
     const session = this.getOrCreateSession(threadId);
     session.hasUnreadUpdate = false;
   }
+
+  // ─── streamingIds ─────────────────────────────────────
+
+  /**
+   * 添加 streaming ID 到线程的活跃流集合中。
+   */
+  addStreamingId(threadId: string, correlationId: string): void {
+    const session = this.getOrCreateSession(threadId);
+    session.streamingIds.add(correlationId);
+  }
+
+  /**
+   * 从线程的活跃流集合中移除 streaming ID。
+   */
+  removeStreamingId(threadId: string, correlationId: string): void {
+    const session = this.sessions.get(threadId);
+    if (session) {
+      session.streamingIds.delete(correlationId);
+    }
+  }
+
+  /**
+   * 检查线程是否正在 streaming 指定的 correlationId。
+   */
+  hasStreamingId(threadId: string, correlationId: string): boolean {
+    const session = this.sessions.get(threadId);
+    return session ? session.streamingIds.has(correlationId) : false;
+  }
+
+  /**
+   * 获取线程的所有活跃 streaming ID 列表。
+   */
+  getStreamingIds(threadId: string): string[] {
+    const session = this.sessions.get(threadId);
+    return session ? Array.from(session.streamingIds) : [];
+  }
+
+  // ─── scrollPosition ─────────────────────────────────────
+
+  /**
+   * 设置线程的滚动位置。
+   */
+  setScrollPosition(threadId: string, pos: number): void {
+    const session = this.getOrCreateSession(threadId);
+    session.scrollPosition = pos;
+  }
+
+  /**
+   * 获取线程的滚动位置，默认 0。
+   */
+  getScrollPosition(threadId: string): number {
+    return this.sessions.get(threadId)?.scrollPosition ?? 0;
+  }
+
+  // ─── inputContent ──────────────────────────────────────
+
+  /**
+   * 设置线程的输入框内容。
+   */
+  setInputContent(threadId: string, content: string): void {
+    const session = this.getOrCreateSession(threadId);
+    session.inputContent = content;
+  }
+
+  /**
+   * 获取线程的输入框内容，默认 ''。
+   */
+  getInputContent(threadId: string): string {
+    return this.sessions.get(threadId)?.inputContent ?? '';
+  }
 }
