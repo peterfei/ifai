@@ -9,6 +9,7 @@ import React, { useMemo } from 'react';
 import { useWorkLogData } from './useWorkLogData';
 import { getAgent } from '../../conversation/AGENT_DSL';
 import { useAgentStore } from '../../../stores/agentStore';
+import { useChatStore } from '../../../stores/useChatStore';
 
 /** 文件类型 → 图标标签 */
 function getFileTypeLabel(type: string): string {
@@ -26,16 +27,23 @@ function getFileTypeLabel(type: string): string {
 export function WorkLogPanel() {
   const logs = useWorkLogData();
   const runningAgents = useAgentStore((s) => s.runningAgents);
+  const currentThreadId = useChatStore((s) => s.currentThreadId);
+
+  // 过滤当前线程的 runningAgents（避免跨线程 agent 高亮干扰）
+  const threadRunningAgents = useMemo(
+    () => runningAgents.filter((a) => !a.threadId || a.threadId === currentThreadId),
+    [runningAgents, currentThreadId]
+  );
 
   // 提取当前活跃的 Agent 类型集合（用于高亮）
   const activeAgentTypes = useMemo(() => {
     const activeStatuses = new Set(['running', 'waitingfortool', 'initializing']);
     return new Set(
-      runningAgents
+      threadRunningAgents
         .filter((a) => activeStatuses.has(a.status))
         .map((a) => a.type)
     );
-  }, [runningAgents]);
+  }, [threadRunningAgents]);
 
   if (logs.length === 0) {
     return (

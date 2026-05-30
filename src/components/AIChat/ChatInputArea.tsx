@@ -257,6 +257,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
         // 动态导入 messageQueue
         const { messageQueue } = await import('../../stores/chat/MessageQueue');
 
+        // 捕获当前线程 ID（在 await 之前，避免竞态）
+        const { useThreadStore } = await import('../../stores/threadStore');
+        const currentThreadId = useThreadStore.getState().activeThreadId || 'default-thread';
+
         // 构建消息内容
         const content = attachmentsToSend.length > 0
           ? [{ type: 'text', text: messageToSend }, ...attachmentsToSend.map(img => ({
@@ -265,13 +269,13 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
             }))]
           : messageToSend;
 
-        // 入队消息
+        // 入队消息（带上线程 ID 以便跨线程并发处理）
         const messageId = await messageQueue.enqueue({
           content,
           providerId: currentProviderId,
           model: currentModel,
           priority,
-        });
+        }, currentThreadId);
 
         console.log('[ChatInputArea] ✅ Message enqueued:', messageId, 'priority:', priority);
       } catch (err) {

@@ -166,6 +166,11 @@ describe('useChatScrollController', () => {
 
       const initialScrollTop = container.scrollTop;
 
+      // 先让用户滚动触发锁定状态
+      act(() => {
+        result.current.onUserScroll();
+      });
+
       act(() => {
         result.current.followBottom(true);
       });

@@ -199,50 +199,46 @@ export const useThreadStore = create<ThreadStore>()(
       },
 
       switchThread: async (threadId: string) => {
-        console.log('[ThreadStore] 🔄 开始切换到 thread:', threadId.substring(0, 20));
         const state = get();
         const thread = state.threads[threadId];
-        if (!thread || thread.status === 'deleted') {
-          console.log('[ThreadStore] ⚠️ Thread 无效或已删除');
-          return;
-        }
+        if (!thread || thread.status === 'deleted') return;
 
-        // 🏆 关键修复：切换 Tab 前，先同步保存当前活跃线程的消息
-        // 这样可以避免消息串扰到新 Tab
         const oldThreadId = state.activeThreadId;
         if (oldThreadId && oldThreadId !== threadId) {
-          // 同步等待保存完成
-          const { threadPersistence } = await import('./persistence/threadPersistence');
-          const { useChatStore } = await import('./useChatStore');
-
-          // 获取旧线程的消息（在切换前）
-          const oldMessages = useChatStore.getState().messages;
-
-          // 保存旧线程的消息
-          await threadPersistence.saveThreadMessages(oldThreadId, oldMessages as any);
-          console.log('[ThreadStore] 💾 保存旧线程消息:', oldThreadId.substring(0, 20), '消息数:', oldMessages.length);
-
-          // 保存旧线程的 TodoWrite 任务到内存缓存
-          const { useTodoWriteStore } = await import('./todoWriteStore');
+          // 持久化旧线程消息（belt-and-suspenders：subscribe 也会写，但切线程时再确认一次）
+          const [{ threadPersistence }, { useChatStore }, { useTodoWriteStore }] = await Promise.all([
+            import('./persistence/threadPersistence'),
+            import('./useChatStore'),
+            import('./todoWriteStore'),
+          ]);
+          await threadPersistence.saveThreadMessages(oldThreadId, useChatStore.getState().messages as any);
           useTodoWriteStore.getState().saveTasksForThread(oldThreadId);
         }
 
         set(state => ({
           activeThreadId: threadId,
-          threads: {
-            ...state.threads,
-            [threadId]: { ...thread, hasUnreadActivity: false },
-          },
+          threads: { ...state.threads, [threadId]: { ...thread, hasUnreadActivity: false } },
         }));
 
-        // 🏆 关键修复：使用 await 而不是 .then()，确保消息加载完成后再返回
-        // 这样可以避免测试在消息加载完成前就检查内容
-        console.log('[ThreadStore] 📥 准备加载消息...');
-        const { switchThread: loadThreadMessages } = await import('./useChatStore');
-        await loadThreadMessages(threadId);
-        console.log('[ThreadStore] ✅ 消息加载完成');
+        // 冷启动：如果目标线程不在内存中，从 IndexedDB 加载到 _messagesByThread
+        const { useChatStore } = await import('./useChatStore');
+        if (!useChatStore.getState()._messagesByThread?.[threadId]?.length) {
+          const { threadPersistence } = await import('./persistence/threadPersistence');
+          const saved = await threadPersistence.loadThreadMessages(threadId);
+          if (saved?.length) {
+            useChatStore.setState({
+              _messagesByThread: { ...useChatStore.getState()._messagesByThread, [threadId]: saved },
+            } as any);
+          }
+        }
 
-        // 恢复新线程的 TodoWrite 任务（从内存缓存）
+        // Middleware 自动路由：messages = _messagesByThread[threadId] || []
+        useChatStore.setState({ currentThreadId: threadId, isLoading: false });
+
+        // 🏆 CRITICAL FIX: 切回后检测活跃 session，防止 isLoading 被错误清空或残留
+        const { restoreIsLoadingIfActive } = await import('./useChatStore');
+        restoreIsLoadingIfActive(useChatStore.getState().messages);
+
         const { useTodoWriteStore } = await import('./todoWriteStore');
         useTodoWriteStore.getState().loadTasksForThread(threadId);
       },

@@ -10,6 +10,7 @@
 
 import { chatEventBus, type ChatEvents } from './eventBus/ChatEventBus';
 import { DEFAULT_TITLE_REGEX } from '../threadStore';
+import { sendMessageOrchestrator } from './sendMessage/SendMessageOrchestrator';
 
 /**
  * 队列中的消息结构
@@ -29,6 +30,8 @@ export interface QueuedMessage {
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'aborted';
   /** 优先级 */
   priority: 'normal' | 'high';
+  /** 归属线程 ID（用于跨线程并发处理） */
+  threadId: string;
   /** 关联 ID（用于追踪） */
   correlationId?: string;
   /** AbortController 用于取消请求 */
@@ -53,8 +56,10 @@ export interface QueueStatus {
     /** 处理中的消息数 */
     processing: number;
   };
-  /** 是否正在处理 */
+  /** 是否正在处理（有任一线程在处理） */
   isProcessing: boolean;
+  /** 当前正在处理的线程 ID 列表 */
+  processingThreads: string[];
   /** 排队中消息的内容摘要 */
   pendingPreviews: string[];
 }
@@ -65,7 +70,7 @@ export interface QueueStatus {
  * 核心功能：
  * 1. 双队列优先级处理（普通消息 vs 工作流消息）
  * 2. FIFO（先进先出）顺序处理
- * 3. 单线程串行处理，避免并发冲突
+ * 3. 线程感知并发：不同线程的消息可并发处理，同线程保持串行
  * 4. 事件驱动状态通知
  */
 export class MessageQueue {
@@ -73,8 +78,8 @@ export class MessageQueue {
   private normalQueue: QueuedMessage[] = [];
   /** 工作流消息队列（高优先级） */
   private workflowQueue: QueuedMessage[] = [];
-  /** 是否正在处理消息 */
-  private isProcessing: boolean = false;
+  /** 当前正在处理的线程 ID 集合（支持跨线程并发） */
+  private processingThreads: Set<string> = new Set();
 
   /**
    * 获取单例实例
@@ -99,15 +104,20 @@ export class MessageQueue {
    * 入队消息
    *
    * @param message - 消息内容（不包含 id、timestamp、status）
+   * @param threadId - 消息归属的线程 ID（默认 'default-thread'，用于向后兼容）
    * @returns 消息 ID
    */
-  async enqueue(message: Omit<QueuedMessage, 'id' | 'timestamp' | 'status'>): Promise<string> {
+  async enqueue(
+    message: Omit<QueuedMessage, 'id' | 'timestamp' | 'status'>,
+    threadId: string = 'default-thread'
+  ): Promise<string> {
     const id = crypto.randomUUID();
     const abortController = new AbortController();
 
     const queuedMessage: QueuedMessage = {
       ...message,
       id,
+      threadId,
       timestamp: Date.now(),
       status: 'pending',
       abortController,
@@ -132,10 +142,10 @@ export class MessageQueue {
   }
 
   /**
-   * 处理队列（单线程串行）
+   * 处理队列（线程感知并发）
    *
    * 核心逻辑：
-   * 1. 检查是否已有处理中的任务
+   * 1. 检查是否有同线程的消息正在处理（不同线程可并发）
    * 2. 优先从工作流队列取消息
    * 3. 如果工作流队列为空，从普通队列取消息
    * 4. 标记消息为 processing
@@ -143,38 +153,24 @@ export class MessageQueue {
    * 6. 处理完成后移除消息，继续处理下一条
    */
   private async process() {
-    // 如果已有任务在处理，直接返回
-    if (this.isProcessing) {
-      console.log('[MessageQueue] ⏸️ Already processing, skipping');
-      return;
-    }
-
-    // 选择队列（优先工作流）
-    const queue = this.workflowQueue.length > 0
-      ? this.workflowQueue
-      : this.normalQueue;
-
-    // 找到第一条 pending 状态的消息
-    const nextMessage = queue.find(m => m.status === 'pending');
+    // 找到第一条 pending 且线程未在处理的消息
+    const nextMessage = this.findNextPendingMessage();
     if (!nextMessage) {
-      console.log('[MessageQueue] ✅ No pending messages');
+      console.log('[MessageQueue] ✅ No pending messages (or all threads busy)');
       return;
     }
 
-    // 🔥 FIX: 立即设置 isProcessing 标志，防止竞态条件
-    // 必须在找到消息后立即设置，不能延迟
-    this.isProcessing = true;
+    // 标记该线程为处理中（不同线程可同时处理）
+    this.processingThreads.add(nextMessage.threadId);
     nextMessage.status = 'processing';
 
-    console.log(`[MessageQueue] 🚀 Processing message: ${nextMessage.id}`);
+    console.log(`[MessageQueue] 🚀 Processing message: ${nextMessage.id} (thread: ${nextMessage.threadId})`);
+    console.log(`[MessageQueue] 🔍 processingThreads after add:`, Array.from(this.processingThreads));
 
     // 发送处理开始事件
     this.emitEvent('message:processing', nextMessage);
 
     try {
-      // 动态导入 SendMessageOrchestrator
-      const { sendMessageOrchestrator } = await import('./sendMessage/SendMessageOrchestrator');
-
       console.log(`[MessageQueue] 📤 Calling sendMessageOrchestrator.send() for: ${nextMessage.id}`);
 
       // 调用 sendMessageOrchestrator.send()
@@ -192,12 +188,11 @@ export class MessageQueue {
         hasCorrelationId: !!(result as any)?.correlationId,
       });
 
-      // 🔥 FIX: 自动更新线程标题 - 如果当前线程的标题是默认标题，根据消息内容更新
-      // 因为 MessageQueue 绕过了 chatStore.sendMessage()，所以需要在这里单独处理标题更新
+      // 🔥 FIX: 自动更新线程标题 - 使用消息绑定的 threadId，而非当前活跃线程
       try {
         const { useThreadStore } = await import('../threadStore');
         const threadStore = useThreadStore.getState();
-        const threadId = threadStore.activeThreadId;
+        const threadId = nextMessage.threadId;
         const currentThread = threadId ? threadStore.getThread(threadId) : null;
 
         console.log('[MessageQueue] 🔍 标题更新检查:', {
@@ -243,7 +238,8 @@ export class MessageQueue {
               context,
               nextMessage.providerId,
               nextMessage.model,
-              correlationId
+              correlationId,
+              nextMessage.threadId  // 🔥 显式传递线程 ID，防止线程切换后产生串流
             );
             console.log(`[MessageQueue] ✅ generateResponse completed for: ${nextMessage.id}`);
           } else {
@@ -283,30 +279,59 @@ export class MessageQueue {
         this.emitEvent('message:failed', { ...nextMessage, error });
       }
     } finally {
-      // 从队列中移除已完成的消息
+      // 从队列中移除已完成的消息（从消息所在的实际队列移除）
+      const queue = nextMessage.priority === 'high' ? this.workflowQueue : this.normalQueue;
       const index = queue.indexOf(nextMessage);
       if (index > -1) {
         queue.splice(index, 1);
       }
 
-      this.isProcessing = false;
+      // 从处理中的线程集合移除
+      this.processingThreads.delete(nextMessage.threadId);
 
       // 🔥 FIX: 发送队列状态变更事件，确保 UI 能正确更新
-      // 因为 completed/aborted/failed 事件发出时 isProcessing 仍为 true
-      // 需要在 finally 中额外发送一次状态变更
       this.emitStatusChanged();
 
       // 继续处理下一条消息
-      const hasPending = this.workflowQueue.some(m => m.status === 'pending') ||
-                        this.normalQueue.some(m => m.status === 'pending');
-
-      if (hasPending) {
+      if (this.hasAnyPending()) {
         // 使用 setTimeout 避免栈溢出
         setTimeout(() => this.process(), 10);
       } else {
         console.log('[MessageQueue] 🎉 All messages processed');
       }
     }
+  }
+
+  /**
+   * 查找下一条可处理的 pending 消息
+   *
+   * 规则：
+   * 1. 优先从工作流队列取消息
+   * 2. 跳过正在处理中的线程的消息（同线程串行）
+   * 3. 不同线程的消息可并发处理
+   */
+  private findNextPendingMessage(): QueuedMessage | undefined {
+    // 先检查工作流队列（更高优先级）
+    for (const msg of this.workflowQueue) {
+      if (msg.status === 'pending' && !this.processingThreads.has(msg.threadId)) {
+        return msg;
+      }
+    }
+    // 再检查普通队列
+    for (const msg of this.normalQueue) {
+      if (msg.status === 'pending' && !this.processingThreads.has(msg.threadId)) {
+        return msg;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * 检查是否有任何 pending 消息
+   */
+  private hasAnyPending(): boolean {
+    return this.workflowQueue.some(m => m.status === 'pending') ||
+           this.normalQueue.some(m => m.status === 'pending');
   }
 
   /**
@@ -339,7 +364,8 @@ export class MessageQueue {
         pending: this.workflowQueue.filter(m => m.status === 'pending').length,
         processing: this.workflowQueue.filter(m => m.status === 'processing').length,
       },
-      isProcessing: this.isProcessing,
+      isProcessing: this.processingThreads.size > 0,
+      processingThreads: Array.from(this.processingThreads),
       pendingPreviews: pendingMessages.map(m => extractPreview(m.content)),
     };
 
@@ -390,12 +416,16 @@ export class MessageQueue {
   /**
    * 取消当前正在处理的消息
    *
+   * @param threadId - 可选，指定要中止的线程。不传时找第一个 processing 消息
    * @returns 是否成功取消
    */
-  abortCurrent(): boolean {
+  abortCurrent(threadId?: string): boolean {
     // 查找正在处理的消息
-    const processing = this.normalQueue.find(m => m.status === 'processing') ||
-                      this.workflowQueue.find(m => m.status === 'processing');
+    const processing = threadId
+      ? this.normalQueue.find(m => m.status === 'processing' && m.threadId === threadId) ||
+        this.workflowQueue.find(m => m.status === 'processing' && m.threadId === threadId)
+      : this.normalQueue.find(m => m.status === 'processing') ||
+        this.workflowQueue.find(m => m.status === 'processing');
 
     if (!processing) {
       console.warn('[MessageQueue] ⚠️ No processing message to abort');
@@ -422,7 +452,7 @@ export class MessageQueue {
 
     this.normalQueue = [];
     this.workflowQueue = [];
-    this.isProcessing = false;
+    this.processingThreads.clear();
   }
 
   /**

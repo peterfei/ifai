@@ -8,6 +8,7 @@
 
 import { chatEventBus } from './eventBus/ChatEventBus';
 import { useChatStore } from '../useChatStore';
+import { useThreadStore } from '../threadStore';
 import { useSettingsStore } from '../settingsStore';
 import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolicy';
 import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
@@ -16,7 +17,6 @@ import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { createLogger } from '../../utils/logger';
-import { initCrossThreadPersistence } from './CrossThreadPersistenceService';
 import type { PhaseData, WorkflowData, NodeData, ToolItem } from '../../types/workflow';
 
 // 🔥 Logger instance for StoreMapper
@@ -62,6 +62,155 @@ export function normalizeInteractionData(raw: any): any | null {
     };
   }
   return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 纯函数：消息创建（零副作用，供同线程 setState + 跨线程 IndexedDB 两路径复用）
+// 元编程原则：消息对象构建逻辑只写一次，路由由调用侧决定
+// ═══════════════════════════════════════════════════════════════
+
+function createMessageTimestamps(): { userTimestamp: number; assistantTimestamp: number } {
+  const now = Date.now();
+  const sequenceCounter = typeof window !== 'undefined'
+    ? ++(window as any).__MESSAGE_SEQUENCE_COUNTER__
+    : 0;
+  return {
+    userTimestamp: now + sequenceCounter * 100,
+    assistantTimestamp: now + sequenceCounter * 100 + 1,
+  };
+}
+
+function createInitialMessagePair(
+  messageId: string,
+  assistantId: string,
+  content: any,  // string | array（支持 multimodal）
+  multiModalContent: any,
+  timestamps: { userTimestamp: number; assistantTimestamp: number },
+): { userMessage: any; assistantMessage: any } {
+  return {
+    userMessage: {
+      id: messageId,
+      role: 'user' as const,
+      content,
+      multiModalContent,
+      timestamp: timestamps.userTimestamp,
+      segments: [{
+        id: `seg-user-${messageId}`,
+        type: 'text' as const,
+        phase: 'pre-tool' as const,
+        content,
+        order: 1,
+        timestamp: timestamps.userTimestamp,
+      }],
+    },
+    assistantMessage: {
+      id: assistantId,
+      role: 'assistant' as const,
+      content: '',
+      status: 'streaming' as const,
+      timestamp: timestamps.assistantTimestamp,
+      segments: [],
+    },
+  };
+}
+
+async function persistInitialMessagesToThread(
+  threadId: string,
+  userMessage: any,
+  assistantMessage: any,
+  messageId: string,
+  assistantId: string,
+): Promise<void> {
+  try {
+    const { threadPersistence } = await import('../persistence/threadPersistence');
+    const existingMessages = await threadPersistence.loadThreadMessages(threadId);
+    const filtered = existingMessages.filter(
+      (m: any) => m.id !== messageId && m.id !== assistantId,
+    );
+    const updated = [...filtered, userMessage, assistantMessage];
+    await threadPersistence.saveThreadMessages(threadId, updated as any);
+    console.log('[StoreMapper] 💾 Cross-thread: persisted initial messages to thread',
+      threadId.substring(0, 8), `(${updated.length} total)`);
+  } catch (err) {
+    console.error('[StoreMapper] ❌ Cross-thread persistence failed:', err);
+  }
+}
+
+/**
+ * resolveTargetThreadId — 声明式线程 ID 解析（消除两处克隆的过程化逻辑）
+ *
+ * 统一处理 activeThreadId 与 currentThreadId 不一致的同步，以及无效 ID 的降级。
+ * 一次定义，所有持久化回调复用一行调用。
+ */
+function resolveTargetThreadId(state: { currentThreadId: string }): string | null {
+  const threadState = useThreadStore.getState();
+  let activeId = threadState.activeThreadId;
+  let currentId = state.currentThreadId;
+
+  // 降级 1: activeThreadId 缺失 → 用 currentThreadId 并回写 threadStore
+  if (!activeId && currentId) {
+    threadState.setActiveThread(currentId);
+    activeId = currentId;
+  }
+
+  // 降级 2: currentThreadId 无效 → 用 activeThreadId 并同步 store
+  if (!currentId || currentId === 'undefined' || currentId === 'default-thread') {
+    if (activeId) {
+      useChatStore.setState({ currentThreadId: activeId } as any);
+      return activeId;
+    }
+    return null;
+  }
+
+  // 同步: activeThreadId 与 currentThreadId 不一致 → 以 activeThreadId 为准
+  if (activeId && activeId !== currentId) {
+    useChatStore.setState({ currentThreadId: activeId } as any);
+    return activeId;
+  }
+
+  return currentId;
+}
+
+/**
+ * threadSafeUpdate — 线程安全的消息更新辅助函数
+ *
+ * 先尝试在当前线程的 messages 中执行 updater；若 updater 返回 state 不变
+ * (消息不在当前线程中)，则回退到 _messagesByThread[sessionId] bucket 重试，
+ * 并通过 _threadId 路由写入正确线程的 bucket。
+ *
+ * 解决所有 handler（tool:call, tool:completed, segment:* 等）中的
+ * 跨线程数据丢失问题，无需逐个修改。
+ */
+function threadSafeUpdate(
+  sessionId: string | undefined,
+  correlationId: string,
+  updater: (state: any) => any,
+): void {
+  if (!sessionId) {
+    useChatStore.setState(updater as any);
+    return;
+  }
+
+  useChatStore.setState((realState: any) => {
+    // Step 1: 在当前线程上尝试
+    const result = updater(realState);
+    if (result !== realState) return result;
+
+    // Step 2: 跨线程回退 — 在 _messagesByThread[sessionId] 中重试
+    const targetMsgs = realState._messagesByThread?.[sessionId];
+    if (!targetMsgs) return result;
+
+    // 通过虚拟 state 让 updater 操作目标线程的消息
+    const crossState = { ...realState, messages: targetMsgs };
+    const crossResult = updater(crossState);
+    if (crossResult === crossState) return result;
+
+    // 提取 messages 变更，标记 _threadId 路由到正确 bucket
+    if ('messages' in crossResult && crossResult.messages !== targetMsgs) {
+      return { ...crossResult, _threadId: sessionId };
+    }
+    return { ...crossResult, _threadId: sessionId } as any;
+  });
 }
 
 export const initStoreMapper = () => {
@@ -144,19 +293,25 @@ export const initStoreMapper = () => {
         // 🔥 FIX: 优先使用 correlationId，并确认在 Store 中的物理存在
         const correlationId = payload.correlationId || payload.messageId;
         const messageId = payload.messageId; // UI 层面的 ID
+        const streamSessionId = payload.sessionId;
 
-        console.log('[StoreMapper] 🚀 Stream start:', { correlationId, messageId });
+        console.log('[StoreMapper] 🚀 Stream start:', { correlationId, messageId, thread: streamSessionId });
 
-        // 🏆 声明式计数器：activeStreamCount 推导 isLoading
+        // 🏆 声明式计数器：activeStreamCount 推导 isLoading（全局计数，跨线程均须递增）
         activeStreamCount++;
 
-        // 🏆 设置 isStreaming 标记
-        useChatStore.setState((state: any) => ({
-            messages: state.messages.map((m: any) => 
-                m.id === correlationId ? { ...m, isStreaming: true, status: 'streaming' } : m
-            ),
-            isLoading: true
-        }) as any);
+        // 🏆 设置 isStreaming 标记（仅在流所属线程 === 当前线程时更新 UI）
+        const currentTid = useChatStore.getState().currentThreadId;
+        if (streamSessionId && currentTid && streamSessionId !== currentTid) {
+            console.log('[StoreMapper] 🔀 Cross-thread stream start, skipping UI update (current:', currentTid.substring(0, 8), 'stream:', streamSessionId.substring(0, 8), ')');
+        } else {
+            useChatStore.setState((state: any) => ({
+                messages: state.messages.map((m: any) =>
+                    m.id === correlationId ? { ...m, isStreaming: true, status: 'streaming' } : m
+                ),
+                isLoading: true
+            }) as any);
+        }
 
         // 🏆 物理纠偏：确保 Store 中的消息可以通过 correlationId 被找到
         // 如果它们不一致，我们需要一个映射关系或者直接在 Manager 中处理
@@ -165,7 +320,7 @@ export const initStoreMapper = () => {
 
     // 监听内容块 → 通知 ContentSegmentManager
     chatEventBus.on('chat:stream:chunk', (payload: any) => {
-        const { delta, correlationId, deltaIndex } = payload;
+        const { delta, correlationId, deltaIndex, sessionId } = payload;
 
         // 🔥 DEBUG: 只在异常情况或每 50 个 delta 打印一次 - 使用 logger
         const shouldLog = deltaIndex === undefined || deltaIndex < 0 || deltaIndex % 50 === 0;
@@ -216,16 +371,38 @@ export const initStoreMapper = () => {
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) {
-                // 🐛 跨线程 chunk：由 CrossThreadPersistenceService 独立处理
+                // 🔥 跨线程 chunk：在 _messagesByThread[sessionId] 中查找并更新
+                // 若 bucket 中存在该消息，写入正确线程的 bucket（不更新当前 UI 视图）
+                // 若不存在，保留 state 不变，由 Part E CSM 恢复兜底
+                if (sessionId && state._messagesByThread?.[sessionId]) {
+                    const targetMsgs = state._messagesByThread[sessionId];
+                    const tIdx = targetMsgs.findIndex((m: any) => m.id === correlationId);
+                    if (tIdx !== -1) {
+                        const newTargetMsgs = [...targetMsgs];
+                        const targetMsg = { ...newTargetMsgs[tIdx], isStreaming: true };
+                        targetMsg.content = (targetMsg.content || '') + delta;
+                        const csmSegments = contentSegmentManager.getSegments(correlationId);
+                        if (csmSegments && csmSegments.length > 0) {
+                            targetMsg.segments = csmSegments.map((s: any) => ({ ...s }));
+                        }
+                        newTargetMsgs[tIdx] = targetMsg;
+                        return { messages: newTargetMsgs, _threadId: sessionId, isLoading: true };
+                    }
+                }
                 return state;
             }
 
             const newMessages = [...state.messages];
             const targetMsg = { ...newMessages[messageIndex], isStreaming: true };
 
-            // 更新 content
+            // [[DIAG]] Trace content length at each chunk
             const oldContent = targetMsg.content || '';
             targetMsg.content = oldContent + delta;
+            if (oldContent.length + delta.length !== targetMsg.content.length) {
+              console.warn('[StoreMapper] ⚠️ Content length mismatch after append:', {
+                correlationId, oldLen: oldContent.length, deltaLen: delta.length, newLen: targetMsg.content.length,
+              });
+            }
 
             // 🔥 FIX v1.0.0: 同时更新 segments（从 ContentSegmentManager 获取最新状态）
             // 这样避免了 chat:segment:updated 事件触发第二次 setState
@@ -243,7 +420,7 @@ export const initStoreMapper = () => {
 
     // 5. 映射流式结束 → 完成、清理、同步
     chatEventBus.on('chat:stream:finished', (payload: any) => {
-        const { correlationId, totalTokens } = payload;
+        const { correlationId, totalTokens, sessionId } = payload;
         if (!correlationId) return;
 
         // 🔥 序号校验：清理序号追踪器
@@ -268,7 +445,7 @@ export const initStoreMapper = () => {
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) {
-                // 🐛 跨线程 finished：由 CrossThreadPersistenceService 独立处理
+                // 跨线程 finished：消息不在当前 store，保留 state 不变
                 // 务必返回 state 而非设置 isLoading:false，避免杀死当前线程加载态
                 return state;
             }
@@ -310,33 +487,130 @@ export const initStoreMapper = () => {
             };
         }) as any;
 
+        // E. 🔥 跨线程恢复：消息存在于 _messagesByThread[sessionId] 时，使用
+        // ContentSegmentManager 获取完整内容覆盖。移除 currentThreadId 检查：
+        // 用户可能在 stream 结束前切回原始线程，此时 Part E 也必须触发，
+        // 否则场景 A→B→A 切换会导致 content 截断（~140 chars vs 117 frames ~35KB）。
+        if (sessionId) {
+          const _state = useChatStore.getState();
+          if (_state._messagesByThread?.[sessionId]) {
+            const targetMsgs = _state._messagesByThread[sessionId];
+            const tIdx = targetMsgs.findIndex((m: any) => m.id === correlationId);
+            if (tIdx !== -1) {
+              const segments = contentSegmentManager.getSegments(correlationId);
+              const segmentsText = segments
+                ?.filter((s: any) => s.type === 'text' && s.content)
+                .map((s: any) => s.content)
+                .join('') || '';
+              // 只有 CSM 内容长于现有 content 时才恢复（避免短覆盖长）
+              const targetContentLen = (targetMsgs[tIdx].content || '').length;
+              const fullContent = segmentsText.length > targetContentLen ? segmentsText : (targetMsgs[tIdx].content || '');
+              console.log('[StoreMapper] 🔀 Cross-thread FINISHED recovery:', {
+                correlationId, sessionId,
+                segmentsCount: segments?.length ?? -1,
+                segmentsTextLen: segmentsText.length,
+                targetContentLen,
+                finalContentLen: fullContent.length,
+              });
+
+              const newTargetMsgs = targetMsgs.map((m: any) =>
+                m.id === correlationId ? {
+                  ...m,
+                  content: fullContent,
+                  isStreaming: false,
+                  status: 'completed',
+                } : m
+              );
+
+              useChatStore.setState({ messages: newTargetMsgs, _threadId: sessionId, isLoading: false } as any);
+              console.log('[StoreMapper] 🔀 Cross-thread stream finished:', {
+                correlationId, sessionId, contentLength: fullContent.length,
+              });
+            }
+          }
+        }
+
         // D. 终极同步：确保 segments 中缺失的内容补齐到 content
-        // 🔥 FIX: 仅在 segments 有 content 而 message.content 为空或明显更短时补齐
-        // 不再无条件覆盖 message.content，避免 segments 重复时污染正文
+        // 🔥 FIX: 不仅处理 content 为空，当 segments 比 content 更长时也补齐
+        // 这修复了线程切换后 content 部分丢失的场景：
+        //   - 线程切换前积累的 content（partial） + 切换后丢失的 chunks = 不完整
+        //   - segments 始终包含完整内容（ContentSegmentManager 全局累积）
+        //   - segmentsContent.length > currentContent.length 时说明有丢失
         setTimeout(() => {
           const state = useChatStore.getState();
-          const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
-          if (messageIndex === -1) return;
 
-          const newMessages = [...state.messages];
+          // 先查当前线程 messages，再查原始线程 _messagesByThread
+          let messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+          let baseMessages: any[];
+          let targetThreadId: string | undefined;
+
+          if (messageIndex !== -1) {
+            baseMessages = state.messages;
+            targetThreadId = undefined; // 当前线程，不用 _threadId
+          } else if (sessionId && state._messagesByThread?.[sessionId]) {
+            const tMsgs = state._messagesByThread[sessionId];
+            const tIdx = tMsgs.findIndex((m: any) => m.id === correlationId);
+            if (tIdx === -1) return;
+            messageIndex = tIdx;
+            baseMessages = tMsgs;
+            targetThreadId = sessionId;
+          } else {
+            return;
+          }
+
+          const newMessages = [...baseMessages];
           const targetMsg = { ...newMessages[messageIndex] };
           const currentContent = targetMsg.content || '';
 
-          if (targetMsg.segments && targetMsg.segments.length > 0 && currentContent.length === 0) {
-            // 仅当 content 完全为空时，从 segments 恢复
-            const fullContent = targetMsg.segments
+          if (targetMsg.segments && targetMsg.segments.length > 0) {
+            const segmentsContent = targetMsg.segments
               .filter((s: any) => s.type === 'text' && s.content)
               .map((s: any) => s.content)
               .join('');
 
-            if (fullContent.length > 0) {
+            // 当 segments 有更多内容时补齐（兼容 content 为空或部分丢失）
+            if (segmentsContent.length > currentContent.length) {
               console.log('[StoreMapper] 🔧 Recovering content from segments:', {
                 correlationId,
-                contentLength: fullContent.length
+                currentContentLength: currentContent.length,
+                fullContentLength: segmentsContent.length,
+                crossThread: !!targetThreadId,
               });
-              targetMsg.content = fullContent;
+              targetMsg.content = segmentsContent;
               newMessages[messageIndex] = targetMsg;
-              useChatStore.setState({ messages: newMessages } as any);
+
+              const setStatePayload: any = { messages: newMessages };
+              if (targetThreadId) {
+                setStatePayload._threadId = targetThreadId;
+                setStatePayload.isLoading = false;
+              }
+              useChatStore.setState(setStatePayload as any);
+            }
+          } else {
+            // 🛡️ 防御兜底：message.segments 为空（跨线程 chunk 被全部丢弃），
+            // 直接从 ContentSegmentManager 获取完整内容
+            const csmSegments = contentSegmentManager.getSegments(correlationId);
+            if (csmSegments && csmSegments.length > 0) {
+              const csmText = csmSegments
+                .filter((s: any) => s.type === 'text' && s.content)
+                .map((s: any) => s.content)
+                .join('');
+              if (csmText.length > currentContent.length) {
+                console.log('[StoreMapper] 🛡️ CSM fallback recovery:', {
+                  correlationId,
+                  currentContentLength: currentContent.length,
+                  csmContentLength: csmText.length,
+                  crossThread: !!targetThreadId,
+                });
+                targetMsg.content = csmText;
+                newMessages[messageIndex] = targetMsg;
+                const setStatePayload: any = { messages: newMessages };
+                if (targetThreadId) {
+                  setStatePayload._threadId = targetThreadId;
+                  setStatePayload.isLoading = false;
+                }
+                useChatStore.setState(setStatePayload as any);
+              }
             }
           }
         }, 100);
@@ -595,6 +869,57 @@ export const initStoreMapper = () => {
         return;  // 🔥 提前返回，不执行后续逻辑
       }
 
+      // ═════════════════════════════════════════════════════════════
+      // 🔥 线程感知路由：消息写入创建时的线程，而非当前活跃线程
+      // 参照 codex TUI store.active + ifainew TUI request_thread_id 模式
+      // 元编程原则：路由检查与消息构建分离 — 构建逻辑由纯函数负责，此处仅做路由决策
+      //
+      // 防御性设计：仅当 sessionId 对应的线程在 threadStore 中真实存在时，
+      // 才判定为跨线程路由。避免测试环境的合成 sessionId 触发误判。
+      // ═════════════════════════════════════════════════════════════
+      const payloadSessionId = payloadData.sessionId as string | undefined;
+      if (payloadSessionId) {
+        const { currentThreadId } = useChatStore.getState();
+        if (currentThreadId && payloadSessionId !== currentThreadId) {
+          // 验证目标线程真实存在于 threadStore 中（排除测试环境的合成 sessionId）
+          const targetThread = useThreadStore.getState().getThread(payloadSessionId);
+          if (targetThread) {
+            console.log('[StoreMapper] 🔀 Cross-thread message: routing to thread',
+              payloadSessionId.substring(0, 8), `(current: ${currentThreadId.substring(0, 8)})`);
+
+            if (!isAssistantOnly) {
+              const timestamps = createMessageTimestamps();
+              const { userMessage, assistantMessage } = createInitialMessagePair(
+                messageId, assistantId, content, payloadData.multiModalContent, timestamps,
+              );
+
+              // 直接持久化到正确线程的 IndexedDB
+              persistInitialMessagesToThread(
+                payloadSessionId, userMessage, assistantMessage, messageId, assistantId,
+              );
+
+              // 🔥 CRITICAL: 同时写入 _messagesByThread[sessionId]（不更新当前 messages 视图），
+              // 确保 Part E (chat:stream:finished CSM 恢复) 能找到消息对象。
+              // 否则 _messagesByThread 为空 → Part E 跳过 → 切回原线程时内容/骨架屏异常。
+              useChatStore.setState((storeState: any) => {
+                const existingBucket = storeState._messagesByThread?.[payloadSessionId] || [];
+                const filtered = existingBucket.filter(
+                  (m: any) => m.id !== messageId && m.id !== assistantId
+                );
+                return {
+                  _messagesByThread: {
+                    ...storeState._messagesByThread,
+                    [payloadSessionId]: [...filtered, userMessage, assistantMessage],
+                  },
+                };
+              });
+            }
+            return;
+          }
+          // targetThread 不存在 → 非真实跨线程场景（可能是默认值或测试数据）→ 按同线程处理
+        }
+      }
+
       // 🏆 FIX: 清理旧的 chunk 标记，防止内存泄漏
       if (processedChunks[correlationId]) {
         delete processedChunks[correlationId];
@@ -624,35 +949,22 @@ export const initStoreMapper = () => {
         const filtered = state.messages.filter((m: any) => m.id !== messageId && m.id !== assistantId);
         console.log('[StoreMapper] 👤 User + Assistant mode, creating both messages');
 
-        // 🏆 物理对齐：直接为 User 消息生成初始 Segment
-        // 🏆 修复：使用单调递增计数器确保消息顺序，避免快速创建时时间戳相同
-        const now = Date.now();
-        const sequenceCounter = typeof window !== 'undefined' ? ++(window as any).__MESSAGE_SEQUENCE_COUNTER__ : 0;
-
-        // 使用序列计数器作为时间戳的一部分，确保唯一性和顺序性
-        const userTimestamp = now + sequenceCounter * 100;  // 每个消息增加 100ns（实际上很少会连续创建）
-        const assistantTimestamp = userTimestamp + 1;  // 助手消息紧随用户消息
-
-        const userSegments = [{
-            id: `seg-user-${messageId}`,
-            type: 'text' as const,
-            phase: 'pre-tool' as const,
-            content: content,
-            order: 1,
-            timestamp: userTimestamp
-        }];
+        const timestamps = createMessageTimestamps();
+        const { userMessage, assistantMessage } = createInitialMessagePair(
+          messageId, assistantId, content, payloadData.multiModalContent, timestamps,
+        );
 
         // 🔴🟢 高保真日志点3：StoreMapper → Message Storage
         console.log('[StoreMapper] 🔴🟢 POINT-3: Creating user message with multiModalContent');
         console.log('[StoreMapper] ========================================');
         console.log('[StoreMapper] 💾 User message details:', {
-            id: messageId,
-            role: 'user',
-            contentLength: content?.length || 0,
-            contentPreview: content?.substring(0, 100),
-            hasMultiModalContent: !!payloadData.multiModalContent,
-            multiModalContent: payloadData.multiModalContent
-                ? payloadData.multiModalContent.map((part: any, idx: number) => ({
+            id: userMessage.id,
+            role: userMessage.role,
+            contentLength: userMessage.content?.length || 0,
+            contentPreview: typeof userMessage.content === 'string' ? userMessage.content.substring(0, 100) : '[multimodal]',
+            hasMultiModalContent: !!userMessage.multiModalContent,
+            multiModalContent: userMessage.multiModalContent
+                ? userMessage.multiModalContent.map((part: any, idx: number) => ({
                       index: idx,
                       type: part.type,
                       hasImageUrl: !!part.image_url,
@@ -661,32 +973,13 @@ export const initStoreMapper = () => {
                       textPreview: part.text?.substring(0, 50) + '...',
                   }))
                 : null,
-            timestamp: userTimestamp,
-            segmentCount: userSegments.length,
+            timestamp: userMessage.timestamp,
+            segmentCount: userMessage.segments.length,
         });
         console.log('[StoreMapper] ========================================');
 
         const result = {
-            messages: [
-                ...filtered,
-                {
-                    id: messageId,
-                    role: 'user',
-                    content,
-                    // ✅ 元编程：自动包含 multiModalContent
-                    multiModalContent: payloadData.multiModalContent,
-                    timestamp: userTimestamp,
-                    segments: userSegments // 物理注入
-                },
-                {
-                    id: assistantId,
-                    role: 'assistant',
-                    content: '',
-                    status: 'streaming',
-                    timestamp: assistantTimestamp, // 🏆 紧随用户消息
-                    segments: [] // AI 初始为空
-                }
-            ],
+            messages: [...filtered, userMessage, assistantMessage],
             isLoading: true
         };
 
@@ -695,54 +988,21 @@ export const initStoreMapper = () => {
       };
       useChatStore.setState(updater as any);
 
-      // 🔥 CRITICAL FIX: 立即持久化所有消息到 IndexedDB
-      // 这确保所有消息（包括普通聊天消息）都会被保存，而不仅仅是工作流消息
+      // 持久化到 IndexedDB（resolveTargetThreadId 统一处理线程 ID 解析）
       setTimeout(() => {
         const state = useChatStore.getState();
-        let currentThreadId = state.currentThreadId;
-
-        // 🔥 FIX: 获取 threadStore 中的 activeThreadId
-        // 因为 currentThreadId 可能不准确，应该使用 activeThreadId
-        import('../threadStore').then(({ useThreadStore }) => {
-          const threadState = useThreadStore.getState();
-          let activeThreadId = threadState.activeThreadId;
-
-          // 🔥 CRITICAL FIX: 如果 activeThreadId 不存在，使用 currentThreadId
-          // 并且更新 threadStore 的 activeThreadId
-          if (!activeThreadId && currentThreadId) {
-            console.warn('[StoreMapper] ⚠️ activeThreadId is null, setting it to currentThreadId:', currentThreadId);
-            threadState.setActiveThread(currentThreadId);
-            activeThreadId = currentThreadId;
-          }
-
-          // 如果 activeThreadId 存在且不是 currentThreadId，使用 activeThreadId
-          if (activeThreadId && activeThreadId !== currentThreadId) {
-            console.warn('[StoreMapper] ⚠️ currentThreadId != activeThreadId, using activeThreadId:', {
-              currentThreadId,
-              activeThreadId
+        const currentThreadId = resolveTargetThreadId(state);
+        if (currentThreadId) {
+          import('../persistence/threadPersistence').then(({ threadPersistence }) => {
+            threadPersistence.saveThreadMessages(currentThreadId, state.messages as any).then(() => {
+              console.log('[StoreMapper] ✅ Messages auto-saved to IndexedDB after chat:message:sent');
+            }).catch(err => {
+              console.error('[StoreMapper] ❌ Failed to auto-save messages:', err);
             });
-            currentThreadId = activeThreadId;
-
-            // 🔥 CRITICAL: 立即更新 currentThreadId
-            useChatStore.setState({ currentThreadId: activeThreadId } as any);
-          }
-
-          if (currentThreadId) {
-            const messages = state.messages;
-            console.log('[StoreMapper] 💾 Auto-persisting', messages.length, 'messages after chat:message:sent for thread:', currentThreadId);
-
-            // 持久化到 IndexedDB
-            import('../persistence/threadPersistence').then(({ threadPersistence }) => {
-              threadPersistence.saveThreadMessages(currentThreadId, messages as any).then(() => {
-                console.log('[StoreMapper] ✅ Messages auto-saved to IndexedDB after chat:message:sent');
-              }).catch(err => {
-                console.error('[StoreMapper] ❌ Failed to auto-save messages:', err);
-              });
-            });
-          } else {
-            console.warn('[StoreMapper] ⚠️ No threadId available, skipping persistence');
-          }
-        });
+          });
+        } else {
+          console.warn('[StoreMapper] ⚠️ No threadId available, skipping persistence');
+        }
       }, 100);
     });
 
@@ -971,68 +1231,33 @@ export const initStoreMapper = () => {
 
       useChatStore.setState(updater as any);
 
-      // 🔥 CRITICAL FIX: 立即触发持久化保存，确保 workflow:response 的内容不会因为用户快速刷新而丢失
-      // 问题：消息被保存到 IndexedDB，但是刷新后不会自动恢复到 useChatStore
-      // 解决：同时保存到两个地方
-      // 1. IndexedDB（通过 saveThreadMessages）- 用于跨线程持久化
-      // 2. 触发 zustand persist 的立即保存 - 用于刷新后恢复
+      // 持久化到 IndexedDB + 触发 zustand persist（resolveTargetThreadId 统一处理线程 ID 解析）
       import('../persistence/threadPersistence').then(({ threadPersistence }) => {
         const state = useChatStore.getState();
-        let currentThreadId = state.currentThreadId;
+        const currentThreadId = resolveTargetThreadId(state);
+        if (!currentThreadId) {
+          console.warn('[StoreMapper] ⚠️ No threadId available, skipping persistence');
+          return;
+        }
 
-        // 🔥 FIX: 获取 threadStore 中的 activeThreadId
-        // 因为 currentThreadId 可能不准确，应该使用 activeThreadId
-        import('@/stores/threadStore').then(({ useThreadStore }) => {
-          const threadState = useThreadStore.getState();
-          const activeThreadId = threadState.activeThreadId;
+        const messages = state.messages;
+        console.log('[StoreMapper] 💾 Triggering IMMEDIATE persistence after workflow response for thread:', currentThreadId);
 
-          // 如果 activeThreadId 存在且不是 currentThreadId，使用 activeThreadId
-          if (activeThreadId && activeThreadId !== currentThreadId) {
-            console.warn('[StoreMapper] ⚠️ currentThreadId != activeThreadId, using activeThreadId:', {
-              currentThreadId,
-              activeThreadId
-            });
-            currentThreadId = activeThreadId;
-
-            // 🔥 CRITICAL: 立即更新 currentThreadId，确保后续操作使用正确的 threadId
-            useChatStore.setState({ currentThreadId: activeThreadId } as any);
-          }
-
-          // 🔥 FIX: 如果 currentThreadId 是 undefined 或无效，使用 activeThreadId
-          if (!currentThreadId || currentThreadId === 'undefined' || currentThreadId === 'default-thread') {
-            if (activeThreadId) {
-              console.warn('[StoreMapper] ⚠️ currentThreadId is invalid, using activeThreadId:', activeThreadId);
-              currentThreadId = activeThreadId;
-
-              // 🔥 CRITICAL: 立即更新 currentThreadId
-              useChatStore.setState({ currentThreadId: activeThreadId } as any);
-            } else {
-              console.warn('[StoreMapper] ⚠️ No activeThreadId, will create new thread if needed');
-            }
-          }
-
-          const messages = state.messages;
-          console.log('[StoreMapper] 💾 Triggering IMMEDIATE persistence after workflow response for thread:', currentThreadId);
-
-          // 1. 保存到 IndexedDB
-          threadPersistence.saveThreadMessages(currentThreadId, messages as any).then(() => {
-            console.log('[StoreMapper] ✅ Messages saved to IndexedDB after workflow response');
-          }).catch(err => {
-            console.error('[StoreMapper] ❌ Failed to save messages to IndexedDB:', err);
-          });
-
-          // 2. 🔥 CRITICAL: 触发 zustand persist 的立即保存
-          // zustand 的 persist 中间件会监听 state 变化并自动保存，但保存是异步的
-          // 我们需要确保状态变化被 persist 捕获
-          // 通过再次 setState 一个新对象，确保 persist 触发保存
-          const currentState = useChatStore.getState();
-          useChatStore.setState({
-            ...currentState,
-            _persistTrigger: Date.now() // 添加一个变化字段，确保 persist 捕获到更新
-          } as any);
-
-          console.log('[StoreMapper] ✅ Triggered zustand persist update after workflow response');
+        // 1. 保存到 IndexedDB
+        threadPersistence.saveThreadMessages(currentThreadId, messages as any).then(() => {
+          console.log('[StoreMapper] ✅ Messages saved to IndexedDB after workflow response');
+        }).catch(err => {
+          console.error('[StoreMapper] ❌ Failed to save messages to IndexedDB:', err);
         });
+
+        // 2. 触发 zustand persist 的立即保存
+        const currentState = useChatStore.getState();
+        useChatStore.setState({
+          ...currentState,
+          _persistTrigger: Date.now(),
+        } as any);
+
+        console.log('[StoreMapper] ✅ Triggered zustand persist update after workflow response');
       }).catch(err => {
         console.error('[StoreMapper] ❌ Failed to trigger persistence after workflow response:', err);
       });
@@ -1884,7 +2109,7 @@ export const initStoreMapper = () => {
 
     // 3. 映射工具调用请求 (气泡渲染 + 覆盖保护)
     chatEventBus.on('chat:tool:call', (payload) => {
-      const { correlationId, toolId, name, arguments: args } = payload;
+      const { correlationId, toolId, name, arguments: args, sessionId } = payload;
 
       // 🔥 DIAG: 检查 TOOL_PERMISSIONS 门控
       const toolPerm = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
@@ -2070,7 +2295,7 @@ export const initStoreMapper = () => {
 
         return { messages: newMessages };
       };
-      useChatStore.setState(updater as any);
+      threadSafeUpdate(sessionId, correlationId, updater as any);
 
       // 🏆 FIX: 自动审批逻辑（仅在工具首次创建时触发，避免重复批准）
       // 只有当是新创建的工具时才执行自动批准
@@ -2228,7 +2453,7 @@ export const initStoreMapper = () => {
 
     // 4. 映射工具执行结果
     chatEventBus.on('chat:tool:completed', (payload) => {
-      const { toolId, result, error, correlationId, shouldContinue } = payload;
+      const { toolId, result, error, correlationId, shouldContinue, sessionId } = payload;
 
       // 🔥 request_user_input: 检测并注入 interaction card（商用 GUI 路径）
       let isRequestUserInput = false;
@@ -2239,29 +2464,33 @@ export const initStoreMapper = () => {
             isRequestUserInput = true;
             const interactionData = normalizeInteractionData(parsedResult);
             if (interactionData) {
-              useChatStore.setState((state: any) => {
-                if (!state?.messages) return state;
-                const interactionMsg = {
-                  id: `interaction-${toolId}-${Date.now()}`,
-                  role: 'assistant',
-                  content: '',
-                  timestamp: Date.now(),
-                  metadata: {
-                    feedbackRequestId: parsedResult._feedback_req_id,
-                    interactionData,
-                  },
-                };
-                // 🔥 FIX: 插入到 correlationId 对应消息之前（而非追加到末尾）
-                // 确保 LLM 后续续播内容出现在 card 下方
-                const assistantIndex = state.messages.findIndex((m: any) => m.id === correlationId);
-                if (assistantIndex !== -1) {
-                  const before = state.messages.slice(0, assistantIndex);
-                  const after = state.messages.slice(assistantIndex);
-                  return { messages: [...before, interactionMsg, ...after] };
-                }
-                return { messages: [...state.messages, interactionMsg] };
-              });
-              console.log('[StoreMapper] 💬 Injected interaction card (GUI path):', { toolId, questions: interactionData.questions.length });
+              // 🔥 跨线程保护：interaction card 当前线程专属，跨线程时跳过
+              const curTid = useChatStore.getState().currentThreadId;
+              if (!sessionId || !curTid || sessionId === curTid) {
+                useChatStore.setState((state: any) => {
+                  if (!state?.messages) return state;
+                  const interactionMsg = {
+                    id: `interaction-${toolId}-${Date.now()}`,
+                    role: 'assistant',
+                    content: '',
+                    timestamp: Date.now(),
+                    metadata: {
+                      feedbackRequestId: parsedResult._feedback_req_id,
+                      interactionData,
+                    },
+                  };
+                  // 🔥 FIX: 插入到 correlationId 对应消息之前（而非追加到末尾）
+                  // 确保 LLM 后续续播内容出现在 card 下方
+                  const assistantIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+                  if (assistantIndex !== -1) {
+                    const before = state.messages.slice(0, assistantIndex);
+                    const after = state.messages.slice(assistantIndex);
+                    return { messages: [...before, interactionMsg, ...after] };
+                  }
+                  return { messages: [...state.messages, interactionMsg] };
+                });
+                console.log('[StoreMapper] 💬 Injected interaction card (GUI path):', { toolId, questions: interactionData.questions.length });
+              }
             }
           }
         } catch { /* ignore parse errors */ }
@@ -2270,6 +2499,14 @@ export const initStoreMapper = () => {
       const updater = (state: any) => {
         // 🏆 注意：保持原始结果格式（JSON 对象或字符串），由 UI 层的 toolResultFormatter 负责格式化
         const content = error || (typeof result === 'string' ? result : JSON.stringify(result));
+
+        // 🔥 CRITICAL: threadSafeUpdate 依赖「返回 state（同引用）」来判断未找到消息。
+        // state.messages.map() 总是创建新数组，导致 threadSafeUpdate 跳过跨线程回退。
+        // 显式检查：若当前线程无此 toolCall，返回 state 让线程路由层决定是否回退。
+        const hasToolCall = state.messages.some((m: any) =>
+          m.toolCalls?.some((tc: any) => tc.id === toolId)
+        );
+        if (!hasToolCall) return state;
 
         // 🏆 FIX: 更新工具调用状态为 completed
         const updatedMessages = state.messages.map((msg: any) => {
@@ -2313,7 +2550,7 @@ export const initStoreMapper = () => {
           // _finish 事件会通过 emitFinished 正确设置 isLoading=false
         };
       };
-      useChatStore.setState(updater as any);
+      threadSafeUpdate(sessionId, correlationId, updater as any);
 
       // 🔥 FIX: 安全网 — 所有工具完成后检查 isLoading 是否卡住
       // 问题链：StreamingResponseController 的 _finish 在 pending 工具时跳过 emitFinished →
@@ -2459,7 +2696,7 @@ export const initStoreMapper = () => {
 
     // 6. 映射错误
     chatEventBus.on('chat:error', (payload: any) => {
-      const { correlationId, error, code, message: payloadMessage } = payload;
+      const { correlationId, error, code, message: payloadMessage, sessionId } = payload;
 
       // 🔥 FIX: ToolCallManager 对需要审批的工具发出 chat:error（code=APPROVAL_REQUIRED），
       // 这不是真正的错误，跳过错误处理，避免将消息状态设为 error
@@ -2531,12 +2768,12 @@ export const initStoreMapper = () => {
         return { messages: newMessages, isLoading: false };
       };
 
-      useChatStore.setState(updater as any);
+      threadSafeUpdate(sessionId, correlationId, updater as any);
     });
 
     // 7. 🏆 FIX: 监听工具审批事件，更新工具状态
     chatEventBus.on('chat:tool:approved', (payload) => {
-      const { correlationId, toolId } = payload as any;
+      const { correlationId, toolId, sessionId } = payload as any;
 
       console.log('[StoreMapper] ✅ Tool approved event received:', { correlationId, toolId });
 
@@ -2566,11 +2803,6 @@ export const initStoreMapper = () => {
         newMessages[messageIndex] = targetMsg;
         return { messages: newMessages };
       };
-      useChatStore.setState(updater as any);
+      threadSafeUpdate(sessionId, correlationId, updater as any);
     });
-
-    // ── 跨线程流式持久化服务 ──
-    // 不修改 StoreMapper，以独立 EventBus 监听器运行。
-    // 通过声明式路由规则自动判断 chunk 归属，缓冲写入 IndexedDB。
-    initCrossThreadPersistence();
 };

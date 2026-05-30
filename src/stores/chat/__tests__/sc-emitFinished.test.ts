@@ -37,6 +37,7 @@ describe('SC handleBackendEvent emitFinished 验证', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     if (typeof window !== 'undefined') {
+      (window as any).__TAURI_INTERNALS__ = {};
       delete (window as any).__STORE_MAPPER_INITIALIZED__;
       delete (window as any).__EXECUTED_TOOLS__;
     }
@@ -76,14 +77,9 @@ describe('SC handleBackendEvent emitFinished 验证', () => {
       currentPhase: 'STREAMING',
     } as any);
 
-    // 找到 stream listener
-    const streamCb = (window as any).__TAURI_MOCK_LISTENERS__?.['msg-test_stream'];
-    // 不存在就直接用 SC 内部方法
-
     // 模拟 finish_reason=tool_calls 通过 handleBackendEvent
-    // handleBackendEvent 是 private，通过 emit ${eventId}_stream 触发
-    // 找 listenMock 注册的 callback
-    const streamListener = listenMock.mock.calls.find((c: any) => c[0] === 'msg-test_stream')?.[1];
+    // handleBackendEvent 是 private，找 listenMock 注册的 stream callback
+    const streamListener = listenMock.mock.calls.find((c: any) => c[0] === 'chat_msg-test')?.[1];
     expect(streamListener).toBeDefined();
 
     // 发 tool_call
@@ -121,7 +117,7 @@ describe('SC handleBackendEvent emitFinished 验证', () => {
       currentPhase: 'STREAMING',
     } as any);
 
-    const streamListener = listenMock.mock.calls.find((c: any) => c[0] === 'msg-test_stream')?.[1];
+    const streamListener = listenMock.mock.calls.find((c: any) => c[0] === 'chat_msg-test')?.[1];
 
     // 先发 phase transition → AWAITING_APPROVAL
     streamListener({
@@ -165,7 +161,7 @@ describe('SC handleBackendEvent emitFinished 验证', () => {
       currentPhase: 'STREAMING',
     } as any);
 
-    const finishListener = listenMock.mock.calls.find((c: any) => c[0] === 'msg-test_finish')?.[1];
+    const finishListener = listenMock.mock.calls.find((c: any) => c[0] === 'chat_msg-test_finish')?.[1];
     expect(finishListener).toBeDefined();
 
     // 触发 _finish

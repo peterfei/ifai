@@ -122,8 +122,7 @@ export class StreamingResponseController {
   }
 
   /**
-   * 🐛 FIX: 查询指定流的会话信息
-   * 供 CrossThreadPersistenceService 判断 chunk 归属使用。
+   * 查询指定流的会话信息，供判断 chunk 归属使用。
    */
   getSession(correlationId: string): StreamSession | undefined {
     return this.activeSessions.get(correlationId);
@@ -336,7 +335,9 @@ export class StreamingResponseController {
   async startListening(messageId: string, payload: BasePayload) {
     logger.info(`Stream start: ${messageId} (correlation: ${payload.correlationId})`);
 
-    const threadId = useThreadStore.getState().activeThreadId || payload.sessionId || 'default';
+    // 🔥 FIX: 优先使用 payload.sessionId（由 generateResponse 传入的原始 threadId），
+    // 避免在 Thread-A 流式未完成时用户切换到 Thread-B 导致 activeThreadId 读错
+    const threadId = payload.sessionId || useThreadStore.getState().activeThreadId || 'default';
 
     // 🏆 新增：触发 chat:stream:start 事件，初始化 ContentSegmentManager
     chatEventBus.emit('chat:stream:start', {
@@ -954,8 +955,7 @@ export class StreamingResponseController {
         });
     }
 
-    // 🐛 FIX: 先 emit 事件再 cleanup，确保事件处理器（如 CrossThreadPersistenceService）
-    // 在触发时仍能访问 session 信息（如 threadId）
+    // 先 emit 事件再 cleanup，确保事件处理器能访问 session 信息（如 threadId）
     const session = this.activeSessions.get(correlationId);
     if (session) {
       session.isFinished = true;

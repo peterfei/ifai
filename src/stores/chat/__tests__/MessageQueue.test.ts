@@ -209,7 +209,7 @@ describe('MessageQueue - processing order', () => {
     expect(processedMessages).toContain('normal message');
   });
 
-  it('应该串行处理消息，不并发', async () => {
+  it('应该串行处理消息，不并发（同线程）', async () => {
     let processingCount = 0;
     let maxConcurrent = 0;
 
@@ -225,7 +225,7 @@ describe('MessageQueue - processing order', () => {
       return { success: true };
     });
 
-    // 快速入队 3 条消息
+    // 快速入队 3 条消息（同线程）
     const promises = [];
     for (let i = 0; i < 3; i++) {
       promises.push(queue.enqueue({
@@ -233,7 +233,7 @@ describe('MessageQueue - processing order', () => {
         providerId: 'test-provider',
         model: 'test-model',
         priority: 'normal',
-      }));
+      }, 'thread-a'));
     }
 
     await Promise.all(promises);
@@ -241,8 +241,138 @@ describe('MessageQueue - processing order', () => {
     // 等待所有消息处理完成
     await new Promise(resolve => setTimeout(resolve, 200));
 
-    // 验证最大并发数为 1
+    // 验证最大并发数为 1（同线程串行）
     expect(maxConcurrent).toBe(1);
+  });
+});
+
+describe('MessageQueue - concurrent threads', () => {
+  let queue: MessageQueue;
+
+  beforeEach(() => {
+    queue = new MessageQueue();
+    (mockSendMessageOrchestrator as any).send.mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return { success: true };
+    });
+    (mockChatEventBus as any).emit.mockClear();
+  });
+
+  it('CT-1: 应该并发处理不同线程的消息', async () => {
+    let processingCount = 0;
+    let maxConcurrent = 0;
+
+    (mockSendMessageOrchestrator as any).send.mockImplementation(async () => {
+      processingCount++;
+      if (processingCount > maxConcurrent) maxConcurrent = processingCount;
+      await new Promise(resolve => setTimeout(resolve, 100));
+      processingCount--;
+      return { success: true };
+    });
+
+    // 线程 A 的消息
+    const pA = queue.enqueue({
+      content: 'thread A', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-a');
+
+    // 线程 B 的消息（立即入队）
+    const pB = queue.enqueue({
+      content: 'thread B', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-b');
+
+    await Promise.all([pA, pB]);
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // 验证：两个线程同时处理
+    expect(maxConcurrent).toBeGreaterThanOrEqual(2);
+  });
+
+  it('CT-2: 应该串行处理同线程的多条消息（FIFO 保证）', async () => {
+    let callOrder: string[] = [];
+    (mockSendMessageOrchestrator as any).send.mockImplementation(async (content: string) => {
+      callOrder.push(content);
+      await new Promise(resolve => setTimeout(resolve, 30));
+      return { success: true };
+    });
+
+    await queue.enqueue({
+      content: 'A-first', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-a');
+
+    await queue.enqueue({
+      content: 'A-second', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-a');
+
+    // 线程 B 的消息不应影响 A 的 FIFO
+    await queue.enqueue({
+      content: 'B-first', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-b');
+
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // 同线程消息必须按顺序处理
+    const aMessages = callOrder.filter(c => c.startsWith('A-'));
+    expect(aMessages).toEqual(['A-first', 'A-second']);
+    expect(callOrder).toContain('B-first');
+  });
+
+  it('CT-3: abortCurrent 只中止指定线程的消息', async () => {
+    (mockSendMessageOrchestrator as any).send.mockImplementation(async (
+      content: string, providerId: string, model: string, opts?: { signal?: AbortSignal }
+    ) => {
+      for (let i = 0; i < 20; i++) {
+        if (opts?.signal?.aborted) {
+          const error = new Error('Request aborted');
+          error.name = 'AbortError';
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      return { success: true };
+    });
+
+    await queue.enqueue({
+      content: 'A', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-a');
+
+    await queue.enqueue({
+      content: 'B', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-b');
+
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    // 只中止线程 A 的消息
+    const aborted = queue.abortCurrent('thread-a');
+    expect(aborted).toBe(true);
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // 线程 B 应该仍在处理
+    const status = queue.getStatus();
+    expect(status.processingThreads).toContain('thread-b');
+    expect(status.processingThreads).not.toContain('thread-a');
+  });
+
+  it('CT-4: getStatus 正确报告 processingThreads', async () => {
+    (mockSendMessageOrchestrator as any).send.mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return { success: true };
+    });
+
+    await queue.enqueue({
+      content: 'A', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-a');
+
+    await queue.enqueue({
+      content: 'B', providerId: 'test', model: 'test', priority: 'normal',
+    }, 'thread-b');
+
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    const status = queue.getStatus();
+    expect(status.isProcessing).toBe(true);
+    expect(status.processingThreads).toContain('thread-a');
+    expect(status.processingThreads).toContain('thread-b');
   });
 });
 

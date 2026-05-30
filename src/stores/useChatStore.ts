@@ -13,6 +13,7 @@ import { ensureTauriInitialized } from '../utils/tauriInitializer';
 import { persist, PersistenceStrategies } from './persistence/PersistenceDecorator';
 import { selectAPIMessageContent } from '../types/multimodal';
 import { ToolCallConverter } from '../utils/ToolCallConverter';
+import { threadAwareMiddleware } from './chat/threadAwareMiddleware';
 
 // -------------------------------------------------------------------
 // 1. 类型定义
@@ -92,6 +93,8 @@ export interface ChatStore {
   input: string;
   isLoading: boolean;
   currentThreadId: string;
+  /** Internal per-thread message buckets (managed by threadAwareMiddleware) */
+  _messagesByThread: Record<string, Message[]>;
 
   setInput: (input: string) => void;
   setLoading: (loading: boolean) => void;
@@ -113,12 +116,14 @@ export interface ChatStore {
 // -------------------------------------------------------------------
 
 export const useChatStore = create<ChatStore>()(
-  zustandPersist(
-    (set, get) => ({
-      messages: [],
-      input: '',
-      isLoading: false,
-      currentThreadId: 'default-thread',
+  threadAwareMiddleware(
+    zustandPersist(
+      (set, get) => ({
+        messages: [],
+        input: '',
+        isLoading: false,
+        currentThreadId: 'default-thread',
+        _messagesByThread: {},
 
       setInput: (val: string) => set({ input: val }),
       setLoading: (val: boolean) => set({ isLoading: val }),
@@ -442,7 +447,7 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
-      generateResponse: async (history, providerId, modelName, existingCorrelationId?: string) => {
+      generateResponse: async (history, providerId, modelName, existingCorrelationId?: string, threadId?: string) => {
           console.log('[useChatStore] 🚀 generateResponse called');
           console.log('[useChatStore] 🎯 existingCorrelationId:', existingCorrelationId);
           console.log('[useChatStore] 🎯 providerId:', providerId);
@@ -475,14 +480,16 @@ export const useChatStore = create<ChatStore>()(
 
           // 🏆 物理对齐：复用已有 ID 或生成续播 ID
           const correlationId = existingCorrelationId || (window as any).crypto.randomUUID();
-          const threadId = get().currentThreadId;
+          // 🔥 FIX: 优先使用调用方传递的 threadId（MessageQueue 路径），
+          // 避免 async 边界后 get().currentThreadId 因线程切换而读错
+          const resolvedThreadId = threadId || get().currentThreadId;
 
           console.log('[useChatStore] 🎯 Calling startListening with correlationId:', correlationId);
 
           try {
             await streamingResponseController.startListening(correlationId, {
                 correlationId,
-                sessionId: threadId,
+                sessionId: resolvedThreadId,
                 timestamp: Date.now()
             });
             console.log('[useChatStore] ✅ startListening completed, now calling invoke');
@@ -609,6 +616,7 @@ export const useChatStore = create<ChatStore>()(
       partialize: (state) => ({
         messages: state.messages,
         currentThreadId: state.currentThreadId,
+        _messagesByThread: state._messagesByThread,
       }),
       // 🔥 FIX: persist merge 时保护内存中的 messages 不被旧数据覆盖
       // 根因：{ ...currentState, ...persistedState } 让 persistedState.messages 总是覆盖 currentState.messages
@@ -642,6 +650,12 @@ export const useChatStore = create<ChatStore>()(
             `[ChatStore] 🛡️ Persist merge: 保留 ${currentMsgs.length} 条内存消息，忽略 localStorage 空数据`
           );
         }
+        // Restore _messagesByThread from persisted state
+        if (persistedState._messagesByThread) {
+          merged._messagesByThread = persistedState._messagesByThread;
+        } else {
+          merged._messagesByThread = {};
+        }
         return merged;
       },
       // 🔥 FIX: hydration 时同步 activeThreadId 和 currentThreadId
@@ -673,6 +687,7 @@ export const useChatStore = create<ChatStore>()(
       }
     }
   )
+  )
 );
 
 // -------------------------------------------------------------------
@@ -683,140 +698,22 @@ export const switchThread = async (threadId: string) => {
     console.log(`[ChatStore] 🔄 切换到 thread: ${threadId.substring(0, 20)}`);
 
     const previousThreadId = useChatStore.getState().currentThreadId;
-    const previousMessages = useChatStore.getState().messages;
-    const isSameThread = previousThreadId === threadId;
 
-    // 🐛 FIX: 切换前显式保存当前线程的消息，确保 StoreMapper 流式累加的内容不被丢失
-    if (!isSameThread && previousThreadId && previousMessages.length > 0) {
-        const { threadPersistence } = await import('./persistence/threadPersistence');
-        await threadPersistence.saveThreadMessages(previousThreadId, previousMessages as any).catch(err => {
-            console.error('[ChatStore] ⚠️ Failed to save messages before thread switch:', err);
-        });
-    }
-
-    // 更新 currentThreadId
+    // 🏆 Middleware 自动处理 messages 切换：messages = _messagesByThread[threadId] || []
     useChatStore.setState({ currentThreadId: threadId, isLoading: false });
 
     // 🔥 FIX: 同步更新 CoreStoreProxy 版本的 store（React 组件订阅的是这个实例）
-    // Vite 开发模式下 dynamic import 和 static import 可能解析为不同模块实例
     if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
         (window as any).__chatStore.setState({ currentThreadId: threadId, isLoading: false });
-        console.log('[ChatStore] 🔀 Synced currentThreadId to CoreStoreProxy instance');
     }
 
-    const { threadPersistence } = await import('./persistence/threadPersistence');
-    // 确保 threadPersistence 已初始化，否则 loadThreadMessages 会静默返回空数组
-    if (!(threadPersistence as any).initialized) {
-        console.log('[ChatStore] ⏳ threadPersistence not initialized, initializing...');
-        await threadPersistence.init();
-    }
+    // 🏆 CRITICAL FIX: 切回后检测是否有活跃 session，如果有则恢复 isLoading
+    // 防止 cross-thread stream 结束时 isLoading 未被正确清除的竞态
+    const switchedMessages = useChatStore.getState().messages;
+    restoreIsLoadingIfActive(switchedMessages);
 
-    // 🏆 元编程：发射领域事件，CPS 声明式监听自行响应
-    // 不再直接 import 调用 CPS，实现控制反转（IoC）
+    // 发射领域事件，其他 store 声明式监听
     chatEventBus.emit('chat:thread:switching', { threadId, previousThreadId });
-
-    try {
-        const messages = await threadPersistence.loadThreadMessages(threadId);
-
-        console.log(`[ChatStore] 📥 加载了 ${messages.length} 条消息，准备排序`);
-
-        if (messages.length === 0) {
-            if (isSameThread) {
-                // 同一线程，保留内存中的 messages
-                console.log(`[ChatStore] ⏭️ 同线程无 IndexedDB 数据，保留 ${previousMessages.length} 条内存消息`);
-                return;
-            }
-            // 不同线程且 IndexedDB 无数据 → 清空消息（新线程/空线程）
-            console.log(`[ChatStore] 🧹 切换到新线程，清空 ${previousMessages.length} 条旧消息`);
-            useChatStore.setState({ messages: [] });
-            if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
-                (window as any).__chatStore.setState({ messages: [] });
-            }
-            return;
-        }
-
-        // 🔧 normalizeToolCalls: 声明式状态映射表
-        // 元编程原则：非硬编码 if/else，通过配置数据驱动转换
-        // 防止 hasActiveToolCalls（MessageItem.tsx:248-250）在历史消息加载时触发打字机效果
-        const STALE_STATUS_MAP: Record<string, string> = {
-            pending: 'completed',
-            executing: 'completed',
-            running: 'completed',
-        };
-        const normalizeToolCalls = (toolCalls: any[] | undefined): any[] | undefined => {
-            if (!toolCalls || toolCalls.length === 0) return toolCalls;
-            return toolCalls.map((tc: any) => ({
-                ...tc,
-                status: STALE_STATUS_MAP[tc.status] ?? tc.status,
-                isPartial: tc.isPartial ? false : tc.isPartial,
-            }));
-        };
-
-        // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
-        // 🔥 v0.5.0: 强制重置 isStreaming 状态，避免历史消息触发打字机效果
-        const normalizedMessages = (messages || []).map((msg: any, idx: number) => {
-            // 🏆 元编程：通过声明式谓词检查消息是否有活跃流 session
-            // 如果有，保留 isStreaming/status 而非强制重置为 completed
-            const isActiveStream = isStreamActive(msg.id);
-
-            // 如果已经有 segments 且不为空，直接使用
-            if (msg.segments && msg.segments.length > 0) {
-                return {
-                    ...msg,
-                    isStreaming: isActiveStream ? true : false,
-                    status: isActiveStream ? 'streaming' : 'completed',
-                    toolCalls: normalizeToolCalls(msg.toolCalls),
-                    _loadOrder: idx,
-                };
-            }
-
-            // 物理恢复：如果没 segments 但有内容，创建一个默认的 pre-tool 段落
-            const segments = [];
-            if (msg.content) {
-                segments.push({
-                    id: `seg-recovered-${msg.id}`,
-                    type: 'text',
-                    phase: 'pre-tool',
-                    content: msg.content,
-                    order: 1
-                });
-            }
-
-            return {
-                ...msg,
-                isStreaming: isActiveStream ? true : false,
-                status: isActiveStream ? 'streaming' : 'completed',
-                toolCalls: normalizeToolCalls(msg.toolCalls),
-                segments,
-                _loadOrder: idx  // 添加加载顺序索引用于稳定排序
-            };
-        });
-
-        // 🏆 物理对齐：使用稳定的排序算法，确保相同 timestamp 时保持加载顺序
-        const sortedMessages = normalizedMessages.sort((a: any, b: any) => {
-            const timestampDiff = (a.timestamp || 0) - (b.timestamp || 0);
-            if (timestampDiff !== 0) {
-                return timestampDiff;
-            }
-            // 相同 timestamp 时，使用加载顺序保持稳定
-            return (a._loadOrder || 0) - (b._loadOrder || 0);
-        });
-
-        const messagePreview = sortedMessages.map((m: any) => `${m.role}: ${(m.content || '').substring(0, 30)}`).join(', ');
-        console.log(`[ChatStore] ✅ 设置 ${sortedMessages.length} 条排序后的消息: [${messagePreview}]`);
-
-        useChatStore.setState({ messages: sortedMessages });
-        if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
-            (window as any).__chatStore.setState({ messages: sortedMessages });
-        }
-
-        // 🐛 FIX: 响应式检测——加载的消息中是否有仍在活跃流式输出的？
-        // 如果有，恢复 isLoading，使 StoreMapper 能继续实时更新 UI
-        restoreIsLoadingIfActive(sortedMessages);
-    } catch (e) {
-        console.error('[ChatStore] SwitchThread failed:', e);
-        // 加载失败时保留当前 messages，不做任何修改
-    }
 };
 
 /**
@@ -839,7 +736,7 @@ export function isStreamActive(correlationId: string): boolean {
  * 元编程原则：声明式规则而非过程式 if/else。
  * 规则："loadedMessages 中有 msg.id 匹配 activeSession 且未完成 → isLoading = true"
  */
-function restoreIsLoadingIfActive(messages: any[]): void {
+export function restoreIsLoadingIfActive(messages: any[]): void {
     const hasActiveStream = messages.some((msg: any) => isStreamActive(msg.id));
 
     if (hasActiveStream) {
@@ -848,8 +745,27 @@ function restoreIsLoadingIfActive(messages: any[]): void {
     }
 }
 
-export const getThreadMessages = (id: string) => useChatStore.getState().messages;
-export const setThreadMessages = (id: string, msgs: any[]) => useChatStore.setState({ messages: msgs });
+/**
+ * 获取线程消息。从 _messagesByThread[id] 读取；若 bucket 不存在且为非当前线程，
+ * 返回 [] 以避免将错误线程的消息写入 IndexedDB。
+ */
+export const getThreadMessages = (id: string): any[] => {
+  const state = useChatStore.getState();
+  // Use _messagesByThread if available (middleware provides per-thread isolation)
+  if (id && state._messagesByThread?.[id] !== undefined) {
+    return state._messagesByThread[id];
+  }
+  // 🔥 CRITICAL: 跨线程查询且 bucket 不存在时，返回 [] 而非当前线程的 messages
+  // 防止 PersistenceManager 将错误线程的数据写入 IndexedDB，导致「A 串到 B」
+  if (id && state.currentThreadId && id !== state.currentThreadId) {
+    console.warn('[getThreadMessages] Cross-thread query for:', id.substring(0, 8),
+      'bucket not found, returning [] to prevent data leak to wrong thread');
+    return [];
+  }
+  return state.messages;
+};
+export const setThreadMessages = (id: string, msgs: any[]) =>
+  useChatStore.setState({ messages: msgs, _threadId: id } as any);
 
 if (typeof window !== 'undefined') {
     (window as any).__chatStore = useChatStore;
@@ -866,18 +782,19 @@ if (typeof window !== 'undefined') {
   (window as any).__USE_CHAT_STORE_LOAD_TIME__ = Date.now();
   console.log('[useChatStore] 🔧 Module loaded, setting __USE_CHAT_STORE_LOADED__ = true');
 
-  // 🔥 CRITICAL FIX: 监听消息变化并自动持久化到 IndexedDB
-  // 这确保所有消息（包括普通聊天消息）都会被保存，而不仅仅是工作流消息
+  // 🔥 CRITICAL FIX: 监听消息结构变化并自动持久化到 IndexedDB
+  // 设计原则：仅在消息结构变化（增/删消息）时持久化，不在流式内容增长时写入
+  // 流式结束时由 chat:stream:finished → PersistenceManager 负责一次写入
   let lastPersistedMessages = '{}';
 
   useChatStore.subscribe((state) => {
     const messages = state.messages;
 
-    // 将消息序列化为字符串进行比较，避免频繁持久化
-    // 🐛 FIX: 包含 contentLen 以捕获流式响应中的内容变化（StoreMapper 追加 delta 改变 content）
-    const messagesJson = JSON.stringify(messages.map((m: any) => ({ id: m.id, role: m.role, timestamp: m.timestamp, contentLen: m.content?.length || 0 })));
+    // 只比较消息身份（id + role），不比较内容长度
+    // 流式 chunk 不改变 id/role → 不触发 IndexedDB 写入 → hot path no IO
+    const messagesJson = messages.map((m: any) => m.id + m.role).join(',');
 
-    // 只有当消息真正变化时才持久化
+    // 只有当消息结构变化时才持久化
     if (messagesJson !== lastPersistedMessages && messages.length > 0) {
       lastPersistedMessages = messagesJson;
 

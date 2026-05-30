@@ -46,6 +46,7 @@ describe('StreamingResponseController emitFinished E2E', () => {
     vi.clearAllMocks();
     // 清理全局状态
     if (typeof window !== 'undefined') {
+      (window as any).__TAURI_INTERNALS__ = {};
       delete (window as any).__STORE_MAPPER_INITIALIZED__;
       delete (window as any).__EXECUTED_TOOLS__;
       // 清理所有 Tauri 监听器
@@ -94,15 +95,15 @@ describe('StreamingResponseController emitFinished E2E', () => {
     const scModule = await import('../../../stores/chat/generateResponse/StreamingResponseController');
     const sc = scModule.StreamingResponseController.getInstance();
 
-    // 调用 startStream → 注册 Tauri 监听器
-    await sc.startStream({
+    // 注册 Tauri 监听器
+    await sc.startListening('msg-sc-test', {
       correlationId: 'msg-sc-test',
       sessionId: 'test-session',
       currentPhase: 'STREAMING',
     } as any);
 
     // 找到 stream 监听器
-    const streamListener = tauriEventListeners['msg-sc-test_stream'];
+    const streamListener = tauriEventListeners['chat_msg-sc-test'];
     expect(streamListener).toBeDefined();
 
     // 模拟 SSE: 先发 4 个 tool_call chunks
@@ -149,7 +150,7 @@ describe('StreamingResponseController emitFinished E2E', () => {
     if (!streamFinishedFired) {
       // 尝试 _finish 事件
       console.log('Trying _finish event...');
-      const finishListener = tauriEventListeners['msg-sc-test_finish'];
+      const finishListener = tauriEventListeners['chat_msg-sc-test_finish'];
       if (finishListener) {
         finishListener({ payload: 'done' });
         await new Promise(r => setTimeout(r, 200));
@@ -186,14 +187,14 @@ describe('StreamingResponseController emitFinished E2E', () => {
     const scModule = await import('../../../stores/chat/generateResponse/StreamingResponseController');
     const sc = scModule.StreamingResponseController.getInstance();
 
-    await sc.startStream({
+    await sc.startListening('msg-sc-test', {
       correlationId: 'msg-sc-test',
       sessionId: 'test-session',
       currentPhase: 'STREAMING',
     } as any);
 
     // 发 tool_call chunks
-    const streamListener = tauriEventListeners['msg-sc-test_stream'];
+    const streamListener = tauriEventListeners['chat_msg-sc-test'];
     streamListener({
       payload: JSON.stringify({
         type: 'tool_call',
@@ -204,7 +205,7 @@ describe('StreamingResponseController emitFinished E2E', () => {
     await new Promise(r => setTimeout(r, 50));
 
     // 只发 _finish 事件（不发 finish_reason）
-    const finishListener = tauriEventListeners['msg-sc-test_finish'];
+    const finishListener = tauriEventListeners['chat_msg-sc-test_finish'];
     console.log('_finish listener exists:', !!finishListener);
 
     if (finishListener) {

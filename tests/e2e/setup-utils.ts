@@ -670,15 +670,44 @@ dependencies: []
                 return Promise.resolve();
               }
 
-              // Mock 模式：返回模拟响应
-              console.log(`[E2E Mock] ai_chat called - returning mock response`);
-              return Promise.resolve({
-                id: `mock-${Date.now()}`,
-                role: 'assistant',
-                content: '这是一个模拟的 AI 响应。在测试环境中，我们不需要真实的 LLM 调用。',
-                status: 'completed',
-                timestamp: Date.now()
-              });
+              // Mock 模式：发射流式事件（模拟真实 Tauri 后端行为）
+              const eventId = args.eventId || `chat_${Date.now()}`;
+              console.log(`[E2E Mock] ai_chat streaming mock - eventId: ${eventId}`);
+
+              // 使用微任务异步发射事件，让 StreamingResponseController 有时间完成注册
+              setTimeout(async () => {
+                try {
+                  // 1. 发送内容块 (OpenAI streaming format)
+                  const content = '这是一个模拟的 AI 响应。在 E2E 测试环境中，我们模拟流式输出行为。';
+                  const chunkSize = 10;
+                  for (let i = 0; i < content.length; i += chunkSize) {
+                    const chunk = content.substring(i, i + chunkSize);
+                    const payload = JSON.stringify({
+                      choices: [{
+                        delta: { content: chunk },
+                        finish_reason: null
+                      }]
+                    });
+                    if (w.__TAURI__.event?.emit) {
+                      await w.__TAURI__.event.emit(eventId, payload);
+                    }
+                  }
+
+                  // 2. 发送 finish 事件
+                  if (w.__TAURI__.event?.emit) {
+                    await w.__TAURI__.event.emit(`${eventId}_finish`, {});
+                  }
+                  console.log(`[E2E Mock] ✅ Streaming completed for eventId: ${eventId}`);
+                } catch (err) {
+                  console.error('[E2E Mock] ❌ Error in streaming mock:', err);
+                  if (w.__TAURI__.event?.emit) {
+                    w.__TAURI__.event.emit(`${eventId}_error`, { message: String(err) });
+                  }
+                }
+              }, 50);
+
+              // 立即 resolve（不阻塞 invoke，流式内容通过事件发送）
+              return Promise.resolve();
             }
 
             // 其他命令：拒绝并提示
@@ -903,7 +932,24 @@ dependencies: []
       localStorage.setItem('currentModel', 'mock-model');
       console.log('[E2E Setup] ✅ Mock Provider 配置已设置到 localStorage');
     } else {
-      console.log('[E2E Setup] ℹ️ 非 Real AI 模式，跳过 Provider 配置');
+      // 🔥 FIX: 始终配置 mock provider，确保 AIChat 面板可以正常显示消息
+      // 即使 useRealAI=false，没有 provider 配置会导致 AIChat 显示 "请设置 API Key" 占位符
+      console.log('[E2E Setup] ℹ️ 非 Real AI 模式，设置 mock Provider 配置');
+      localStorage.setItem('ai_providers', JSON.stringify([
+        {
+          id: 'mock-provider',
+          name: 'Mock Provider',
+          baseUrl: 'http://localhost:3333',
+          apiKey: 'mock-key-for-e2e',
+          enabled: true,
+          isCustom: true,
+          models: [
+            { id: 'mock-model', name: 'Mock Model' }
+          ]
+        }
+      ]));
+      localStorage.setItem('currentProviderId', 'mock-provider');
+      localStorage.setItem('currentModel', 'mock-model');
     }
 
     setupE2EHelpers();
