@@ -8,9 +8,10 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { TaskItem, TaskStatus } from '../services/taskStoreService';
 import { taskStoreService } from '../services/taskStoreService';
+import { PersistenceManager } from '../services/storage/PersistenceManager';
 
 export type PanelState = 'full' | 'collapsed' | 'hidden';
 
@@ -263,6 +264,8 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
     }),
     {
       name: 'ifai-todowrite-store',
+      // 🚀 Phase 2: 从 localStorage 迁移到 IndexedDB（通过 PersistenceManager 路由）
+      storage: createJSONStorage(() => PersistenceManager.getInstance()),
       // 持久化任务列表和面板状态
       partialize: (state) => ({
         tasks: state.tasks,

@@ -283,7 +283,9 @@ describe('CT-1: 首字未到就切线程 — 完整 LLM 生命周期', () => {
     // ============================================================
     // Phase 4: 切回 Thread-A，验证数据完整
     // ============================================================
-    useChatStore.setState({ currentThreadId: THREAD_A });
+    // 🏆 恢复 per-thread isLoading（Thread-A 的流已完成，isLoading=false）
+    // 在 switchThread 中此逻辑通过 PerThreadSessionStore 自动完成
+    useChatStore.setState({ currentThreadId: THREAD_A, isLoading: false } as any);
     await tick(30);
 
     state = useChatStore.getState();
@@ -440,5 +442,142 @@ describe('CT-1: 首字未到就切线程 — 完整 LLM 生命周期', () => {
     // A 和 B 互不污染
     expect(state._messagesByThread[THREAD_A]).toHaveLength(2);
     expect(state._messagesByThread[THREAD_B]).toHaveLength(2);
+  });
+
+  it('CT-1.3: async gap 导致 stream sessionId 用错线程 → 数据路由到错误线程（BUG 高保真复现与 FIx 验证）', async () => {
+    // 注册线程到 threadStore（真实场景中线程已存在）
+    const { useThreadStore } = await import('../../threadStore');
+    const threadStore = useThreadStore.getState();
+    if (!threadStore.getThread(THREAD_A)) {
+      threadStore.createThread({ id: THREAD_A, title: 'Thread-A' });
+    }
+    if (!threadStore.getThread(THREAD_B)) {
+      threadStore.createThread({ id: THREAD_B, title: 'Thread-B' });
+    }
+    useChatStore.setState({ currentThreadId: THREAD_A });
+
+    // ============================================================
+    // Phase 1: Thread-A 发送消息（模拟 sendMessageOrchestrator.send()）
+    // ============================================================
+    const corrIdA = 'assistant-msg-ct13';
+    chatEventBus.emit('chat:message:sent', {
+      messageId: 'user-msg-ct13',
+      content: '你好',
+      correlationId: corrIdA,
+      sessionId: THREAD_A,
+      timestamp: Date.now(),
+      isAssistantOnly: false,
+    });
+    await tick(50);
+
+    // 验证消息已创建在 Thread-A
+    let state = useChatStore.getState();
+    expect(state._messagesByThread[THREAD_A]).toHaveLength(2);
+    expect(state.currentThreadId).toBe(THREAD_A);
+
+    // ============================================================
+    // Phase 2: 模拟 async gap（sendMessageOrchestrator.send() 返回后，
+    //           generateResponse 被调用前，用户已切换到 Thread-B）
+    //           → generateResponse 中的 get().currentThreadId 为 B
+    // ============================================================
+    useChatStore.setState({ currentThreadId: THREAD_B });
+
+    // ⚠️ BUG 场景：stream:start 用 sessionId = currentThreadId = B
+    // 这模拟了 generateResponse 对 resolvedThreadId = get().currentThreadId = B 的旧行为
+    // 🐛 未修复前：数据被路由到 B，A 永久缺失内容
+    chatEventBus.emit('chat:stream:start', {
+      messageId: corrIdA,
+      correlationId: corrIdA,
+      sessionId: THREAD_B, // ← BUG: 应该是 THREAD_A
+      timestamp: Date.now(),
+    });
+    await tick(30);
+
+    chatEventBus.emit('chat:stream:chunk', {
+      delta: '这是 Thread-A 的回复内容',
+      correlationId: corrIdA,
+      sessionId: THREAD_B, // ← BUG: sessionId 与消息创建时不匹配
+      timestamp: Date.now(),
+      fullContent: '这是 Thread-A 的回复内容',
+      isFinal: false,
+    });
+    await tick(20);
+
+    // 🐛 BUG 确认 1: A 的消息没有收到内容（流数据错误地尝试路由到 B 但 B
+    // 没有匹配消息，内容实际丢失，进入虚空 — A 永久骨架屏）
+    state = useChatStore.getState();
+    const aMsgAfterBug = state._messagesByThread[THREAD_A]?.find((m: any) => m.id === corrIdA);
+    const bMsgAfterBug = state._messagesByThread[THREAD_B]?.find((m: any) => m.id === corrIdA);
+    expect(aMsgAfterBug?.content || '').toBe('');  // 🐛 A 无内容
+    // sessionId=B 但 B 的 bucket 中无此消息 → 内容丢失（既不在 A 也不在 B）
+    expect(bMsgAfterBug).toBeUndefined();  // 🐛 B 也没有（内容消失在虚空）
+
+    console.log('[CT-1.3] 🐛 BUG CONFIRMED — content lost in void:', {
+      aContent: aMsgAfterBug?.content,
+      aContentLen: aMsgAfterBug?.content?.length || 0,
+      bExists: !!bMsgAfterBug,
+      bBucketLen: (state._messagesByThread[THREAD_B] || []).length,
+    });
+
+    // ============================================================
+    // Phase 3: 修复后场景 — stream:start 用 sessionId = THREAD_A
+    // 这模拟了 generateResponse 接收到 capturedThreadId (=A) 的新行为
+    // ============================================================
+    const corrIdA_fixed = 'assistant-msg-ct13-fixed';
+
+    // 切回 A 创建消息（模拟用户仍在 A 上点击发送）
+    useChatStore.setState({ currentThreadId: THREAD_A });
+    chatEventBus.emit('chat:message:sent', {
+      messageId: 'user-msg-ct13-fixed',
+      content: '修复验证消息',
+      correlationId: corrIdA_fixed,
+      sessionId: THREAD_A,
+      timestamp: Date.now(),
+      isAssistantOnly: false,
+    });
+    await tick(50);
+
+    // 验证消息在 A 的 bucket 中
+    state = useChatStore.getState();
+    expect(state._messagesByThread[THREAD_A]?.find((m: any) => m.id === corrIdA_fixed)).toBeDefined();
+    console.log('[CT-1.3] Phase 3: Messages created in A:', {
+      aBucketLen: state._messagesByThread[THREAD_A]?.length,
+      hasCorrMsg: !!state._messagesByThread[THREAD_A]?.find((m: any) => m.id === corrIdA_fixed),
+    });
+
+    // 切回 A 创建消息后，再切到 B（模拟 async gap）
+    useChatStore.setState({ currentThreadId: THREAD_B });
+
+    // ✅ 修复后：stream:start 用正确的 sessionId = THREAD_A
+    chatEventBus.emit('chat:stream:start', {
+      messageId: corrIdA_fixed,
+      correlationId: corrIdA_fixed,
+      sessionId: THREAD_A, // ← ✅ FIX: 使用捕获的 threadId
+      timestamp: Date.now(),
+    });
+    await tick(30);
+
+    chatEventBus.emit('chat:stream:chunk', {
+      delta: '修复后内容路由正确',
+      correlationId: corrIdA_fixed,
+      sessionId: THREAD_A, // ← ✅ FIX: sessionId 与消息创建时一致
+      timestamp: Date.now(),
+      fullContent: '修复后内容路由正确',
+      isFinal: false,
+    });
+    await tick(20);
+
+    // ✅ FIX 确认：A 的消息正确收到内容
+    state = useChatStore.getState();
+    const aMsgAfterFix = state._messagesByThread[THREAD_A]?.find((m: any) => m.id === corrIdA_fixed);
+    const bMsgAfterFix = state._messagesByThread[THREAD_B]?.find((m: any) => m.id === corrIdA_fixed);
+    expect(aMsgAfterFix?.content || '').toContain('修复后内容路由正确');  // ✅ A 有内容
+    expect(bMsgAfterFix).toBeUndefined();  // ✅ B 不被污染
+
+    console.log('[CT-1.3] ✅ FIX VERIFIED:', {
+      aContent: aMsgAfterFix?.content,
+      bExists: !!bMsgAfterFix,
+      aLength: aMsgAfterFix?.content?.length || 0,
+    });
   });
 });

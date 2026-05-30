@@ -18,7 +18,7 @@ describe('EventBus 集成测试', () => {
 
   beforeEach(() => {
     // 重置 store
-    useChatStore.setState({ messages: [] });
+    useChatStore.setState({ messages: [], currentThreadId: 'test-session' });
 
     // 创建 ContentSegmentManager 实例
     contentSegmentManager = new ContentSegmentManager();

@@ -17,16 +17,24 @@ import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { createLogger } from '../../utils/logger';
+import { debugLog } from '../../services/debugLog/DebugLogService';
+import { PerThreadSessionStore } from './PerThreadSessionStore';
 import type { PhaseData, WorkflowData, NodeData, ToolItem } from '../../types/workflow';
+
+// 🏆 per-thread session 状态管理器（惰性初始化，避免循环依赖）
+let _perThreadSessionStore: PerThreadSessionStore | null = null;
+function getPerThreadSessionStore(): PerThreadSessionStore {
+  if (!_perThreadSessionStore) {
+    _perThreadSessionStore = new PerThreadSessionStore();
+  }
+  return _perThreadSessionStore;
+}
 
 // 🔥 Logger instance for StoreMapper
 const logger = createLogger('StoreMapper');
 
 // ✅ 元编程：数据流追踪（当元数据启用时）
 const MULTI_MODAL_LOGGING_ENABLED = true;
-
-// 🏆 声明式：活跃 stream 计数器 — isLoading 由此推导，消除时间耦合
-let activeStreamCount = 0;
 
 /**
  * normalizeInteractionData — 归一化 InteractionData
@@ -231,6 +239,8 @@ export const initStoreMapper = () => {
     if (typeof window !== 'undefined') {
       (window as any).__STORE_MAPPER_CALLED__ = true;
       (window as any).__STORE_MAPPER_CALL_TIME__ = Date.now();
+      // 🏆 注册 per-thread session store，供 switchThread 恢复 isLoading
+      (window as any).__getPerThreadSessionStore = getPerThreadSessionStore;
       if (!(window as any).__STORE_MAPPER_INIT_LOGS__) {
         (window as any).__STORE_MAPPER_INIT_LOGS__ = [];
       }
@@ -297,25 +307,27 @@ export const initStoreMapper = () => {
 
         console.log('[StoreMapper] 🚀 Stream start:', { correlationId, messageId, thread: streamSessionId });
 
-        // 🏆 声明式计数器：activeStreamCount 推导 isLoading（全局计数，跨线程均须递增）
-        activeStreamCount++;
+        // 🏆 声明式计数器：per-thread activeStreamCount 推导 isLoading（跨线程均须递增）
+        getPerThreadSessionStore().incrementStreamCount(streamSessionId);
+        debugLog({ category: 'stream:start', level: 'info', message: `Stream start: sessionId=${streamSessionId}`, threadId: streamSessionId, correlationId, data: { currentThreadId: useChatStore.getState().currentThreadId, isCrossThread: streamSessionId !== useChatStore.getState().currentThreadId } });
 
         // 🏆 设置 isStreaming 标记（仅在流所属线程 === 当前线程时更新 UI）
         const currentTid = useChatStore.getState().currentThreadId;
         if (streamSessionId && currentTid && streamSessionId !== currentTid) {
             console.log('[StoreMapper] 🔀 Cross-thread stream start, skipping UI update (current:', currentTid.substring(0, 8), 'stream:', streamSessionId.substring(0, 8), ')');
+            debugLog({ category: 'cross-thread', level: 'warn', message: `Cross-thread stream start: stream=${streamSessionId} current=${currentTid}`, threadId: streamSessionId, correlationId });
         } else {
             useChatStore.setState((state: any) => ({
                 messages: state.messages.map((m: any) =>
                     m.id === correlationId ? { ...m, isStreaming: true, status: 'streaming' } : m
                 ),
-                isLoading: true
             }) as any);
         }
 
         // 🏆 物理纠偏：确保 Store 中的消息可以通过 correlationId 被找到
         // 如果它们不一致，我们需要一个映射关系或者直接在 Manager 中处理
         contentSegmentManager.onStreamStart(correlationId);
+        debugLog({ category: 'stream:start', level: 'debug', message: `CSM initialized for ${correlationId}`, threadId: streamSessionId, correlationId });
     });
 
     // 监听内容块 → 通知 ContentSegmentManager
@@ -353,6 +365,7 @@ export const initStoreMapper = () => {
         // 🏆 FIX: 物理自愈 - 如果 chunk 到了但 Manager 还没初始化（可能由于 start 事件丢失），手动补全
         if (!contentSegmentManager.isStreamActive(correlationId)) {
             logger.warn(`Stream ${correlationId} not active in Manager, triggering auto-start`);
+            debugLog({ category: 'layer2:recovery', level: 'warn', message: `Layer2 auto-start: chunk before start event`, threadId: sessionId, correlationId, data: { deltaLength: delta?.length, deltaIndex } });
             contentSegmentManager.onStreamStart(correlationId);
         }
 
@@ -378,6 +391,7 @@ export const initStoreMapper = () => {
                     const targetMsgs = state._messagesByThread[sessionId];
                     const tIdx = targetMsgs.findIndex((m: any) => m.id === correlationId);
                     if (tIdx !== -1) {
+                        debugLog({ category: 'cross-thread', level: 'info', message: `Chunk routed to _messagesByThread[${sessionId}]`, threadId: sessionId, correlationId, data: { deltaLength: delta?.length, deltaIndex } });
                         const newTargetMsgs = [...targetMsgs];
                         const targetMsg = { ...newTargetMsgs[tIdx], isStreaming: true };
                         targetMsg.content = (targetMsg.content || '') + delta;
@@ -429,8 +443,8 @@ export const initStoreMapper = () => {
         // A. 通知 ContentSegmentManager
         contentSegmentManager.onStreamFinish(correlationId);
 
-        // 🏆 声明式递减计数器（先于 setState，确保 isLoading 推导准确）
-        activeStreamCount = Math.max(0, activeStreamCount - 1);
+        // 🏆 声明式递减计数器：per-thread 递减（先于 setState，确保 isLoading 推导准确）
+        getPerThreadSessionStore().decrementStreamCount(sessionId || useChatStore.getState().currentThreadId);
 
         // B. 物理标记流完成 & 清除续播锁
         finishedStreams.add(correlationId);
@@ -441,7 +455,7 @@ export const initStoreMapper = () => {
           finishedStreams.delete(correlationId);
         }, 10000);
 
-        // C. 重置 UI 加载状态（由 activeStreamCount 声明式推导，消除时间耦合）
+        // C. 重置 UI 加载状态（由 per-thread decrementStreamCount 声明式推导，消除时间耦合）
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) {
@@ -483,7 +497,6 @@ export const initStoreMapper = () => {
                         })(),
                     } : m
                 ),
-                isLoading: activeStreamCount > 0,
             };
         }) as any;
 
@@ -512,6 +525,7 @@ export const initStoreMapper = () => {
                 targetContentLen,
                 finalContentLen: fullContent.length,
               });
+              debugLog({ category: 'layer3:recovery', level: 'warn', message: `Part E recovery: segments(${segmentsText.length}) > content(${targetContentLen})`, threadId: sessionId, correlationId, data: { segmentsCount: segments?.length, segmentsTextLen: segmentsText.length, targetContentLen, finalContentLen: fullContent.length } });
 
               const newTargetMsgs = targetMsgs.map((m: any) =>
                 m.id === correlationId ? {
@@ -522,7 +536,7 @@ export const initStoreMapper = () => {
                 } : m
               );
 
-              useChatStore.setState({ messages: newTargetMsgs, _threadId: sessionId, isLoading: false } as any);
+              useChatStore.setState({ messages: newTargetMsgs, _threadId: sessionId } as any);
               console.log('[StoreMapper] 🔀 Cross-thread stream finished:', {
                 correlationId, sessionId, contentLength: fullContent.length,
               });
@@ -602,6 +616,7 @@ export const initStoreMapper = () => {
                   csmContentLength: csmText.length,
                   crossThread: !!targetThreadId,
                 });
+                debugLog({ category: 'layer3:recovery', level: 'error', message: `CSM fallback recovery: segments empty, direct CSM read`, threadId: targetThreadId, correlationId, data: { currentContentLength: currentContent.length, csmContentLength: csmText.length, crossThread: !!targetThreadId } });
                 targetMsg.content = csmText;
                 newMessages[messageIndex] = targetMsg;
                 const setStatePayload: any = { messages: newMessages };
@@ -2554,7 +2569,7 @@ export const initStoreMapper = () => {
 
       // 🔥 FIX: 安全网 — 所有工具完成后检查 isLoading 是否卡住
       // 问题链：StreamingResponseController 的 _finish 在 pending 工具时跳过 emitFinished →
-      // activeStreamCount 不递减 → ToolCallManager 又设 isLoading=true → 无后续流重置 → 卡死
+      // per-thread activeStreamCount 不递减 → ToolCallManager 又设 isLoading=true → 无后续流重置 → 卡死
       // 延迟 2s 检查：若此时所有工具已完成但 isLoading 仍为 true，强制清理
       setTimeout(() => {
         const currentState = useChatStore.getState();
@@ -2566,12 +2581,18 @@ export const initStoreMapper = () => {
 
         // 所有工具已完成，但 isLoading 仍为 true → 强制清理
         if (currentState.isLoading) {
+          const safeTid = currentState.currentThreadId;
+          const safeSession = getPerThreadSessionStore().getSession(safeTid);
+          debugLog({ category: 'error', level: 'error', message: `isLoading stuck after all tools completed`, threadId: safeTid, correlationId, data: { activeStreamCount: safeSession?.activeStreamCount ?? 0, toolId } });
           console.warn('[StoreMapper] ⚠️ All tools completed but isLoading still true, forcing cleanup', {
             correlationId,
-            activeStreamCount,
+            activeStreamCount: safeSession?.activeStreamCount ?? 0,
           });
-          activeStreamCount = 0;
-          useChatStore.setState({ isLoading: false } as any);
+          // 重置 per-thread 状态
+          if (safeSession) {
+            safeSession.activeStreamCount = 0;
+          }
+          getPerThreadSessionStore().setLoading(safeTid, false);
 
           // 通知 ContentSegmentManager 清理
           contentSegmentManager.onStreamFinish(correlationId);

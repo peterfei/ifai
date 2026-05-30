@@ -101,15 +101,17 @@ export class PersistenceManager implements StateStorage {
      */
     private getAdapter(key: string): IStorageAdapter {
         const bigDataPrefixes = [
-            'ifai-history', 
-            'ifai-file-cache', 
-            'ifai-symbol-index', 
+            'ifai-history',
+            'ifai-file-cache',
+            'ifai-symbol-index',
             'pivo-task-trees',
             'chat-history',
             'ifai-chat-history',
-            'chat-storage',      // 🚀 修复：核心聊天存储强制路由到 IndexedDB
-            'ifai-thread-storage', // 🚀 修复：线程元数据存储强制路由到 IndexedDB
-            'file-storage' 
+            'chat-storage',             // 🚀 核心聊天存储 → IndexedDB
+            'ifai-thread-storage',       // 🚀 线程元数据 → IndexedDB
+            'file-storage',
+            'ifai-chat-store',           // 🚀 Phase 2: useChatStore persist → IndexedDB
+            'ifai-todowrite-store',      // 🚀 Phase 2: todoWriteStore persist → IndexedDB
         ];
         if (bigDataPrefixes.some(p => key.startsWith(p))) {
             return this.ldb;

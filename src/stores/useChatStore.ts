@@ -7,13 +7,15 @@
  */
 
 import { create } from 'zustand';
-import { persist as zustandPersist } from 'zustand/middleware';
+import { persist as zustandPersist, createJSONStorage } from 'zustand/middleware';
 import { chatEventBus, StreamPhase } from './chat/eventBus/ChatEventBus';
 import { ensureTauriInitialized } from '../utils/tauriInitializer';
 import { persist, PersistenceStrategies } from './persistence/PersistenceDecorator';
 import { selectAPIMessageContent } from '../types/multimodal';
 import { ToolCallConverter } from '../utils/ToolCallConverter';
 import { threadAwareMiddleware } from './chat/threadAwareMiddleware';
+import { PersistenceManager } from '../services/storage/PersistenceManager';
+import { debugLog } from '../services/debugLog/DebugLogService';
 
 // -------------------------------------------------------------------
 // 1. 类型定义
@@ -132,11 +134,23 @@ export const useChatStore = create<ChatStore>()(
         const { sendMessageOrchestrator } = await import('./chat/sendMessage/SendMessageOrchestrator');
         set({ isLoading: true, input: '' });
 
+        // 🏆 CRITICAL FIX: 在 async gap 前捕获 currentThreadId，防止 generateResponse 读取到切换后的 threadId
+        // 场景: sendMessageOrchestrator.send() 执行期间用户切换到其他线程，
+        // 导致 generateResponse 中 resolvedThreadId = get().currentThreadId 为切换后的值，
+        // StreamSession 的 threadId 与消息创建时的 threadId 不一致，
+        // 流式数据路由到错误线程 → 原线程消息永久无内容 → 骨架屏加载卡死
+        const capturedThreadId = get().currentThreadId;
+
         try {
+            // 🏆 FIX: 传入 capturedThreadId 作为 options.threadId，确保 SendMessageOrchestrator 使用
+            // 原始线程的 ID 作为 sessionId 和 threadId，防止 async gap 后 activeThreadId 已被切换。
+            // 解决了「在A发消息后立即切到B → chat:message:sent 的 sessionId=B → 消息建在B的bucket
+            // → StreamSession 的 sessionId=A → 流数据路由到A但A无消息 → 永久加载」的问题。
             const result = await sendMessageOrchestrator.send(
               content as string,
               providerId || 'openai',
-              modelName || 'gpt-4o'
+              modelName || 'gpt-4o',
+              { threadId: capturedThreadId }
             );
 
             // 🔥 P4: 如果工作流处理了消息（skipped），跳过 AI 生成
@@ -179,7 +193,9 @@ export const useChatStore = create<ChatStore>()(
               ];
             }
 
-            await get().generateResponse(historyForGeneration, providerId || 'openai', modelName || 'gpt-4o', result.correlationId);
+            // 🏆 FIX: 传递 capturedThreadId，确保 StreamSession 的 threadId 与消息创建时的 threadId 一致
+            // 防止 async gap 后 get().currentThreadId 读到切换后的值导致流式数据错路由
+            await get().generateResponse(historyForGeneration, providerId || 'openai', modelName || 'gpt-4o', result.correlationId, capturedThreadId);
             return result;
         } catch (e) {
             console.error('[ChatStore] Send failed:', e);
@@ -191,6 +207,7 @@ export const useChatStore = create<ChatStore>()(
       // 🔥 元编程持久化：使用声明式装饰器替代过程式代码
       // 性能提升：从 79.90ms → <5ms（200 条消息场景）
       addMessage: persist(PersistenceStrategies.debounce)((message: any) => {
+        debugLog({ category: 'user-input', level: 'info', message: `addMessage: role=${message.role} id=${message.id?.substring(0, 12)}`, threadId: get().currentThreadId, data: { messageId: message.id, role: message.role, messagesLength: get().messages.length } });
         set((state) => ({ messages: [...state.messages, message] }));
       }),
 
@@ -612,6 +629,8 @@ export const useChatStore = create<ChatStore>()(
     }),
     {
       name: 'ifai-chat-store',
+      // 🚀 Phase 2: 从 localStorage 迁移到 IndexedDB（通过 PersistenceManager 路由）
+      storage: createJSONStorage(() => PersistenceManager.getInstance()),
       // 只持久化核心字段，避免 isLoading 等瞬态状态污染
       partialize: (state) => ({
         messages: state.messages,
@@ -698,13 +717,37 @@ export const switchThread = async (threadId: string) => {
     console.log(`[ChatStore] 🔄 切换到 thread: ${threadId.substring(0, 20)}`);
 
     const previousThreadId = useChatStore.getState().currentThreadId;
+    const currentState = useChatStore.getState();
+
+    // 🏆 保存当前线程的 per-thread 状态
+    if (typeof window !== 'undefined') {
+      const getStore = (window as any).__getPerThreadSessionStore;
+      if (getStore) {
+        const store = getStore();
+        store.setLoading(previousThreadId, currentState.isLoading);
+        debugLog({ category: 'thread:switch', level: 'info', message: `Save per-thread isLoading: ${currentState.isLoading}`, threadId: previousThreadId, data: { previousThreadId, isLoading: currentState.isLoading } });
+      }
+    }
+
+    // 🏆 恢复目标线程的 isLoading（从 per-thread session store 读取）
+    let targetIsLoading = false;
+    if (typeof window !== 'undefined') {
+      const getStore = (window as any).__getPerThreadSessionStore;
+      if (getStore) {
+        const store = getStore();
+        const session = store.getSession(threadId);
+        targetIsLoading = session?.isLoading ?? false;
+        debugLog({ category: 'thread:switch', level: 'info', message: `Restore target isLoading: ${targetIsLoading}`, threadId, data: { targetThreadId: threadId, isLoading: targetIsLoading, hasSession: !!session } });
+      }
+    }
 
     // 🏆 Middleware 自动处理 messages 切换：messages = _messagesByThread[threadId] || []
-    useChatStore.setState({ currentThreadId: threadId, isLoading: false });
+    useChatStore.setState({ currentThreadId: threadId, isLoading: targetIsLoading });
+    debugLog({ category: 'thread:switch', level: 'info', message: `Switch complete: ${previousThreadId} → ${threadId}`, data: { previousThreadId, threadId, isLoading: targetIsLoading } });
 
     // 🔥 FIX: 同步更新 CoreStoreProxy 版本的 store（React 组件订阅的是这个实例）
     if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
-        (window as any).__chatStore.setState({ currentThreadId: threadId, isLoading: false });
+        (window as any).__chatStore.setState({ currentThreadId: threadId, isLoading: targetIsLoading });
     }
 
     // 🏆 CRITICAL FIX: 切回后检测是否有活跃 session，如果有则恢复 isLoading

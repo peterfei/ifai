@@ -40,9 +40,14 @@ export class SendMessageOrchestrator {
     console.log('[SendMessageOrchestrator] 🔥 providerId:', providerId);
     console.log('[SendMessageOrchestrator] 🔥 modelName:', modelName);
 
+    // 🏆 FIX: 优先使用 options.threadId（由 sendMessage 在 async gap 前捕获的 currentThreadId 传入），
+    // 确保 sessionId 与消息创建时的线程一致，防止用户在 async gap 期间切换线程导致：
+    //   1. sessionId 拿到切换后的 activeThreadId
+    //   2. chat:message:sent 将消息路由到错误线程的 _messagesByThread
+    //   3. StreamSession 的 threadId 与消息所在 bucket 不匹配 → 流数据无处追加 → 骨架屏卡死
     // 1. 初始化全链路 ID (保险丝 1: 关联 ID)
     const correlationId = chatEventBus.createCorrelationId();
-    const sessionId = useThreadStore.getState().activeThreadId || 'default-thread';
+    const sessionId = options.threadId || useThreadStore.getState().activeThreadId || 'default-thread';
     const timestamp = Date.now();
 
     // 🔥 FIX: 为用户消息创建单独的 ID，避免与助手消息 ID 冲突
@@ -81,7 +86,10 @@ export class SendMessageOrchestrator {
       console.log('[SendMessageOrchestrator] 🔅 After emit block, moving to ensureActiveThread');
 
       // 2. 线程自愈逻辑 (确保有活跃 Thread)
-      const threadId = await this.ensureActiveThread();
+      // 🏆 FIX: 优先使用 options.threadId（sendMessage 在 async gap 前捕获的 currentThreadId），
+      // 防止用户在 async gap 期间切换线程导致 ensureActiveThread() 返回切换后的 activeThreadId。
+      // 使用 capturedThreadId 确保消息构建和上下文选择在正确的线程上进行。
+      const threadId = options.threadId || await this.ensureActiveThread();
       
       // 3. 意图识别 (Slash Commands / Natural Language)
       const textInput = typeof content === 'string' ? content :
