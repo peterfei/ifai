@@ -1447,26 +1447,16 @@ export const initStoreMapper = () => {
       }
 
       // 更新工作流消息，显示实时进度
-      const updater = (state: any) => {
-        if (!state || !state.messages) {
-          console.warn('[StoreMapper] ⚠️ State is invalid in workflow:progress handler, preserving current state');
-          return state;
-        }
 
-        // 查找包含此 workflowId 的助手消息
-        const assistantIndex = state.messages.findIndex((m: any) =>
-          m.role === 'assistant' &&
-          m.metadata?.workflowId === workflowId
-        );
-
-        if (assistantIndex === -1) {
-          console.warn('[StoreMapper] ⚠️ Workflow message not found for progress:', workflowId);
-          return state;
-        }
-
-        const existingMessage = state.messages[assistantIndex];
-
-        // 🔥 FIX: 如果消息已有自定义内容（总结），不要追加进度信息
+      /** 声明式纯函数：计算 workflow progress 更新内容（同线程/跨线程通用） */
+      function buildWorkflowProgressUpdate(
+        existingMessage: any,
+        event_type: string,
+        message: string,
+        node_id: string,
+        tool_details: any,
+        completion_stats: any,
+      ) {
         const hasCustomContent = existingMessage.content &&
           (existingMessage.content.includes('总结') ||
            existingMessage.content.includes('进行中') ||
@@ -1479,36 +1469,22 @@ export const initStoreMapper = () => {
           const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
           newContent = existingMessage.content + `\n\n#### 🔄 执行中... ( ${timestamp} )\n\n` + (message ? `${message}\n` : '');
         } else if (!hasCustomContent && message && event_type !== 'tool_call') {
-          // 🔥 TUI WorkflowView 已通过 workflowData 展示工具列表，
-          // tool_call 的 message（"工具调用: xxx"）不再需要追加到 content 文本
           newContent = existingMessage.content + `${message}\n`;
         }
 
-        // 🔥 PhaseCard 数据更新：从 tool_details 提取 sub items
         const updatedPhaseData = deriveUpdatedPhaseData(
-          existingMessage.metadata?.phaseData,
-          event_type,
-          node_id,
-          tool_details,
+          existingMessage.metadata?.phaseData, event_type, node_id, tool_details,
         );
 
-        // 🔥 WorkflowData（TUI 列表）更新：从 event_type + tool_details 构建
         const updatedWorkflowData = deriveUpdatedWorkflowData(
-          existingMessage.metadata?.workflowData,
-          workflowId,
-          event_type,
-          node_id,
-          tool_details,
-          completion_stats,
+          existingMessage.metadata?.workflowData, workflowId, event_type, node_id, tool_details, completion_stats,
         );
 
-        // 🔥 将 workflow tool_call 同步到 message.toolCalls，供 WorkLogPanel 读取
         let updatedToolCalls = existingMessage.toolCalls ? [...existingMessage.toolCalls] : [];
         if (event_type === 'tool_call' && tool_details?.tool_name) {
           const toolName = tool_details.tool_name;
           const rawInput = tool_details.tool_input || '{}';
           const toolInputStr = typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput);
-          // 解析 args 为对象（WorkLogPanel extractContent 需要）
           let parsedArgs: any = toolInputStr;
           try { parsedArgs = JSON.parse(toolInputStr); } catch { /* 保留字符串 */ }
 
@@ -1524,18 +1500,80 @@ export const initStoreMapper = () => {
           });
         }
 
+        return { hasCustomContent, newContent, updatedPhaseData, updatedWorkflowData, updatedToolCalls };
+      }
+
+      const updater = (state: any) => {
+        if (!state || !state.messages) {
+          console.warn('[StoreMapper] ⚠️ State is invalid in workflow:progress handler, preserving current state');
+          return state;
+        }
+
+        // 查找包含此 workflowId 的助手消息
+        const assistantIndex = state.messages.findIndex((m: any) =>
+          m.role === 'assistant' &&
+          m.metadata?.workflowId === workflowId
+        );
+
+        if (assistantIndex === -1) {
+          // 🔥 跨线程场景：state.messages 已切换为其他线程，workflow 消息在 _messagesByThread 中
+          const byThread = state._messagesByThread || {};
+          let foundThreadId: string | null = null;
+          let foundBucketIdx = -1;
+
+          for (const tid of Object.keys(byThread)) {
+            const bucket = byThread[tid] || [];
+            foundBucketIdx = bucket.findIndex((m: any) =>
+              m.role === 'assistant' && m.metadata?.workflowId === workflowId
+            );
+            if (foundBucketIdx !== -1) {
+              foundThreadId = tid;
+              break;
+            }
+          }
+
+          if (foundThreadId && foundBucketIdx !== -1) {
+            console.log('[StoreMapper] 🔄 Found workflow message in _messagesByThread[' + foundThreadId + '], routing cross-thread');
+            const bucket = byThread[foundThreadId];
+            const existingMessage = bucket[foundBucketIdx];
+            const update = buildWorkflowProgressUpdate(existingMessage, event_type, message, node_id, tool_details, completion_stats);
+
+            const newBucket = [...bucket];
+            newBucket[foundBucketIdx] = {
+              ...existingMessage,
+              content: update.newContent,
+              timestamp: existingMessage.timestamp || Date.now(),
+              toolCalls: update.updatedToolCalls,
+              metadata: {
+                ...existingMessage.metadata,
+                phaseData: update.updatedPhaseData,
+                workflowData: update.updatedWorkflowData,
+                lastProgressUpdate: Date.now(),
+              },
+            };
+
+            return { messages: newBucket, _threadId: foundThreadId };
+          }
+
+          console.warn('[StoreMapper] ⚠️ Workflow message not found for progress:', workflowId);
+          return state;
+        }
+
+        const existingMessage = state.messages[assistantIndex];
+        const update = buildWorkflowProgressUpdate(existingMessage, event_type, message, node_id, tool_details, completion_stats);
+
         const newMessages = [...state.messages];
         newMessages[assistantIndex] = {
           ...existingMessage,
-          content: newContent,
+          content: update.newContent,
           // 🔥 FIX: 保留原始消息时间戳，不随每次进度事件更新
           // 避免 content area 中消息排序跳动导致乱序
           timestamp: existingMessage.timestamp || Date.now(),
-          toolCalls: updatedToolCalls,
+          toolCalls: update.updatedToolCalls,
           metadata: {
             ...existingMessage.metadata,
-            phaseData: updatedPhaseData,
-            workflowData: updatedWorkflowData,
+            phaseData: update.updatedPhaseData,
+            workflowData: update.updatedWorkflowData,
             lastProgressUpdate: Date.now(),
           },
         };
