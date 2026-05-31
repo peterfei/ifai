@@ -13,6 +13,11 @@
  */
 import { useChatStore } from '../useChatStore';
 
+export interface StreamSummary {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface PerThreadSession {
   isLoading: boolean;
   activeStreamCount: number;
@@ -21,6 +26,8 @@ export interface PerThreadSession {
   scrollPosition: number;
   inputContent: string;
   lastEventSeq: number;
+  /** 流结束后保留的摘要数据，供 StreamingPulseBanner 跨线程显示 */
+  streamSummary: StreamSummary | null;
 }
 
 function createDefaultSession(): PerThreadSession {
@@ -32,6 +39,7 @@ function createDefaultSession(): PerThreadSession {
     scrollPosition: 0,
     inputContent: '',
     lastEventSeq: 0,
+    streamSummary: null,
   };
 }
 
@@ -140,6 +148,34 @@ export class PerThreadSessionStore {
   clearUnreadUpdate(threadId: string): void {
     const session = this.getOrCreateSession(threadId);
     session.hasUnreadUpdate = false;
+  }
+
+  // ─── streamSummary ─────────────────────────────────────
+
+  /**
+   * 设置线程的流摘要数据（流完成时调用）。
+   * 供 StreamingPulseBanner 跨线程恢复显示。
+   */
+  setStreamSummary(threadId: string, summary: StreamSummary): void {
+    const session = this.getOrCreateSession(threadId);
+    session.streamSummary = summary;
+  }
+
+  /**
+   * 清除线程的流摘要数据（新流开始时调用）。
+   */
+  clearStreamSummary(threadId: string): void {
+    const session = this.sessions.get(threadId);
+    if (session) {
+      session.streamSummary = null;
+    }
+  }
+
+  /**
+   * 获取线程的流摘要数据。
+   */
+  getStreamSummary(threadId: string): StreamSummary | null {
+    return this.sessions.get(threadId)?.streamSummary ?? null;
   }
 
   // ─── streamingIds ─────────────────────────────────────

@@ -1,7 +1,13 @@
 /**
  * StreamingPulseBanner 测试 — 流式脉冲横幅
  *
- * SPB-1~7：覆盖 isLoading 三态推导 + wasLoading 边沿逻辑
+ * SPB-1~7：覆盖 isLoading 三态推导 + per-thread streamSummary 展示
+ *
+ * 🏆 Phase 4: PerThreadSessionStore.streamSummary 替代局部 useRef(wasLoading)。
+ *   - wasLoading 边沿逻辑 → per-thread streamSummary 持久状态
+ *   - SC-1: isLoading=true → Pulse（streamSummary 忽略）
+ *   - SC-2: isLoading=false + streamSummary ≠ null → Summary
+ *   - SC-3: isLoading=false + streamSummary = null → null（不渲染）
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -13,12 +19,15 @@ import React from 'react';
 let mockIsLoading = false;
 let mockMessages: any[] = [];
 let mockPromptMeta: any = null;
+let mockCurrentThreadId = 'test-thread';
+/** Per-thread streamSummary，控制 Summary 显示 */
+let mockStreamSummary: any = null;
 
 const mockTokenStats = vi.hoisted(() => ({ value: null as any }));
 
 vi.mock('../../../stores/useChatStore', () => ({
   useChatStore: (selector: (s: any) => any) =>
-    selector({ isLoading: mockIsLoading, messages: mockMessages }),
+    selector({ isLoading: mockIsLoading, messages: mockMessages, currentThreadId: mockCurrentThreadId }),
 }));
 
 vi.mock('../../../stores/transparencyStore', () => ({
@@ -51,6 +60,12 @@ describe('StreamingPulseBanner', () => {
     mockMessages = [];
     mockPromptMeta = null;
     mockTokenStats.value = null;
+    mockCurrentThreadId = 'test-thread';
+    mockStreamSummary = null;
+    // 设置 per-thread session store mock
+    (window as any).__getPerThreadSessionStore = () => ({
+      getStreamSummary: () => mockStreamSummary,
+    });
     vi.resetModules();
   });
 
@@ -100,7 +115,7 @@ describe('StreamingPulseBanner', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  // SPB-5: true→false 过渡 → Summary（promptMeta 有数据）
+  // SPB-5: true→false 过渡 → Summary（streamSummary + promptMeta 有数据）
   it('SPB-5: isLoading true→false 过渡后显示 Summary（含 token 数据）', async () => {
     // 阶段 1：loading 中
     mockIsLoading = true;
@@ -112,21 +127,22 @@ describe('StreamingPulseBanner', () => {
     const { rerender } = await renderBanner();
     expect(screen.getByTestId('streaming-pulse')).toBeTruthy();
 
-    // 阶段 2：loading 结束，promptMeta 有数据
+    // 阶段 2：loading 结束，设置 per-thread streamSummary
     mockIsLoading = false;
     mockPromptMeta = { total_tokens_estimate: 4200 };
+    mockStreamSummary = { inputTokens: 4200, outputTokens: 100 };
 
     const { StreamingPulseBanner } = await import('../StreamingPulseBanner');
     rerender(<StreamingPulseBanner />);
 
     expect(screen.getByTestId('streaming-summary')).toBeTruthy();
     expect(screen.getByText(/完成/)).toBeTruthy();
-    // promptMeta 数据被使用
+    // streamSummary.inputTokens 优先于 promptMeta
     expect(screen.getByText(/上下文 4.2K/)).toBeTruthy();
   });
 
-  // SPB-6: promptMeta 为 null 时 Summary 降级（从消息内容估算）
-  it('SPB-6: promptMeta 为 null 时 Summary 从消息内容降级估算', async () => {
+  // SPB-6: promptMeta 为 null 时 Summary 降级（从 streamSummary 读取）
+  it('SPB-6: promptMeta 为 null 时 Summary 从 streamSummary 读取', async () => {
     // 阶段 1：loading 中
     mockIsLoading = true;
     mockMessages = [
@@ -136,15 +152,16 @@ describe('StreamingPulseBanner', () => {
 
     const { rerender } = await renderBanner();
 
-    // 阶段 2：loading 结束，promptMeta 仍为 null
+    // 阶段 2：loading 结束，设置 per-thread streamSummary
     mockIsLoading = false;
+    mockStreamSummary = { inputTokens: 100, outputTokens: 200 };
 
     const { StreamingPulseBanner } = await import('../StreamingPulseBanner');
     rerender(<StreamingPulseBanner />);
 
-    // 不崩溃，Summary 存在，降级从消息内容估算
+    // 不崩溃，Summary 存在，从 streamSummary 获取数据
     expect(screen.getByTestId('streaming-summary')).toBeTruthy();
-    // 输出估算：assistant content 800 chars / 4 = 200 tokens
+    // streamSummary.outputTokens = 200
     expect(screen.getByText(/输出 200/)).toBeTruthy();
   });
 
@@ -175,13 +192,15 @@ describe('StreamingPulseBanner', () => {
     // 阶段 2：loading 结束 → Summary
     mockIsLoading = false;
     mockPromptMeta = { total_tokens_estimate: 4200 };
+    mockStreamSummary = { inputTokens: 4200, outputTokens: 100 };
 
     const { StreamingPulseBanner: SB2 } = await import('../StreamingPulseBanner');
     rerender(<SB2 />);
     expect(screen.getByTestId('streaming-summary')).toBeTruthy();
 
-    // 阶段 3：再次 loading → Pulse
+    // 阶段 3：再次 loading → Pulse（streamSummary 已由 clearStreamSummary 清除）
     mockIsLoading = true;
+    mockStreamSummary = null;
 
     const { StreamingPulseBanner: SB3 } = await import('../StreamingPulseBanner');
     rerender(<SB3 />);

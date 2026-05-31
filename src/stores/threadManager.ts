@@ -87,23 +87,55 @@ export const ThreadManager = {
       const messages = useChatStore.getState().messages;
       await threadPersistence.saveThreadMessages(currentThreadId, messages as any);
 
-      // 用户离开当前对话 → 状态变为 idle（不再活跃使用）
+      // 🏆 切换线程时检查所有活动源，避免误将仍有后台任务的线程设为 idle
       const currentThread = useThreadStore.getState().getThread(currentThreadId);
       if (currentThread && currentThread.status === 'active') {
-        // 🏆 元编程：通过声明式谓词检测活跃流，消除内联 getSession 重复
-        const hasActiveStream = messages.some((msg: any) => isStreamActive(msg.id));
-        if (!hasActiveStream) {
+        // ① 通过 StreamingResponseController 检测消息级别的活跃流
+        const hasStreamActivity = messages.some((msg: any) => isStreamActive(msg.id));
+
+        // ② 通过 PerThreadSessionStore 检测 per-thread 流计数
+        // 即使 messages 已不在当前视图中，activeStreamCount 仍精确追踪后台流
+        const pss = typeof window !== 'undefined'
+          ? (window as any).__getPerThreadSessionStore?.()
+          : null;
+        const hasPerThreadStream = pss ? pss.isStreamActiveForThread(currentThreadId) : false;
+
+        // ③ 通过 agentStore 检测该线程是否有正在运行的 Agent 任务
+        const hasAgentActivity = useAgentStore.getState().runningAgents.some(
+          (a) => a.threadId === currentThreadId
+        );
+
+        // ④ 检查该线程是否有未完成的 tool calls
+        // 流已完成但工具调用还在 pending/running，状态应保持而不是 idle
+        const oldThreadMsgs = useChatStore.getState()._messagesByThread?.[currentThreadId] || [];
+        const hasPendingToolCalls = oldThreadMsgs.some((m: any) =>
+          m.toolCalls?.some((tc: any) =>
+            tc.status === 'pending' || tc.status === 'running'
+          )
+        );
+
+        // ⑤ 检查该线程是否有运行中的 workflow
+        // workflow 系统不经过 agentStore/chat:stream，需要独立跟踪
+        const hasActiveWorkflow = hasActiveWorkflowForThread(currentThreadId);
+
+        // 仅当所有活动源都确认无活跃任务时，才将状态设为 idle
+        const hasAnyActivity = hasStreamActivity || hasPerThreadStream || hasAgentActivity || hasPendingToolCalls || hasActiveWorkflow;
+        if (!hasAnyActivity) {
           useThreadStore.getState().updateThread(currentThreadId, { status: 'idle' });
         }
       }
     }
 
-    // 加载新消息
-    const messages = await threadPersistence.loadThreadMessages(threadId);
-    useChatStore.setState({
-      messages: messages as any,
-      currentThreadId: threadId,
-    });
+    // 加载新消息到 _messagesByThread（不触发 Rule 1 覆盖旧线程 bucket）
+    const loadedMsgs = await threadPersistence.loadThreadMessages(threadId);
+    if (loadedMsgs?.length) {
+      const existingByThread = (useChatStore.getState() as any)._messagesByThread || {};
+      useChatStore.setState({
+        _messagesByThread: { ...existingByThread, [threadId]: loadedMsgs },
+      } as any);
+    }
+    // 切换 currentThreadId（仅含此字段 → Rule 2 从 _messagesByThread 自动提供 messages）
+    useChatStore.setState({ currentThreadId: threadId });
 
     // 更新 threadStore
     useThreadStore.setState((state) => ({
@@ -263,6 +295,8 @@ export const ThreadManager = {
   initChatStatusSync: () => {
     const unsubs: (() => void)[] = [];
 
+    // ─── chat:stream 事件 ─────────────────────────────────────
+
     // chat:stream:start → thread 状态变为 active
     const unsubStart = chatEventBus.on('chat:stream:start', (payload: any) => {
       const sessionId = payload.sessionId;
@@ -281,7 +315,7 @@ export const ThreadManager = {
     });
     unsubs.push(unsubStart);
 
-    // chat:stream:finished → thread 状态变为 idle
+    // chat:stream:finished → thread 状态变为 idle（除非有 pending tool calls）
     const unsubFinished = chatEventBus.on('chat:stream:finished', (payload: any) => {
       const sessionId = payload.sessionId;
       if (!sessionId) return;
@@ -291,13 +325,78 @@ export const ThreadManager = {
 
       // LLM 回复完成 → idle（不覆盖 working，Agent 优先）
       if (thread.status === 'active') {
+        // 🏆 Phase 4: 检查该线程是否有未完成的 tool calls
+        // 流完成但工具还未执行完（pending/running）→ 保持当前状态
+        const threadMessages = useChatStore.getState()._messagesByThread?.[sessionId] || [];
+        const hasPendingToolCalls = threadMessages.some((m: any) =>
+          m.toolCalls?.some((tc: any) =>
+            tc.status === 'pending' || tc.status === 'running'
+          )
+        );
+
+        if (!hasPendingToolCalls) {
+          useThreadStore.getState().updateThread(sessionId, {
+            status: 'idle',
+            lastActiveAt: Date.now(),
+          });
+        }
+      }
+    });
+    unsubs.push(unsubFinished);
+
+    // ─── workflow 事件 ────────────────────────────────────────
+    // workflow 系统不经过 agentStore 或 chat:stream，需要独立跟踪
+
+    /** workflowId → threadId 映射，用于 workflow:completed/error 查找到对应线程 */
+    const workflowThreadMap = new Map<string, string>();
+
+    // workflow:started → thread 状态变为 active
+    const unsubWfStarted = chatEventBus.on('workflow:started', (payload: any) => {
+      const sessionId = payload.sessionId;
+      const workflowId = payload.workflowId;
+      if (!sessionId || !workflowId) return;
+
+      // 记录映射，供完成事件查找线程
+      _workflowThreadMap.set(workflowId, sessionId);
+
+      const thread = useThreadStore.getState().getThread(sessionId);
+      if (!thread) return;
+
+      // 工作流开始 → active（不覆盖 working）
+      if (thread.status !== 'working') {
+        useThreadStore.getState().updateThread(sessionId, {
+          status: 'active',
+          lastActiveAt: Date.now(),
+        });
+      }
+    });
+    unsubs.push(unsubWfStarted);
+
+    // workflow:completed / workflow:error → thread 状态变为 idle
+    const handleWorkflowEnd = (payload: any) => {
+      const workflowId = payload.workflow_id || payload.workflowId;
+      if (!workflowId) return;
+
+      const sessionId = _workflowThreadMap.get(workflowId);
+      _workflowThreadMap.delete(workflowId); // 清理映射
+      if (!sessionId) return;
+
+      const thread = useThreadStore.getState().getThread(sessionId);
+      if (!thread) return;
+
+      // 工作流结束 → idle（不覆盖 working）
+      if (thread.status === 'active') {
         useThreadStore.getState().updateThread(sessionId, {
           status: 'idle',
           lastActiveAt: Date.now(),
         });
       }
-    });
-    unsubs.push(unsubFinished);
+    };
+
+    const unsubWfCompleted = chatEventBus.on('workflow:completed', handleWorkflowEnd);
+    unsubs.push(unsubWfCompleted);
+    const unsubWfError = chatEventBus.on('workflow:error', handleWorkflowEnd);
+    unsubs.push(unsubWfError);
 
     return () => unsubs.forEach(fn => fn());
   },
@@ -354,3 +453,16 @@ function generateDefaultTitle(): string {
 
 import type { Thread, ThreadStatus, ThreadOptions } from './threadStore';
 import type { Agent } from '../types/agent';
+
+// ===== 模块级 Workflow 状态跟踪 =====
+
+/** workflowId → threadId 映射，供 workflow:completed/error 查找线程 */
+const _workflowThreadMap = new Map<string, string>();
+
+/** 检查某线程是否有运行中的 workflow（供 switch() 使用） */
+export function hasActiveWorkflowForThread(threadId: string): boolean {
+  for (const tid of _workflowThreadMap.values()) {
+    if (tid === threadId) return true;
+  }
+  return false;
+}

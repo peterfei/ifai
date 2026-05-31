@@ -311,6 +311,8 @@ export const initStoreMapper = () => {
         getPerThreadSessionStore().incrementStreamCount(streamSessionId);
         // 🏆 Phase 4: 记录 streamingIds 到 per-thread session（用于断链检测和清理）
         getPerThreadSessionStore().addStreamingId(streamSessionId, correlationId);
+        // 🏆 Phase 4: 新流开始时清除旧的摘要数据（PulseBanner 跨线程使用）
+        getPerThreadSessionStore().clearStreamSummary(streamSessionId);
         debugLog({ category: 'stream:start', level: 'info', message: `Stream start: sessionId=${streamSessionId}`, threadId: streamSessionId, correlationId, data: { currentThreadId: useChatStore.getState().currentThreadId, isCrossThread: streamSessionId !== useChatStore.getState().currentThreadId } });
 
         // 🏆 设置 isStreaming 标记（仅在流所属线程 === 当前线程时更新 UI）
@@ -516,6 +518,24 @@ export const initStoreMapper = () => {
 
         // 🏆 声明式递减计数器：per-thread 递减（先于 setState，确保 isLoading 推导准确）
         getPerThreadSessionStore().decrementStreamCount(sessionId || useChatStore.getState().currentThreadId);
+
+        // 🏆 Phase 4: 设置 per-thread 流摘要数据（跨线程保留，供 PulseBanner 恢复显示）
+        {
+          const tid = sessionId || useChatStore.getState().currentThreadId;
+          const msgs = (useChatStore.getState() as any)._messagesByThread?.[tid] || [];
+          const allChars = msgs.reduce((sum: number, m: any) => {
+            const c = typeof m.content === 'string' ? m.content : '';
+            return sum + c.length;
+          }, 0);
+          const assistantChars = msgs.filter((m: any) => m.role === 'assistant').reduce((sum: number, m: any) => {
+            const c = typeof m.content === 'string' ? m.content : '';
+            return sum + c.length;
+          }, 0);
+          getPerThreadSessionStore().setStreamSummary(tid, {
+            inputTokens: Math.round(allChars / 4),
+            outputTokens: Math.round(assistantChars / 4),
+          });
+        }
 
         // B. 物理标记流完成 & 清除续播锁
         finishedStreams.add(correlationId);
@@ -904,6 +924,14 @@ export const initStoreMapper = () => {
           workflowId: wfId, workflowType: wfType, phaseCount: phaseData.length,
         });
 
+        // 🏆 线程感知路由：先确定消息应写入哪个线程的 bucket
+        const payloadSessionId = payloadData.sessionId as string | undefined;
+        const { currentThreadId } = useChatStore.getState();
+        const isCrossThread = payloadSessionId
+          && currentThreadId
+          && payloadSessionId !== currentThreadId
+          && !!useThreadStore.getState().getThread(payloadSessionId);
+
         const updater = (state: any) => {
           if (!state || !state.messages) return state;
 
@@ -923,8 +951,6 @@ export const initStoreMapper = () => {
 
           if (existingIdx !== -1) {
             // 🔥 FIX: 将 user 消息插入到 assistant 消息之前（而非追加到末尾）
-            // 场景：WorkflowIntentHandler.executeWorkflow() 先于 chat:message:sent 发出 workflow:started，
-            // 导致 assistant 消息先于 user 消息创建。这里用 splice 确保 user 在 assistant 之前。
             const newMsgs = [...filtered];
             const userMessage = {
               id: messageId, role: 'user' as const, content, timestamp: userTimestamp,
@@ -932,11 +958,6 @@ export const initStoreMapper = () => {
               workflowRelated: true,
             };
             newMsgs.splice(existingIdx, 0, userMessage);
-            // splice 后 assistant 消息索引后移 1 位
-            // 🔥 CRITICAL: 同时修正 assistant 时间戳，确保 user.timestamp < assistant.timestamp
-            // 🔥 FIX: 保留工作流已存在的 phaseData（workflow:started 设置的多节点数据），
-            // 不应用 chat:message:sent 的合成单节点 phaseData（[ {nodeId: 'task'} ]）。
-            // 否则工作流进度事件 node_id（explore_0/review_0/refactor_0）无法匹配 'task'
             newMsgs[existingIdx + 1] = {
               ...newMsgs[existingIdx + 1],
               timestamp: assistantTimestamp,
@@ -972,7 +993,24 @@ export const initStoreMapper = () => {
           };
         };
 
-        useChatStore.setState(updater as any);
+        if (isCrossThread && payloadSessionId) {
+          // 🏆 跨线程场景：消息属于后台线程，直接写入 _messagesByThread[sessionId]
+          // 不通过 updater 写当前线程的 state.messages
+          console.log('[StoreMapper] 🔀 Cross-thread workflow message: routing to thread',
+            payloadSessionId.substring(0, 8), `(current: ${currentThreadId?.substring(0, 8)})`);
+          const existingByThread = useChatStore.getState()._messagesByThread || {};
+          const targetBucket = existingByThread[payloadSessionId] || [];
+          const result = updater({ messages: targetBucket, _messagesByThread: existingByThread, currentThreadId });
+          if (result !== targetBucket && 'messages' in result) {
+            useChatStore.setState({
+              messages: (result as any).messages,
+              _threadId: payloadSessionId,
+              isLoading: (result as any).isLoading,
+            } as any);
+          }
+        } else {
+          useChatStore.setState(updater as any);
+        }
         console.log('[StoreMapper] ✅ Workflow progress message created with phaseData');
 
         return;  // 🔥 提前返回，不执行后续逻辑
@@ -1128,7 +1166,7 @@ export const initStoreMapper = () => {
 
     // P3: 映射工作流启动 — 创建 assistant 进度消息 + 初始化 PhaseData
     chatEventBus.on('workflow:started', (payload) => {
-      const { workflowId, nodes, correlationId, workflowType } = payload as any;
+      const { workflowId, nodes, correlationId, workflowType, sessionId } = payload as any;
 
       if (!workflowId || !nodes || !Array.isArray(nodes) || nodes.length === 0) {
         return;
@@ -1145,6 +1183,7 @@ export const initStoreMapper = () => {
 
       console.log('[StoreMapper] 📋 workflow:started — initializing phaseData:', {
         workflowId,
+        sessionId,
         phaseCount: phaseData.length,
         phases: phaseData.map((p: PhaseData) => `${p.nodeId}:${p.intent}`),
       });
@@ -1153,6 +1192,60 @@ export const initStoreMapper = () => {
       const workflowData = deriveUpdatedWorkflowData(
         undefined, workflowId, 'workflow:started', undefined, undefined, undefined, nodes,
       );
+
+      // 🏆 线程感知路由：检查是否属于跨线程工作流
+      const { currentThreadId } = useChatStore.getState();
+      const isCrossThreadWorkflow = sessionId
+        && currentThreadId
+        && sessionId !== currentThreadId
+        && !!useThreadStore.getState().getThread(sessionId);
+
+      if (isCrossThreadWorkflow && sessionId) {
+        // 跨线程场景：消息属于后台线程，在 _messagesByThread[sessionId] 中操作
+        console.log('[StoreMapper] 🔀 Cross-thread workflow:started: routing to thread',
+          sessionId.substring(0, 8), `(current: ${currentThreadId?.substring(0, 8)})`);
+
+        const existingByThread = useChatStore.getState()._messagesByThread || {};
+        const targetBucket = existingByThread[sessionId] || [];
+
+        // 优先按 correlationId 匹配，再按 workflowId 回退
+        const existingIdx = targetBucket.findIndex(
+          (m: any) => m.role === 'assistant' && (
+            (correlationId && m.id === correlationId) ||
+            m.metadata?.workflowId === workflowId
+          )
+        );
+
+        if (existingIdx !== -1) {
+          const newBucket = [...targetBucket];
+          newBucket[existingIdx] = {
+            ...newBucket[existingIdx],
+            metadata: { ...newBucket[existingIdx].metadata, workflowType, phaseData, workflowData },
+          };
+          useChatStore.setState({
+            messages: newBucket,
+            _threadId: sessionId,
+          } as any);
+          console.log('[StoreMapper] ✅ Cross-thread workflow:started — updated existing assistant message metadata');
+        } else {
+          // chat:message:sent 的 Fix 1 通常已创建 assistant 消息，此处作为兜底
+          useChatStore.setState({
+            messages: [
+              ...targetBucket,
+              {
+                id: correlationId || `wf-progress-${workflowId}`,
+                role: 'assistant',
+                content: '',
+                timestamp: Date.now(),
+                metadata: { workflowId, workflowType, phaseData, workflowData },
+              },
+            ],
+            _threadId: sessionId,
+          } as any);
+          console.log('[StoreMapper] ✅ Cross-thread workflow:started — created new assistant progress message in target bucket');
+        }
+        return;
+      }
 
       const updater = (state: any) => {
         if (!state || !state.messages) return state;

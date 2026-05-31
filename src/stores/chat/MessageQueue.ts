@@ -174,11 +174,18 @@ export class MessageQueue {
       console.log(`[MessageQueue] 📤 Calling sendMessageOrchestrator.send() for: ${nextMessage.id}`);
 
       // 调用 sendMessageOrchestrator.send()
+      // 🏆 FIX: 显式传递 threadId，防止用户在消息入队后切换线程导致
+      // sendMessageOrchestrator.send() 使用 activeThreadId（切换后的值）作为 sessionId，
+      // 进而导致 chat:message:sent 事件将消息创建到错误线程的 _messagesByThread。
+      // 根因: MessageQueue.process() 是异步的，nextMessage.threadId 才是消息真实归属线程。
       const result = await sendMessageOrchestrator.send(
         nextMessage.content,
         nextMessage.providerId,
         nextMessage.model,
-        { signal: nextMessage.abortController?.signal }  // 传递 AbortSignal
+        {
+          signal: nextMessage.abortController?.signal,  // 传递 AbortSignal
+          threadId: nextMessage.threadId,  // 🏆 传递消息真实归属线程 ID
+        }
       );
 
       console.log(`[MessageQueue] 📥 sendMessageOrchestrator.send() returned for: ${nextMessage.id}`, {

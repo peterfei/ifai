@@ -308,6 +308,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
         try {
           const { sendMessageOrchestrator } = await import('../../stores/chat/sendMessage/SendMessageOrchestrator');
 
+          // 🏆 FIX: 传递 capturedThreadId，防止异步间隙期间线程切换导致
+          // sendMessageOrchestrator 使用 activeThreadId 作为 sessionId 串到错误线程
+          const { useThreadStore } = await import('../../stores/threadStore');
+          const capturedThreadId = useThreadStore.getState().activeThreadId || 'default-thread';
+
           const result = attachmentsToSend.length > 0
             ? await sendMessageOrchestrator.send(
                 [{ type: 'text', text: messageToSend }, ...attachmentsToSend.map(img => ({
@@ -315,9 +320,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
                   image_url: { url: img.previewUrl }
                 }))],
                 currentProviderId,
-                currentModel
+                currentModel,
+                { threadId: capturedThreadId }
               )
-            : await sendMessageOrchestrator.send(messageToSend, currentProviderId, currentModel);
+            : await sendMessageOrchestrator.send(messageToSend, currentProviderId, currentModel,
+                { threadId: capturedThreadId });
 
           if (result && (result as any).skipped) {
             console.log('[ChatInputArea] ⚡ Workflow handled message');
@@ -330,7 +337,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
               result.context || [],
               currentProviderId,
               currentModel,
-              result.correlationId
+              result.correlationId,
+              capturedThreadId  // 🏆 传递线程 ID，防止 async gap 导致串流
             );
           }
         } catch (fallbackErr) {
