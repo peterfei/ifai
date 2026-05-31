@@ -8,8 +8,9 @@
  *   HE-3: 应用重启后 session 恢复
  *   HE-4: todoWrite 随线程切换持久化
  *   HE-5: DebugLog 导出供 LLM 分析
+ *   HE-6: 双线程工作流隔离 — A:/review, B:/explore 交叉事件路由
  *
- * @version 1.1.0
+ * @version 1.2.0
  * @proposal 011-per-thread-gui-session-persistence
  */
 
@@ -464,5 +465,478 @@ test.describe('高保真: 线程会话持久化', () => {
     }
 
     console.log(`[HE-5] ✅ ${lines.length} log lines exported`);
+  });
+
+  // ─── HE-6: 双线程工作流隔离 — A:/review, B:/explore ────────────
+
+  test('HE-6: 双线程工作流隔离 — A:/review, B:/explore', async ({ page }) => {
+    test.setTimeout(30000);
+
+    // 工作流事件链：
+    //   workflow:started → workflow:progress (node_started/tool_call/node_completed)
+    //   → workflow:response → workflow:completed
+    //
+    // 测试场景：
+    //   1. A 启动 /review（3 节点: explore→review→refactor）
+    //   2. A 的 tool_call (agent_scan_project) 已发出
+    //   3. 切到 B，B 启动 /explore（1 节点: explore）
+    //   4. B 的 tool_call (agent_scan_project) 已发出
+    //   5. A 的后台事件（response + completed）在 B 的视图中到达（跨线程路由）
+    //   6. B 完成工作流
+    //   7. 切回 A：验证 A 的消息完整，toolCalls 隔离
+    //   8. 验证 B 的消息隔离
+
+    const WF_A_ID = 'he6-wf-A';
+    const WF_B_ID = 'he6-wf-B';
+    const MSG_A_USER = 'he6-user-A';
+    const MSG_B_USER = 'he6-user-B';
+
+    // ── Arrange: 获取线程 A/B ──
+    const threadIds = await page.evaluate(() => {
+      const cs = (window as any).__chatStore.getState();
+      const ts = (window as any).__threadStore.getState();
+      const tidA = cs.currentThreadId;
+      const tidB = ts.createThread();
+      return { tidA, tidB };
+    });
+
+    // ── Step 1: 切换到 A，发送 /review 用户消息 ──
+    // ⚠️ switchThread is async; use direct setState to avoid race with `createThread`
+    await page.evaluate(({ tidA }) => {
+      (window as any).__chatStore.setState({ currentThreadId: tidA });
+    }, { tidA: threadIds.tidA });
+    await page.waitForTimeout(200);
+
+    await page.evaluate((msgId) => {
+      const cs = (window as any).__chatStore.getState();
+      cs.addMessage({ id: msgId, role: 'user', content: '/review', timestamp: Date.now() });
+    }, MSG_A_USER);
+
+    // ── Step 2: 启动工作流 A (code_review, 3 nodes) ──
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:started', {
+        workflowId: wfId,
+        workflowType: 'code_review',
+        correlationId: wfId,
+        timestamp: Date.now(),
+        nodes: [
+          { id: 'explore', label: '探索代码', agent_type: 'explore' },
+          { id: 'review', label: '代码审查', agent_type: 'review' },
+          { id: 'refactor', label: '重构建议', agent_type: 'refactor' },
+        ],
+      });
+    }, { wfId: WF_A_ID });
+    await page.waitForTimeout(200);
+
+    // ── Step 3: A 的第一个节点开始 + tool_call (agent_scan_project) ──
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:progress', {
+        workflowId: wfId,
+        event_type: 'node_started',
+        node_id: 'explore',
+        message: '开始执行: 探索代码',
+        timestamp: Date.now(),
+      });
+    }, { wfId: WF_A_ID });
+
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:progress', {
+        workflowId: wfId,
+        event_type: 'tool_call',
+        node_id: 'explore',
+        message: '扫描项目文件',
+        timestamp: Date.now(),
+        tool_details: {
+          tool_name: 'agent_scan_project',
+          tool_input: JSON.stringify({ path: '.' }),
+          tool_output: '发现 15 个文件',
+          output_length: 50,
+          execution_time_ms: 350,
+          is_error: false,
+        },
+      });
+    }, { wfId: WF_A_ID });
+    await page.waitForTimeout(200);
+
+    // ── 🔍 CHECKPOINT: Verify A's state after workflow events ──
+    const checkpointA = await page.evaluate(({ tidA, wfA }) => {
+      const cs = (window as any).__chatStore.getState();
+      return {
+        cTid: cs.currentThreadId,
+        msgIds: cs.messages.map((m: any) => `${m.id}:${m.role}:wf=${m.metadata?.workflowId || 'none'}`).join(', '),
+        msgCount: cs.messages.length,
+        aBucketLen: (cs._messagesByThread?.[tidA] || []).length,
+        aBucketKeys: Object.keys(cs._messagesByThread || {}).join(', '),
+        wfAToolCalls: cs.messages.find((m: any) => m.metadata?.workflowId === wfA)?.toolCalls?.length || 0,
+      };
+    }, { tidA: threadIds.tidA, wfA: WF_A_ID });
+    console.log(`[HE-6 CHECKPOINT A] cTid=${checkpointA.cTid} msgs=[${checkpointA.msgIds}] aBucketLen=${checkpointA.aBucketLen} keys=[${checkpointA.aBucketKeys}] toolCalls=${checkpointA.wfAToolCalls}`);
+
+    // ── Step 4: A 工作流执行中，切换到 B ──
+    // ⚠️ Use direct setState to avoid async switchThread & IndexedDB race
+    await page.evaluate(({ tidB }) => {
+      (window as any).__chatStore.setState({ currentThreadId: tidB });
+    }, { tidB: threadIds.tidB });
+    await page.waitForTimeout(300);
+
+    // ── 🔍 CHECKPOINT B: After switch to B ──
+    const checkpointB = await page.evaluate(({ tidA, tidB }) => {
+      const cs = (window as any).__chatStore.getState();
+      return {
+        cTid: cs.currentThreadId,
+        msgIds: cs.messages.map((m: any) => `${m.id}:${m.role}`).join(', '),
+        msgCount: cs.messages.length,
+        aBucketLen: (cs._messagesByThread?.[tidA] || []).length,
+        bBucketLen: (cs._messagesByThread?.[tidB] || []).length,
+        aBucketKeys: Object.keys(cs._messagesByThread || {}).join(', '),
+      };
+    }, { tidA: threadIds.tidA, tidB: threadIds.tidB });
+    console.log(`[HE-6 CHECKPOINT B] cTid=${checkpointB.cTid} msgs=[${checkpointB.msgIds}] aBucket=${checkpointB.aBucketLen} bBucket=${checkpointB.bBucketLen} keys=[${checkpointB.aBucketKeys}]`);
+    await page.evaluate((msgId) => {
+      const cs = (window as any).__chatStore.getState();
+      cs.addMessage({ id: msgId, role: 'user', content: '/explore', timestamp: Date.now() });
+    }, MSG_B_USER);
+
+    // ── Step 6: 启动工作流 B (exploration, 1 node) ──
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:started', {
+        workflowId: wfId,
+        workflowType: 'exploration',
+        correlationId: wfId,
+        timestamp: Date.now(),
+        nodes: [
+          { id: 'explore', label: '探索代码', agent_type: 'explore' },
+        ],
+      });
+    }, { wfId: WF_B_ID });
+    await page.waitForTimeout(200);
+
+    // ── Step 7: B 的进度事件 (node_started + tool_call) ──
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:progress', {
+        workflowId: wfId,
+        event_type: 'node_started',
+        node_id: 'explore',
+        message: '开始执行: 探索代码',
+        timestamp: Date.now(),
+      });
+    }, { wfId: WF_B_ID });
+
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:progress', {
+        workflowId: wfId,
+        event_type: 'tool_call',
+        node_id: 'explore',
+        message: '扫描项目文件',
+        timestamp: Date.now(),
+        tool_details: {
+          tool_name: 'agent_scan_project',
+          tool_input: JSON.stringify({ path: '.' }),
+          tool_output: '发现 10 个文件',
+          output_length: 40,
+          execution_time_ms: 300,
+          is_error: false,
+        },
+      });
+    }, { wfId: WF_B_ID });
+    await page.waitForTimeout(200);
+
+    // ── Step 8: 在 B 的视图中，A 的后台事件到达（跨线程路由测试关键点）──
+    // 8a: A 的 node_completed
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:progress', {
+        workflowId: wfId,
+        event_type: 'node_completed',
+        node_id: 'explore',
+        message: '✓ 探索代码 完成',
+        timestamp: Date.now(),
+      });
+    }, { wfId: WF_A_ID });
+
+    // 8b: A 的 response — 跨线程路由到 _messagesByThread[A]
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:response', {
+        workflowId: wfId,
+        workflowType: 'code_review',
+        correlationId: wfId,
+        response: '📊 **代码审查发现**\n\n- 发现 3 个潜在问题\n- 建议优化性能',
+        timestamp: Date.now(),
+      });
+    }, { wfId: WF_A_ID });
+    await page.waitForTimeout(300);
+
+    // 8c: A 的 completed — 跨线程路由到 _messagesByThread[A]
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:completed', {
+        workflow_id: wfId,
+        status: 'completed',
+        node_results: {
+          explore: { status: 'completed', output: '已探索 15 个文件' },
+          review: { status: 'completed', output: '发现 3 个问题' },
+          refactor: { status: 'completed', output: '提供 2 个重构方案' },
+        },
+        started_at: Date.now() - 5000,
+        completed_at: Date.now(),
+      });
+    }, { wfId: WF_A_ID });
+    await page.waitForTimeout(500);
+
+    // ── Step 9: 在 B 的视图中验证 A 的跨线程路由结果 ──
+    const resultOnB = await page.evaluate(({ tidA, wfA, wfB }) => {
+      const cs = (window as any).__chatStore.getState();
+      const aBucket = cs._messagesByThread?.[tidA] || [];
+      const bMessages = cs.messages;
+      const allBuckets = cs._messagesByThread || {};
+
+      const aAssistantMsg = aBucket.find((m: any) => m.metadata?.workflowId === wfA);
+      const bAssistantMsg = bMessages.find((m: any) => m.metadata?.workflowId === wfB);
+
+      return {
+        // A 的跨线程路由状态
+        aToolCallsCount: aAssistantMsg?.toolCalls?.length || 0,
+        aToolCallsJson: JSON.stringify(aAssistantMsg?.toolCalls || []).substring(0, 200),
+        aHasAgentScan: aAssistantMsg?.toolCalls?.some((tc: any) =>
+          tc.function?.name === 'agent_scan_project'
+        ),
+        aMsgId: aAssistantMsg?.id,
+        aStatus: aAssistantMsg?.status,
+        aContentPreview: (aAssistantMsg?.content || '').substring(0, 100),
+        aContentHasReview: (aAssistantMsg?.content || '').includes('代码审查发现'),
+        aContentHasWorkflowDone: (aAssistantMsg?.content || '').includes('工作流执行完成'),
+        aBucketLen: aBucket.length,
+        aMsgMetadataWorkflowId: aAssistantMsg?.metadata?.workflowId,
+        // debug: all bucket contents
+        bucketKeys: Object.keys(allBuckets),
+        aBucketMsgIds: aBucket.map((m: any) => `${m.id}:${m.role}`).join(', '),
+        // B 的当前状态（仍在 B 视图）
+        bToolCallsCount: bAssistantMsg?.toolCalls?.length || 0,
+        bHasAgentScan: bAssistantMsg?.toolCalls?.some((tc: any) =>
+          tc.function?.name === 'agent_scan_project'
+        ),
+        bMsgId: bAssistantMsg?.id,
+        bStatus: bAssistantMsg?.status,
+        bMsgMetadataWorkflowId: bAssistantMsg?.metadata?.workflowId,
+        bMessagesCount: bMessages.length,
+        bMsgIds: bMessages.map((m: any) => `${m.id}:${m.role}`).join(', '),
+      };
+    }, { tidA: threadIds.tidA, wfA: WF_A_ID, wfB: WF_B_ID });
+
+    // ── Assert: A 的跨线程路由正确 — toolCalls + 内容已写入 _messagesByThread[A] ──
+    console.log(`[HE-6] Step 9 — A: bucketKeys=[${resultOnB.bucketKeys}], aBucketLen=${resultOnB.aBucketLen}`);
+    console.log(`[HE-6] Step 9 — A: msgIds=[${resultOnB.aBucketMsgIds}]`);
+    console.log(`[HE-6] Step 9 — A: msgId=${resultOnB.aMsgId}, wfId=${resultOnB.aMsgMetadataWorkflowId}`);
+    console.log(`[HE-6] Step 9 — A: toolCalls=${resultOnB.aToolCallsCount}, json=${resultOnB.aToolCallsJson}`);
+    console.log(`[HE-6] Step 9 — A: hasAgentScan=${resultOnB.aHasAgentScan}, status=${resultOnB.aStatus}`);
+    console.log(`[HE-6] Step 9 — A: contentPreview=[${resultOnB.aContentPreview}]`);
+    console.log(`[HE-6] Step 9 — A: hasReview=${resultOnB.aContentHasReview}, hasDone=${resultOnB.aContentHasWorkflowDone}`);
+    console.log(`[HE-6] Step 9 — B: msgs=[${resultOnB.bMsgIds}], count=${resultOnB.bMessagesCount}`);
+    console.log(`[HE-6] Step 9 — B: msgId=${resultOnB.bMsgId}, wfId=${resultOnB.bMsgMetadataWorkflowId}`);
+    console.log(`[HE-6] Step 9 — B: toolCalls=${resultOnB.bToolCallsCount}, hasAgentScan=${resultOnB.bHasAgentScan}, status=${resultOnB.bStatus}`);
+
+    expect(resultOnB.aToolCallsCount).toBeGreaterThanOrEqual(1);
+    expect(resultOnB.aHasAgentScan).toBe(true);
+    expect(resultOnB.aContentHasReview).toBe(true);
+    expect(resultOnB.aContentHasWorkflowDone).toBe(true);
+
+    // ── Step 10: 完成 B 的工作流 ──
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:progress', {
+        workflowId: wfId,
+        event_type: 'node_completed',
+        node_id: 'explore',
+        message: '✓ 探索代码 完成',
+        timestamp: Date.now(),
+      });
+    }, { wfId: WF_B_ID });
+
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:response', {
+        workflowId: wfId,
+        workflowType: 'exploration',
+        correlationId: wfId,
+        response: '📊 **项目探索完成**\n\n- 项目结构分析完成\n- 关键文件识别完成',
+        timestamp: Date.now(),
+      });
+    }, { wfId: WF_B_ID });
+    await page.waitForTimeout(200);
+
+    await page.evaluate(({ wfId }) => {
+      const eb = (window as any).__chatEventBus;
+      eb.emit('workflow:completed', {
+        workflow_id: wfId,
+        status: 'completed',
+        node_results: {
+          explore: { status: 'completed', output: '已探索 10 个文件' },
+        },
+        started_at: Date.now() - 3000,
+        completed_at: Date.now(),
+      });
+    }, { wfId: WF_B_ID });
+    await page.waitForTimeout(500);
+
+    // ── Step 11: 切回 A，验证 A 的完整状态 ──
+    // ⚠️ StoreMapper workflow:completed handler 的 import().then() 链会异步
+    //    将 currentThreadId 从 'default-thread' 重置为 activeThreadId (tidB)
+    //    因此从 _messagesByThread 桶读取而非 cs.messages
+    await page.evaluate(({ tidA }) => {
+      (window as any).__chatStore.setState({ currentThreadId: tidA });
+    }, { tidA: threadIds.tidA });
+    await page.waitForTimeout(100);
+
+    const resultOnA = await page.evaluate(({ tidA, tidB, wfA, wfB }) => {
+      const state = (window as any).__chatStore.getState();
+      // 直接从桶读取（绕过 async callback 对 currentThreadId 的覆盖）
+      const aBucket = state._messagesByThread?.[tidA] || [];
+      const bBucket = state._messagesByThread?.[tidB] || [];
+
+      const aAssistantMsg = aBucket.find((m: any) => m.metadata?.workflowId === wfA);
+      const bAssistantMsg = bBucket.find((m: any) => m.metadata?.workflowId === wfB);
+
+      return {
+        cTid: state.currentThreadId,
+        aMsgIds: aBucket.map((m: any) => `${m.id}:wf=${m.metadata?.workflowId||'none'}:role=${m.role}`).join(', '),
+        bMsgIds: bBucket.map((m: any) => `${m.id}:wf=${m.metadata?.workflowId||'none'}:role=${m.role}`).join(', '),
+        // A 的完整状态（从桶读取）
+        aToolCallsCount: aAssistantMsg?.toolCalls?.length || 0,
+        aHasAgentScan: aAssistantMsg?.toolCalls?.some((tc: any) =>
+          tc.function?.name === 'agent_scan_project'
+        ),
+        aStatus: aAssistantMsg?.status,
+        aContentHasReview: (aAssistantMsg?.content || '').includes('代码审查发现'),
+        aContentHasWorkflowDone: (aAssistantMsg?.content || '').includes('工作流执行完成'),
+        aBucketLen: aBucket.length,
+        // B 的隔离状态
+        bToolCallsCount: bAssistantMsg?.toolCalls?.length || 0,
+        bHasAgentScan: bAssistantMsg?.toolCalls?.some((tc: any) =>
+          tc.function?.name === 'agent_scan_project'
+        ),
+        bStatus: bAssistantMsg?.status,
+        bContentHasExplore: (bAssistantMsg?.content || '').includes('项目探索完成'),
+        bContentHasWorkflowDone: (bAssistantMsg?.content || '').includes('工作流执行完成'),
+        bBucketLen: bBucket.length,
+      };
+    }, { tidA: threadIds.tidA, tidB: threadIds.tidB, wfA: WF_A_ID, wfB: WF_B_ID });
+
+    // ── Final Assertions ──
+    console.log(`[HE-6] FINAL A: cTid=${resultOnA.cTid}, aBucket=[${resultOnA.aMsgIds}], aBucketLen=${resultOnA.aBucketLen}, toolCalls=${resultOnA.aToolCallsCount}, agentScan=${resultOnA.aHasAgentScan}, status=${resultOnA.aStatus}, hasReview=${resultOnA.aContentHasReview}, hasDone=${resultOnA.aContentHasWorkflowDone}`);
+    console.log(`[HE-6] FINAL B: bBucket=[${resultOnA.bMsgIds}], bBucketLen=${resultOnA.bBucketLen}, toolCalls=${resultOnA.bToolCallsCount}, agentScan=${resultOnA.bHasAgentScan}, status=${resultOnA.bStatus}, hasExplore=${resultOnA.bContentHasExplore}, hasDone=${resultOnA.bContentHasWorkflowDone}`);
+
+    // A 的工作流完整（从 _messagesByThread 桶验证数据完整性）
+    expect(resultOnA.aToolCallsCount).toBeGreaterThanOrEqual(1);
+    expect(resultOnA.aHasAgentScan).toBe(true);
+    expect(resultOnA.aContentHasReview).toBe(true);
+    expect(resultOnA.aContentHasWorkflowDone).toBe(true);
+
+    // B 的工作流隔离完整
+    expect(resultOnA.bToolCallsCount).toBeGreaterThanOrEqual(1);
+    expect(resultOnA.bHasAgentScan).toBe(true);
+    expect(resultOnA.bContentHasExplore).toBe(true);
+    expect(resultOnA.bContentHasWorkflowDone).toBe(true);
+
+    console.log(`[HE-6] ✅ A (code_review): toolCalls=${resultOnA.aToolCallsCount}, agentScan=${resultOnA.aHasAgentScan}, status=${resultOnA.aStatus}`);
+    console.log(`[HE-6] ✅ B (exploration): toolCalls=${resultOnA.bToolCallsCount}, agentScan=${resultOnA.bHasAgentScan}, status=${resultOnA.bStatus}`);
+  });
+
+  // ─── HE-7: 真实 WorkflowIntentHandler 模式 — 多 agent 切换后中间过程不丢失 ────
+  // 用户报告: 有多 agent 时（如 /explore 或 /review），切换后回来中间过程丢失
+  // 使用真实的 WorkflowIntentHandler mock 模式（setTimeout 事件链）→ 高保真还原
+
+  test('HE-7: 真实 WorkflowIntentHandler — 多 agent 切换后中间过程不丢失', async ({ page }) => {
+    test.setTimeout(30000);
+
+    // WorkflowIntentHandler mock 模式时间线（exploration, 1 node）:
+    //   t=0ms:   workflow:started (同步)
+    //   t=800ms: workflow:progress (node_started: explore)
+    //   t=1200ms: workflow:progress (tool_call: agent_scan_project)
+    //   t=1800ms: workflow:progress (node_completed: explore)
+    //            workflow:response + workflow:completed
+    const SWITCH_MS = 500;
+
+    // ── Arrange: 获取线程 A/B ──
+    const threadIds = await page.evaluate(() => {
+      const cs = (window as any).__chatStore.getState();
+      const ts = (window as any).__threadStore.getState();
+      const tidA = cs.currentThreadId;
+      const tidB = ts.createThread();
+      (window as any).__chatStore.setState({ currentThreadId: tidA });
+      return { tidA, tidB };
+    });
+
+    // ── Step 1: 在 A 上发送 /explore（触发 WorkflowIntentHandler mock 模式）──
+    await page.evaluate(() => {
+      const cs = (window as any).__chatStore.getState();
+      // sendMessage 触发完整发送流程 → IntentHandler → WorkflowIntentHandler.executeWorkflow
+      cs.sendMessage('/explore', 'e2e-test', 'e2e-test').catch(() => {});
+    });
+    console.log('[HE-7] /explore sent via sendMessage on Thread A');
+
+    // ── Step 2: 等一轮事件后，切到 B ──
+    await page.waitForTimeout(SWITCH_MS);
+    await page.evaluate(({ tidB }) => {
+      (window as any).__chatStore.setState({ currentThreadId: tidB });
+    }, { tidB: threadIds.tidB });
+    console.log('[HE-7] Switched to Thread B (workflow executing on A)');
+
+    // ── Step 3: 轮询等待 A 的 workflow 完成 ──
+    const wfId = await page.evaluate(async ({ tidA }) => {
+      for (let i = 0; i < 30; i++) {
+        const state = (window as any).__chatStore.getState();
+        const bucket = state._messagesByThread?.[tidA] || [];
+        const msg = bucket.find((m: any) => m.role === 'assistant' && m.metadata?.workflowId);
+        if (msg?.status === 'completed') return msg.metadata.workflowId;
+        await new Promise(r => setTimeout(r, 300));
+      }
+      return null;
+    }, { tidA: threadIds.tidA });
+    expect(wfId).toBeTruthy();
+    console.log('[HE-7] Workflow completed on A, wfId:', wfId);
+
+    // ── Step 4: 切回 A 检查 ──
+    await page.evaluate(({ tidA }) => {
+      (window as any).__chatStore.setState({ currentThreadId: tidA });
+    }, { tidA: threadIds.tidA });
+    await page.waitForTimeout(200);
+
+    const result = await page.evaluate(({ tidA, wf }) => {
+      const state = (window as any).__chatStore.getState();
+      const bucket = state._messagesByThread?.[tidA] || [];
+      const assistantMsg = bucket.find((m: any) => m.role === 'assistant' && m.metadata?.workflowId === wf);
+      return {
+        hasAssistantMsg: !!assistantMsg,
+        toolCallsCount: assistantMsg?.toolCalls?.length || 0,
+        hasAgentScan: assistantMsg?.toolCalls?.some((tc: any) => tc.function?.name === 'agent_scan_project'),
+        contentHasResponse: (assistantMsg?.content || '').includes('项目探索完成'),
+        contentHasWorkflowDone: (assistantMsg?.content || '').includes('工作流执行完成'),
+        status: assistantMsg?.status,
+        segmentsCount: (assistantMsg?.segments || []).length,
+        segmentsTypes: (assistantMsg?.segments || []).map((s: any) => s.type).join(','),
+      };
+    }, { tidA: threadIds.tidA, wf: wfId });
+
+    console.log(`[HE-7] assistant=${result.hasAssistantMsg} toolCalls=${result.toolCallsCount} agentScan=${result.hasAgentScan} status=${result.status} segments=${result.segmentsCount} types=[${result.segmentsTypes}]`);
+    console.log(`[HE-7] hasResponse=${result.contentHasResponse} hasWorkflowDone=${result.contentHasWorkflowDone}`);
+
+    // ── 中间过程必须完整 ──
+    expect(result.hasAssistantMsg).toBe(true);
+    expect(result.toolCallsCount).toBeGreaterThanOrEqual(1);
+    expect(result.hasAgentScan).toBe(true);
+    expect(result.contentHasResponse).toBe(true);
+    expect(result.contentHasWorkflowDone).toBe(true);
+    expect(result.status).toBe('completed');
+    expect(result.segmentsCount).toBeGreaterThanOrEqual(2);
+    expect(result.segmentsTypes).toContain('text');
+
+    console.log(`[HE-7] ✅ toolCalls=${result.toolCallsCount}, agentScan=${result.hasAgentScan}, segments=${result.segmentsCount}, status=${result.status}`);
   });
 });

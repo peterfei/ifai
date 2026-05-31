@@ -1243,8 +1243,85 @@ export const initStoreMapper = () => {
         console.log('[StoreMapper] 🔍 assistantIndex:', assistantIndex, 'carriedToolCalls:', carriedToolCalls.length);
 
         if (assistantIndex === -1) {
-          // 🔥 正常流程：创建 assistant 消息（工作流执行期间没有空白气泡）
-          console.log('[StoreMapper] ✅ Creating new assistant message for workflow response (no empty bubble during execution)');
+          // 🔥 跨线程场景：state.messages 已切换为其他线程，workflow 消息在 _messagesByThread 中
+          const byThread = state._messagesByThread || {};
+          let foundThreadId: string | null = null;
+          let foundBucketIdx = -1;
+
+          for (const tid of Object.keys(byThread)) {
+            const bucket = byThread[tid] || [];
+            foundBucketIdx = bucket.findIndex((m: any) =>
+              m.role === 'assistant' && m.metadata?.workflowId === workflowId
+            );
+            if (foundBucketIdx !== -1) { foundThreadId = tid; break; }
+          }
+
+          if (foundThreadId && foundBucketIdx !== -1) {
+            console.log('[StoreMapper] 🔄 Found workflow message in _messagesByThread[' + foundThreadId + '], routing cross-thread for response');
+            const bucket = byThread[foundThreadId];
+            // 从正确的线程 bucket 中查找 toolCalls
+            const carriedToolCallsFromBucket = findToolCallsForWorkflow(bucket, workflowId);
+
+            const newBucket = [...bucket];
+            newBucket[foundBucketIdx] = {
+              ...newBucket[foundBucketIdx],
+              content: response,
+              status: 'completed',
+              timestamp: newBucket[foundBucketIdx].timestamp || Date.now(),
+              toolCalls: [...(newBucket[foundBucketIdx].toolCalls || []), ...carriedToolCallsFromBucket],
+              segments: [{
+                id: `seg-workflow-${workflowId}`,
+                type: 'text' as const,
+                phase: 'pre-tool' as const,
+                content: response,
+                order: 1,
+                timestamp: Date.now(),
+              }],
+              metadata: {
+                ...newBucket[foundBucketIdx].metadata,
+                workflowId,
+                workflowType,
+                correlationId,
+              }
+            };
+
+            // 🔥 CRITICAL FIX: 检查是否有已缓存的工作流完成结果
+            const cachedCompletion = workflowCompletionCache.get(workflowId);
+            if (cachedCompletion) {
+              console.log('[StoreMapper] 📦 Found cached completion result, applying immediately (cross-thread):', workflowId);
+              const existingContent = response || '';
+              const hasCompletionMarker = existingContent.includes('## ✅ 工作流执行完成');
+              if (!hasCompletionMarker) {
+                const finalContent = `${existingContent}\n\n${cachedCompletion.responseContent}`;
+                newBucket[foundBucketIdx] = {
+                  ...newBucket[foundBucketIdx],
+                  content: finalContent,
+                  segments: [
+                    ...(newBucket[foundBucketIdx].segments || []),
+                    {
+                      id: `seg-workflow-completed-${workflowId}`,
+                      type: 'text' as const,
+                      phase: 'pre-tool' as const,
+                      content: cachedCompletion.responseContent,
+                      order: (newBucket[foundBucketIdx].segments?.length || 0) + 1,
+                      timestamp: Date.now(),
+                    }
+                  ],
+                  metadata: {
+                    ...newBucket[foundBucketIdx].metadata,
+                    completed: true,
+                    completedAt: cachedCompletion.completed_at,
+                  }
+                };
+              }
+              workflowCompletionCache.delete(workflowId);
+            }
+
+            return { messages: newBucket, _threadId: foundThreadId, isLoading: false };
+          }
+
+          // 真找不到 → 创建 assistant 消息（原逻辑）
+          console.log('[StoreMapper] ✅ Creating new assistant message for workflow response (no existing message found)');
           const assistantMessage = {
             id: correlationId,
             role: 'assistant',
@@ -1968,6 +2045,76 @@ export const initStoreMapper = () => {
         );
 
         if (assistantIndex === -1) {
+          // 🔥 跨线程场景：state.messages 已切换为其他线程，workflow 消息在 _messagesByThread 中
+          const byThread = state._messagesByThread || {};
+          let foundThreadId: string | null = null;
+          let foundBucketIdx = -1;
+
+          for (const tid of Object.keys(byThread)) {
+            const bucket = byThread[tid] || [];
+            foundBucketIdx = bucket.findIndex((m: any) =>
+              m.role === 'assistant' && m.metadata?.workflowId === workflow_id
+            );
+            if (foundBucketIdx !== -1) { foundThreadId = tid; break; }
+          }
+
+          if (foundThreadId && foundBucketIdx !== -1) {
+            console.log('[StoreMapper] 🔄 Found workflow message in _messagesByThread[' + foundThreadId + '], routing cross-thread for completion');
+            const bucket = byThread[foundThreadId];
+            const existingMessage = bucket[foundBucketIdx];
+            const existingContent = existingMessage.content || '';
+
+            // 检查是否已有工作流完成标记
+            const hasCompletionMarker = existingContent.includes('## ✅ 工作流执行完成');
+
+            // 追加工作流完成结果
+            const finalContent = hasCompletionMarker
+              ? existingContent
+              : `${existingContent}\n\n${responseContent}`;
+
+            // 终态化 phaseData
+            const currentPhaseData: PhaseData[] = existingMessage.metadata?.phaseData || [];
+            const finalizedPhaseData = currentPhaseData.length > 0
+              ? currentPhaseData.map((p: PhaseData) =>
+                  p.status !== 'done' ? { ...p, status: 'done' as const, progress: 100 } : p
+                )
+              : currentPhaseData;
+
+            // 终态化 workflowData
+            const currentWorkflowData: WorkflowData | undefined = existingMessage.metadata?.workflowData;
+            const finalizedWorkflowData: WorkflowData | undefined = currentWorkflowData
+              ? { ...currentWorkflowData, status: 'done' as const }
+              : currentWorkflowData;
+
+            const newBucket = [...bucket];
+            newBucket[foundBucketIdx] = {
+              ...existingMessage,
+              content: finalContent,
+              status: 'completed',
+              timestamp: existingMessage.timestamp || Date.now(),
+              segments: hasCompletionMarker ? existingMessage.segments : [
+                ...(existingMessage.segments || []),
+                {
+                  id: `seg-workflow-completed-${workflow_id}`,
+                  type: 'text' as const,
+                  phase: 'pre-tool' as const,
+                  content: responseContent,
+                  order: (existingMessage.segments?.length || 0) + 1,
+                  timestamp: Date.now(),
+                }
+              ],
+              metadata: {
+                ...existingMessage.metadata,
+                phaseData: finalizedPhaseData,
+                workflowData: finalizedWorkflowData,
+                completed: true,
+                completedAt: completed_at,
+              }
+            };
+
+            return { messages: newBucket, _threadId: foundThreadId, isLoading: false };
+          }
+
           // 🔥 FIX: 找不到消息时，创建新的 assistant 消息
           // 这发生在 workflow:response 没有触发的情况下
           console.log('[StoreMapper] ✅ Creating new assistant message for workflow completion (no existing message found)');
@@ -2105,7 +2252,8 @@ export const initStoreMapper = () => {
             }
 
             // 🔥 FIX: 如果 currentThreadId 是 undefined 或无效，使用 activeThreadId
-            if (!currentThreadId || currentThreadId === 'undefined' || currentThreadId === 'default-thread') {
+            // ⚠️ 'default-thread' 是合法的初始线程 ID，不应被覆盖
+            if (!currentThreadId || currentThreadId === 'undefined') {
               if (activeThreadId) {
                 console.warn('[StoreMapper] ⚠️ currentThreadId is invalid, using activeThreadId:', activeThreadId);
                 currentThreadId = activeThreadId;
@@ -2176,7 +2324,55 @@ export const initStoreMapper = () => {
         );
 
         if (assistantIndex === -1) {
-          console.warn('[StoreMapper] ⚠️ Assistant message not found for cancelled workflow:', workflowId);
+          // 🔥 跨线程场景：搜索 _messagesByThread
+          const byThread = state._messagesByThread || {};
+          let foundThreadId: string | null = null;
+          let foundBucketIdx = -1;
+
+          for (const tid of Object.keys(byThread)) {
+            const bucket = byThread[tid] || [];
+            foundBucketIdx = bucket.findIndex((m: any) =>
+              m.role === 'assistant' && m.metadata?.workflowId === workflowId
+            );
+            if (foundBucketIdx !== -1) { foundThreadId = tid; break; }
+          }
+
+          if (foundThreadId && foundBucketIdx !== -1) {
+            console.log('[StoreMapper] 🔄 Found workflow message in _messagesByThread[' + foundThreadId + '], routing cross-thread for cancellation');
+            const bucket = byThread[foundThreadId];
+            const existingMessage = bucket[foundBucketIdx];
+            const existingContent = existingMessage.content || '';
+            const cancelledContent = `${existingContent}\n\n## ⚠️ 工作流已取消\n\n执行被用户中断。`;
+
+            const newBucket = [...bucket];
+            newBucket[foundBucketIdx] = {
+              ...existingMessage,
+              content: cancelledContent,
+              status: 'completed',
+              timestamp: existingMessage.timestamp || Date.now(),
+              segments: [
+                ...(existingMessage.segments || []),
+                {
+                  id: `seg-workflow-cancelled-${workflowId}`,
+                  type: 'text' as const,
+                  phase: 'pre-tool' as const,
+                  content: '\n\n## ⚠️ 工作流已取消\n\n执行被用户中断。',
+                  order: (existingMessage.segments?.length || 0) + 1,
+                  timestamp: Date.now(),
+                }
+              ],
+              metadata: {
+                ...existingMessage.metadata,
+                completed: true,
+                completedAt: Date.now(),
+                cancelled: true,
+              }
+            };
+
+            return { messages: newBucket, _threadId: foundThreadId };
+          }
+
+          console.warn('[StoreMapper] ⚠️ Assistant message not found anywhere for cancelled workflow:', workflowId);
           return state;
         }
 
