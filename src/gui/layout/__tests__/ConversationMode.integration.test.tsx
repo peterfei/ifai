@@ -416,8 +416,9 @@ describe('Conversation Mode Integration Tests', () => {
   /**
    * IT-CM-13: 底部状态栏显示
    * 验证：ConversationListPanel 底部隐私模式/本地模型指示器渲染
+   * 发版前暂时注释（底部状态栏 UI 已隐藏）
    */
-  it('IT-CM-13: 底部状态栏显示正常', () => {
+  it.skip('IT-CM-13: 底部状态栏显示正常', () => {
     const { container } = renderConversationMode('conversation');
 
     expect(container.textContent).toContain('隐私模式');

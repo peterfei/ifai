@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, Gamepad2, Shield, Cpu, ChevronRight, Users, Edit, Pin, Trash2 } from 'lucide-react';
+import { Plus, Search, Gamepad2, ChevronRight, Users, Edit, Pin, Trash2 } from 'lucide-react';
 import { useThreadStore } from '../../stores/threadStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useSkillStore } from '../../stores/skillStore';
@@ -326,8 +326,8 @@ export function ConversationListPanel() {
         })}
       </div>
 
-      {/* 底部状态栏 */}
-      <div className="px-4 py-2.5 border-t border-[#2D2D2D] flex items-center justify-between flex-shrink-0">
+      {/* 底部状态栏 — 发版前暂时注释 */}
+      {/* <div className="px-4 py-2.5 border-t border-[#2D2D2D] flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <Shield size={12} className="text-[#10B981]" />
           <span className="text-xs text-[#9CA3AF]">隐私模式</span>
@@ -336,7 +336,7 @@ export function ConversationListPanel() {
           <Cpu size={12} className="text-[#9CA3AF]" />
           <span className="text-xs text-[#9CA3AF]">本地模型</span>
         </div>
-      </div>
+      </div> */}
 
       {/* 右键菜单 */}
       {contextMenu && (
