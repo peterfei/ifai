@@ -42,8 +42,8 @@ type ThreadAwareMiddleware = <
 ) => StateCreator<T, Mps, Mcs>;
 
 export const threadAwareMiddleware: ThreadAwareMiddleware =
-  (config) => (set, get, api) => {
-    const wrappedSet = (partial: Partial<ThreadAwareState> & Record<string, any>) => {
+  (config) => (set: any, get: any, api: any) => {
+    const wrappedSet = (partial: Partial<ThreadAwareState> & Record<string, any> | ((state: any) => any)) => {
       const state = get();
 
       // ── Rule U: setState((state) => result) — updater function ──
@@ -151,7 +151,7 @@ export const threadAwareMiddleware: ThreadAwareMiddleware =
 
     // 🔥 Critical: Replace public setState API so store.setState() goes through middleware
     api.setState = wrappedSet as any;
-    return config(wrappedSet, get, api);
+    return config(wrappedSet as any, get, api);
   };
 
 export default threadAwareMiddleware;

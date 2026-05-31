@@ -31,6 +31,7 @@ export interface Message {
   toolCalls?: ToolCall[];
   tool_call_id?: string;
   approvalMeta?: Record<string, any>;   // LLM 操作审批元数据
+  metadata?: Record<string, any>;       // workflow metadata (跨线程路由等)
 
   // 🏆 新增：正式的 segments 字段（取代 contentSegments）
   segments?: ContentSegment[];         // 可选字段（兼容持久化和 core 类型）
@@ -103,7 +104,7 @@ export interface ChatStore {
   sendMessage: (content: string | any[], providerId?: string, modelName?: string) => Promise<any>;
   addMessage: (message: Message) => void;
   clearMessages: () => void;
-  generateResponse: (history: any[], providerId: string, modelName: string, existingCorrelationId?: string) => Promise<void>;
+  generateResponse: (history: any[], providerId: string, modelName: string, existingCorrelationId?: string, threadId?: string) => Promise<void>;
 
   // 🔥 FIX: 添加工具审批方法，支持 UI 组件调用
   approveToolCall: (messageId: string, toolCallId: string) => Promise<void>;

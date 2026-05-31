@@ -307,7 +307,8 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
         const toolName = toolCall.tool || '';
         const category = toolApprovalRegistry.categorizeTool(toolName);
-        const argsPreview = toolCall.args?.command || toolCall.args?.path || toolCall.args?.rel_path || '';
+        const argsObj = (typeof toolCall.args === 'object' && toolCall.args !== null) ? toolCall.args : {};
+        const argsPreview = argsObj.command || argsObj.path || argsObj.rel_path || '';
 
         const payload = JSON.stringify({
             tool_name: toolName,
@@ -331,7 +332,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         });
 
         return () => { cancelled = true; };
-    }, [toolCall.status, toolCall.tool, toolCall.args?.command, toolCall.args?.path, toolCall.args?.rel_path]);
+    }, [toolCall.status, toolCall.tool, toolCall.args]);
 
     // 处理数据驱动决策
     const handleDecision = (d: { type: string; label: string; icon: string }) => {

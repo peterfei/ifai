@@ -108,7 +108,7 @@ export class MessageQueue {
    * @returns 消息 ID
    */
   async enqueue(
-    message: Omit<QueuedMessage, 'id' | 'timestamp' | 'status'>,
+    message: Omit<QueuedMessage, 'id' | 'timestamp' | 'status' | 'threadId'>,
     threadId: string = 'default-thread'
   ): Promise<string> {
     const id = crypto.randomUUID();
