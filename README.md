@@ -16,31 +16,38 @@
 
 ---
 
-### 🌟 v0.5.1 新特性：Agent 协作编排 + 会话持久化引擎 + 终端体验优化
+### 🌟 v0.5.2 新特性：全新 GUI 对话模式 + 线程管理系统 + Agent 协作框架
 
-**一、Agent 协作编排系统 ⭐ 核心亮点**
-- **元编程基础设施**：消息协议定义宏 + `workflow!` DSL 宏，零样板代码定义 Agent 协作流程
-- **Agent 互调用 + 并行调用**：`call_agent_parallel` 工具，支持多个 Agent 并行执行任务
-- **JSONPath 条件执行**：工作流节点支持基于 JSONPath 的条件分支
-- **权限检查系统**：协作工具细粒度权限控制，社区版/商业版条件编译
+**一、全新 GUI 对话模式 💬 （v0.5.2 最大亮点）**
+- **三栏布局** — 左侧对话列表 + 中间 AI 聊天 + 右侧详情面板（工作日志 / 产出物 / 预览）
+- **多线程并发对话** — 支持同时打开多个对话线程，各线程流式响应互不干扰
+- **线程快捷操作** — Ctrl+T 新建 / Ctrl+Tab 切换 / F2 重命名 / 右键归档删除
+- **未读红点** — 后台线程收到新消息自动标记，切回时清除
+- **拖拽调整布局** — 左右两栏宽度可自由拖拽（150-600px），支持一键折叠
+- **持久化恢复** — 所有线程消息自动保存 IndexedDB，重启后完整恢复
 
-**二、事件持久化与会话恢复引擎 💾**
-- **JSONL 增量日志**：append-only 事件日志，`~/.ifai/sessions/live/` 目录
-- **WAL + Checkpoint 模型**：JSONL（增量日志）+ Auto Snapshot（周期快照）双路径容错
-- **历史消息重放**：resume 时自动将历史消息写入 JSONL，JSONL 成为唯一真相源
-- **交互式 ResumePicker**：`/resume` 命令弹出可视化恢复选择器，支持从 auto snapshot / live JSONL / saved session 三种来源恢复
-- **会话清理**：退出时自动归档增量日志 + 清理过期快照
-- **事件持久化状态指示器**：TUI 底部显示 `evt:N` 实时事件计数
+**二、声明式 DSL 驱动架构 🏛️**
+- **双注册表架构** — `layoutRegistry` + `componentRegistry`，零 if-else 分支渲染
+- **24 个声明式 DSL 表** — 所有 UI 行为通过查表驱动
+- **交互式卡片管线** — 10 种消息卡片类型运行时注册
+- **色板 Token 系统** — `PALETTE_DSL` 9 级文本色阶
 
-**三、终端体验优化 ⌨️**
-- **终端 resize 自适应**：处理窗口大小变化，消除伪影
-- **两次 Ctrl+C 强制退出**：首次 Ctrl+C 友好提示，二次强制退出并异步保存会话
-- **文件缓存优化**：并行 Agent 共享文件读取，减少重复 I/O
+**三、线程管理系统 🧵**
+- **双队列 MessageQueue** — 线程感知并发，同线程串行 + 跨线程并发
+- **5 维度活动检测** — stream/per-thread/agent/tool/workflow 全部监控
+- **跨线程事件路由** — workflow 全链路事件跨线程路由
+- **StreamingPulseBanner** — per-thread streamSummary 跨线程持久恢复
 
-**四、Bug 修复 🛡️**
-- 修复 OpenAI 兼容 API 流式 tool_calls 支持及 401 错误
-- 修复 TOML provider 配置短名称匹配，api_key 缺失时输出警告
-- 修复工具调用回显过滤与输出展示
+**四、Agent 协作框架 🤖**
+- **`call_agent_parallel`** — 并行调用多个 Agent 同时执行独立任务
+- **`share_knowledge` + `aggregate_results`** — 结果共享与聚合
+- **自动协作** — Agent 自动调用专用 Agent（最大深度 5 层）
+
+**五、GUI 功能增强 🎨**
+- **Skills Hub 技能广场**：8 分类体系 + 全屏 Modal
+- **智能体动画系统**：7 Agent × 6 动画 × 4 级降级
+- **文件授权系统**：PermissionStore + ApprovalCard
+- **内置浏览器预览**：iframe 双模式
 
 ---
 
@@ -211,7 +218,7 @@
 
 ---
 
-![ifai](imgs/ifai.gif)
+![ifai](imgs/ifai_v0.5.2.png)
 
 ---
 
@@ -232,6 +239,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.5.2** | **全新 GUI 对话模式 + 线程管理系统 + Agent 协作** | **GUI 声明式 DSL 架构（24 个 DSL 表 + 双注册表 + 卡片管线）、线程管理系统（MessageQueue + 5 维度活动检测 + 跨线程路由 + 未读红点 + StreamingPulseBanner）、Agent 协作框架（call_agent_parallel + share_knowledge + aggregate_results）、Workflow 引擎（YAML + DAG）、Skills Hub 技能广场、智能体动画系统、文件授权系统、内置浏览器预览** |
 | **v0.5.1** | **Agent 协作编排 + 会话持久化引擎** | **元编程协作基础设施（消息协议宏 + workflow! DSL）、Agent 互调用 + 并行调用（call_agent_parallel）、JSONPath 条件执行、JSONL append-only 日志 + Auto Snapshot（WAL + Checkpoint）、历史消息重放到 JSONL（唯一真相源）、交互式 ResumePicker、会话清理归档、事件持久化指示器、终端 resize 自适应、双 Ctrl+C 退出、OpenAI 流式 tool_calls 修复** |
 | **v0.5.0** | **多智能体系统成型 + 意图路由 + TUI 渲染优化** | **9 个专用 Agent（Refactor/Git Commit/Plan/ReAct/Review/Test/Doc/Debug/Explore）、声明式意图路由（O(1) 查表）、TUI Markdown 渲染引擎（双路径+自适应换行）、Bracketed Paste Mode、SIGINT 安全退出、1032 测试通过** |
 | **v0.4.8** | **自主会话飞跃 + WebSearch + 元编程 + 性能优化** | **100% 信任模型（工具限制 100→1000，10倍提升）、根治断链问题（Agentic Loop + 无限 Continuing + HTTP 400）、智能压缩系统（集成 AI 服务层 + Mid-turn 修复）、博查 AI 集成（三层防护 + LRU 缓存）、#[derive(Tool)] 元编程（零样板代码）、Explore 性能优化（79s→13s，6倍提升）、TUI 首次运行向导、声明式状态栏动画、专用 Agent 工具、提示词引用解析** |

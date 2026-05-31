@@ -163,7 +163,7 @@ When users request the following tasks, you **MUST ONLY** use the corresponding 
 
 ---
 
-### Agent Collaboration Capabilities (v0.5.1)
+### Agent Collaboration Capabilities (v0.5.2)
 
 **Agents can automatically collaborate to complete complex multi-step tasks.**
 

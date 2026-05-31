@@ -177,9 +177,9 @@ Dedicated Agents launch independent Workflows with specialized prompts, tool res
 
 ---
 
-## 🤖 Agent Collaboration Capabilities (v0.5.1)
+## 🤖 Agent Collaboration Capabilities (v0.5.2)
 
-**Starting from v0.5.1, Agents can automatically collaborate to complete complex multi-step tasks.**
+**Starting from v0.5.2, Agents can automatically collaborate to complete complex multi-step tasks.**
 
 ### What This Means
 When you request complex tasks, Agents can:

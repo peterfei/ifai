@@ -1,5 +1,32 @@
 # 更新日志
 
+## [0.5.2] - 2026-05-31
+### GUI 线程管理系统 & Agent 协作增强
+
+全新 GUI 对话线程管理系统，实现多线程并发流式的完全隔离和跨线程事件路由。
+
+#### 1. 线程管理系统 (Phase 1-5)
+- **threadAwareMiddleware**：Zustand 中间件，Rule 1/2/U 实现 `_messagesByThread` 自动路由
+- **双队列 MessageQueue**：线程感知并发处理，同线程串行 + 跨线程并发
+- **5维度活动检测**：stream activity / per-thread stream count / agent tasks / pending tool calls / active workflows
+- **未读红点**：后台线程收到消息时自动标记 `hasUnreadActivity`，切回时清除
+- **StreamingPulseBanner**：per-thread `streamSummary` 替代局部 `useRef`，跨线程持久显示
+
+#### 2. 跨线程事件路由
+- **workflow:started/progress/response/completed** 全部支持跨线程路由
+- **chat:message:sent** 工作流消息块添加 cross-thread 检测
+- **SendMessageOrchestrator** 传递 `threadId` 防止 async gap 串流
+
+#### 3. Agent 协作
+- **并行 Agent 调用**：`call_agent_parallel` 工具支持同时启动多个 Agent
+- **协作工具注册**：`task_agent`、`call_agent`、`call_agent_parallel` 声明式注册
+
+#### 4. GUI 增强
+- **对话模式 titlebar** 右上角仅保留设置按钮
+- **WorkLogPanel** 活跃 Agent 高亮
+- **文件授权系统**：PermissionStore 规则链 + ApprovalCard 数据驱动按钮
+- **内置浏览器预览**：iframe 双模式 + 自动触发
+
 ## [0.5.1] - 2026-05-19
 ### TUI 事件驱动自动保存 & 交互式会话恢复
 

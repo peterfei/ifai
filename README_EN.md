@@ -16,6 +16,41 @@
 
 ---
 
+### 🌟 v0.5.2 Highlights: New GUI Conversation Mode + Thread Management + Agent Collaboration
+
+**I. New GUI Conversation Mode 💬 (v0.5.2 Headline Feature)**
+- **Three-Panel Layout** — Conversation list (left) + AI chat (center) + Detail panel (right: work log / artifacts / preview)
+- **Multi-thread Concurrent Chat** — Multiple conversation threads open simultaneously, streaming isolated
+- **Quick Thread Operations** — Ctrl+T new / Ctrl+Tab switch / F2 rename / right-click archive/delete
+- **Unread Badge** — Auto marking for background thread messages, cleared on switch-back
+- **Drag-to-resize Layout** — Left/right panels freely draggable (150-600px), one-click collapse
+- **Persistent Recovery** — All thread messages auto-saved to IndexedDB, restored after restart
+
+**II. Declarative DSL Architecture**
+- **Dual Registry Architecture** — `layoutRegistry` + `componentRegistry`, zero if-else branching
+- **24 Declarative DSL Tables** — All UI behavior driven by table lookups
+- **Card Pipeline** — 10 message card types with runtime registration
+- **Color Token System** — `PALETTE_DSL` 9-tier text opacity
+
+**III. Thread Management System**
+- **Dual-queue MessageQueue** — Thread-aware concurrency, same-thread serial + cross-thread parallel
+- **5-dimension Activity Detection** — stream / per-thread / agent / tool / workflow all monitored
+- **Cross-thread Event Routing** — Full workflow event chain routed across threads
+- **StreamingPulseBanner** — per-thread streamSummary with cross-thread persistence
+
+**IV. Agent Collaboration Framework**
+- **`call_agent_parallel`** — Parallel Agent execution for independent tasks
+- **`share_knowledge` + `aggregate_results`** — Result sharing and aggregation
+- **Auto-collaboration** — Agents auto-invoke specialized Agents (max depth 5)
+
+**V. GUI Enhancements**
+- **Skills Hub**: 8-category system + fullscreen modal
+- **Agent Animation System**: 7 Agents × 6 animations × 4 degradation tiers
+- **File Authorization**: PermissionStore + ApprovalCard
+- **Built-in Browser Preview**: iframe dual-mode
+
+---
+
 ### 🌟 v0.5.1 Highlights: Agent Collaboration Orchestration + Session Persistence Engine + Terminal Improvements
 
 **I. Agent Collaboration Orchestration System ⭐ Core Highlight**
@@ -161,6 +196,7 @@ We maintain rapid iteration, committed to building the most professional AI pair
 
 | Version | Theme | Core Breakthroughs |
 | :--- | :--- | :--- |
+| **v0.5.2** | **New GUI Conversation Mode + Thread Management + Agent Collaboration** | **GUI Declarative DSL Architecture (24 DSL tables + dual registry + card pipeline), Thread Management (MessageQueue + 5-dimension detection + cross-thread routing + unread badge + StreamingPulseBanner), Agent Collaboration (call_agent_parallel + share_knowledge + aggregate_results), Workflow Engine (YAML + DAG), Skills Hub, Agent Animation System, File Authorization, Built-in Browser Preview** |
 | **v0.5.1** | **Agent Collaboration Orchestration + Session Persistence** | **Metaprogramming collaboration infrastructure (message protocol macros + workflow! DSL), Agent inter-calls + parallel execution (call_agent_parallel), JSONPath conditional execution, JSONL append-only log + Auto Snapshot (WAL + Checkpoint), history message replay to JSONL (single source of truth), interactive ResumePicker, session cleanup archival, event persistence indicator, terminal resize adaptation, double Ctrl+C exit, OpenAI streaming tool_calls fix** |
 | **v0.5.0** | **Multi-Agent System Maturity + Intent Routing + TUI Rendering** | **9 dedicated Agents (Refactor/Git Commit/Plan/ReAct/Review/Test/Doc/Debug/Explore), declarative intent routing (O(1) lookup), TUI Markdown rendering engine (dual-path + adaptive wrapping), Bracketed Paste Mode, SIGINT safe exit, 1032 tests passing** |
 | **v0.4.8** | **Autonomous Conversation Leap + WebSearch + Metaprogramming + Performance** | **100% trust model (tool limits 100→1000, 10x boost), eradicated break chain issues (Agentic Loop + infinite Continuing + HTTP 400), smart compression system (integrated into AI service layer + Mid-turn fix), Bocha AI integration (three-layer protection + LRU cache), #[derive(Tool)] metaprogramming (zero boilerplate), Explore performance optimization (79s→13s, 6x boost), TUI first-run wizard, declarative status bar animation, dedicated Agent tools, prompt reference resolution** |
