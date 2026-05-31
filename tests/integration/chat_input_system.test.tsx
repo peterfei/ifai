@@ -17,11 +17,9 @@ if (typeof window === 'undefined') {
 ];
 
 // 2. Mock Stores
+const MOCK_CHAT_STATE = { sendMessage: vi.fn(), messages: [], currentThreadId: 'test-thread' };
 vi.mock('../../src/stores/useChatStore', () => ({
-  useChatStore: () => ({
-    sendMessage: vi.fn(),
-    messages: [],
-  }),
+  useChatStore: (selector?: any) => selector ? selector(MOCK_CHAT_STATE) : MOCK_CHAT_STATE,
 }));
 
 vi.mock('../../src/stores/settingsStore', () => ({
@@ -73,10 +71,12 @@ describe('ChatInputArea High-Fidelity Integration', () => {
     
     const resultItem = await screen.findByText('main.tsx');
     fireEvent.click(resultItem);
-    
-    // 预期：文本框内容被替换为带引用的格式
-    expect(textarea.value).toContain('[#main.tsx](src/main.tsx)');
-    
+
+    // 预期：文本框内容被替换为带引用的格式（React 18 异步批处理，需 waitFor 等待状态刷新）
+    await waitFor(() => {
+      expect(textarea.value).toContain('[#main.tsx](src/main.tsx)');
+    });
+
     // 预期：搜索面板关闭
     expect(screen.queryByTestId('file-mention-panel')).toBeNull();
   });
@@ -92,8 +92,10 @@ describe('ChatInputArea High-Fidelity Integration', () => {
     // 输入内容
     fireEvent.change(textarea, { target: { value: 'Hello' } });
 
-    // 预期：按钮变为激活样式并带有辉光
-    expect(sendButton.className).toContain('theme-button-primary');
+    // 预期：按钮变为激活样式并带有辉光（React 18 异步批处理，需 waitFor 等待状态刷新）
+    await waitFor(() => {
+      expect(sendButton.className).toContain('theme-button-primary');
+    });
     expect(sendButton.className).toContain('theme-glow-accent');
   });
 });
