@@ -96,10 +96,10 @@ function extractStreamContent(
           // 移除末尾的未闭合引号或结束括号
           raw = raw.replace(/"\s*\}?$/, '').replace(/\s*$/, '');
           content = raw
+            .replace(/\\\\/g, '\\')   // 先处理：\\ → \（避免后续 \\" 被误消费）
             .replace(/\\n/g, '\n')
             .replace(/\\t/g, '\t')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\');
+            .replace(/\\"/g, '"');
         }
       }
     }

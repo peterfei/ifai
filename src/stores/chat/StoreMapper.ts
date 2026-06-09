@@ -2715,11 +2715,9 @@ export const initStoreMapper = () => {
         try {
           // 尝试解析 JSON 字符串
           if (args && typeof args === 'string') {
-            console.log('[StoreMapper] 🔧 Parsing JSON args:', args.substring(0, 50));
             // 尝试直接解析（完整的 JSON）
             try {
               parsedArgs = JSON.parse(args);
-              console.log('[StoreMapper] ✅ Parsed args successfully');
             } catch (e) {
               // 🏆 流式传输中，尝试部分提取
               parsedArgs = extractPartialJSON(args);
@@ -2728,7 +2726,6 @@ export const initStoreMapper = () => {
             parsedArgs = args;
           }
         } catch (e) {
-          console.warn('[StoreMapper] ⚠️ Unexpected error in args processing:', e);
           parsedArgs = { _raw: args || '' };
         }
 
@@ -2764,8 +2761,9 @@ export const initStoreMapper = () => {
                 args: parsedArgs,
                 // 🔥 私有库兼容字段（arguments 保持字符串）
                 function: { name, arguments: args || '' },
-                // 🔥 FIX: 设置初始状态为 pending
-                status: 'pending',
+                // 🔥 FIX: ReadOnly 工具后端直接执行，不需要前端审批，初始状态直接设 completed
+                // 非 ReadOnly 工具需要等待后端 tool_approval_required 或前端自动审批
+                status: (toolPerm === 'ReadOnly') ? 'completed' : 'pending',
                 // streamExtract 工具标记 isPartial: true（StreamingCodeCard 显示条件）
                 // 非 streamExtract 工具保持 false
                 isPartial: toolApprovalRegistry.isStreamExtractTool(name),
@@ -2892,7 +2890,10 @@ export const initStoreMapper = () => {
         const toolPermission = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
         const needsBackendApproval = toolPermission !== undefined && toolPermission !== 'ReadOnly';
 
-        if (needsBackendApproval) {
+        // ReadOnly 工具后端直接执行，初始状态已是 completed，跳过自动审批
+        if (toolPermission === 'ReadOnly') {
+          console.log(`[StoreMapper] ⚡ ReadOnly tool "${name}" auto-executed by backend, skipping auto-approve`);
+        } else if (needsBackendApproval) {
           console.log(`[StoreMapper] 🔐 Tool "${name}" requires backend approval (permission=${toolPermission}), checking permission store...`);
 
           // 🏆 FIX: 异步检查 PermissionStore 白名单（来自"始终允许"）

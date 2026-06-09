@@ -95,10 +95,10 @@ describe('permission-store-allow 规则', () => {
       toolName: 'agent_read_file', // safe 工具
     };
 
-    // safe 工具在 standard 模式下不匹配任何规则
+    // safe 工具在 standard 模式下不匹配任何规则，但 requiresApproval:false fallback 会自动审批
     const result = await toolApprovalRegistry.shouldAutoApproveAsync(ctx);
-    expect(result).toBe(false);
-    // permission-store-allow 不应对 safe 工具触发
+    expect(result).toBe(true);
+    // permission-store-allow 不应对 safe 工具触发（when.category 不匹配）
     expect(checkMock).not.toHaveBeenCalled();
   });
 });

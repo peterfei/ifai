@@ -339,7 +339,15 @@ export class ToolApprovalRegistry {
       return rule.then.approve;
     }
 
-    // 没有规则匹配
+    // 没有规则匹配 — 检查工具自身是否声明了 requiresApproval: false
+    if (toolName) {
+      const toolConfig = this.resolveTool(toolName);
+      if (toolConfig?.requiresApproval === false) {
+        console.log(`${logPrefix} ✅ Tool declares requiresApproval=false, auto-approved`);
+        return true;
+      }
+    }
+
     console.log(`${logPrefix} ✋ No rule matched, manual approval required`);
     return false;
   }
@@ -407,6 +415,15 @@ export class ToolApprovalRegistry {
       // 规则命中
       console.log(`${logPrefix} ✅ Rule "${rule.name}": ${rule.then.reason}`);
       return rule.then.approve;
+    }
+
+    // 没有规则匹配 — 检查工具自身是否声明了 requiresApproval: false
+    if (toolName) {
+      const asyncToolConfig = this.resolveTool(toolName);
+      if (asyncToolConfig?.requiresApproval === false) {
+        console.log(`${logPrefix} ✅ Tool declares requiresApproval=false, auto-approved (async)`);
+        return true;
+      }
     }
 
     console.log(`${logPrefix} ✋ No rule matched, manual approval required`);

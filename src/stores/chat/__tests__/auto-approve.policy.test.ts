@@ -42,8 +42,8 @@ describe('自动审批策略 (shouldAutoApprove)', () => {
     expect(result).toBe(true);
   });
 
-  // AA-2: standard 模式 + safe 工具 + 无 global auto → 不应自动审批
-  it('AA-2: standard 模式 + safe 工具 + 无 global auto → 不应自动审批', () => {
+  // AA-2: standard 模式 + safe 工具 + 无 global auto → requiresApproval:false fallback 自动审批
+  it('AA-2: standard 模式 + safe 工具 + 无 global auto → requiresApproval:false fallback 自动审批', () => {
     const ctx: ApprovalContext = {
       settings: { agentAutoApprove: false },
       editorMode: 'standard',
@@ -51,8 +51,9 @@ describe('自动审批策略 (shouldAutoApprove)', () => {
       toolName: 'agent_read_file',
     };
 
+    // safe 工具 requiresApproval:false，即使无任何规则匹配也自动审批
     const result = shouldAutoApprove(ctx);
-    expect(result).toBe(false);
+    expect(result).toBe(true);
   });
 
   // AA-3: standard 模式 + safe 工具 + global auto → 应自动审批

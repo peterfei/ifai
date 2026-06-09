@@ -123,10 +123,11 @@ describe('工具调用自动审批 E2E', () => {
     // 3. 等一帧让 store 更新
     await new Promise(r => setTimeout(r, 50));
 
-    // 验证：4 个工具都创建了，状态 pending
+    // 验证：4 个工具都创建了，ReadOnly 工具直接 completed，非 ReadOnly 才 pending
     let msg = useChatStore.getState().messages.find((m: any) => m.id === 'msg-assistant-1');
     expect(msg.toolCalls.length).toBe(4);
-    expect(msg.toolCalls.every((tc: any) => tc.status === 'pending')).toBe(true);
+    // 所有 4 个都是 ReadOnly 工具（scan_project, list_dir, read_file, search），初始状态已是 completed
+    expect(msg.toolCalls.every((tc: any) => tc.status === 'completed')).toBe(true);
 
     // 4. 模拟 chat:stream:finished（StreamingResponseController 的 emitFinished 触发）
     chatEventBus.emit('chat:stream:finished', {
