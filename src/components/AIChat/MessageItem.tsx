@@ -176,7 +176,10 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
                 prevTC.isPartial !== nextTC.isPartial ||
                 // ⚡️ PERFORMANCE FIX: 使用引用比较代替 JSON.stringify
                 // 在 useChatStore 中，我们确保了 args 每次更新都是一个新对象
-                prevTC.args !== nextTC.args) {
+                prevTC.args !== nextTC.args ||
+                // 🔥 FIX: StreamingCodeCard 读取 function.arguments 做流式预览
+                // rAF flush 更新 function.arguments 但不更新 args，需要额外比较
+                (prevTC as any).function?.arguments !== (nextTC as any).function?.arguments) {
                 return false;
             }
         }

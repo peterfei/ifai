@@ -2554,7 +2554,109 @@ export const initStoreMapper = () => {
     // 2. 映射流式 Chunk (🏆 已注销：内容更新现由 contentSegmentManager 统一管理)
     // chatEventBus.on('chat:stream:chunk', (payload) => { ... });
 
-    // 3. 映射工具调用请求 (气泡渲染 + 覆盖保护)
+    // 3. 映射工具调用增量（追加 arguments 到已有 toolCall，或创建新 toolCall）
+    //    🔥 PERFORMANCE: 使用 requestAnimationFrame 批量 flush，避免每个 delta 都触发 setState
+    //    LLM 流式输出的 delta 可能每秒 50-100 个，合并到每帧 1 次 setState
+    const deltaBuffer = new Map<string, { toolId: string; name: string | undefined; argumentsDelta: string; sessionId: string | undefined }[]>();
+    let deltaRafId: number | null = null;
+
+    const flushDeltaBuffer = () => {
+      if (deltaBuffer.size === 0) return;
+      deltaRafId = null;
+
+      // 按 messageId 分组处理
+      for (const [correlationId, deltas] of deltaBuffer) {
+        const sessionId = deltas[0]?.sessionId;
+        const updater = (state: any) => {
+          const messageIndex = state.messages?.findIndex((m: any) => m.id === correlationId);
+          if (messageIndex === -1 || messageIndex === undefined) return state;
+
+          const newMessages = [...state.messages];
+          const targetMsg = { ...newMessages[messageIndex] };
+
+          if (!targetMsg.toolCalls) targetMsg.toolCalls = [];
+
+          // 🔥 FIX: 使用 Map 索引 toolCall，避免每个 delta 都 findIndex
+          // 一次 shallow copy 创建新数组引用，确保 React.memo 检测到变化
+          let workingCalls = targetMsg.toolCalls;
+          const tcIndexMap = new Map<string, number>();
+          for (let i = 0; i < workingCalls.length; i++) {
+            tcIndexMap.set((workingCalls[i] as any).id, i);
+          }
+
+          let needsNewArray = false;
+
+          for (const delta of deltas) {
+            const toolName = delta.name || 'Unknown Tool';
+            const tcIndex = tcIndexMap.get(delta.toolId) ?? -1;
+
+            if (tcIndex === -1) {
+              // toolCall 尚不存在（delta 先于 chat:tool:call 到达）→ 创建骨架 toolCall
+              const newToolCall = {
+                id: delta.toolId,
+                type: 'function',
+                tool: toolName,
+                args: {},
+                function: { name: toolName, arguments: delta.argumentsDelta },
+                status: 'pending' as const,
+                isPartial: toolApprovalRegistry.isStreamExtractTool(toolName),
+              };
+              workingCalls = [...workingCalls, newToolCall];
+              needsNewArray = true;
+              // 更新索引
+              tcIndexMap.set(delta.toolId, workingCalls.length - 1);
+            } else {
+              // toolCall 已存在 → 追加 arguments
+              if (!needsNewArray) {
+                // 首次修改：创建新数组引用（React.memo 需要引用变化才能检测更新）
+                workingCalls = [...workingCalls];
+                needsNewArray = true;
+              }
+              const existingTC = { ...workingCalls[tcIndex] };
+
+              existingTC.function = {
+                ...existingTC.function,
+                arguments: (existingTC.function?.arguments || '') + delta.argumentsDelta,
+              };
+
+              if (delta.name) {
+                existingTC.tool = delta.name;
+                existingTC.function.name = delta.name;
+              }
+
+              workingCalls[tcIndex] = existingTC;
+            }
+          }
+
+          targetMsg.toolCalls = workingCalls;
+
+          newMessages[messageIndex] = targetMsg;
+          return { messages: newMessages };
+        };
+        threadSafeUpdate(sessionId, correlationId, updater as any);
+      }
+
+      deltaBuffer.clear();
+    };
+
+    chatEventBus.on('chat:tool:call-delta', (payload) => {
+      const { correlationId, toolId, name, argumentsDelta, sessionId } = payload;
+
+      if (!argumentsDelta || !correlationId || !toolId) return;
+
+      // 累积到 buffer
+      if (!deltaBuffer.has(correlationId)) {
+        deltaBuffer.set(correlationId, []);
+      }
+      deltaBuffer.get(correlationId)!.push({ toolId, name, argumentsDelta, sessionId });
+
+      // 如果还没有调度 flush，用 rAF 调度
+      if (deltaRafId === null) {
+        deltaRafId = requestAnimationFrame(flushDeltaBuffer);
+      }
+    });
+
+    // 4. 映射工具调用请求 (气泡渲染 + 覆盖保护)
     chatEventBus.on('chat:tool:call', (payload) => {
       const { correlationId, toolId, name, arguments: args, sessionId } = payload;
 
@@ -2671,6 +2773,19 @@ export const initStoreMapper = () => {
                 batchId
             };
             targetMsg.toolCalls = [...targetMsg.toolCalls, newToolCall];
+
+            // 🔥 FIX: 如果 chat:tool:call 携带完整 args（非空），清除 deltaBuffer 中对应 toolId 的 delta
+            // 防止后续 rAF flush 追加重复内容
+            if (args && args.length > 0) {
+              for (const [, deltas] of deltaBuffer) {
+                const filtered = deltas.filter(d => d.toolId !== toolId);
+                if (filtered.length !== deltas.length) {
+                  deltas.length = 0;
+                  deltas.push(...filtered);
+                }
+              }
+            }
+
             console.log('[StoreMapper] 🔧 Added new tool call:', name, 'status: pending, isPartial: false');
         } else {
             // 🔥 FIX: 创建新的 toolCalls 数组，确保 React.memo 能检测到变化
@@ -2685,7 +2800,11 @@ export const initStoreMapper = () => {
             const existingArgs = existingTC.args || {};
             if ((parsedArgs as any)._raw) {
               // 如果是新参数是原始字符串，更新 function.arguments
-              existingTC.function.arguments = args || ''; // args 已经是累积的
+              // 🔥 FIX: 空 args（来自 ToolStart 的空 input）不应覆盖 delta 已累积的 arguments
+              if (args && args.length > 0) {
+                existingTC.function.arguments = args;
+              }
+              // else: 保留 delta 累积的 function.arguments 不变
 
               // 尝试重新解析完整的 arguments
               try {
@@ -2706,6 +2825,23 @@ export const initStoreMapper = () => {
                 ...existingArgs,
                 ...parsedArgs
               };
+              // 🔥 FIX: 同步更新 function.arguments（StreamingCodeCard 读取此字段）
+              // 当 ToolDone 发送完整 arguments 时，确保字符串版本也更新
+              if (args && typeof args === 'string') {
+                existingTC.function = {
+                  ...existingTC.function,
+                  arguments: args,
+                };
+                // 🔥 FIX: 清除 deltaBuffer 中对应 toolId 的待处理 delta
+                // ToolDone 已经设置了完整 args，后续 flush 不应再追加 delta（否则会重复）
+                for (const [, deltas] of deltaBuffer) {
+                  const filtered = deltas.filter(d => d.toolId !== toolId);
+                  if (filtered.length !== deltas.length) {
+                    deltas.length = 0;
+                    deltas.push(...filtered);
+                  }
+                }
+              }
             }
 
             // streamExtract 工具在参数更新阶段保持 isPartial: true（等待审批）

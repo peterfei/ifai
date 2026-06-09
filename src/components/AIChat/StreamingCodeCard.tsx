@@ -36,7 +36,7 @@ interface ExtractedContent {
 
 /**
  * 从 ToolCall arguments JSON 中提取 path 和 content
- * 优先 JSON.parse，失败则用正则兜底
+ * 优先 JSON.parse，失败则用子串查找兜底（支持不完整 JSON 流式场景）
  */
 function extractStreamContent(
   argsStr: string,
@@ -55,14 +55,56 @@ function extractStreamContent(
       isComplete: true,
     };
   } catch {
-    // JSON 不完整，正则提取
-    const pathMatch = new RegExp(`"${pathKey}"\\s*:\\s*"([^"]*?)"`).exec(argsStr);
-    const contentMatch = new RegExp(`"${contentKey}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`).exec(argsStr);
-    return {
-      path: pathMatch?.[1],
-      content: contentMatch?.[1]?.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"'),
-      isComplete: false,
-    };
+    // JSON 不完整（流式中）— 用子串查找提取，不要求闭合引号
+    let path: string | undefined;
+    let content: string | undefined;
+
+    // 提取 path: 查找 "pathKey": "value" 或 "pathKey": "value（未闭合）
+    const pathMarker = `"${pathKey}"`;
+    const pathIdx = argsStr.indexOf(pathMarker);
+    if (pathIdx !== -1) {
+      const colonIdx = argsStr.indexOf(':', pathIdx + pathMarker.length);
+      if (colonIdx !== -1) {
+        const quoteStart = argsStr.indexOf('"', colonIdx + 1);
+        if (quoteStart !== -1) {
+          // 找到闭合引号或取到下一个键/结尾
+          const afterQuote = quoteStart + 1;
+          const closingQuote = argsStr.indexOf('"', afterQuote);
+          if (closingQuote !== -1) {
+            path = argsStr.substring(afterQuote, closingQuote)
+              .replace(/\\n/g, '\n').replace(/\\"/g, '"');
+          } else {
+            path = argsStr.substring(afterQuote)
+              .replace(/\\n/g, '\n').replace(/\\"/g, '"');
+          }
+        }
+      }
+    }
+
+    // 提取 content: 查找 "contentKey": "value（可能未闭合）
+    const contentMarker = `"${contentKey}"`;
+    const contentIdx = argsStr.indexOf(contentMarker);
+    if (contentIdx !== -1) {
+      const colonIdx = argsStr.indexOf(':', contentIdx + contentMarker.length);
+      if (colonIdx !== -1) {
+        const quoteStart = argsStr.indexOf('"', colonIdx + 1);
+        if (quoteStart !== -1) {
+          const afterQuote = quoteStart + 1;
+          // 流式 JSON 中 content 值可能没有闭合引号
+          // 直接取到最后一个可能的 JSON 结束符之前
+          let raw = argsStr.substring(afterQuote);
+          // 移除末尾的未闭合引号或结束括号
+          raw = raw.replace(/"\s*\}?$/, '').replace(/\s*$/, '');
+          content = raw
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+        }
+      }
+    }
+
+    return { path, content, isComplete: false };
   }
 }
 

@@ -288,7 +288,6 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
     const { t } = useTranslation();
     const settings = useSettingsStore();
     const { editorMode } = useLayoutStore();
-    const chatStore = useChatStore();
     const [isExpanded, setIsExpanded] = useState(false);
     const [oldContent, setOldContent] = useState<string | null>(null);
     const [pathCopied, setPathCopied] = useState<string | null>(null);
@@ -396,7 +395,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
     // 🔥 检测回滚功能是否可用（商业版 vs 社区版）
     const hasRollbackFeature = useMemo(() => {
-      return typeof chatStore.rollbackToolCall === 'function';
+      return typeof useChatStore.getState().rollbackToolCall === 'function';
     }, []);
 
     // 🔥 检查是否有回滚数据
@@ -446,7 +445,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
       setIsRollingBack(true);
 
       try {
-        const result = await chatStore.rollbackToolCall?.(
+        const result = await useChatStore.getState().rollbackToolCall?.(
           message.id,
           toolCall.id,
           false  // 检测冲突
@@ -482,7 +481,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
       if (!message || !hasRollbackFeature) return;
 
       try {
-        const result = await chatStore.rollbackToolCall?.(
+        const result = await useChatStore.getState().rollbackToolCall?.(
           message.id,
           toolCall.id,
           true  // 强制回滚

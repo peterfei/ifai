@@ -584,6 +584,19 @@ export class StreamingResponseController {
         this.emitChunk(data.content || '', false, payload);
       }
 
+      // 情况 B-1: 工具调用增量（逐 token 推送）
+      else if (data.type === 'tool_call_delta') {
+        const tcd = data.tool_call_delta || data.toolCallDelta;
+        if (tcd) {
+          chatEventBus.emit('chat:tool:call-delta', {
+            ...payload,
+            toolId: tcd.id,
+            name: tcd.name || undefined,
+            argumentsDelta: tcd.arguments_delta || '',
+          });
+        }
+      }
+
       // 情况 B: 工具调用 (深度提取支持)
       else if (data.type === 'tool_call' || data.type === 'toolCall' || data.tool_calls) {
         // 🏆 兼容私有库的数据结构：优先使用 tool_call 字段（私有库使用的格式）

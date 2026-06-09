@@ -78,7 +78,7 @@ export const toolApprovalConfig: ToolApprovalRegistryConfig = {
       riskLevel: 'medium',
       requiresApproval: true,
       aggregatable: true,
-      streamExtract: { path: 'path', content: 'content' },
+      streamExtract: { path: 'rel_path', content: 'content' },
       pathRiskRules: [
         // 关键配置文件 → 升级为高风险
         { pattern: /^\.?env/i, risk: 'high' },

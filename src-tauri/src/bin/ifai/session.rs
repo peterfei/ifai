@@ -445,6 +445,7 @@ impl EventCollector {
             }
             StreamEvent::ToolStart { .. }
             | StreamEvent::ToolDone { .. }
+            | StreamEvent::ToolCallDelta { .. }
             | StreamEvent::MessageStart { .. }
             | StreamEvent::Error { .. } => {}
         }

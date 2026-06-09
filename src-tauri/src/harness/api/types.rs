@@ -199,6 +199,14 @@ pub enum StreamEvent {
         tool_id: String,
         result: String,
     },
+    /// 工具调用参数增量（逐 token 推送）
+    ToolCallDelta {
+        tool_id: String,
+        /// 仅第一个 delta 包含工具名，后续为 None
+        name: Option<String>,
+        /// 增量参数片段（JSON 字符串的子串）
+        arguments_delta: String,
+    },
     MessageDone {
         input_tokens: u32,
         output_tokens: u32,
@@ -430,5 +438,97 @@ mod factory_integration_tests {
             name: "Test".to_string(),
         };
         assert!(custom.is_custom());
+    }
+}
+
+#[cfg(test)]
+mod tool_call_delta_tests {
+    use super::*;
+
+    #[test]
+    fn test_tool_call_delta_serialize_with_name() {
+        let event = StreamEvent::ToolCallDelta {
+            tool_id: "call_abc123".to_string(),
+            name: Some("write_file".to_string()),
+            arguments_delta: r#"{"pa"#.to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"tool_call_delta""#));
+        assert!(json.contains(r#""tool_id":"call_abc123""#));
+        assert!(json.contains(r#""name":"write_file""#));
+        assert!(json.contains(r#""arguments_delta":"{\"pa""#));
+    }
+
+    #[test]
+    fn test_tool_call_delta_serialize_without_name() {
+        let event = StreamEvent::ToolCallDelta {
+            tool_id: "call_abc123".to_string(),
+            name: None,
+            arguments_delta: r##"th":"#"##.to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"tool_call_delta""#));
+        assert!(json.contains(r#""tool_id":"call_abc123""#));
+        // name 为 None 时，serde 默认不序列化该字段
+        // 注意: serde(tag="type") 模式下 None 字段可能仍被序列化为 null
+    }
+
+    #[test]
+    fn test_tool_call_delta_deserialize_roundtrip() {
+        let event = StreamEvent::ToolCallDelta {
+            tool_id: "call_xyz".to_string(),
+            name: Some("agent_replace_text".to_string()),
+            arguments_delta: r#"{"path":"/src/App.tsx","new_content":"import React"#.to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let deserialized: StreamEvent = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            StreamEvent::ToolCallDelta { tool_id, name, arguments_delta } => {
+                assert_eq!(tool_id, "call_xyz");
+                assert_eq!(name, Some("agent_replace_text".to_string()));
+                assert_eq!(arguments_delta, r#"{"path":"/src/App.tsx","new_content":"import React"#);
+            }
+            _ => panic!("Expected ToolCallDelta variant, got something else"),
+        }
+    }
+
+    #[test]
+    fn test_tool_call_delta_empty_arguments() {
+        let event = StreamEvent::ToolCallDelta {
+            tool_id: "call_empty".to_string(),
+            name: None,
+            arguments_delta: String::new(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let deserialized: StreamEvent = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            StreamEvent::ToolCallDelta { arguments_delta, .. } => {
+                assert_eq!(arguments_delta, "");
+            }
+            _ => panic!("Expected ToolCallDelta variant"),
+        }
+    }
+
+    #[test]
+    fn test_tool_call_delta_coexists_with_existing_events() {
+        // 验证现有事件序列化不受影响
+        let tool_start = StreamEvent::ToolStart {
+            tool_id: "id1".to_string(),
+            name: "test".to_string(),
+            input: String::new(),
+        };
+        let tool_done = StreamEvent::ToolDone {
+            tool_id: "id1".to_string(),
+            result: r#"{"key":"value"}"#.to_string(),
+        };
+        let delta = StreamEvent::ToolCallDelta {
+            tool_id: "id1".to_string(),
+            name: Some("test".to_string()),
+            arguments_delta: r#"{"ke"#.to_string(),
+        };
+
+        assert!(serde_json::to_string(&tool_start).unwrap().contains(r#""type":"tool_start""#));
+        assert!(serde_json::to_string(&tool_done).unwrap().contains(r#""type":"tool_done""#));
+        assert!(serde_json::to_string(&delta).unwrap().contains(r#""type":"tool_call_delta""#));
     }
 }
