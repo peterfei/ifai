@@ -1,7 +1,7 @@
 {
   "name": "ifai",
   "description": "若爱 (IfAI) - AI Agent 编排助手 & 代码编辑器 | An AI Agent orchestrator & code editor built with Tauri 2.0",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "author": {
     "name": "peterfei",
     "email": "peterfeispace@gmail.com",
