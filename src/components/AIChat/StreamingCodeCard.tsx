@@ -306,7 +306,7 @@ const SingleMode: React.FC<{
       </div>
 
       {/* 审批按钮 — 仅在 isPartial=true（等待审批）时显示 */}
-      {file.isPartial && (
+      {file.isPartial && extract.isComplete && (
         <div className={styles.approvalBar}>
           <button className={`${styles.btn} ${styles.btnReject}`} onClick={handleReject}>
             {t('aiChat.fileWrite.reject')}
