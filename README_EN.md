@@ -1,272 +1,111 @@
-# IfAI — A Mature AI Native Harness 🚀
+# IfAI — AI Agent Orchestrator & Code Editor 🚀
 
 <div align="center">
   <img src="imgs/ifai.png" alt="IfAI Logo" width="120" />
-  <p><strong>More than an editor, your autonomous programming partner</strong></p>
-  <p>A high-performance, local-first hybrid intelligence editor built with Tauri 2.0 + React 19</p>
+  <p><strong>More than an editor, your AI Agent orchestration assistant</strong></p>
+  <p>9+ Agents in collaboration · DAG workflow-driven · AI-native development platform built with Tauri 2.0 + React 19</p>
 
-  [简体中文](README.md) | [English](README_EN.md) | [Русский](README_RU.md) | [📖 Full Documentation](https://docs.ifai.today/) | [🎯 Releases](https://github.com/peterfei/ifai/releases)
+  [简体中文](README.md) | [English](README_EN.md) | [Русский](README_RU.md) | [📖 Full Docs](https://docs.ifai.today/) | [🎯 Downloads](https://github.com/peterfei/ifai/releases)
 
   [![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![Tauri](https://img.shields.io/badge/Tauri-2.0-orange)](https://tauri.app/)
   [![AI Native](https://img.shields.io/badge/AI-Native-green)](https://ai-native.dev)
-  [![Performance](https://img.shields.io/badge/Performance-120_FPS-blueviolet)](https://github.com/peterfei/ifai#performance)
+  [![Performance](https://img.shields.io/badge/Performance-120_FPS-blueviolet)](#performance)
 </div>
-
----
-
-### 🌟 v0.5.2 Highlights: New GUI Conversation Mode + Thread Management + Agent Collaboration
-
-**I. New GUI Conversation Mode 💬 (v0.5.2 Headline Feature)**
-- **Three-Panel Layout** — Conversation list (left) + AI chat (center) + Detail panel (right: work log / artifacts / preview)
-- **Multi-thread Concurrent Chat** — Multiple conversation threads open simultaneously, streaming isolated
-- **Quick Thread Operations** — Ctrl+T new / Ctrl+Tab switch / F2 rename / right-click archive/delete
-- **Unread Badge** — Auto marking for background thread messages, cleared on switch-back
-- **Drag-to-resize Layout** — Left/right panels freely draggable (150-600px), one-click collapse
-- **Persistent Recovery** — All thread messages auto-saved to IndexedDB, restored after restart
-
-**II. Declarative DSL Architecture**
-- **Dual Registry Architecture** — `layoutRegistry` + `componentRegistry`, zero if-else branching
-- **24 Declarative DSL Tables** — All UI behavior driven by table lookups
-- **Card Pipeline** — 10 message card types with runtime registration
-- **Color Token System** — `PALETTE_DSL` 9-tier text opacity
-
-**III. Thread Management System**
-- **Dual-queue MessageQueue** — Thread-aware concurrency, same-thread serial + cross-thread parallel
-- **5-dimension Activity Detection** — stream / per-thread / agent / tool / workflow all monitored
-- **Cross-thread Event Routing** — Full workflow event chain routed across threads
-- **StreamingPulseBanner** — per-thread streamSummary with cross-thread persistence
-
-**IV. Agent Collaboration Framework**
-- **`call_agent_parallel`** — Parallel Agent execution for independent tasks
-- **`share_knowledge` + `aggregate_results`** — Result sharing and aggregation
-- **Auto-collaboration** — Agents auto-invoke specialized Agents (max depth 5)
-
-**V. GUI Enhancements**
-- **Skills Hub**: 8-category system + fullscreen modal
-- **Agent Animation System**: 7 Agents × 6 animations × 4 degradation tiers
-- **File Authorization**: PermissionStore + ApprovalCard
-- **Built-in Browser Preview**: iframe dual-mode
-
----
-
-### 🌟 v0.5.1 Highlights: Agent Collaboration Orchestration + Session Persistence Engine + Terminal Improvements
-
-**I. Agent Collaboration Orchestration System ⭐ Core Highlight**
-- **Metaprogramming Infrastructure**: Message protocol definition macros + `workflow!` DSL macro, zero boilerplate for defining agent collaboration flows
-- **Agent Inter-calls + Parallel Execution**: `call_agent_parallel` tool, supports multiple agents executing tasks in parallel
-- **JSONPath Conditional Execution**: Workflow nodes support JSONPath-based conditional branching
-- **Permission System**: Fine-grained permission control for collaboration tools, community/commercial conditional compilation
-
-**II. Session Persistence & Recovery Engine 💾**
-- **JSONL Append-only Log**: Incremental event log at `~/.ifai/sessions/live/`
-- **WAL + Checkpoint Model**: JSONL (incremental log) + Auto Snapshot (periodic checkpoint) dual-path fault tolerance
-- **History Message Replay**: On resume, historical messages are automatically written to JSONL, making JSONL the single source of truth
-- **Interactive ResumePicker**: `/resume` command opens a visual recovery selector supporting auto snapshot / live JSONL / saved session sources
-- **Session Cleanup**: Auto-archive incremental logs + cleanup expired snapshots on exit
-- **Event Persistence Indicator**: TUI bottom bar shows `evt:N` real-time event count
-
-**III. Terminal Improvements ⌨️**
-- **Terminal resize adaptation**: Handle window size changes, eliminate artifacts
-- **Double Ctrl+C force exit**: First Ctrl+C shows friendly hint, second force exits with async session save
-- **File cache optimization**: Parallel agents share file reads, reduced duplicate I/O
-
-**IV. Bug Fixes 🛡️**
-- Fixed OpenAI-compatible API streaming tool_calls support and 401 errors
-- Fixed TOML provider config short name matching, api_key missing warning
-- Fixed tool call echo filtering and output display
-
----
-
-### 🌟 v0.5.0 Highlights: Multi-Agent System Maturity + Intent Routing + TUI Markdown Rendering Engine
-
-**I. 9 Dedicated Agents Fully Online ⭐ Core Highlight**
-- **Refactor Agent** (`refactor_agent`): Code refactoring, completing existing AgentType
-- **Git Commit Agent** (`git_commit_agent`): Smart commit — analyze changes → generate message → safe commit, 5-layer security (Pre-flight / Ghost Snapshot / Secret scanning / Commit Attribution / Blocklist)
-- **Plan Agent** (`plan_agent`): Task decomposition and planning, auto-breakdown of complex requirements
-- **ReAct Agent** (`react_agent`): Deep reasoning — explicit Thought → Action → Observation loop, with reflection and completion assessment
-- **Review Agent Enhanced**: New `git_diff` / `complexity_analyzer` / `code_review` underlying tools
-- **Test Agent** (`test_agent`): Automated test generation and execution
-- **Doc Agent** (`doc_agent`): Automated documentation generation and maintenance
-- **Debug Agent** (`debug_agent`): Smart debugging, auto error analysis and issue localization
-- All Agents registered as safe tools (no approval needed)
-
-**II. Declarative Intent Routing System 🔀**
-- Declarative routing table replacing procedural if-else chains, O(1) lookup
-- Say "refactor code" → auto-routes to `refactor_agent`, "commit code" → `git_commit_agent`
-- Adding new Agents requires only one routing rule
-
-**III. TUI Markdown Rendering Engine 🎨**
-- **Dual-path rendering**: ANSI color/style preservation + Markdown markup cleanup (headers, tables, bold, italic, code)
-- **Adaptive wrapping**: Narrow terminals no longer truncate content
-- **State reset**: Auto-cleanup per conversation turn, no residue
-
-**IV. Terminal Experience Improvements ⌨️**
-- **Bracketed Paste Mode**: Pasting large text blocks no longer triggers per-character events
-- **Auto-scroll fix**: Multi-line input content no longer hidden
-- **SIGINT handler**: Ctrl+C safely exits TUI
-
-**V. Security Fixes 🛡️**
-- Fixed 9 UTF-8 string slicing out-of-bounds panics
-- 1032 tests all passing (100%)
-
----
-
-### 🌟 v0.4.8 Highlights: WebSearch Agent + Metaprogramming Architecture + 6x Performance Boost + **Qualitative Leap in Autonomous Conversations**
-
-**I. Qualitative Leap in Autonomous Conversations 🤖⚡** ⭐ Core Highlight
-- **100% Trust Model**: Completely removed loop blocking, circuit breaker, "plain text = stop" checks, fully trust AI autonomous decisions
-- **Tool Call Explosion**: Limit increased from 100 → 1000 (**10x boost**), supports more complex multi-step tasks
-- **Break Chain Issues Eradicated**: Fixed Agentic Loop break chains, infinite tool loop Continuing, HTTP 400 + break chain triple issues
-- **Smart Compression System**: Integrated into AI service layer, prevents context overflow, Mid-turn compression failure fix, message pairing integrity guarantee
-- **System Prompt Enhancement**: Autonomous tool calling reinforcement, Phase 1 system prompt optimization
-- **Tool Call Progress Optimization**: Added target info (file paths/search patterns), fixed display timing issues
-
-**II. WebSearch Agent 🌐**
-- Integrated Bocha AI search engine, supporting real-time web search, latest tech documentation, and news queries
-- Three-layer protection: System prompt enforcement (TUI + GUI), LLM tool list filtering (hides underlying web_search), auto-approval whitelist (category: safe)
-- LRU in-memory cache + JSON persistence (~/.ifai/cache/search.json), TTL 1-hour expiration, <10ms response for cached queries
-
-**III. #[derive(Tool)] Metaprogramming System 🔧**
-- Zero boilerplate code using `#[derive(Tool)]` macro, auto-generates tool implementations and ToolLike trait
-- MacroToolAdapter bridge pattern, seamless integration with legacy tool system, generic tool execution interface
-- Completely replaces old FileToolsExecutor, YAML-based configuration-driven design
-
-**IV. Explore Agent Performance Optimization 🚀**
-- **6x Performance Boost**: GUI mode optimized from 79s to 13s (**83.7%** improvement)
-- Removed agent_batch_read, switched to parallel agent_read_file + directory tree prescan, fully utilizes multi-core CPU
-- Smart truncation of large files (prevents Token waste), tool call limits, real-time status bar feedback
-- Removed file count limits, enhanced multi-round exploration, prompt multilingual fallback
-
-**V. TUI First-Run Wizard 🎯**
-- Smart setup wizard: Auto-detects first run, guides Provider configuration, Model and Base URL selection
-- Provider metadata-driven: Removed all hardcoding, YAML configuration-driven, auto-loads Provider list, supports custom providers
-- Declarative status bar animation system (metaprogramming): Declarative animation definitions, auto-generates rendering logic, zero hand-written animation code
-
-**VI. Dedicated Agent Tools 🛠️**
-- explore_agent & review_agent registered as low-risk tools (no approval needed), agent tool progress display optimized
-- glob_search tool: Supports fuzzy file search, smart file filtering, high-performance search
-
-**VII. Prompt Reference Resolution 📝**
-- Custom prompt support: Prompt reference resolution, user custom prompt priority loading, minimal deployment support
-- Externalized templates: Externalized prompt templates, supports hot reload, no recompilation needed
-
----
-
-### 🌟 v0.4.7 Highlights: Persistent Memory System — Let AI Remember You Across Sessions
-- **Persistent Memory System**: Zero-dependency pure Markdown storage, two-layer memory architecture (hot memory injection into system prompt + cold memory session archiving), spatial metaphor organization (Wing → Hall → Room three-layer paths), 18μs injection latency
-- **MemorySave Tool**: AI proactively saves user preferences, technical decisions, project knowledge during conversations, auto-executed without approval, automatic deduplication prevents duplicate entries
-- **Post-Session Batch Extraction**: LLM-driven intelligent memory extraction, automatically mines information worth remembering from conversations, externalized prompt templates support customization (`~/.ifai/prompts/memory/extract.md`)
-- **Session Archiving (Cold Memory)**: TUI session end auto-generates summary archives to `~/.ifai/sessions/`, human-browsable Markdown format
-- **Smart Compression System**: Tool output truncation + model-aware thresholds + AI summarization, solves long conversation Token explosion
-- **TUI + GUI Memory Sharing**: Same `~/.ifai/memories.md` file, seamless cross-interface usage
-- **10 Bug Fixes**: Overlay content leakage, Agentic Loop spinning, Ctrl+O/Ctrl+D black screen, TodoWrite occlusion/break chains, LLM connection timeout no feedback
-
----
-
-### 🌟 v0.4.6 Highlights: Multi-Thread Concurrent Chat & TUI Architecture Refactor
-- **Multi-Thread Concurrent Chat System**: Per-Thread Session isolation with concurrent AI requests, Arc<Mutex> 3-stage lock strategy, ThreadEvent type-safe routing, concurrent streaming + approval isolation
-- **/thread Slash Commands**: `/thread new`, `/thread list`, `/thread switch <id>`, `/thread close` with thread mode popup rendering
-- **Multi-line Input**: Shift+Enter/Alt+Enter/Ctrl+J for line breaks, smart auto-scroll, focus restore fix
-- **TUI God Object Refactor Phase 1-4**: App struct 27→14 fields (5 subsystems extracted), Mode enum replacing 5 boolean flags, declarative routing table (handle_single_key_event 238→158 lines), unified StreamState cleanup
-- **14-Round Context Break E2E Tests**: Including 2048 game generation, concurrent approval tests, cross-thread isolation tests, streaming leak tests; total tests 830→862
-- **10 Bug Fixes**: Shortcut blocking, scroll failure, streaming mouse wheel, keyboard event loss, message loss, cross-thread crosstalk, multi-line scroll overflow
-
----
-
-![ifai](imgs/ifai.gif)
 
 ---
 
 ## 💡 Why Choose IfAI?
 
-In the AI era, editors should be more than code containers—they should be the body of AI. IfAI adopts an **AI-Native** architecture, deeply implanting reasoning capabilities into its core.
+In the AI era, an editor should not just be a container for code — it should be the body of AI. IfAI adopts an **AI-Native** architecture, embedding reasoning capabilities deep into the kernel and providing a complete **AI Agent orchestration** system.
 
-*   **⚡ Extreme Performance**: Rust kernel driven, 120 FPS smooth rendering even under 10k+ data loads
-*   **🛡️ Privacy & Local-First**: Supports Qwen2.5 and other on-device models, sensitive code never leaves locally, hybrid routing automatic switching
-*   **🐚 Autonomous Agent Evolution**: Beyond conversation, Agents have Shell-level control, automatically configure environments, execute tasks, self-correct
-*   **📑 Specification-Driven (OpenSpec)**: Deep OpenSpec protocol integration ensures AI follows industrial-grade design specifications
-
----
-
-## 🚀 Development Milestones
-
-We maintain rapid iteration, committed to building the most professional AI pair programming environment.
-
-| Version | Theme | Core Breakthroughs |
-| :--- | :--- | :--- |
-| **v0.5.2** | **New GUI Conversation Mode + Thread Management + Agent Collaboration** | **GUI Declarative DSL Architecture (24 DSL tables + dual registry + card pipeline), Thread Management (MessageQueue + 5-dimension detection + cross-thread routing + unread badge + StreamingPulseBanner), Agent Collaboration (call_agent_parallel + share_knowledge + aggregate_results), Workflow Engine (YAML + DAG), Skills Hub, Agent Animation System, File Authorization, Built-in Browser Preview** |
-| **v0.5.1** | **Agent Collaboration Orchestration + Session Persistence** | **Metaprogramming collaboration infrastructure (message protocol macros + workflow! DSL), Agent inter-calls + parallel execution (call_agent_parallel), JSONPath conditional execution, JSONL append-only log + Auto Snapshot (WAL + Checkpoint), history message replay to JSONL (single source of truth), interactive ResumePicker, session cleanup archival, event persistence indicator, terminal resize adaptation, double Ctrl+C exit, OpenAI streaming tool_calls fix** |
-| **v0.5.0** | **Multi-Agent System Maturity + Intent Routing + TUI Rendering** | **9 dedicated Agents (Refactor/Git Commit/Plan/ReAct/Review/Test/Doc/Debug/Explore), declarative intent routing (O(1) lookup), TUI Markdown rendering engine (dual-path + adaptive wrapping), Bracketed Paste Mode, SIGINT safe exit, 1032 tests passing** |
-| **v0.4.8** | **Autonomous Conversation Leap + WebSearch + Metaprogramming + Performance** | **100% trust model (tool limits 100→1000, 10x boost), eradicated break chain issues (Agentic Loop + infinite Continuing + HTTP 400), smart compression system (integrated into AI service layer + Mid-turn fix), Bocha AI integration (three-layer protection + LRU cache), #[derive(Tool)] metaprogramming (zero boilerplate), Explore performance optimization (79s→13s, 6x boost), TUI first-run wizard, declarative status bar animation, dedicated Agent tools, prompt reference resolution** |
-| **v0.4.7** | **Persistent Memory System** | **Zero-dependency pure Markdown two-layer memory (hot injection + cold archiving), MemorySave tool (AI proactive save + auto dedup), LLM batch extraction, externalized prompts, 18μs injection latency, session archiving, smart compression, TUI+GUI sharing, 10 bug fixes** |
-| **v0.4.6** | **Multi-Thread Concurrent Chat & TUI Refactor** | **Per-Thread Session isolation (concurrent streaming + approval isolation), /thread slash commands, multi-line input (Shift+Enter), TUI God Object refactor Phase 1-4 (App 27→14 fields, Mode enum, declarative routing, StreamState unified cleanup), 862 tests, 10 bug fixes** |
-| **v0.4.5** | **TUI Enhancement & Testing Framework** | **Ctrl+O Detail View Overlay (fullscreen view), Ctrl+D Diff Mode (toggle switch), input message queue (streaming queuing), slash command popup (metaprogramming), 510+ tests (parametric/parallel/snapshot/E2E), metaprogramming architecture, 10 bug fixes** |
-| **v0.4.4** | **CLI Overhaul — Industrial Terminal AI Assistant** | **Metadata-driven CLI architecture, metaprogramming permission engine, Token system, TOML configuration, session persistence, Pipeline visualization, loop detection engine, ratatui fullscreen TUI, smart Glob search, 49 tests** |
-| **v0.4.3** | **Metadata-Driven Architecture & Internationalization** | **Metadata-driven Provider architecture (YAML config), 5 AI providers 80+ models, complete multimodal support, three-language coverage (CN/EN/RU), CI integration & quality gates, SSE stream parsing fix** |
-| **v0.4.2** | **Skill Center Refactor & Streaming Performance** | **Skill Center Phase 7 full refactor, BatchEventStream optimization, tool call race fix, E2E test framework v2.0, 10 bug fixes** |
-| **v0.4.1** | **Multi-Agent Collaboration & Message Stability** | **Multi-agent collaboration system (P0-P4 complete), DAG workflow engine, agent communication protocol, message queue system, Tab message isolation, 12 bug fixes** |
-| **v0.4.0** | **Prompt Ecosystem & Multi-Agent** | **Prompt management system, multi-agent system (Explore/Review/TaskBreakdown/ProposalGenerator/Refactor), tool system (10+ tools), CLI tool, community edition unlocks agent features** |
-| **v0.3.9** | **Physical Fidelity & Cognitive Upgrade** | **Symbol-First probing engine, full IndexedDB migration, NVIDIA NIM integration, dynamic Token physical statistics** |
-| **v0.3.7** | **Asset Security & Immersive Preview** | **Path-aware risk engine, editor in-place approval, auto-focus change points, Rust execution layer physical sandbox** |
-| **v0.3.6** | **UI Refactor & Structuring** | **Model capsule panel, PIVO 2.0 async preview, full-chain structured PivoProjectTree rendering** |
-| **v0.3.4** | **Dual-Mode Drive Engine** | **Vibe/Spec dual-mode interaction, pluginized skill system (Skills), silent approval automation, startup time elimination** |
-| **v0.3.0** | **Multimodal & Hybrid Scheduling** | **Vision LLM image understanding, local/remote hybrid inference scheduling, Zhipu AI native support, Bash tool integration** |
-| **v0.2.8** | **Industrial Toolchain** | **Composer 2.0 (AI multi-file editing), RAG symbol-aware (AST understanding), smart terminal self-healing** |
-| **v0.2.6** | **Agent Evolution** | **Shell capability unlock, structured task tree, OpenSpec deep integration, 120 FPS high-refresh rendering** |
-| **v0.2.0** | **Performance Foundation** | **Hybrid intelligence architecture (Qwen2.5), GPU hardware acceleration, zero-flicker streaming interaction** |
+*   **🤖 AI Agent Orchestration**: 9+ specialized Agents collaborate through DAG workflows with YAML declarative orchestration, triggered by natural language in one click.
+*   **⚡ Extreme Performance**: Rust-powered kernel, 120 FPS full-frame rendering, silky smooth even under tens of thousands of data records.
+*   **🛡️ Privacy & Local-First**: Supports on-device models like Qwen2.5, keeping sensitive code local. Hybrid routing with automatic switching.
+*   **🐚 Autonomous Agent Evolution**: Beyond conversation, Agents possess shell-level control — automatically configuring environments, executing tasks, and self-correcting.
+*   **📑 Spec-Driven (OpenSpec)**: Deep integration with the OpenSpec protocol, ensuring AI follows industrial-grade design specifications.
 
 ---
 
 ## ✨ Core Features
 
+### 🎯 AI Agent Orchestration Engine
+*   **9+ Specialized Agents**: Explore / Review / Refactor / Test / Doc / Plan / ReAct / Git Commit / Debug — each with a dedicated role
+*   **DAG Workflow Engine**: YAML declarative workflow definitions with topological sort scheduling, supporting sequential and parallel execution
+*   **Agent Collaboration Framework**: Parallel invocation (`call_agent_parallel`), knowledge sharing (`share_knowledge`), and result aggregation (`aggregate_results`)
+*   **Declarative Intent Routing**: O(1) lookup table routing with automatic natural language matching to the best Agent (say "refactor code" → automatically routes to the Refactor Agent)
+*   **Agent Chained Calls**: Agents can invoke other Agents with a max depth of 5 levels, forming complex reasoning chains
+*   **Workflow Visualization**: React Flow + Dagre auto-layout with real-time monitoring of workflow node execution status
+*   **Natural Language Triggering**: Describe tasks in natural language and the corresponding workflow is automatically matched and triggered
+*   **Shell-Level Control**: Agents can execute commands like `npm`, `git`, `cargo`, autonomously completing dependency installation and environment self-healing
+*   **Structured Task Decomposition**: Automatically transforms vague requirements into visualizable Task Trees with real-time progress tracking
+
 ### 🤖 Composer 2.0 - AI Multi-File Editing Engine
-*   **Parallel Editing**: AI can modify multiple files simultaneously, automatically detecting conflicts and intelligently merging
-*   **Fine-grained Control**: Support accepting/rejecting modifications individually, real-time Diff preview
-*   **One-Click Rollback**: Not satisfied? One-click undo all AI modifications
-*   **Dynamic File Refresh**: Editor automatically updates after accept/reject, no manual refresh needed
+*   **Parallel Editing**: AI can modify multiple files simultaneously, with automatic conflict detection and intelligent merging.
+*   **Fine-Grained Control**: Accept/reject changes one by one with real-time diff preview.
+*   **One-Click Rollback**: Not satisfied? Revert all AI changes in one click.
+*   **Dynamic File Refresh**: The editor automatically updates after accept/reject — no manual refresh needed.
 
 ### 🧠 RAG Symbol-Aware - Code Structure Understanding
-*   **Symbol-Level Understanding**: Not just text matching, AI truly understands relationships between Traits, classes, functions
-*   **Cross-File Association**: Automatically analyzes cross-file dependencies like `use`, `import`, `impl`
-*   **Precise Answers**: Ask "What implementations does this Trait have?", AI accurately lists all implementation classes and file paths
-*   **Distinguish Real from Fake**: Intelligently distinguishes real code from examples in comments, won't be misled
+*   **Symbol-Level Understanding**: Beyond text matching — AI truly understands the relationships between Traits, classes, functions, and other symbols.
+*   **Cross-File Association**: Automatically analyzes cross-file dependencies like `use`, `import`, and `impl`.
+*   **Precise Answers**: Ask "What are the implementations of this Trait?" and AI accurately lists all implementation classes and file paths.
+*   **Distinguishing Real from Fake**: Intelligently distinguishes real code from examples in comments, never misled by noise.
 
-### ⌨️ Command Bar - Professional Command Execution
-*   **Real-time Search**: Instant matching as you type, millisecond-level response preview
-*   **Keyboard Navigation**: Complete keyboard support, ↑↓ select, Enter execute, Esc close
-*   **View Splitting**: Command bar + main interface display in parallel, doesn't affect current work
-*   **Commercial Edition Integration**: Deeply integrated with commercial edition commands and features
-
-### 🤖 The Agent Engine
-*   **Shell-Level Control**: Agent can execute `npm`, `git`, `cargo` and other commands, autonomously completing dependency installation and environment self-healing
-*   **Structured Task Breakdown**: Automatically converts vague requirements into visualized **Task Tree**, supports real-time progress tracking
-*   **Smart Path Awareness**: Automatically calibrates execution paths, effectively preventing AI from falling into source directory or permission traps
+### ⌨️ Command Palette - Professional-Grade Command Execution
+*   **Real-Time Search**: Instant matching on input with millisecond-level response preview.
+*   **Keyboard Navigation**: Full keyboard support — Up/Down to select, Enter to execute, Esc to close.
+*   **Split View**: Command palette and main interface displayed side by side without disrupting your current work.
+*   **Commercial Integration**: Deep integration with commercial edition commands and features.
 
 ### 🔍 Next-Gen RAG (Retrieval-Augmented Generation)
-*   **Multi-Dimensional Hybrid Retrieval**: Combines keywords with semantic vectors, millisecond-level positioning of full-project code context
-*   **Project Isolation Architecture**: Forced index reset mechanism ensures absolute context purity when switching between multiple projects
-*   **Symbol-Aware Engine**: tree-sitter based AST analysis, precisely extracts code symbols and relationships
+*   **Multi-Dimensional Hybrid Retrieval**: Combines keyword and semantic vector search for millisecond-level code context localization across the entire project.
+*   **Project Isolation Architecture**: Mandatory index reset mechanism ensuring absolutely clean context when switching between projects.
+*   **Symbol-Aware Engine**: tree-sitter based AST analysis for precise extraction of code symbols and relationships.
 
 ### 🎨 Modern Development Experience
-*   **Professional Markdown Support**: Real-time preview rendering engine, supports split-screen, fullscreen document writing modes
-*   **Code Snippet Management**: Snippet Manager supports 10k-level data volume, with **Fill-In-the-Middle** intelligent completion
-*   **Token Cost Dashboard**: Real-time consumption metering, detailed breakdown of input/output tokens, costs under control
+*   **Professional Markdown Support**: Real-time preview engine with split-screen and full-screen modes for document writing.
+*   **Snippet Management**: Snippet Manager supporting tens of thousands of entries, paired with Fill-In-the-Middle intelligent completion.
+*   **Token Cost Dashboard**: Real-time consumption measurement with detailed input/output token breakdown — costs fully under control.
 
 ---
 
-## 📊 Performance (Performance)
-
-We conducted rigorous industrial-grade extreme stress testing on v0.2.6:
-
-*   **Massive List Scrolling**: 10,000+ records, stably maintains **120 FPS**, batch insertion only **1003ms**
-*   **Zero-Lag Rendering**: High-frequency streaming output scenarios, UI response delay **< 15ms**, CPU usage reduced **30%**
-*   **Second-Grade Environment Awareness**: Path calibration and environment detection takes **< 1ms**, success rate **100%**
+![ifai](imgs/ifai_v0.5.2.png)
 
 ---
 
-## 🏗 Technical Architecture
+## 📊 Performance
+
+*   **Massive List Scrolling**: 10,000+ records, stable **120 FPS**, batch insertion in only **1003ms**.
+*   **Zero-Latency Rendering**: Under high-frequency streaming output, UI response latency **< 15ms**, CPU usage reduced by **30%**.
+*   **Sub-Second Environment Awareness**: Path calibration and environment detection in **< 1ms**, success rate **100%**.
+*   **Agent Exploration Acceleration**: Explore Agent performance optimized from 79s down to **13s** (6x improvement).
+
+---
+
+## 📦 Quick Start
+
+### 1. Prerequisites
+Ensure Node.js >= 18 and Rust >= 1.80 are installed.
+
+### 2. Quick Launch
+```bash
+git clone https://github.com/peterfei/ifai.git
+cd ifai
+npm install
+npm run tauri dev
+```
+
+### 3. Build for Release
+```bash
+npm run build:community  # Build frontend
+npm run tauri:community  # Build Tauri application
+```
+
+---
+
+## 🛠 Technical Architecture
 
 ```mermaid
 graph TD
@@ -279,37 +118,114 @@ graph TD
 
 ---
 
-## 🦶 Quick Start
+## 🚀 Development Milestones
 
-### 1. Environment Preparation
-Ensure Node.js >= 18 and Rust >= 1.80 are installed.
+| Version | Theme | Key Breakthroughs |
+| :--- | :--- | :--- |
+| **v0.5.2** | GUI Chat Mode + Thread Management + Agent Collaboration | Declarative DSL architecture (24 DSL tables + dual registry), Thread management (MessageQueue + 5-dimensional activity detection), Agent collaboration framework, YAML DAG workflows |
+| **v0.5.1** | Agent Collaborative Orchestration + Session Persistence | Metaprogramming collaboration infrastructure, Agent inter-call + parallel invocation, JSONL append-only logging, Session recovery |
+| **v0.5.0** | Multi-Agent System Maturation + Intent Routing | 9 specialized Agents, Declarative intent routing, TUI Markdown rendering engine |
+| **v0.4.8** | Autonomous Session Leap + Metaprogramming | 100% trust model, tool limit 100→1000, `#[derive(Tool)]` metaprogramming, Explore 6x performance improvement |
+| **v0.4.7** | Persistent Memory System | Zero-dependency Markdown two-layer memory (hot memory + cold memory), MemorySave tool, LLM batch extraction |
+| **v0.4.6** | Multi-Thread Concurrent Chat & TUI Refactor | Per-Thread Session isolation, `/thread` slash commands, TUI God Object refactoring |
+| **v0.4.4** | CLI Industrial-Grade Upgrade | Metadata-driven CLI, metaprogramming permission engine, Token cost tracking, ratatui fullscreen TUI |
+| **v0.4.3** | Metadata-Driven Architecture & Internationalization | YAML Provider architecture, 5 providers 80+ models, full trilingual coverage |
+| **v0.4.1** | Multi-Agent Collaboration System | DAG workflow engine, Agent communication protocol, message queue system, collaboration visualization |
+| **v0.4.0** | Prompt Ecosystem & Multi-Agent | Prompt management system, multi-agent system (community edition unlock), 10+ tools |
+| **v0.3.12** | Event-Driven Architecture | ChatEventBus global event bus, ContentSegmentManager streaming order |
+| **v0.3.9** | Physical Exploration Engine | Symbol-First exploration engine, full IndexedDB migration, NVIDIA NIM integration |
+| **v0.2.6** | Agent Evolution | Shell capability unlock, structured task tree, 120 FPS high-refresh rendering |
+| **v0.2.0** | Performance Foundation | Hybrid intelligence architecture, GPU hardware acceleration, zero-flicker streaming interaction |
 
-### 2. Quick Launch
-```bash
-git clone https://github.com/peterfei/ifai.git
-cd ifai
-npm install
-npm run tauri dev
-```
+<details>
+<summary><b>📖 View detailed changelog for each version</b></summary>
 
-### 3. Build Release
-```bash
-npm run build:community  # Build frontend
-npm run tauri:community  # Build Tauri app
-```
+### v0.5.2: All-New GUI Chat Mode + Thread Management System + Agent Collaboration Framework
+
+**I. All-New GUI Chat Mode** (Biggest highlight of v0.5.2)
+- Three-column layout — Left: conversation list + Center: AI chat + Right: detail panel (work log / artifacts / preview)
+- Multi-thread concurrent conversations — Support opening multiple conversation threads simultaneously, each with independent streaming responses
+- Thread shortcuts — Ctrl+T to create / Ctrl+Tab to switch / F2 to rename / Right-click to archive or delete
+- Unread indicators — Background threads automatically mark new messages, cleared when switching back
+- Draggable layout — Left and right column widths freely adjustable (150-600px), with one-click collapse
+- Persistent recovery — All thread messages auto-saved to IndexedDB, fully restored on restart
+
+**II. Declarative DSL-Driven Architecture**
+- Dual registry architecture — `layoutRegistry` + `componentRegistry`, zero if-else branch rendering
+- 24 declarative DSL tables — All UI behaviors driven by table lookup
+- Interactive card pipeline — 10 message card types registered at runtime
+
+**III. Thread Management System**
+- Dual-queue MessageQueue — Thread-aware concurrency, serial within same thread + concurrent across threads
+- 5-dimensional activity detection — stream / per-thread / agent / tool / workflow all monitored
+- Cross-thread event routing — Full-chain workflow events routed across threads
+
+**IV. Agent Collaboration Framework**
+- `call_agent_parallel` — Parallel invocation of multiple Agents for independent tasks
+- `share_knowledge` + `aggregate_results` — Result sharing and aggregation
+- Automatic collaboration — Agents automatically call specialized Agents (max depth 5 levels)
+
+**V. GUI Feature Enhancements**
+- Skills Hub, Agent animation system (7 Agents x 6 animations x 4-level degradation)
+- File authorization system, built-in browser preview
+
+### v0.5.0: Multi-Agent System Maturation + Intent Routing + TUI Markdown Rendering Engine
+
+**9 Specialized Agents Fully Online**
+- Refactor / Git Commit / Plan / ReAct / Review / Test / Doc / Debug / Explore
+- Git Commit Agent: 5-layer security design (Pre-flight / Ghost Snapshot / Secret Scan / Commit Attribution / Blocklist)
+- ReAct Agent: Explicit Thought -> Action -> Observation loop with reflection mechanism
+
+**Declarative Intent Routing System**
+- O(1) lookup table routing — adding a new Agent only requires one routing rule
+
+### v0.4.8: Autonomous Session Leap + Metaprogramming Architecture + 6x Performance Improvement
+
+- 100% trust model, tool call limit increased from 100 to 1000 (10x improvement)
+- Bocha AI integration (three-layer protection + LRU cache)
+- `#[derive(Tool)]` metaprogramming, zero boilerplate code
+- Explore Agent performance from 79s to 13s (6x improvement, 83.7%)
+
+### v0.4.7: Persistent Memory System
+
+- Zero-dependency pure Markdown two-layer memory (hot memory injected into system prompt + cold memory session archive)
+- MemorySave tool, AI-initiated saving, 18us injection latency
+- LLM-driven intelligent memory extraction
+
+### v0.4.6: Multi-Thread Concurrent Chat System & TUI Architecture Refactoring
+
+- Per-Thread Session isolation, Arc&lt;Mutex&gt; three-phase lock strategy
+- TUI God Object refactoring Phase 1-4 (App 27 to 14 fields)
+- 862 test cases all passing
+
+### v0.4.4: CLI Comprehensive Upgrade — Industrial-Grade Terminal AI Assistant
+
+- Metadata-driven CLI architecture + metaprogramming permission engine
+- Token system and cost tracking, TOML configuration
+- ratatui fullscreen TUI, REPL command system
+
+### v0.4.1: Multi-Agent Collaboration System & Message Stability
+
+- ~7,130 lines of code, 79 test cases
+- Rust backend DAG workflow engine
+- Dual-queue + priority-scheduled message queue system
+
+</details>
+
+<p align="right"><i>For the full history, see <a href="CHANGELOG.md">CHANGELOG.md</a></i></p>
 
 ---
 
 ## 🤝 Contributing
 
-IfAI is in a high-growth phase, we welcome any form of contribution! Whether it's bug fixes, feature suggestions, or documentation improvements.
+IfAI is growing fast, and we welcome contributions of all kinds! Whether it's bug fixes, feature suggestions, or documentation improvements.
 
 - **Report Issues**: [GitHub Issues](https://github.com/peterfei/ifai/issues)
-- **Join Discussion**: [GitHub Discussions](https://github.com/peterfei/ifai/discussions)
+- **Join Discussions**: [GitHub Discussions](https://github.com/peterfei/ifai/discussions)
 
 ---
 
 <div align="center">
   <p><strong>Made with ❤️ by peterfei</strong></p>
-  <p>If IfAI helps you, please give us a ⭐️ to support me!</p>
+  <p>If IfAI has helped you, please give it a ⭐️ to support the project!</p>
 </div>
