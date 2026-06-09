@@ -2385,6 +2385,20 @@
       "empty": "Empty",
       "generatingArgs": "Generating arguments..."
     },
+    "fileWrite": {
+      "streaming": "Streaming... {{count}} chars",
+      "previewDone": "Preview done · {{lines}} lines",
+      "waiting": "Waiting for content...",
+      "generating": "Content generating...",
+      "truncated": "... {{count}} lines truncated",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approveAll": "Approve All",
+      "done": "Done",
+      "streamingStatus": "Streaming",
+      "waitingStatus": "Waiting",
+      "batchProgress": "Batch edit ({{done}}/{{total}})"
+    },
     "exploreFindings": {
       "completed": "Explore complete",
       "directories": "{{count}} directories",

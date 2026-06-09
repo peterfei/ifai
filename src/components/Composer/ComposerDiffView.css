@@ -69,8 +69,10 @@
    按钮样式
    ============================================================================ */
 
-.composer-diff-actions button,
-.file-item-actions button {
+.composer-diff-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 6px 12px;
   border: none;
   border-radius: 4px;
@@ -78,11 +80,17 @@
   cursor: pointer;
   transition: all 0.2s ease;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .btn-accept-all {
   background: var(--success-color, #4caf50);
   color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .btn-accept-all:hover {
@@ -92,6 +100,9 @@
 .btn-reject-all {
   background: var(--danger-color, #f87171);
   color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .btn-reject-all:hover {
@@ -103,6 +114,9 @@
   color: var(--text-secondary, #888);
   font-size: 18px;
   padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-close:hover {
@@ -198,12 +212,13 @@
   flex-shrink: 0;
 }
 
-.btn-accept-single,
-.btn-reject-single {
+.file-item-actions .btn-accept-single,
+.file-item-actions .btn-reject-single {
   width: 28px;
   height: 28px;
+  min-width: 28px;
   padding: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
@@ -212,15 +227,16 @@
   color: var(--text-secondary, #aaa);
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
-.btn-accept-single:hover {
+.file-item-actions .btn-accept-single:hover {
   background: var(--success-color, #4caf50);
   color: white;
   border-color: var(--success-color, #4caf50);
 }
 
-.btn-reject-single:hover {
+.file-item-actions .btn-reject-single:hover {
   background: var(--danger-color, #f87171);
   color: white;
   border-color: var(--danger-color, #f87171);

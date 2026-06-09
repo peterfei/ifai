@@ -58,7 +58,13 @@ import { getAgent } from '../../gui/conversation/AGENT_DSL';
  * 这些工具的 ToolApproval 不在消息流中渲染，由专用卡片接管展示。
  * 新增黑名单工具只需加一行，三处过滤自动生效。
  */
-const TOOL_RENDER_BLACKLIST = new Set(['TodoWrite']);
+const TOOL_RENDER_BLACKLIST = new Set([
+  'TodoWrite',
+  // ⚠️ 文件写入工具由 StreamingCodeCard 接管，不渲染 ToolApproval
+  // TODO: 数据层接入后，这些工具仅在 isPartial=true 时由 StreamingCodeCard 接管
+  'agent_write_file', 'write_file', 'agent_create_file',
+  'agent_replace_text', 'agent_replace_content', 'agent_edit_file', 'edit_file',
+]);
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构
  * @param files 文件路径数组
@@ -1393,8 +1399,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
 
-                        {/* Composer Diff Button */}
-                        {hasFileChanges && onOpenComposer && !effectivelyStreaming && (
+                        {/* Composer Diff Button — streaming-file-write 由 StreamingCodeCard 接管，不重复显示 */}
+                        {hasFileChanges && onOpenComposer && resolvedCardType !== 'streaming-file-write' && (
                             <div className="mt-3">
                                 <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     <FileCode size={16} />

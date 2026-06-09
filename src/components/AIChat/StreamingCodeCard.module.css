@@ -1,0 +1,274 @@
+/* StreamingCodeCard — 流式文件写入代码预览 */
+
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+/* ─── 头部：文件路径 ─── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.headerIcon {
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.headerPath {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── 代码预览区 ─── */
+.codeArea {
+  position: relative;
+  max-height: 300px;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.codeTruncated {
+  position: sticky;
+  top: 0;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--text-subtle);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+  z-index: 1;
+}
+
+.codeContent {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 2;
+}
+
+/* ─── 底部状态栏 ─── */
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.statusText {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusDot.streaming {
+  background: var(--accent-color);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.statusDot.ready {
+  background: var(--success-color);
+}
+
+.statusDot.waiting {
+  background: var(--text-subtle);
+  opacity: 0.5;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ─── 闪烁光标 ─── */
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  background: var(--accent-color);
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ─── 审批按钮栏 ─── */
+.approvalBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.btnApprove {
+  background: var(--success-color);
+  color: white;
+  border-color: var(--success-color);
+}
+
+.btnApprove:hover {
+  opacity: 0.9;
+  filter: brightness(1.1);
+}
+
+.btnReject {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.btnReject:hover {
+  background: var(--bg-primary);
+  border-color: var(--danger-soft-border);
+  color: var(--danger-color);
+}
+
+/* ─── 空状态 ─── */
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: var(--text-subtle);
+  font-size: 12px;
+}
+
+/* ─── 批量模式 ─── */
+.batchHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-elevated);
+}
+
+.batchProgress {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.fileList {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.fileItem:hover {
+  background: var(--bg-primary);
+}
+
+.fileItem.active {
+  background: var(--accent-soft-bg);
+}
+
+.fileIcon {
+  flex-shrink: 0;
+  color: var(--text-subtle);
+}
+
+.fileItem.active .fileIcon {
+  color: var(--accent-color);
+}
+
+.fileName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.fileStatus {
+  font-size: 10px;
+  color: var(--text-subtle);
+  flex-shrink: 0;
+}
+
+/* ─── 语法高亮 ─── */
+.highlight {
+  color: var(--text-primary);
+}
+
+.hlKeyword {
+  color: #c678dd;
+}
+
+.hlString {
+  color: #98c379;
+}
+
+.hlComment {
+  color: #5c6370;
+  font-style: italic;
+}
+
+.hlNumber {
+  color: #d19a66;
+}
+
+.hlTag {
+  color: #e06c75;
+}

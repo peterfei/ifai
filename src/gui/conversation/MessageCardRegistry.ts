@@ -125,6 +125,7 @@ import { ErrorFixCard } from './cards/ErrorFixCard';
 import { ComposerCard } from './cards/ComposerCard';
 import { AgentWorkspaceCard } from './cards/AgentWorkspaceCard';
 import { ExploreCard } from './cards/ExploreCard';
+import { StreamingCodeCard } from '../../components/AIChat/StreamingCodeCard';
 
 // Declarative registration — 新增卡片 = 一行 register
 MessageCardRegistry.register('progress', ProgressCard);
@@ -136,8 +137,19 @@ MessageCardRegistry.register('error-fix', ErrorFixCard);
 MessageCardRegistry.register('composer', ComposerCard);
 MessageCardRegistry.register('agent_workspace', AgentWorkspaceCard);
 MessageCardRegistry.register('explore', ExploreCard);
+MessageCardRegistry.register('streaming-file-write', StreamingCodeCard);
 
 /* ===== resolveCardType 函数 ===== */
+
+/**
+ * 流式提取工具名集合（临时硬编码，后续由 ToolApprovalRegistry.getStreamExtract() 替代）
+ */
+import { STREAM_EXTRACT_TOOLS } from './adapters/streamingFileWriteAdapter';
+
+function isStreamExtractTool(toolName?: string): boolean {
+  if (!toolName) return false;
+  return STREAM_EXTRACT_TOOLS.has(toolName);
+}
 
 /**
  * resolveCardType — 从消息推断 cardType
@@ -167,8 +179,17 @@ export function resolveCardType(message: Message | null | undefined): string {
   }
 
   // 2. 根据特殊字段推断
-  // toolCalls 推断为 tool-call
+  // toolCalls 推断 — streaming-file-write 优先于 tool-call
   if (message.toolCalls && message.toolCalls.length > 0) {
+    // 检查是否有流式文件写入（写入类工具，仅 pending 状态）
+    const hasStreamingFileWrite = message.toolCalls.some((tc) => {
+      const toolName = tc.tool || tc.name || (tc as any).function?.name;
+      if (!isStreamExtractTool(toolName)) return false;
+      return (tc as any).status === 'pending';
+    });
+    if (hasStreamingFileWrite) {
+      return 'streaming-file-write';
+    }
     return 'tool-call';
   }
 
