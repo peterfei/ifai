@@ -2,13 +2,14 @@ import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react'
 import { FileCode, CheckCircle, Clock, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MessageCardProps } from '../../gui/conversation/MessageCardRegistry';
+import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 import styles from './StreamingCodeCard.module.css';
 
 /* ===== 常量 ===== */
 
 const STREAM_RENDER_CONFIG = {
   MAX_RENDER_LINES: 50,
-  MAX_CHAR_LIMIT: 10000,
+  MAX_CHAR_LIMIT: 500000,
   PATH_ABBREVIATE_THRESHOLD: 40,
   RAF_THROTTLE_MS: 16,
 } as const;
@@ -106,22 +107,6 @@ function highlightCode(code: string): string {
     .replace(/\b(\d+\.?\d*)\b/g, '<span class="hlNumber">$1</span>');
 }
 
-/* ===== StreamExtract 配置（临时硬编码，后续移入 ToolApprovalRegistry） ===== */
-
-const STREAM_EXTRACT_MAP: Record<string, { path: string; content: string }> = {
-  agent_write_file: { path: 'path', content: 'content' },
-  write_file: { path: 'path', content: 'content' },
-  agent_create_file: { path: 'path', content: 'content' },
-  agent_replace_text: { path: 'path', content: 'new_content' },
-  agent_replace_content: { path: 'path', content: 'new_content' },
-  agent_edit_file: { path: 'path', content: 'new_content' },
-  edit_file: { path: 'path', content: 'new_content' },
-};
-
-function getStreamExtract(toolName: string): { path: string; content: string } | undefined {
-  return STREAM_EXTRACT_MAP[toolName];
-}
-
 /* ===== 主组件 ===== */
 
 export function StreamingCodeCard({ message, onAction, compact }: MessageCardProps) {
@@ -135,9 +120,9 @@ export function StreamingCodeCard({ message, onAction, compact }: MessageCardPro
     return toolCalls
       .filter((tc: any) => {
         const toolName = tc.tool || tc.name || tc.function?.name;
-        if (!getStreamExtract(toolName)) return false;
-        // 仅保留 pending 状态（等待审批），已批准/完成的不显示
-        return tc.status === 'pending';
+        if (!toolApprovalRegistry.getStreamExtract(toolName)) return false;
+        // 仅保留 isPartial=true（等待审批），已批准/完成的不显示
+        return !!tc.isPartial;
       })
       .map((tc: any) => ({
         id: tc.id,
@@ -179,7 +164,7 @@ const SingleMode: React.FC<{
   const contentRef = useRef(file.arguments);
 
   const extract = useMemo(() => {
-    const config = getStreamExtract(file.toolName);
+    const config = toolApprovalRegistry.getStreamExtract(file.toolName);
     if (!config) return { path: undefined, content: undefined, isComplete: false };
     return extractStreamContent(file.arguments, config.path, config.content);
   }, [file.arguments, file.toolName]);
@@ -197,7 +182,7 @@ const SingleMode: React.FC<{
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
     rafRef.current = requestAnimationFrame(() => {
-      const config = getStreamExtract(file.toolName);
+      const config = toolApprovalRegistry.getStreamExtract(file.toolName);
       if (config) {
         const { content } = extractStreamContent(contentRef.current, config.path, config.content);
         setDisplayContent(content || '');
@@ -278,8 +263,8 @@ const SingleMode: React.FC<{
         </div>
       </div>
 
-      {/* 审批按钮 — ⚠️ 临时始终显示，数据层接入后恢复为 file.isPartial && */}
-      {true && (
+      {/* 审批按钮 — 仅在 isPartial=true（等待审批）时显示 */}
+      {file.isPartial && (
         <div className={styles.approvalBar}>
           <button className={`${styles.btn} ${styles.btnReject}`} onClick={handleReject}>
             {t('aiChat.fileWrite.reject')}
@@ -330,7 +315,7 @@ const BatchMode: React.FC<{
       {/* 文件列表 */}
       <div className={styles.fileList}>
         {files.map((f, i) => {
-          const config = getStreamExtract(f.toolName);
+          const config = toolApprovalRegistry.getStreamExtract(f.toolName);
           const { path } = config
             ? extractStreamContent(f.arguments, config.path, config.content)
             : { path: undefined };

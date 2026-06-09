@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { User, FileCode, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot, CheckCircle, X } from 'lucide-react';
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 import { useTypewriter } from '../../hooks/useTypewriter';
 
 /**
@@ -58,12 +59,10 @@ import { getAgent } from '../../gui/conversation/AGENT_DSL';
  * 这些工具的 ToolApproval 不在消息流中渲染，由专用卡片接管展示。
  * 新增黑名单工具只需加一行，三处过滤自动生效。
  */
-const TOOL_RENDER_BLACKLIST = new Set([
+/** 构建工具渲染黑名单：TodoWrite + 所有 streamExtract 工具（由 StreamingCodeCard 接管） */
+const TOOL_RENDER_BLACKLIST: Set<string> = new Set([
   'TodoWrite',
-  // ⚠️ 文件写入工具由 StreamingCodeCard 接管，不渲染 ToolApproval
-  // TODO: 数据层接入后，这些工具仅在 isPartial=true 时由 StreamingCodeCard 接管
-  'agent_write_file', 'write_file', 'agent_create_file',
-  'agent_replace_text', 'agent_replace_content', 'agent_edit_file', 'edit_file',
+  ...toolApprovalRegistry.streamExtractToolNames,
 ]);
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构

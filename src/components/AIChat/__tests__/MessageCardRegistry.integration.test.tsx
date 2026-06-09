@@ -98,13 +98,13 @@ describe('MessageCardRegistry - AIChat Integration', () => {
       expect(resolveCardType(message)).toBe('tool-call');
     });
 
-    it('文件写入工具（pending）应该推断为 streaming-file-write', () => {
-      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'write_file', status: 'pending' }] };
+    it('文件写入工具（isPartial=true）应该推断为 streaming-file-write', () => {
+      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'write_file', isPartial: true }] };
       expect(resolveCardType(message)).toBe('streaming-file-write');
     });
 
-    it('文件写入工具（completed）应该推断为 tool-call', () => {
-      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'write_file', status: 'completed' }] };
+    it('文件写入工具（isPartial=false）应该推断为 tool-call', () => {
+      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'write_file', isPartial: false }] };
       expect(resolveCardType(message)).toBe('tool-call');
     });
   });

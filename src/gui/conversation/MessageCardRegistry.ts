@@ -141,14 +141,11 @@ MessageCardRegistry.register('streaming-file-write', StreamingCodeCard);
 
 /* ===== resolveCardType 函数 ===== */
 
-/**
- * 流式提取工具名集合（临时硬编码，后续由 ToolApprovalRegistry.getStreamExtract() 替代）
- */
-import { STREAM_EXTRACT_TOOLS } from './adapters/streamingFileWriteAdapter';
+import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 
 function isStreamExtractTool(toolName?: string): boolean {
   if (!toolName) return false;
-  return STREAM_EXTRACT_TOOLS.has(toolName);
+  return toolApprovalRegistry.isStreamExtractTool(toolName);
 }
 
 /**
@@ -181,11 +178,11 @@ export function resolveCardType(message: Message | null | undefined): string {
   // 2. 根据特殊字段推断
   // toolCalls 推断 — streaming-file-write 优先于 tool-call
   if (message.toolCalls && message.toolCalls.length > 0) {
-    // 检查是否有流式文件写入（写入类工具，仅 pending 状态）
+    // 检查是否有流式文件写入（写入类工具 + isPartial 标记）
     const hasStreamingFileWrite = message.toolCalls.some((tc) => {
       const toolName = tc.tool || tc.name || (tc as any).function?.name;
       if (!isStreamExtractTool(toolName)) return false;
-      return (tc as any).status === 'pending';
+      return !!(tc as any).isPartial;
     });
     if (hasStreamingFileWrite) {
       return 'streaming-file-write';

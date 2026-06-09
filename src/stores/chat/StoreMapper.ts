@@ -2664,9 +2664,9 @@ export const initStoreMapper = () => {
                 function: { name, arguments: args || '' },
                 // 🔥 FIX: 设置初始状态为 pending
                 status: 'pending',
-                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮立即显示
-                // （之前默认为 true，导致批准按钮不显示）
-                isPartial: false,
+                // streamExtract 工具标记 isPartial: true（StreamingCodeCard 显示条件）
+                // 非 streamExtract 工具保持 false
+                isPartial: toolApprovalRegistry.isStreamExtractTool(name),
                 // 🏆 NEW: 添加 batchId 支持工具折叠
                 batchId
             };
@@ -2708,9 +2708,11 @@ export const initStoreMapper = () => {
               };
             }
 
-            // 🔥 FIX v0.3.2: 更新 tool call 时明确设置 isPartial: false（防御性编程）
-            // 首次创建时已设置，这里确保更新时保持该值，防止未来代码变动导致问题
-            existingTC.isPartial = false;
+            // streamExtract 工具在参数更新阶段保持 isPartial: true（等待审批）
+            // 非 streamExtract 工具保持 false
+            if (!toolApprovalRegistry.isStreamExtractTool(existingTC.tool || existingTC.function?.name)) {
+                existingTC.isPartial = false;
+            }
 
             updatedToolCalls[existingToolIndex] = existingTC;
             targetMsg.toolCalls = updatedToolCalls;
@@ -2884,8 +2886,12 @@ export const initStoreMapper = () => {
             const updatedToolCalls = msg.toolCalls.map((tc: any) => {
               if (tc.id === toolId && tc.status !== 'pending') {
                 console.log(`[StoreMapper] 🔧 Resetting toolCall status: ${tc.status} → pending (tool=${toolName})`);
-                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮显示
-                return { ...tc, status: 'pending', isPartial: false };
+                // streamExtract 工具保持 isPartial: true（StreamingCodeCard 显示条件）
+                return {
+                  ...tc,
+                  status: 'pending',
+                  isPartial: toolApprovalRegistry.isStreamExtractTool(toolName),
+                };
               }
               return tc;
             });
@@ -3249,7 +3255,11 @@ export const initStoreMapper = () => {
         // 更新工具状态为 executing
         const toolIndex = targetMsg.toolCalls.findIndex((tc: any) => tc.id === toolId);
         if (toolIndex !== -1) {
-            targetMsg.toolCalls[toolIndex].status = 'executing';
+            targetMsg.toolCalls[toolIndex] = {
+              ...targetMsg.toolCalls[toolIndex],
+              status: 'executing',
+              isPartial: false,
+            };
             console.log('[StoreMapper] ✅ Updated tool status to executing:', toolId);
         }
 
