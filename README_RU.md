@@ -1,7 +1,7 @@
 # IfAI — AI Агент-Оркестратор & Редактор кода 🚀
 
 <div align="center">
-  <img src="imgs/ifai.png" alt="IfAI Logo" width="120" />
+  <img src="imgs/icon.png" alt="IfAI Logo" width="120" />
   <p><strong>Больше чем редактор, ваш AI ассистент оркестрации агентов</strong></p>
   <p>9+ Агентов в сотрудничестве · DAG-воркфлоу · AI-Native платформа разработки на Tauri 2.0 + React 19</p>
 

@@ -1,9 +1,11 @@
 # 若爱 (IfAI) — AI Agent 编排助手 & 代码编辑器 🚀
 
 <div align="center">
-  <img src="imgs/ifai.png" alt="IfAI Logo" width="120" />
+  <img src="imgs/icon.png" alt="IfAI Logo" width="120" />
   <p><strong>不只是编辑器，更是你的 AI Agent 编排助手</strong></p>
   <p>9+ 智能体协同 · DAG 工作流驱动 · 基于 Tauri 2.0 + React 19 的 AI 原生开发平台</p>
+
+
 
   [简体中文](README.md) | [English](README_EN.md) | [Русский](README_RU.md) | [📖 完整文档](https://docs.ifai.today/) | [🎯 下载发布页](https://github.com/peterfei/ifai/releases)
 
