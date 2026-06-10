@@ -1,5 +1,45 @@
 # 更新日志
 
+## [0.5.3] - 2026-06-10
+### StreamingCodeCard 流式预览 & 文件编码切换
+
+AI 文件写入实时预览 + 完整的文件编码切换支持。
+
+#### 1. StreamingCodeCard 流式文件写入预览系统
+- **StreamingCodeCard 组件**：AI 写入文件时实时显示代码内容和 Diff 预览，替代空白等待
+- **ToolApprovalRegistry 动态化**：声明式配置驱动工具审批规则，消除 8 处硬编码查找表
+- **isPartial 生命周期**：流式进行中卡片隐藏审批按钮，仅内容完整后显示
+- **补偿渲染**：投影段替代补偿渲染 + `resolveToolRenderer` 统一工具渲染决策
+- **ReadOnly 多层防御**：ReadOnly 工具不再显示审批卡片，代码健壮性全面提升
+- **MAX_CHAR_LIMIT 移除**：取消流式处理的最大字符限制，支持大文件流式写入
+- **审批按钮 truncated 修复**：宽高自适应，确保长文本按钮完整显示
+
+#### 2. 文件编码切换（EncodingPicker）
+- **EncodingPicker 组件**：Statusbar 右下角编码选择器，支持 10 种编码切换
+  - UTF-8 / CP936 (GBK) / GB2312 / GB18030 / Shift-JIS / EUC-JP / EUC-KR / Big5 / ISO-8859-1 / Windows-1252
+- **`position: fixed` 定位**：绕过 Statusbar `overflow-hidden` 裁剪，弹出层始终可见
+- **`changeFileEncoding` action**：切换编码时用 TextDecoder 重新解码，保持文件内容一致性
+
+#### 3. 原生 TextDecoder 替代 iconv-lite
+- **完全消除 Node.js Buffer 依赖**：iconv-lite → `new TextDecoder()` / `new TextEncoder()` Web API
+- **`toTextDecoderEncoding()` 映射表**：统一编码名（CP936/GB2312 等）→ Web API 编码名
+- **Tauri webview 兼容**：WKWebView 原生支持所有目标编码，无需 polyfill
+- **`TextEncoder` 写入**：非 UTF-8 编码文件写入时自动编码
+
+#### 4. jschardet 兼容性修复
+- **Uint8Array → binary string**：`new TextDecoder('latin1').decode(raw)` 安全转换
+- **通用工具包兼容**：Delphi 文件通过扩展名提示 + jschardet 双重检测
+
+#### 5. 测试覆盖
+| 测试文件 | 用例数 | 说明 |
+|---------|--------|------|
+| EncodingPicker.test.tsx | 7 | 渲染/点击/选择/关闭/短路逻辑 |
+| encoding.test.ts | 10 | 编码映射/binary string/TextDecoder 兼容性 |
+| fileActions.test.ts | 2 | 编码感知读取适配 |
+| **新增合计** | **19** | 全部通过 |
+
+---
+
 ## [0.5.2] - 2026-05-31
 ### GUI 线程管理系统 & Agent 协作增强
 

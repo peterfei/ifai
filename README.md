@@ -124,6 +124,7 @@ graph TD
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.5.3** | StreamingCodeCard 流式预览 + 文件编码切换 | StreamingCodeCard 流式文件写入实时预览、声明式 ToolApprovalRegistry（消除 8 处硬编码）、文件编码选择器（10 种编码）、原生 TextDecoder 替代 iconv-lite |
 | **v0.5.2** | GUI 对话模式 + 线程管理 + Agent 协作 | 声明式 DSL 架构（24 DSL 表 + 双注册表）、线程管理（MessageQueue + 5 维度活动检测）、Agent 协作框架、YAML DAG 工作流 |
 | **v0.5.1** | Agent 协作编排 + 会话持久化 | 元编程协作基础设施、Agent 互调用 + 并行调用、JSONL append-only 日志、会话恢复 |
 | **v0.5.0** | 多智能体系统成型 + 意图路由 | 9 个专用 Agent、声明式意图路由、TUI Markdown 渲染引擎 |
@@ -141,6 +142,21 @@ graph TD
 
 <details>
 <summary><b>📖 查看各版本详细更新日志</b></summary>
+
+### v0.5.3：StreamingCodeCard 流式预览 + 文件编码切换
+
+**一、StreamingCodeCard 流式文件写入预览 📝**
+- 实时代码显示 — AI 写入文件时即时渲染代码内容，无需等待完成
+- 动态审批按钮 — 流式进行中隐藏，内容完整后显示
+- ToolApprovalRegistry 动态化 — 声明式配置驱动工具匹配，消除 8 处硬编码
+- Composer Diff 集成 — 一键切换到差异视图
+- ReadOnly 多层防御 — 只读工具不显示审批卡片
+
+**二、文件编码切换 🌐**
+- EncodingPicker — Statusbar 右下角，10 种编码自由切换
+- 原生 TextDecoder 替代 iconv-lite — 完全消除 Node.js Buffer 依赖
+- Delphi 文件自动识别 CP936 编码（.pas/.dpr/.dpk/.dfm/.fmx/.inc）
+- 19 个新增测试用例，全部通过
 
 ### v0.5.2：全新 GUI 对话模式 + 线程管理系统 + Agent 协作框架
 

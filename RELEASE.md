@@ -1,34 +1,41 @@
-# IfAI v0.3.7 发布说明
+# IfAI v0.5.3 发布说明
 
 <div align="center">
-  <h2>🛡️ 路径感知审批与沉浸式编辑器集成</h2>
-  <p>智能风险分级，极致内联预览体验</p>
-  <p>2026-03-03</p>
+  <h2>📝 StreamingCodeCard 流式预览 + 文件编码切换</h2>
+  <p>AI 文件写入实时预览，10 种编码自由切换</p>
+  <p>2026-06-10</p>
 </div>
 
 ---
 
 ## 🌟 核心新特性
 
-### 1. 路径感知的智能审批引擎
-IfAI 现在具备了**“资产分级保护”**能力。系统会根据操作的具体文件路径自动评估风险：
-*   **核心配置保护**：修改 `.env`, `package.json`, `.git/` 等关键文件时，UI 会自动标记为红色高危状态，并强制要求手动核验。
-*   **低风险自动放行**：对 README、文档、测试用例的修改，在 Vibe 模式下可配置为静默放行，极大提升连续开发的流畅度。
+### 1. StreamingCodeCard 流式文件写入预览
+v0.5.3 引入了 StreamingCodeCard 组件，AI 写入文件时实时显示代码内容：
+- **实时代码渲染** — AI 逐块写入时即时展示最新内容
+- **动态审批按钮** — 流式进行中隐藏，内容完整后显示
+- **Composer Diff 集成** — 一键切换到差异视图，精准对比变更
+- **ToolApprovalRegistry 动态化** — 声明式配置驱动，消除 8 处硬编码
 
-### 2. 沉浸式“所见即所审”工作流
-我们彻底打破了侧边栏 Diff 的空间局限。
-*   **一键原位预览**：点击消息中的文件标签，主编辑器将直接切换至 Diff 视图并自动定位到变更点。
-*   **内联审批工具条**：无需回到聊天框，您可以直接在代码上方点击“接受”或“拒绝”。
+### 2. 文件编码选择器
+Statusbar 右下角新增 EncodingPicker，支持 10 种编码自由切换：
+- UTF-8 / CP936 (GBK) / GB2312 / GB18030 / Shift-JIS / EUC-JP / EUC-KR / Big5 / ISO-8859-1 / Windows-1252
+- Delphi 生态自动识别 CP936（.pas/.dpr/.dpk/.dfm/.fmx/.inc）
+- 切换后文件立即以新编码重新解码，内容实时刷新
 
-### 3. Rust 执行层物理沙箱
-为了确保绝对安全，我们在 Rust 后端增加了硬核拦截。即便 AI 代理试图越权访问系统级敏感目录（如 `.git` 或 `.ifai`），也会在执行层被物理阻断。
+### 3. 架构级改进：原生 TextDecoder 替代 iconv-lite
+- **完全消除 Node.js Buffer 依赖**，根治 Tauri WKWebView 兼容问题
+- 使用 Web 原生 `TextDecoder`/`TextEncoder` API，零 polyfill
+- 非 UTF-8 文件写入时自动编码，内容保真
 
 ---
 
-## 🛠 稳定性修复
-*   彻底修复了 Monaco Diff 视图在快速切换或卸载时的内存冲突（TextModel disposed）。
-*   修复了任务完成横幅中的字符转义导致的路径乱码。
-*   优化了文件状态刷新逻辑，支持相对路径的自动解析。
+## 🛠 修复汇总
+- 6 个 StreamingCodeCard 流式竞态条件阻断性 bug
+- 审批按钮 truncated 修复
+- Buffer.prototype 报错根治
+- jschardet Uint8Array 不兼容修复
+- Statusbar overflow-hidden 裁剪弹出层修复
 
 ---
 
@@ -40,4 +47,4 @@ brew upgrade --cask ifai
 ```
 
 ### Windows
-运行应用，在设置面板点击“检查更新”。
+运行应用，在设置面板点击"检查更新"。
