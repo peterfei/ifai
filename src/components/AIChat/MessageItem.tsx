@@ -639,9 +639,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // ⚡️ FIX: 全局排序渲染中枢 - 确保文字与工具调用严格按接收顺序排列
     // 🏆 更新：优先使用 segmentsFromStore，保留 fallback 逻辑
     const mergedSegments = React.useMemo(() => {
-        // A. 🏆 新增：优先使用 segmentsFromStore (新逻辑)
+        // A. 🏆 优先使用 segmentsFromStore (新逻辑) + 投影缺失的 streamExtract 段
         if (segmentsFromStore && segmentsFromStore.length > 0) {
-            return segmentsFromStore.filter(seg => {
+            const filtered = segmentsFromStore.filter(seg => {
                 // 基础验证
                 if (!seg || typeof seg !== 'object' || !seg.type) {
                     console.warn('[MessageItem] Filtering out invalid segment:', seg);
@@ -674,6 +674,25 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                 return true;
             });
+
+            // 投影：为 delta 先行阶段的 streamExtract 工具合成虚拟段
+            const renderedToolIds = new Set(
+                filtered.filter((s: any) => s.type === 'tool' && s.toolCallId).map((s: any) => s.toolCallId)
+            );
+            const projectedSegments: ContentSegment[] = [];
+            for (const tc of (message.toolCalls || [])) {
+                if (renderedToolIds.has(tc.id)) continue;
+                const name = tc.tool || (tc as any).function?.name || '';
+                if (!toolApprovalRegistry.isStreamExtractTool(name)) continue;
+                if (!tc.isPartial) continue;
+                projectedSegments.push({
+                    type: 'tool' as const,
+                    order: 999,
+                    timestamp: Date.now(),
+                    toolCallId: tc.id,
+                });
+            }
+            return [...filtered, ...projectedSegments];
         }
 
         // B. Fallback: 使用旧的逻辑（向后兼容）
@@ -847,6 +866,16 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     }, [segmentsFromStore, message.contentSegments, contentWithoutThinking, message.toolCalls, effectivelyStreaming, thinkingText]);
 
     let toolCallIndex = 0;
+
+    // 🔥 resolveToolRenderer：声明式工具渲染决策（替代 if/else 链 + TOOL_RENDER_BLACKLIST 3 处检查）
+    const resolveToolRenderer = React.useCallback((tc: any, seg: any): React.ComponentType<any> | null => {
+        if (TOOL_RENDER_BLACKLIST.has(tc.tool)) return null;
+        if (seg.isBatchAnchor) return ToolBatchApproval;
+        const name = tc.tool || tc.function?.name || '';
+        if (toolApprovalRegistry.isStreamExtractTool(name) && tc.isPartial) return StreamingCodeCard;
+        return ToolApproval;
+    }, []);
+
     // Helper to render Markdown WITHOUT syntax highlighting (for streaming mode)
     // 使用统一的 SimpleMarkdownRenderer（无语法高亮，性能优化）
     const renderMarkdownWithoutHighlight = useCallback((text: string, key: any) => {
@@ -1195,13 +1224,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             return null;
                                         }
 
-                                        // 声明式过滤：黑名单工具由专用卡片接管，不渲染 ToolApproval
-                                        if (TOOL_RENDER_BLACKLIST.has(toolCall.tool)) return null;
+                                        // 🔥 声明式渲染决策：resolveToolRenderer 返回 null 或目标组件
+                                        const Renderer = resolveToolRenderer(toolCall, segment);
+                                        if (!Renderer) return null;
 
-                                        // 🔥 FIX: streamExtract + isPartial 工具内联渲染 StreamingCodeCard
-                                        // 修复排序问题：StreamingCodeCard 从 Phase D（消息顶部）移到 segments 循环中（正确位置）
-                                        const toolName = toolCall.tool || (toolCall as any).function?.name || '';
-                                        if (toolApprovalRegistry.isStreamExtractTool(toolName) && toolCall.isPartial) {
+                                        // StreamingCodeCard 和 ToolApproval/ToolBatchApproval props 签名不同
+                                        if (Renderer === StreamingCodeCard) {
                                             return (
                                                 <div
                                                     key={`tool-seg-${segment.toolCallId || index}`}
@@ -1228,105 +1256,30 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             );
                                         }
 
-                                        // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
-                                        const segmentPhase = segment.phase || 'in-tool';
-                                        const toolComponent = (
-                                            <ToolApproval
-                                                key={toolCall.id} toolCall={toolCall}
-                                                onApprove={() => onApprove(message.id, toolCall.id)} onReject={() => onReject(message.id, toolCall.id)}
-                                                isLatestBashTool={isLatestBashTool(toolCall.id)} message={message}
-                                            />
-                                        );
-
+                                        // ToolApproval / ToolBatchApproval：标准审批 props
                                         return (
                                             <div
                                                 key={`tool-seg-${segment.toolCallId || index}`}
-                                                data-phase={segmentPhase}
+                                                data-phase={segment.phase || 'in-tool'}
                                                 data-test={`segment-${index}`}
                                                 data-type="tool"
                                                 data-order={segment.order}
                                                 data-tool-call-id={toolCall.id}
                                             >
-                                                {toolComponent}
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                })}
-
-                                {/* 🔥 FIX: 补偿渲染 — 当 segments 中缺少 tool segment 但 message.toolCalls 有 pending 工具时
-                                    *  场景：AI 先输出文本（创建 text segment），然后调用工具，但 tool segment 未及时创建或被过滤
-                                    *  此时 mergedSegments 非空（有 text），不会走 fallback 路径，ToolApproval 不渲染
-                                    *  刷新后 segments 可能被重建，所以能显示 — 这解释了"刷新后才出现"的现象
-                                    */}
-                                {(() => {
-                                    if (!message.toolCalls || message.toolCalls.length === 0) return null;
-
-                                    // 收集 segments 中已有的 toolCallId
-                                    const renderedToolIds = new Set(
-                                        mergedSegments
-                                            .filter((s: any) => s.type === 'tool' && s.toolCallId)
-                                            .map((s: any) => s.toolCallId)
-                                    );
-
-                                    // 🔥 FIX: delta 先行阶段，streamExtract 工具已有 toolCall（isPartial=true）但 segment 尚未创建
-                                    // 在此补偿渲染 StreamingCodeCard 提供流式预览（当 chat:tool:call 触发创建 segment 后，本补偿自动退出）
-                                    const orphanedStreamExtractCalls = message.toolCalls.filter((tc: any) => {
-                                        if (renderedToolIds.has(tc.id)) return false;
-                                        const toolName = tc.tool || tc.function?.name || '';
-                                        return toolApprovalRegistry.isStreamExtractTool(toolName) && !!tc.isPartial;
-                                    });
-
-                                    // 找出 segments 中没有对应 tool segment 的 pending toolCalls
-                                    const orphanedPendingCalls = message.toolCalls.filter((tc: any) =>
-                                        tc.status === 'pending' && !renderedToolIds.has(tc.id) && !tc.isPartial
-                                        && !TOOL_RENDER_BLACKLIST.has(tc.tool)
-                                    );
-
-                                    const results: React.ReactNode[] = [];
-
-                                    // 1. 优先渲染 streamExtract 流式预览
-                                    if (orphanedStreamExtractCalls.length > 0) {
-                                        results.push(
-                                            <StreamingCodeCard
-                                                key="orphan-stream-extract"
-                                                message={message}
-                                                onAction={(action, data) => {
-                                                    if (action === 'approve') onApprove(message.id, data?.toolId);
-                                                    if (action === 'reject') onReject(message.id, data?.toolId);
-                                                    if (action === 'approve' && data?.toolIds) {
-                                                        data.toolIds.forEach((id: string) => onApprove(message.id, id));
-                                                    }
-                                                    if (action === 'reject' && data?.toolIds) {
-                                                        data.toolIds.forEach((id: string) => onReject(message.id, id));
-                                                    }
-                                                }}
-                                            />
-                                        );
-                                    }
-
-                                    // 2. 渲染孤儿 pending 工具
-                                    if (orphanedPendingCalls.length > 0) {
-                                        console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`, {
-                                            orphanedIds: orphanedPendingCalls.map((tc: any) => tc.id)
-                                        });
-                                        orphanedPendingCalls.forEach((toolCall: any) => {
-                                            results.push(
-                                                <ToolApproval
-                                                    key={`orphan-${toolCall.id}`}
+                                                <Renderer
+                                                    key={toolCall.id}
                                                     toolCall={toolCall}
                                                     onApprove={() => onApprove(message.id, toolCall.id)}
                                                     onReject={() => onReject(message.id, toolCall.id)}
                                                     isLatestBashTool={isLatestBashTool(toolCall.id)}
                                                     message={message}
                                                 />
-                                            );
-                                        });
+                                            </div>
+                                        );
                                     }
+                                    return null;
+                                })}
 
-                                    if (results.length === 0) return null;
-                                    return results;
-                                })()}
                             </div>
                             );
                         })() : (
