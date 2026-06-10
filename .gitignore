@@ -152,6 +152,21 @@ skills-system-diagnosis.json
 /*STATUS*.md
 /*ANALYSIS*.md
 /*AUDIT*.md
+
+# Root-level temp/test/debug markdown files (do not commit)
+/*_TEST*.md
+/*_GUIDE.md
+/*_DEBUG.md
+/*_FIX.md
+/ROADMAP_*.md
+/v0.5.*.md
+/MEMORY_*.md
+/E2E_*.md
+/blog-*.md
+/project_evolution.md
+/test_collaboration_scenarios.md
+/PERMISSION_*.md
+/WORKFLOW_*.md
 /SKELETON_DEBUG.md
 /SKILL_INSTALLATION_FIX.md
 /docs/PERFORMANCE_TESTING_GUIDE.md

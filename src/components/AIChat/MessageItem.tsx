@@ -689,6 +689,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                     type: 'tool' as const,
                     order: 999,
                     timestamp: Date.now(),
+                    phase: 'in-tool' as const,
                     toolCallId: tc.id,
                 });
             }
