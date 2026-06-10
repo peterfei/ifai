@@ -2848,6 +2848,11 @@ export const initStoreMapper = () => {
                 existingTC.isPartial = false;
             }
 
+            // 🔥 FIX: ReadOnly 工具后端直接执行，Updated existing 路径也强制修正 status
+            if (toolPerm === 'ReadOnly') {
+                existingTC.status = 'completed';
+            }
+
             updatedToolCalls[existingToolIndex] = existingTC;
             targetMsg.toolCalls = updatedToolCalls;
             console.log('[StoreMapper] 🔧 Updated existing tool call:', name);

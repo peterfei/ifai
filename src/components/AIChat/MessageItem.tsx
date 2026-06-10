@@ -3,6 +3,7 @@ import { User, FileCode, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
+import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { useTypewriter } from '../../hooks/useTypewriter';
 
 /**
@@ -59,7 +60,7 @@ import { getAgent } from '../../gui/conversation/AGENT_DSL';
  * 这些工具的 ToolApproval 不在消息流中渲染，由专用卡片接管展示。
  * 新增黑名单工具只需加一行，三处过滤自动生效。
  */
-/** 构建工具渲染黑名单：TodoWrite + 所有 streamExtract 工具（由 StreamingCodeCard 接管） */
+/** 构建工具渲染黑名单：TodoWrite（ReadOnly，后端直接执行）+ 所有 streamExtract 工具（由 StreamingCodeCard 接管） */
 const TOOL_RENDER_BLACKLIST: Set<string> = new Set([
   'TodoWrite',
   ...toolApprovalRegistry.streamExtractToolNames,
@@ -423,7 +424,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Count pending tool calls for batch actions
     const pendingCount = React.useMemo(() => {
         if (!message.toolCalls) return 0;
-        return message.toolCalls.filter(tc => tc.status === 'pending' && !tc.isPartial).length;
+        return message.toolCalls.filter(tc => {
+            if (tc.status !== 'pending' || tc.isPartial) return false;
+            // 🔥 防御性修复：ReadOnly 工具后端直接执行，不计入待确认数
+            const toolName = tc.tool || tc.function?.name || '';
+            const toolPerm = TOOL_PERMISSIONS[toolName] || TOOL_PERMISSIONS[toolName.toLowerCase()];
+            if (toolPerm === 'ReadOnly') return false;
+            return true;
+        }).length;
     }, [message.toolCalls]);
     const handleApproveAll = () => {
         const store = useChatStore.getState() as any;
@@ -712,6 +720,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
             if (isExploreMessage && seg.type === 'tool') {
                 return false;
+            }
+
+            // 黑名单工具（TodoWrite、streamExtract 工具）不渲染空 segment 占位
+            if (seg.type === 'tool' && seg.toolCallId) {
+                const tc = message.toolCalls?.find((t: any) => t.id === seg.toolCallId);
+                const tcName = tc?.tool || tc?.function?.name || '';
+                if (TOOL_RENDER_BLACKLIST.has(tcName)) return false;
             }
             return true;
         });

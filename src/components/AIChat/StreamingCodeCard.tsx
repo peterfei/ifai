@@ -306,7 +306,8 @@ const SingleMode: React.FC<{
       </div>
 
       {/* 审批按钮 — 仅在 isPartial=true（等待审批）时显示 */}
-      {file.isPartial && extract.isComplete && (
+      {/* isComplete 仅在 JSON 解析成功时为 true，但 truncated stream 也应允许审批 */}
+      {file.isPartial && (extract.isComplete || extract.content) && (
         <div className={styles.approvalBar}>
           <button className={`${styles.btn} ${styles.btnReject}`} onClick={handleReject}>
             {t('aiChat.fileWrite.reject')}

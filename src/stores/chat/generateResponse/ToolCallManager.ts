@@ -6,6 +6,7 @@
 
 import { chatEventBus, BasePayload } from '../eventBus/ChatEventBus';
 import { toolApprovalRegistry } from '../../../core/approval/ToolApprovalRegistry';
+import { TOOL_PERMISSIONS } from '../../../core/stream-schema-generated';
 
 export interface ToolCallState {
   id: string;
@@ -50,6 +51,13 @@ private init() {
 
   private handleIncomingToolCall(payload: any) {
     const { toolId, name, arguments: newArgs } = payload;
+
+    // ReadOnly 工具后端直接执行，不需要前端 ToolCallManager 跟踪和执行
+    const toolPerm = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
+    if (toolPerm === 'ReadOnly') {
+      return;
+    }
+
     let state = this.activeToolCalls.get(toolId);
 
     if (!state) {

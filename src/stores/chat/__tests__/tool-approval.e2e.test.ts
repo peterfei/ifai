@@ -226,4 +226,63 @@ describe('工具调用自动审批 E2E', () => {
     const pendingCount = statuses.filter((s: string) => s === 'pending').length;
     expect(pendingCount).toBe(0);
   });
+
+  it('E2E-3: TodoWrite (ReadOnly 工具) 创建时 status 应为 completed，不应出现审批卡片', async () => {
+    const eventBusModule = await import('../../../stores/chat/eventBus/ChatEventBus');
+    chatEventBus = eventBusModule.chatEventBus;
+
+    const storeModule = await import('../../../stores/useChatStore');
+    useChatStore = storeModule.useChatStore;
+
+    useChatStore.setState({
+      messages: [{
+        id: 'msg-assistant-3',
+        role: 'assistant',
+        content: '',
+        toolCalls: [],
+        timestamp: Date.now(),
+      }],
+      isLoading: false,
+    } as any);
+    (window as any).__chatStore = useChatStore;
+
+    const mapperModule = await import('../../../stores/chat/StoreMapper');
+    mapperModule.initStoreMapper();
+
+    chatEventBus.emit('chat:stream:start', {
+      correlationId: 'msg-assistant-3',
+      sessionId: 'test-session',
+    });
+
+    // 模拟 LLM 发出 2 个 TodoWrite tool_call（用户反馈的实际场景）
+    chatEventBus.emit('chat:tool:call', {
+      correlationId: 'msg-assistant-3',
+      sessionId: 'test-session',
+      toolId: 'todowrite_1',
+      name: 'TodoWrite',
+      arguments: '{"todos":[{"id":"1","content":"实现登录功能","status":"pending"}]}',
+    });
+    chatEventBus.emit('chat:tool:call', {
+      correlationId: 'msg-assistant-3',
+      sessionId: 'test-session',
+      toolId: 'todowrite_2',
+      name: 'TodoWrite',
+      arguments: '{"todos":[{"id":"2","content":"实现注册功能","status":"pending"}]}',
+    });
+
+    await new Promise(r => setTimeout(r, 50));
+
+    // === 关键断言 ===
+    const msg = useChatStore.getState().messages.find((m: any) => m.id === 'msg-assistant-3');
+    expect(msg.toolCalls.length).toBe(2);
+
+    const statuses = msg.toolCalls.map((tc: any) => tc.status);
+    console.log('[E2E-3] TodoWrite statuses:', statuses, 'names:', msg.toolCalls.map((tc: any) => tc.tool));
+
+    // TodoWrite 是 ReadOnly 工具，status 应直接为 completed（不是 pending）
+    // pendingCount 必须为 0，否则 MessageItem 会显示 "X 个操作待确认"
+    const pendingCount = msg.toolCalls.filter((tc: any) => tc.status === 'pending').length;
+    expect(pendingCount).toBe(0);
+    expect(statuses).toEqual(['completed', 'completed']);
+  });
 });
