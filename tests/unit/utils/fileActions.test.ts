@@ -4,7 +4,7 @@ const mockAssertCanOpenFileAsText = vi.fn();
 const mockGetFileName = vi.fn();
 const mockGetFileOpenErrorMessage = vi.fn();
 const mockNormalizePath = vi.fn();
-const mockReadFileContent = vi.fn();
+const mockReadFileWithEncoding = vi.fn();
 const mockDetectLanguageFromPath = vi.fn();
 const mockOpenFile = vi.fn();
 const mockAssignFileToPane = vi.fn();
@@ -17,7 +17,7 @@ vi.mock('../../../src/utils/fileSystem', () => ({
   getFileName: (...args: unknown[]) => mockGetFileName(...args),
   getFileOpenErrorMessage: (...args: unknown[]) => mockGetFileOpenErrorMessage(...args),
   normalizePath: (...args: unknown[]) => mockNormalizePath(...args),
-  readFileContent: (...args: unknown[]) => mockReadFileContent(...args),
+  readFileWithEncoding: (...args: unknown[]) => mockReadFileWithEncoding(...args),
 }));
 
 vi.mock('../../../src/utils/languageDetection', () => ({
@@ -54,7 +54,7 @@ describe('openFileFromPath', () => {
       path ? `localized-open-failed:${path.split('/').pop()}` : 'localized-open-file-failed'
     );
     mockAssertCanOpenFileAsText.mockResolvedValue(undefined);
-    mockReadFileContent.mockResolvedValue('fresh content');
+    mockReadFileWithEncoding.mockResolvedValue({ content: 'fresh content', encoding: 'UTF-8' });
     mockDetectLanguageFromPath.mockReturnValue('typescript');
     mockOpenFile.mockReturnValue('opened-file-id');
     mockFileStoreGetState.mockReturnValue({
@@ -82,6 +82,7 @@ describe('openFileFromPath', () => {
           path: '/workspace/app.ts',
           name: 'app.ts',
           content: 'dirty content',
+          encoding: 'UTF-8',
           isDirty: true,
           language: 'typescript',
         },
@@ -94,12 +95,13 @@ describe('openFileFromPath', () => {
 
     expect(result).toBe(true);
     expect(mockAssertCanOpenFileAsText).toHaveBeenCalledWith('/workspace/app.ts');
-    expect(mockReadFileContent).not.toHaveBeenCalled();
+    expect(mockReadFileWithEncoding).not.toHaveBeenCalled();
     expect(mockOpenFile).toHaveBeenCalledWith({
       id: 'existing-id',
       path: '/workspace/app.ts',
       name: 'app.ts',
       content: 'dirty content',
+      encoding: 'UTF-8',
       isDirty: true,
       language: 'typescript',
       initialLine: 17,
@@ -110,13 +112,13 @@ describe('openFileFromPath', () => {
 
   it('shows the centralized protection message when a file is blocked', async () => {
     const protectedError = new Error('blocked');
-    mockReadFileContent.mockRejectedValue(protectedError);
+    mockReadFileWithEncoding.mockRejectedValue(protectedError);
     mockGetFileOpenErrorMessage.mockReturnValue('localized-protected-open:image.png:media');
 
     const result = await openFileFromPath('/workspace/image.png');
 
     expect(result).toBe(false);
-    expect(mockReadFileContent).toHaveBeenCalledWith('/workspace/image.png');
+    expect(mockReadFileWithEncoding).toHaveBeenCalledWith('/workspace/image.png');
     expect(mockOpenFile).not.toHaveBeenCalled();
     expect(mockToastError).toHaveBeenCalledWith('localized-protected-open:image.png:media');
   });

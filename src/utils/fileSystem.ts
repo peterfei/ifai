@@ -1,4 +1,4 @@
-import { readDir, readTextFile, writeTextFile, rename, remove, open as openFsFile } from '@tauri-apps/plugin-fs';
+import { readDir, readTextFile, writeTextFile, readFile, writeFile, rename, remove, open as openFsFile } from '@tauri-apps/plugin-fs';
 import { open as openDialog, save } from '@tauri-apps/plugin-dialog';
 import { Command } from '@tauri-apps/plugin-shell';
 import { FileNode } from '../stores/types';
@@ -8,6 +8,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCachedDir, setCachedDir, invalidateCachePath } from './cache';
 import { perfMonitor } from './performanceMonitor';
 import i18n from '../i18n/config';
+import { normalizeEncoding, toTextDecoderEncoding } from './encoding';
+import jschardet from 'jschardet';
 
 /**
  * Normalize path separators for cross-platform compatibility.
@@ -357,17 +359,67 @@ const readDirectoryRecursively = async (path: string, name: string): Promise<Fil
     };
 };
 
-export const readFileContent = async (path: string): Promise<string> => {
+export interface FileReadResult {
+  content: string;
+  encoding: string;
+}
+
+/** TextDecoder 解码（Web API，无需 Node.js Buffer） */
+const decodeWithTextDecoder = (raw: Uint8Array, encoding: string): string => {
+  const decoderEncoding = toTextDecoderEncoding(encoding);
+  const decoder = new TextDecoder(decoderEncoding, { fatal: false });
+  return decoder.decode(raw);
+};
+
+/** 编码感知的文件读取：二进制 → 检测 → 解码 */
+const readFileWithEncodingRaw = async (path: string, encoding?: string): Promise<FileReadResult> => {
   const normalizedPath = normalizePath(path);
   await assertCanOpenFileAsText(normalizedPath);
-  const content = await readTextFile(normalizedPath);
-  console.log(`Read file ${normalizedPath}, content length: ${content.length}`);
+
+  // 1. 二进制读取
+  const raw = await readFile(normalizedPath);
+
+  // 2. 指定编码 → 用 TextDecoder 直接解码（绕过 jschardet 的 Uint8Array 兼容性问题）
+  if (encoding) {
+    return { content: decodeWithTextDecoder(raw, encoding), encoding };
+  }
+
+  // 3. UTF-8 快速路径（零 replacement character → 有效 UTF-8）
+  const utf8Content = decodeWithTextDecoder(raw, 'UTF-8');
+  if (!utf8Content.includes('\uFFFD')) {
+    return { content: utf8Content, encoding: 'UTF-8' };
+  }
+
+  // 4. jschardet 编码检测
+  // 🔥 jschardet v3.1.4 的 universaldetector.js 用 aBuf.slice(-1).split('') 操作输入，
+  //    Uint8Array 没有 .split() 方法 → 先转成 "binary string"（每个字符码 = 字节值 0-255）
+  const binaryStr = new TextDecoder('latin1').decode(raw);
+  const detected = jschardet.detect(binaryStr);
+  const detectedEncoding = normalizeEncoding(detected.encoding);
+  const content = decodeWithTextDecoder(raw, detectedEncoding);
+  return { content, encoding: detectedEncoding };
+};
+
+/** 文件读取（自动检测编码），返回内容字符串 */
+export const readFileContent = async (path: string): Promise<string> => {
+  const { content } = await readFileWithEncodingRaw(path);
   return content;
 };
 
-export const writeFileContent = async (path: string, content: string): Promise<void> => {
+/** 文件读取（自动检测编码），返回内容 + 编码 */
+export const readFileWithEncoding = async (path: string, encoding?: string): Promise<FileReadResult> => {
+  return readFileWithEncodingRaw(path, encoding);
+};
+
+/** 文件写入（UTF-8 / 指定编码） */
+export const writeFileContent = async (path: string, content: string, encoding?: string): Promise<void> => {
   const normalizedPath = normalizePath(path);
-  await writeTextFile(normalizedPath, content);
+  if (encoding && encoding !== 'UTF-8') {
+    const bytes = new TextEncoder().encode(content);
+    await writeFile(normalizedPath, bytes);
+  } else {
+    await writeTextFile(normalizedPath, content);
+  }
 };
 
 export const saveFileAs = async (content: string): Promise<string | null> => {

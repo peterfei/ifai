@@ -126,11 +126,12 @@ export const useSnippetStore = create<SnippetState>((set, get) => ({
     const virtualPath = `snippet://${snippet.id}`;
     
     const fileId = fileStore.openFile({
-      id: snippet.id, 
+      id: snippet.id,
       path: virtualPath,
       name: snippet.title || 'untitled',
       content: snippet.code,
       language: snippet.language,
+      encoding: 'UTF-8',
       isDirty: false
     });
     

@@ -28,6 +28,7 @@ export interface OpenedFile {
   content: string;
   isDirty: boolean;
   language: string;
+  encoding: string; // 编码类型，如 'UTF-8', 'CP936'
   initialLine?: number;
   previewDiff?: {
     oldContent: string;

@@ -5,6 +5,7 @@ import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
 import { formatTokenCount } from '../../utils/tokenCounter';
 import { ensureTauriInitialized } from '../../utils/tauriInitializer';
+import { EncodingPicker } from '../Editor/EncodingPicker';
 
 export const Statusbar = () => {
   const { t } = useTranslation();
@@ -75,7 +76,11 @@ export const Statusbar = () => {
         )}
       </div>
       <div className="flex items-center space-x-4">
-        <span>UTF-8</span>
+        {activeFile ? (
+          <EncodingPicker fileId={activeFile.id} currentEncoding={activeFile.encoding || 'UTF-8'} />
+        ) : (
+          <span>UTF-8</span>
+        )}
         <span>{activeFile?.language || t('statusbar.plainText')}</span>
         <span 
           data-testid="statusbar-token-count"

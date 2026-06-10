@@ -5,6 +5,7 @@ import {
   getFileOpenErrorMessage,
   normalizePath,
   readFileContent,
+  readFileWithEncoding,
 } from './fileSystem';
 import { useFileStore } from '../stores/fileStore';
 import { useLayoutStore } from '../stores/layoutStore';
@@ -23,15 +24,16 @@ export const openFileFromPath = async (path: string, options: OpenFileFromPathOp
       const normalizedPath = normalizePath(path);
       const { openFile, openedFiles } = useFileStore.getState();
       const existingFile = openedFiles.find(file => file.path === normalizedPath);
-      const content = existingFile?.isDirty
-        ? (await assertCanOpenFileAsText(normalizedPath), existingFile.content)
-        : await readFileContent(normalizedPath);
+      const { content, encoding } = existingFile?.isDirty
+        ? (await assertCanOpenFileAsText(normalizedPath), { content: existingFile.content, encoding: existingFile.encoding })
+        : await readFileWithEncoding(normalizedPath);
 
       const openedFileId = openFile({
         id: existingFile?.id || options.id || uuidv4(),
         path: normalizedPath,
         name: options.name || getFileName(normalizedPath) || 'Untitled',
         content,
+        encoding,
         isDirty: existingFile?.isDirty ?? false,
         language: options.language || existingFile?.language || detectLanguageFromPath(normalizedPath),
         initialLine: options.initialLine ?? 1

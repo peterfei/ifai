@@ -4,7 +4,7 @@ import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { FilePlus, FolderOpen, MessageSquare } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { openDirectory, readFileContent } from '../../utils/fileSystem';
+import { openDirectory, readFileContent, readFileWithEncoding } from '../../utils/fileSystem';
 import { open } from '@tauri-apps/plugin-dialog';
 import ifaiLogo from '../../../imgs/ifai.png';
 
@@ -22,6 +22,7 @@ export const WelcomeScreen: React.FC = () => {
             content: '',
             isDirty: true,
             language: 'plaintext',
+            encoding: 'UTF-8',
         });
         if (activePaneId) {
             assignFileToPane(activePaneId, newFileId);
@@ -34,13 +35,14 @@ export const WelcomeScreen: React.FC = () => {
                 multiple: false,
             });
             if (selected && typeof selected === 'string') {
-                const content = await readFileContent(selected);
+                const { content, encoding } = await readFileWithEncoding(selected);
                 const newFileId = uuidv4();
                 openFile({
                     id: newFileId,
                     path: selected,
                     name: selected.split('/').pop() || 'Untitled',
-                    content: content,
+                    content,
+                    encoding,
                     isDirty: false,
                     language: 'plaintext', // Simplification, ideally detect language
                 });

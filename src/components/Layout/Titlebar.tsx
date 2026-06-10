@@ -104,6 +104,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
       content: '',
       isDirty: true,
       language: 'plaintext',
+      encoding: 'UTF-8',
     });
   };
 
@@ -181,6 +182,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
             content: activeFile.content,
             isDirty: false,
             language: getLanguageFromPath(newPath),
+            encoding: 'UTF-8',
           });
           setFileDirty(activeFile.id, false);
           toast.success(t('common.fileSaved'));

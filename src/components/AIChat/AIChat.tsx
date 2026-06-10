@@ -10,7 +10,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useThreadStore } from '../../stores/threadStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
-import { readFileContent } from '../../utils/fileSystem';
+import { readFileContent, readFileWithEncoding } from '../../utils/fileSystem';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 import ToolService from '../../services/toolService';
@@ -1634,12 +1634,13 @@ ${error}
 
   const handleOpenFile = useCallback(async (path: string) => {
     try {
-        const content = await readFileContent(path);
+        const { content, encoding } = await readFileWithEncoding(path);
         openFile({
             id: uuidv4(),
             path,
             name: path.split('/').pop() || 'file',
             content,
+            encoding,
             isDirty: false,
             language: 'plaintext'
         });
@@ -2264,7 +2265,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
    */
   const handleGoToError = useCallback(async (error: ParsedError) => {
     try {
-      const content = await readFileContent(error.file);
+      const { content, encoding } = await readFileWithEncoding(error.file);
       const fileName = error.file.split('/').pop() || error.file;
 
       openFile({
@@ -2272,6 +2273,7 @@ ${t('aiChat.errorFix.fixAndModify')}`;
         path: error.file,
         name: fileName,
         content,
+        encoding,
         isDirty: false,
         language: error.language.toLowerCase(),
         initialLine: error.line

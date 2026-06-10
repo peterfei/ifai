@@ -856,6 +856,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                                             content: newContent,
                                                             isDirty: false,
                                                             language: detectLanguage(filePath),
+                                                            encoding: 'UTF-8',
                                                             previewDiff: {
                                                                 oldContent: oldContent || '',
                                                                 newContent: newContent,
