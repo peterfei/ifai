@@ -872,7 +872,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         if (TOOL_RENDER_BLACKLIST.has(tc.tool)) return null;
         if (seg.isBatchAnchor) return ToolBatchApproval;
         const name = tc.tool || tc.function?.name || '';
-        if (toolApprovalRegistry.isStreamExtractTool(name) && tc.isPartial) return StreamingCodeCard;
+        if (toolApprovalRegistry.isStreamExtractTool(name)) return StreamingCodeCard;
         return ToolApproval;
     }, []);
 
@@ -885,27 +885,19 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     }, [processScanResult]);
     // 使用统一的 MarkdownRenderer（带语法高亮和代码折叠）
     // 🔥 FIX: 始终使用 TypewriterText 包裹，避免 isStreaming 闪烁时组件卸载/重新挂载导致文本重复
-    const renderContentPart = useCallback((part: ContentPart, index: number, isStreaming: boolean) => {
+    const renderContentPart = useCallback((part: ContentPart, index: number) => {
         if (part.type === 'text' && part.text) {
             // Process scan result i18n before rendering
             const processedText = processScanResult(part.text);
             return (
-                <TypewriterText
+                <MarkdownRenderer
                     key={index}
                     content={processedText}
-                    isStreaming={isStreaming}
-                >
-                    {(text) => (
-                        <MarkdownRenderer
-                            content={text}
-                            isStreaming={isStreaming}
-                            maxLinesBeforeCollapse={50}
-                            isExpanded={expandedBlocksRef.current.has(index)}
-                            onToggleExpand={() => toggleBlock(index)}
-                            index={index}
-                        />
-                    )}
-                </TypewriterText>
+                    maxLinesBeforeCollapse={50}
+                    isExpanded={expandedBlocksRef.current.has(index)}
+                    onToggleExpand={() => toggleBlock(index)}
+                    index={index}
+                />
             );
         } else if (part.type === 'image_url' && part.image_url?.url) {
             return (
@@ -1100,7 +1092,32 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             console.warn('[MessageItem] Text part has non-string content:', textContent);
                                             return null;
                                         }
-                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, index === lastTextPartIdx ? effectivelyStreaming : false);
+
+                                        const isLastTextPart = index === lastTextPartIdx;
+                                        const processedText = processScanResult(String(part.text || ''));
+
+                                        // TypewriterText 仅对最后一段文本生效
+                                        if (isLastTextPart) {
+                                            return (
+                                                <TypewriterText
+                                                    key={index}
+                                                    content={processedText}
+                                                    isStreaming={effectivelyStreaming}
+                                                >
+                                                    {(text) => (
+                                                        <MarkdownRenderer
+                                                            content={text}
+                                                            isStreaming={effectivelyStreaming}
+                                                            maxLinesBeforeCollapse={50}
+                                                            isExpanded={expandedBlocksRef.current.has(index)}
+                                                            onToggleExpand={() => toggleBlock(index)}
+                                                            index={index}
+                                                        />
+                                                    )}
+                                                </TypewriterText>
+                                            );
+                                        }
+                                        return renderContentPart({ ...part, text: String(part.text || '') }, index);
                                     }
 
                                     // 🔥 FIX: 确保 image_url 对象有效
@@ -1111,7 +1128,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
                                     }
 
-                                    return renderContentPart(part, index, index === lastTextPartIdx ? effectivelyStreaming : false);
+                                    return renderContentPart(part, index);
                                 })}
                             </div>
                             );
@@ -1161,7 +1178,33 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'pre-tool';
                                         const stableKey = segment.order ?? segment.timestamp ?? index;
-                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, index === lastTextSegIdx ? effectivelyStreaming : false);
+                                        const isLastTextSeg = index === lastTextSegIdx;
+                                        const processedContent = processScanResult(content);
+
+                                        // TypewriterText 仅对最后一段文本生效（非末段直显，消除 N-1 个打字机 hook 开销）
+                                        let renderedContent: React.ReactNode;
+                                        if (isLastTextSeg) {
+                                            renderedContent = (
+                                                <TypewriterText
+                                                    key={stableKey}
+                                                    content={processedContent}
+                                                    isStreaming={effectivelyStreaming}
+                                                >
+                                                    {(text) => (
+                                                        <MarkdownRenderer
+                                                            content={text}
+                                                            isStreaming={effectivelyStreaming}
+                                                            maxLinesBeforeCollapse={50}
+                                                            isExpanded={expandedBlocksRef.current.has(stableKey)}
+                                                            onToggleExpand={() => toggleBlock(stableKey)}
+                                                            index={stableKey}
+                                                        />
+                                                    )}
+                                                </TypewriterText>
+                                            );
+                                        } else {
+                                            renderedContent = renderContentPart({ type: 'text', text: content }, stableKey);
+                                        }
 
                                         return (
                                             <div
@@ -1335,7 +1378,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     });
                                 })()}
                                 {/* 放置总结文字 */}
-                                {!effectivelyStreaming && contentWithoutThinking && renderContentPart({ type: 'text', text: contentWithoutThinking }, 0, false)}
+                                {!effectivelyStreaming && contentWithoutThinking && renderContentPart({ type: 'text', text: contentWithoutThinking }, 0)}
                             </div>
                         )}
 

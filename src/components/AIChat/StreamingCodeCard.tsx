@@ -9,7 +9,6 @@ import styles from './StreamingCodeCard.module.css';
 
 const STREAM_RENDER_CONFIG = {
   MAX_RENDER_LINES: 50,
-  MAX_CHAR_LIMIT: 500000,
   PATH_ABBREVIATE_THRESHOLD: 40,
   RAF_THROTTLE_MS: 16,
 } as const;
@@ -236,18 +235,12 @@ const SingleMode: React.FC<{
     };
   }, [file.arguments, file.toolName]);
 
-  // 性能保护
+  // 性能保护：截断显示行数，由模型输出大小自然决定内容长度
   const { renderedCode, truncatedCount } = useMemo(() => {
     if (!displayContent) return { renderedCode: '', truncatedCount: 0 };
-    if (displayContent.length > STREAM_RENDER_CONFIG.MAX_CHAR_LIMIT) {
-      return {
-        renderedCode: t('aiChat.fileWrite.generating'),
-        truncatedCount: 0,
-      };
-    }
     const { lines, truncated } = truncateLines(displayContent, STREAM_RENDER_CONFIG.MAX_RENDER_LINES);
     return { renderedCode: highlightCode(lines), truncatedCount: truncated };
-  }, [displayContent, t]);
+  }, [displayContent]);
 
   const handleApprove = useCallback(() => {
     onAction?.('approve', { toolId: file.id });
@@ -291,9 +284,8 @@ const SingleMode: React.FC<{
       <div className={styles.statusBar}>
         <div className={styles.statusText}>
           <span
-            className={`${styles.statusDot} ${
-              state === 'streaming' ? styles.streaming : state === 'ready' ? styles.ready : styles.waiting
-            }`}
+            className={`${styles.statusDot} ${state === 'streaming' ? styles.streaming : state === 'ready' ? styles.ready : styles.waiting
+              }`}
           />
           {state === 'streaming' && (
             <span>{t('aiChat.fileWrite.streaming', { count: displayContent.length })}</span>
@@ -305,9 +297,8 @@ const SingleMode: React.FC<{
         </div>
       </div>
 
-      {/* 审批按钮 — 仅在 isPartial=true（等待审批）时显示 */}
-      {/* isComplete 仅在 JSON 解析成功时为 true，但 truncated stream 也应允许审批 */}
-      {file.isPartial && (extract.isComplete || extract.content) && (
+      {/* 审批按钮 — 仅在 isPartial=true 且 JSON 完全解析后显示，流式进行中不可见 */}
+      {file.isPartial && extract.isComplete && (
         <div className={styles.approvalBar}>
           <button className={`${styles.btn} ${styles.btnReject}`} onClick={handleReject}>
             {t('aiChat.fileWrite.reject')}
