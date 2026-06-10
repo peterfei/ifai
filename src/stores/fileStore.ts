@@ -6,7 +6,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { debounce } from 'lodash-es';
 import { FileNode, OpenedFile, GitStatus, WorkspaceRoot } from './types';
-import { detectProtectedEditorFileCategory, readFileContent, readDirectory } from '../utils/fileSystem';
+import { detectProtectedEditorFileCategory, readFileContent, readDirectory, readFileWithEncoding } from '../utils/fileSystem';
 import { useProjectConfigStore } from './projectConfigStore';
 
 interface FileState {
@@ -55,6 +55,7 @@ interface FileState {
   setGitStatuses: (statuses: Map<string, GitStatus>) => void;
   fetchGitStatuses: () => Promise<void>;
   reloadFileContent: (id: string) => Promise<void>;
+  changeFileEncoding: (id: string, encoding: string) => Promise<void>;
   refreshFileTree: () => Promise<void>;
   refreshFileTreeDebounced: () => void;
   refreshFileTreePreserveExpanded: (expandedNodes: Set<string>) => Promise<Set<string>>;
@@ -789,16 +790,34 @@ export const useFileStore = create<FileState>()(
         const file = get().openedFiles.find(f => f.id === id);
         if (file && file.path && !file.isDirty) {
             try {
-                const content = await readFileContent(file.path);
+                const { content, encoding } = await readFileWithEncoding(file.path);
                 set((state) => ({
-                    openedFiles: state.openedFiles.map(f => 
-                        f.id === id ? { ...f, content, isDirty: false } : f
+                    openedFiles: state.openedFiles.map(f =>
+                        f.id === id ? { ...f, content, encoding, isDirty: false } : f
                     ),
                 }));
             } catch (e) {
                 console.error(`Failed to reload file ${file.path}:`, e);
             }
         }
+      },
+
+      changeFileEncoding: async (id: string, encoding: string) => {
+        const file = get().openedFiles.find(f => f.id === id);
+        if (!file) {
+            console.warn(`[FileStore] changeFileEncoding: file ${id} not found`);
+            return;
+        }
+        if (!file.path) {
+            console.warn(`[FileStore] changeFileEncoding: file ${id} has no path`);
+            return;
+        }
+        const { content } = await readFileWithEncoding(file.path, encoding);
+        set((state) => ({
+            openedFiles: state.openedFiles.map(f =>
+                f.id === id ? { ...f, content, encoding, isDirty: false } : f
+            ),
+        }));
       },
 
       refreshFileTree: async () => {

@@ -43,11 +43,13 @@ import { agentWorkspaceAdapter } from './adapters/agentWorkspaceAdapter';
 import { toolCallAdapter } from './adapters/toolCallAdapter';
 import { interactionAdapter } from './adapters/interactionAdapter';
 import { approvalAdapter } from './adapters/approvalAdapter';
+import { streamingFileWriteAdapter } from './adapters/streamingFileWriteAdapter';
 
 MessageAdapterRegistry.register('cardType-passthrough', cardTypePassthroughAdapter);
 MessageAdapterRegistry.register('agent-workspace', agentWorkspaceAdapter);
 MessageAdapterRegistry.register('explore', exploreAdapter);
 MessageAdapterRegistry.register('approval', approvalAdapter);
+MessageAdapterRegistry.register('streaming-file-write', streamingFileWriteAdapter);
 MessageAdapterRegistry.register('tool-call', toolCallAdapter);
 MessageAdapterRegistry.register('interaction', interactionAdapter);
 

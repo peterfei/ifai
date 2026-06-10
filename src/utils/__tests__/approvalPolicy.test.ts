@@ -98,7 +98,7 @@ describe('approvalPolicy', () => {
       settings: {},
       editorMode: 'standard',
       isSessionTrusted: false,
-      toolName: 'read_file',
+      toolName: 'write_file',  // 🔥 FIX: 使用 write_file 避免 requiresApproval:false fallback 干扰规则链测试
       // 🔥 FIX: 移除 isSandbox 字段（ApprovalContext 没有）
       // isSandbox: true,
       userMessageHasAutoApprove: false,

@@ -2266,6 +2266,20 @@
       "empty": "空",
       "generatingArgs": "正在生成参数..."
     },
+    "fileWrite": {
+      "streaming": "流式接收中... {{count}} 字符",
+      "previewDone": "预览完成 · {{lines}} 行",
+      "waiting": "等待内容...",
+      "generating": "内容生成中...",
+      "truncated": "... 省略 {{count}} 行",
+      "approve": "批准",
+      "reject": "拒绝",
+      "approveAll": "全部批准",
+      "done": "已完成",
+      "streamingStatus": "接收中",
+      "waitingStatus": "等待中",
+      "batchProgress": "批量编辑 ({{done}}/{{total}})"
+    },
     "exploreFindings": {
       "completed": "探索完成",
       "directories": "{{count}} 目录",

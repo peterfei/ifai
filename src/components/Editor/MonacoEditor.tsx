@@ -475,6 +475,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
             content: content,
             isDirty: false,
             language: language,
+            encoding: 'UTF-8',
             initialLine: definition.line, // 设置初始行号
           });
 

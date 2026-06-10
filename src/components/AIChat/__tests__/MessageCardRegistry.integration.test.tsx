@@ -94,7 +94,17 @@ describe('MessageCardRegistry - AIChat Integration', () => {
     });
 
     it('toolCalls 优先级应该高于默认推断', () => {
-      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'write_file' }] };
+      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'bash' }] };
+      expect(resolveCardType(message)).toBe('tool-call');
+    });
+
+    it('文件写入工具（isPartial=true）应该推断为 streaming-file-write', () => {
+      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'write_file', isPartial: true }] };
+      expect(resolveCardType(message)).toBe('streaming-file-write');
+    });
+
+    it('文件写入工具（isPartial=false）应该推断为 tool-call', () => {
+      const message = { content: 'Some text', toolCalls: [{ id: '1', name: 'write_file', isPartial: false }] };
       expect(resolveCardType(message)).toBe('tool-call');
     });
   });
@@ -169,8 +179,8 @@ describe('MessageCardRegistry - AIChat Integration', () => {
 
       expect(screen.getByTestId('text-card')).toBeInTheDocument();
 
-      // 更新为工具调用
-      const updatedMessage = { toolCalls: [{ id: '1', name: 'write_file' }] };
+      // 更新为工具调用（非文件写入类 → tool-call）
+      const updatedMessage = { toolCalls: [{ id: '1', name: 'bash' }] };
       Component = renderMessageCard(updatedMessage);
       rerender(<Component message={updatedMessage} />);
 

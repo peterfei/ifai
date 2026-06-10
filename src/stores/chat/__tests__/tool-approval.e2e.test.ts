@@ -123,10 +123,11 @@ describe('工具调用自动审批 E2E', () => {
     // 3. 等一帧让 store 更新
     await new Promise(r => setTimeout(r, 50));
 
-    // 验证：4 个工具都创建了，状态 pending
+    // 验证：4 个工具都创建了，ReadOnly 工具直接 completed，非 ReadOnly 才 pending
     let msg = useChatStore.getState().messages.find((m: any) => m.id === 'msg-assistant-1');
     expect(msg.toolCalls.length).toBe(4);
-    expect(msg.toolCalls.every((tc: any) => tc.status === 'pending')).toBe(true);
+    // 所有 4 个都是 ReadOnly 工具（scan_project, list_dir, read_file, search），初始状态已是 completed
+    expect(msg.toolCalls.every((tc: any) => tc.status === 'completed')).toBe(true);
 
     // 4. 模拟 chat:stream:finished（StreamingResponseController 的 emitFinished 触发）
     chatEventBus.emit('chat:stream:finished', {
@@ -224,5 +225,64 @@ describe('工具调用自动审批 E2E', () => {
 
     const pendingCount = statuses.filter((s: string) => s === 'pending').length;
     expect(pendingCount).toBe(0);
+  });
+
+  it('E2E-3: TodoWrite (ReadOnly 工具) 创建时 status 应为 completed，不应出现审批卡片', async () => {
+    const eventBusModule = await import('../../../stores/chat/eventBus/ChatEventBus');
+    chatEventBus = eventBusModule.chatEventBus;
+
+    const storeModule = await import('../../../stores/useChatStore');
+    useChatStore = storeModule.useChatStore;
+
+    useChatStore.setState({
+      messages: [{
+        id: 'msg-assistant-3',
+        role: 'assistant',
+        content: '',
+        toolCalls: [],
+        timestamp: Date.now(),
+      }],
+      isLoading: false,
+    } as any);
+    (window as any).__chatStore = useChatStore;
+
+    const mapperModule = await import('../../../stores/chat/StoreMapper');
+    mapperModule.initStoreMapper();
+
+    chatEventBus.emit('chat:stream:start', {
+      correlationId: 'msg-assistant-3',
+      sessionId: 'test-session',
+    });
+
+    // 模拟 LLM 发出 2 个 TodoWrite tool_call（用户反馈的实际场景）
+    chatEventBus.emit('chat:tool:call', {
+      correlationId: 'msg-assistant-3',
+      sessionId: 'test-session',
+      toolId: 'todowrite_1',
+      name: 'TodoWrite',
+      arguments: '{"todos":[{"id":"1","content":"实现登录功能","status":"pending"}]}',
+    });
+    chatEventBus.emit('chat:tool:call', {
+      correlationId: 'msg-assistant-3',
+      sessionId: 'test-session',
+      toolId: 'todowrite_2',
+      name: 'TodoWrite',
+      arguments: '{"todos":[{"id":"2","content":"实现注册功能","status":"pending"}]}',
+    });
+
+    await new Promise(r => setTimeout(r, 50));
+
+    // === 关键断言 ===
+    const msg = useChatStore.getState().messages.find((m: any) => m.id === 'msg-assistant-3');
+    expect(msg.toolCalls.length).toBe(2);
+
+    const statuses = msg.toolCalls.map((tc: any) => tc.status);
+    console.log('[E2E-3] TodoWrite statuses:', statuses, 'names:', msg.toolCalls.map((tc: any) => tc.tool));
+
+    // TodoWrite 是 ReadOnly 工具，status 应直接为 completed（不是 pending）
+    // pendingCount 必须为 0，否则 MessageItem 会显示 "X 个操作待确认"
+    const pendingCount = msg.toolCalls.filter((tc: any) => tc.status === 'pending').length;
+    expect(pendingCount).toBe(0);
+    expect(statuses).toEqual(['completed', 'completed']);
   });
 });

@@ -820,6 +820,32 @@ impl AIService for HarnessAIService {
                                     });
                                     callback(tool_event.to_string());
                                 }
+                                crate::harness::api::StreamEvent::ToolCallDelta {
+                                    tool_id,
+                                    name,
+                                    arguments_delta,
+                                } => {
+                                    // 保存工具名映射（与 ToolStart 一致）
+                                    if let Some(n) = &name {
+                                        tool_name_map.insert(tool_id.clone(), n.clone());
+                                    }
+                                    // 🔥 FIX: 当 name 缺失时从 tool_name_map 回填
+                                    // （OpenAI 格式首个 chunk 有 name 但 args 为空，被跳过；
+                                    //   后续 chunk 有 args 但无 name）
+                                    let resolved_name = name.clone().or_else(|| {
+                                        tool_name_map.get(&tool_id).cloned()
+                                    });
+                                    // 直接发送增量事件，不放入 batch_buffer
+                                    let delta_event = json!({
+                                        "type": "tool_call_delta",
+                                        "tool_call_delta": {
+                                            "id": tool_id,
+                                            "name": resolved_name,
+                                            "arguments_delta": arguments_delta
+                                        }
+                                    });
+                                    callback(delta_event.to_string());
+                                }
                                 crate::harness::api::StreamEvent::ToolDone { tool_id, result } => {
                                     if !batch_buffer.is_empty() {
                                         for batched_chunk in batch_buffer.drain(..) {

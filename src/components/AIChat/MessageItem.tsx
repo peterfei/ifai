@@ -2,6 +2,8 @@ import React, { useState, useCallback, useRef } from 'react';
 import { User, FileCode, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot, CheckCircle, X } from 'lucide-react';
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
+import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { useTypewriter } from '../../hooks/useTypewriter';
 
 /**
@@ -31,6 +33,7 @@ import { toast } from 'sonner';
 import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
 import { ToolApproval } from './ToolApproval';
 import { ToolBatchApproval } from './ToolBatchApproval';
+import { StreamingCodeCard } from './StreamingCodeCard';
 import { ExploreProgress } from './ExploreProgress';
 import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { PivoProjectTree } from './PivoProjectTree';
@@ -58,7 +61,12 @@ import { getAgent } from '../../gui/conversation/AGENT_DSL';
  * 这些工具的 ToolApproval 不在消息流中渲染，由专用卡片接管展示。
  * 新增黑名单工具只需加一行，三处过滤自动生效。
  */
-const TOOL_RENDER_BLACKLIST = new Set(['TodoWrite']);
+/** 构建工具渲染黑名单：TodoWrite（ReadOnly，后端直接执行）
+ *  注意：streamExtract 工具（write_file 等）已从此黑名单移除，
+ *  改由 ToolApproval 在 segments 循环中按 order 正确位置渲染。 */
+const TOOL_RENDER_BLACKLIST: Set<string> = new Set([
+  'TodoWrite',
+]);
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构
  * @param files 文件路径数组
@@ -171,7 +179,10 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
                 prevTC.isPartial !== nextTC.isPartial ||
                 // ⚡️ PERFORMANCE FIX: 使用引用比较代替 JSON.stringify
                 // 在 useChatStore 中，我们确保了 args 每次更新都是一个新对象
-                prevTC.args !== nextTC.args) {
+                prevTC.args !== nextTC.args ||
+                // 🔥 FIX: StreamingCodeCard 读取 function.arguments 做流式预览
+                // rAF flush 更新 function.arguments 但不更新 args，需要额外比较
+                (prevTC as any).function?.arguments !== (nextTC as any).function?.arguments) {
                 return false;
             }
         }
@@ -196,22 +207,6 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     }
     // Otherwise skip re-render
     return true;
-};
-// 🔥 FIX: 添加自定义比较函数，确保 toolCalls 变化时触发重新渲染
-// 🔥 PERFORMANCE FIX: 添加 MessageItem 比较函数，防止无关消息重新渲染
-const areMessageItemPropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps) => {
-    // 如果 message 引用相同，跳过渲染
-    if (prevProps.message === nextProps.message) {
-        return true;
-    }
-    // 检查关键字段
-    return (
-        prevProps.message.id === nextProps.message.id &&
-        prevProps.message.role === nextProps.message.role &&
-        prevProps.message.content === nextProps.message.content &&
-        prevProps.message.toolCalls === nextProps.message.toolCalls &&
-        prevProps.isStreaming === nextProps.isStreaming
-    );
 };
 
 export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming, compact }: MessageItemProps) => {
@@ -431,7 +426,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Count pending tool calls for batch actions
     const pendingCount = React.useMemo(() => {
         if (!message.toolCalls) return 0;
-        return message.toolCalls.filter(tc => tc.status === 'pending' && !tc.isPartial).length;
+        return message.toolCalls.filter(tc => {
+            if (tc.status !== 'pending' || tc.isPartial) return false;
+            // 🔥 防御性修复：ReadOnly 工具后端直接执行，不计入待确认数
+            const toolName = tc.tool || tc.function?.name || '';
+            const toolPerm = TOOL_PERMISSIONS[toolName] || TOOL_PERMISSIONS[toolName.toLowerCase()];
+            if (toolPerm === 'ReadOnly') return false;
+            return true;
+        }).length;
     }, [message.toolCalls]);
     const handleApproveAll = () => {
         const store = useChatStore.getState() as any;
@@ -637,9 +639,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // ⚡️ FIX: 全局排序渲染中枢 - 确保文字与工具调用严格按接收顺序排列
     // 🏆 更新：优先使用 segmentsFromStore，保留 fallback 逻辑
     const mergedSegments = React.useMemo(() => {
-        // A. 🏆 新增：优先使用 segmentsFromStore (新逻辑)
+        // A. 🏆 优先使用 segmentsFromStore (新逻辑) + 投影缺失的 streamExtract 段
         if (segmentsFromStore && segmentsFromStore.length > 0) {
-            return segmentsFromStore.filter(seg => {
+            const filtered = segmentsFromStore.filter(seg => {
                 // 基础验证
                 if (!seg || typeof seg !== 'object' || !seg.type) {
                     console.warn('[MessageItem] Filtering out invalid segment:', seg);
@@ -672,6 +674,25 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                 return true;
             });
+
+            // 投影：为 delta 先行阶段的 streamExtract 工具合成虚拟段
+            const renderedToolIds = new Set(
+                filtered.filter((s: any) => s.type === 'tool' && s.toolCallId).map((s: any) => s.toolCallId)
+            );
+            const projectedSegments: ContentSegment[] = [];
+            for (const tc of (message.toolCalls || [])) {
+                if (renderedToolIds.has(tc.id)) continue;
+                const name = tc.tool || (tc as any).function?.name || '';
+                if (!toolApprovalRegistry.isStreamExtractTool(name)) continue;
+                if (!tc.isPartial) continue;
+                projectedSegments.push({
+                    type: 'tool' as const,
+                    order: 999,
+                    timestamp: Date.now(),
+                    toolCallId: tc.id,
+                });
+            }
+            return [...filtered, ...projectedSegments];
         }
 
         // B. Fallback: 使用旧的逻辑（向后兼容）
@@ -720,6 +741,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
             if (isExploreMessage && seg.type === 'tool') {
                 return false;
+            }
+
+            // 黑名单工具（TodoWrite、streamExtract 工具）不渲染空 segment 占位
+            if (seg.type === 'tool' && seg.toolCallId) {
+                const tc = message.toolCalls?.find((t: any) => t.id === seg.toolCallId);
+                const tcName = tc?.tool || tc?.function?.name || '';
+                if (TOOL_RENDER_BLACKLIST.has(tcName)) return false;
             }
             return true;
         });
@@ -838,6 +866,16 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     }, [segmentsFromStore, message.contentSegments, contentWithoutThinking, message.toolCalls, effectivelyStreaming, thinkingText]);
 
     let toolCallIndex = 0;
+
+    // 🔥 resolveToolRenderer：声明式工具渲染决策（替代 if/else 链 + TOOL_RENDER_BLACKLIST 3 处检查）
+    const resolveToolRenderer = React.useCallback((tc: any, seg: any): React.ComponentType<any> | null => {
+        if (TOOL_RENDER_BLACKLIST.has(tc.tool)) return null;
+        if (seg.isBatchAnchor) return ToolBatchApproval;
+        const name = tc.tool || tc.function?.name || '';
+        if (toolApprovalRegistry.isStreamExtractTool(name)) return StreamingCodeCard;
+        return ToolApproval;
+    }, []);
+
     // Helper to render Markdown WITHOUT syntax highlighting (for streaming mode)
     // 使用统一的 SimpleMarkdownRenderer（无语法高亮，性能优化）
     const renderMarkdownWithoutHighlight = useCallback((text: string, key: any) => {
@@ -847,27 +885,19 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     }, [processScanResult]);
     // 使用统一的 MarkdownRenderer（带语法高亮和代码折叠）
     // 🔥 FIX: 始终使用 TypewriterText 包裹，避免 isStreaming 闪烁时组件卸载/重新挂载导致文本重复
-    const renderContentPart = useCallback((part: ContentPart, index: number, isStreaming: boolean) => {
+    const renderContentPart = useCallback((part: ContentPart, index: number) => {
         if (part.type === 'text' && part.text) {
             // Process scan result i18n before rendering
             const processedText = processScanResult(part.text);
             return (
-                <TypewriterText
+                <MarkdownRenderer
                     key={index}
                     content={processedText}
-                    isStreaming={isStreaming}
-                >
-                    {(text) => (
-                        <MarkdownRenderer
-                            content={text}
-                            isStreaming={isStreaming}
-                            maxLinesBeforeCollapse={50}
-                            isExpanded={expandedBlocksRef.current.has(index)}
-                            onToggleExpand={() => toggleBlock(index)}
-                            index={index}
-                        />
-                    )}
-                </TypewriterText>
+                    maxLinesBeforeCollapse={50}
+                    isExpanded={expandedBlocksRef.current.has(index)}
+                    onToggleExpand={() => toggleBlock(index)}
+                    index={index}
+                />
             );
         } else if (part.type === 'image_url' && part.image_url?.url) {
             return (
@@ -960,8 +990,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         </div>
                     )}
 
-                    {/* Phase D: MessageCard — ApprovalCard 仅作信息面板（按钮在 ToolApproval 内联） */}
-                    {ResolvedCard && (
+                    {/* Phase D: MessageCard — streaming-file-write 降级到 segments 循环中渲染（修复排序） */}
+                    {ResolvedCard && resolvedCardType !== 'streaming-file-write' && (
                         <ResolvedCard
                             message={cardMessage}
                             onAction={(action, data) => {
@@ -1062,7 +1092,32 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             console.warn('[MessageItem] Text part has non-string content:', textContent);
                                             return null;
                                         }
-                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, index === lastTextPartIdx ? effectivelyStreaming : false);
+
+                                        const isLastTextPart = index === lastTextPartIdx;
+                                        const processedText = processScanResult(String(part.text || ''));
+
+                                        // TypewriterText 仅对最后一段文本生效
+                                        if (isLastTextPart) {
+                                            return (
+                                                <TypewriterText
+                                                    key={index}
+                                                    content={processedText}
+                                                    isStreaming={effectivelyStreaming}
+                                                >
+                                                    {(text) => (
+                                                        <MarkdownRenderer
+                                                            content={text}
+                                                            isStreaming={effectivelyStreaming}
+                                                            maxLinesBeforeCollapse={50}
+                                                            isExpanded={expandedBlocksRef.current.has(index)}
+                                                            onToggleExpand={() => toggleBlock(index)}
+                                                            index={index}
+                                                        />
+                                                    )}
+                                                </TypewriterText>
+                                            );
+                                        }
+                                        return renderContentPart({ ...part, text: String(part.text || '') }, index);
                                     }
 
                                     // 🔥 FIX: 确保 image_url 对象有效
@@ -1073,7 +1128,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
                                     }
 
-                                    return renderContentPart(part, index, index === lastTextPartIdx ? effectivelyStreaming : false);
+                                    return renderContentPart(part, index);
                                 })}
                             </div>
                             );
@@ -1123,7 +1178,33 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'pre-tool';
                                         const stableKey = segment.order ?? segment.timestamp ?? index;
-                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, index === lastTextSegIdx ? effectivelyStreaming : false);
+                                        const isLastTextSeg = index === lastTextSegIdx;
+                                        const processedContent = processScanResult(content);
+
+                                        // TypewriterText 仅对最后一段文本生效（非末段直显，消除 N-1 个打字机 hook 开销）
+                                        let renderedContent: React.ReactNode;
+                                        if (isLastTextSeg) {
+                                            renderedContent = (
+                                                <TypewriterText
+                                                    key={stableKey}
+                                                    content={processedContent}
+                                                    isStreaming={effectivelyStreaming}
+                                                >
+                                                    {(text) => (
+                                                        <MarkdownRenderer
+                                                            content={text}
+                                                            isStreaming={effectivelyStreaming}
+                                                            maxLinesBeforeCollapse={50}
+                                                            isExpanded={expandedBlocksRef.current.has(stableKey)}
+                                                            onToggleExpand={() => toggleBlock(stableKey)}
+                                                            index={stableKey}
+                                                        />
+                                                    )}
+                                                </TypewriterText>
+                                            );
+                                        } else {
+                                            renderedContent = renderContentPart({ type: 'text', text: content }, stableKey);
+                                        }
 
                                         return (
                                             <div
@@ -1186,73 +1267,62 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             return null;
                                         }
 
-                                        // 声明式过滤：黑名单工具由专用卡片接管，不渲染 ToolApproval
-                                        if (TOOL_RENDER_BLACKLIST.has(toolCall.tool)) return null;
+                                        // 🔥 声明式渲染决策：resolveToolRenderer 返回 null 或目标组件
+                                        const Renderer = resolveToolRenderer(toolCall, segment);
+                                        if (!Renderer) return null;
 
-                                        // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
-                                        const segmentPhase = segment.phase || 'in-tool';
-                                        const toolComponent = (
-                                            <ToolApproval
-                                                key={toolCall.id} toolCall={toolCall}
-                                                onApprove={() => onApprove(message.id, toolCall.id)} onReject={() => onReject(message.id, toolCall.id)}
-                                                isLatestBashTool={isLatestBashTool(toolCall.id)} message={message}
-                                            />
-                                        );
+                                        // StreamingCodeCard 和 ToolApproval/ToolBatchApproval props 签名不同
+                                        if (Renderer === StreamingCodeCard) {
+                                            return (
+                                                <div
+                                                    key={`tool-seg-${segment.toolCallId || index}`}
+                                                    data-phase={segment.phase || 'in-tool'}
+                                                    data-test={`segment-${index}`}
+                                                    data-type="tool"
+                                                    data-order={segment.order}
+                                                    data-tool-call-id={toolCall.id}
+                                                >
+                                                    <StreamingCodeCard
+                                                        message={message}
+                                                        onAction={(action, data) => {
+                                                            if (action === 'approve') onApprove(message.id, data?.toolId);
+                                                            if (action === 'reject') onReject(message.id, data?.toolId);
+                                                            if (action === 'approve' && data?.toolIds) {
+                                                                data.toolIds.forEach((id: string) => onApprove(message.id, id));
+                                                            }
+                                                            if (action === 'reject' && data?.toolIds) {
+                                                                data.toolIds.forEach((id: string) => onReject(message.id, id));
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            );
+                                        }
 
+                                        // ToolApproval / ToolBatchApproval：标准审批 props
                                         return (
                                             <div
                                                 key={`tool-seg-${segment.toolCallId || index}`}
-                                                data-phase={segmentPhase}
+                                                data-phase={segment.phase || 'in-tool'}
                                                 data-test={`segment-${index}`}
                                                 data-type="tool"
                                                 data-order={segment.order}
                                                 data-tool-call-id={toolCall.id}
                                             >
-                                                {toolComponent}
+                                                <Renderer
+                                                    key={toolCall.id}
+                                                    toolCall={toolCall}
+                                                    onApprove={() => onApprove(message.id, toolCall.id)}
+                                                    onReject={() => onReject(message.id, toolCall.id)}
+                                                    isLatestBashTool={isLatestBashTool(toolCall.id)}
+                                                    message={message}
+                                                />
                                             </div>
                                         );
                                     }
                                     return null;
                                 })}
 
-                                {/* 🔥 FIX: 补偿渲染 — 当 segments 中缺少 tool segment 但 message.toolCalls 有 pending 工具时
-                                    *  场景：AI 先输出文本（创建 text segment），然后调用工具，但 tool segment 未及时创建或被过滤
-                                    *  此时 mergedSegments 非空（有 text），不会走 fallback 路径，ToolApproval 不渲染
-                                    *  刷新后 segments 可能被重建，所以能显示 — 这解释了"刷新后才出现"的现象
-                                    */}
-                                {(() => {
-                                    if (!message.toolCalls || message.toolCalls.length === 0) return null;
-
-                                    // 收集 segments 中已有的 toolCallId
-                                    const renderedToolIds = new Set(
-                                        mergedSegments
-                                            .filter((s: any) => s.type === 'tool' && s.toolCallId)
-                                            .map((s: any) => s.toolCallId)
-                                    );
-
-                                    // 找出 segments 中没有对应 tool segment 的 pending toolCalls
-                                    const orphanedPendingCalls = message.toolCalls.filter((tc: any) =>
-                                        tc.status === 'pending' && !renderedToolIds.has(tc.id) && !tc.isPartial
-                                        && !TOOL_RENDER_BLACKLIST.has(tc.tool)
-                                    );
-
-                                    if (orphanedPendingCalls.length === 0) return null;
-
-                                    console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`, {
-                                        orphanedIds: orphanedPendingCalls.map((tc: any) => tc.id)
-                                    });
-
-                                    return orphanedPendingCalls.map((toolCall: any) => (
-                                        <ToolApproval
-                                            key={`orphan-${toolCall.id}`}
-                                            toolCall={toolCall}
-                                            onApprove={() => onApprove(message.id, toolCall.id)}
-                                            onReject={() => onReject(message.id, toolCall.id)}
-                                            isLatestBashTool={isLatestBashTool(toolCall.id)}
-                                            message={message}
-                                        />
-                                    ));
-                                })()}
                             </div>
                             );
                         })() : (
@@ -1308,7 +1378,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     });
                                 })()}
                                 {/* 放置总结文字 */}
-                                {!effectivelyStreaming && contentWithoutThinking && renderContentPart({ type: 'text', text: contentWithoutThinking }, 0, false)}
+                                {!effectivelyStreaming && contentWithoutThinking && renderContentPart({ type: 'text', text: contentWithoutThinking }, 0)}
                             </div>
                         )}
 
@@ -1393,8 +1463,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
 
-                        {/* Composer Diff Button */}
-                        {hasFileChanges && onOpenComposer && !effectivelyStreaming && (
+                        {/* Composer Diff Button — streaming-file-write 由 StreamingCodeCard 接管，不重复显示 */}
+                        {hasFileChanges && onOpenComposer && resolvedCardType !== 'streaming-file-write' && (
                             <div className="mt-3">
                                 <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     <FileCode size={16} />

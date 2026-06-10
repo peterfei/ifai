@@ -2554,7 +2554,109 @@ export const initStoreMapper = () => {
     // 2. 映射流式 Chunk (🏆 已注销：内容更新现由 contentSegmentManager 统一管理)
     // chatEventBus.on('chat:stream:chunk', (payload) => { ... });
 
-    // 3. 映射工具调用请求 (气泡渲染 + 覆盖保护)
+    // 3. 映射工具调用增量（追加 arguments 到已有 toolCall，或创建新 toolCall）
+    //    🔥 PERFORMANCE: 使用 requestAnimationFrame 批量 flush，避免每个 delta 都触发 setState
+    //    LLM 流式输出的 delta 可能每秒 50-100 个，合并到每帧 1 次 setState
+    const deltaBuffer = new Map<string, { toolId: string; name: string | undefined; argumentsDelta: string; sessionId: string | undefined }[]>();
+    let deltaRafId: number | null = null;
+
+    const flushDeltaBuffer = () => {
+      if (deltaBuffer.size === 0) return;
+      deltaRafId = null;
+
+      // 按 messageId 分组处理
+      for (const [correlationId, deltas] of deltaBuffer) {
+        const sessionId = deltas[0]?.sessionId;
+        const updater = (state: any) => {
+          const messageIndex = state.messages?.findIndex((m: any) => m.id === correlationId);
+          if (messageIndex === -1 || messageIndex === undefined) return state;
+
+          const newMessages = [...state.messages];
+          const targetMsg = { ...newMessages[messageIndex] };
+
+          if (!targetMsg.toolCalls) targetMsg.toolCalls = [];
+
+          // 🔥 FIX: 使用 Map 索引 toolCall，避免每个 delta 都 findIndex
+          // 一次 shallow copy 创建新数组引用，确保 React.memo 检测到变化
+          let workingCalls = targetMsg.toolCalls;
+          const tcIndexMap = new Map<string, number>();
+          for (let i = 0; i < workingCalls.length; i++) {
+            tcIndexMap.set((workingCalls[i] as any).id, i);
+          }
+
+          let needsNewArray = false;
+
+          for (const delta of deltas) {
+            const toolName = delta.name || 'Unknown Tool';
+            const tcIndex = tcIndexMap.get(delta.toolId) ?? -1;
+
+            if (tcIndex === -1) {
+              // toolCall 尚不存在（delta 先于 chat:tool:call 到达）→ 创建骨架 toolCall
+              const newToolCall = {
+                id: delta.toolId,
+                type: 'function',
+                tool: toolName,
+                args: {},
+                function: { name: toolName, arguments: delta.argumentsDelta },
+                status: 'pending' as const,
+                isPartial: toolApprovalRegistry.isStreamExtractTool(toolName),
+              };
+              workingCalls = [...workingCalls, newToolCall];
+              needsNewArray = true;
+              // 更新索引
+              tcIndexMap.set(delta.toolId, workingCalls.length - 1);
+            } else {
+              // toolCall 已存在 → 追加 arguments
+              if (!needsNewArray) {
+                // 首次修改：创建新数组引用（React.memo 需要引用变化才能检测更新）
+                workingCalls = [...workingCalls];
+                needsNewArray = true;
+              }
+              const existingTC = { ...workingCalls[tcIndex] };
+
+              existingTC.function = {
+                ...existingTC.function,
+                arguments: (existingTC.function?.arguments || '') + delta.argumentsDelta,
+              };
+
+              if (delta.name) {
+                existingTC.tool = delta.name;
+                existingTC.function.name = delta.name;
+              }
+
+              workingCalls[tcIndex] = existingTC;
+            }
+          }
+
+          targetMsg.toolCalls = workingCalls;
+
+          newMessages[messageIndex] = targetMsg;
+          return { messages: newMessages };
+        };
+        threadSafeUpdate(sessionId, correlationId, updater as any);
+      }
+
+      deltaBuffer.clear();
+    };
+
+    chatEventBus.on('chat:tool:call-delta', (payload) => {
+      const { correlationId, toolId, name, argumentsDelta, sessionId } = payload;
+
+      if (!argumentsDelta || !correlationId || !toolId) return;
+
+      // 累积到 buffer
+      if (!deltaBuffer.has(correlationId)) {
+        deltaBuffer.set(correlationId, []);
+      }
+      deltaBuffer.get(correlationId)!.push({ toolId, name, argumentsDelta, sessionId });
+
+      // 如果还没有调度 flush，用 rAF 调度
+      if (deltaRafId === null) {
+        deltaRafId = requestAnimationFrame(flushDeltaBuffer);
+      }
+    });
+
+    // 4. 映射工具调用请求 (气泡渲染 + 覆盖保护)
     chatEventBus.on('chat:tool:call', (payload) => {
       const { correlationId, toolId, name, arguments: args, sessionId } = payload;
 
@@ -2613,11 +2715,9 @@ export const initStoreMapper = () => {
         try {
           // 尝试解析 JSON 字符串
           if (args && typeof args === 'string') {
-            console.log('[StoreMapper] 🔧 Parsing JSON args:', args.substring(0, 50));
             // 尝试直接解析（完整的 JSON）
             try {
               parsedArgs = JSON.parse(args);
-              console.log('[StoreMapper] ✅ Parsed args successfully');
             } catch (e) {
               // 🏆 流式传输中，尝试部分提取
               parsedArgs = extractPartialJSON(args);
@@ -2626,7 +2726,6 @@ export const initStoreMapper = () => {
             parsedArgs = args;
           }
         } catch (e) {
-          console.warn('[StoreMapper] ⚠️ Unexpected error in args processing:', e);
           parsedArgs = { _raw: args || '' };
         }
 
@@ -2662,15 +2761,29 @@ export const initStoreMapper = () => {
                 args: parsedArgs,
                 // 🔥 私有库兼容字段（arguments 保持字符串）
                 function: { name, arguments: args || '' },
-                // 🔥 FIX: 设置初始状态为 pending
-                status: 'pending',
-                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮立即显示
-                // （之前默认为 true，导致批准按钮不显示）
-                isPartial: false,
+                // 🔥 FIX: ReadOnly 工具后端直接执行，不需要前端审批，初始状态直接设 completed
+                // 非 ReadOnly 工具需要等待后端 tool_approval_required 或前端自动审批
+                status: (toolPerm === 'ReadOnly') ? 'completed' : 'pending',
+                // streamExtract 工具标记 isPartial: true（StreamingCodeCard 显示条件）
+                // 非 streamExtract 工具保持 false
+                isPartial: toolApprovalRegistry.isStreamExtractTool(name),
                 // 🏆 NEW: 添加 batchId 支持工具折叠
                 batchId
             };
             targetMsg.toolCalls = [...targetMsg.toolCalls, newToolCall];
+
+            // 🔥 FIX: 如果 chat:tool:call 携带完整 args（非空），清除 deltaBuffer 中对应 toolId 的 delta
+            // 防止后续 rAF flush 追加重复内容
+            if (args && args.length > 0) {
+              for (const [, deltas] of deltaBuffer) {
+                const filtered = deltas.filter(d => d.toolId !== toolId);
+                if (filtered.length !== deltas.length) {
+                  deltas.length = 0;
+                  deltas.push(...filtered);
+                }
+              }
+            }
+
             console.log('[StoreMapper] 🔧 Added new tool call:', name, 'status: pending, isPartial: false');
         } else {
             // 🔥 FIX: 创建新的 toolCalls 数组，确保 React.memo 能检测到变化
@@ -2685,7 +2798,11 @@ export const initStoreMapper = () => {
             const existingArgs = existingTC.args || {};
             if ((parsedArgs as any)._raw) {
               // 如果是新参数是原始字符串，更新 function.arguments
-              existingTC.function.arguments = args || ''; // args 已经是累积的
+              // 🔥 FIX: 空 args（来自 ToolStart 的空 input）不应覆盖 delta 已累积的 arguments
+              if (args && args.length > 0) {
+                existingTC.function.arguments = args;
+              }
+              // else: 保留 delta 累积的 function.arguments 不变
 
               // 尝试重新解析完整的 arguments
               try {
@@ -2706,11 +2823,35 @@ export const initStoreMapper = () => {
                 ...existingArgs,
                 ...parsedArgs
               };
+              // 🔥 FIX: 同步更新 function.arguments（StreamingCodeCard 读取此字段）
+              // 当 ToolDone 发送完整 arguments 时，确保字符串版本也更新
+              if (args && typeof args === 'string') {
+                existingTC.function = {
+                  ...existingTC.function,
+                  arguments: args,
+                };
+                // 🔥 FIX: 清除 deltaBuffer 中对应 toolId 的待处理 delta
+                // ToolDone 已经设置了完整 args，后续 flush 不应再追加 delta（否则会重复）
+                for (const [, deltas] of deltaBuffer) {
+                  const filtered = deltas.filter(d => d.toolId !== toolId);
+                  if (filtered.length !== deltas.length) {
+                    deltas.length = 0;
+                    deltas.push(...filtered);
+                  }
+                }
+              }
             }
 
-            // 🔥 FIX v0.3.2: 更新 tool call 时明确设置 isPartial: false（防御性编程）
-            // 首次创建时已设置，这里确保更新时保持该值，防止未来代码变动导致问题
-            existingTC.isPartial = false;
+            // streamExtract 工具在参数更新阶段保持 isPartial: true（等待审批）
+            // 非 streamExtract 工具保持 false
+            if (!toolApprovalRegistry.isStreamExtractTool(existingTC.tool || existingTC.function?.name)) {
+                existingTC.isPartial = false;
+            }
+
+            // 🔥 FIX: ReadOnly 工具后端直接执行，Updated existing 路径也强制修正 status
+            if (toolPerm === 'ReadOnly') {
+                existingTC.status = 'completed';
+            }
 
             updatedToolCalls[existingToolIndex] = existingTC;
             targetMsg.toolCalls = updatedToolCalls;
@@ -2754,7 +2895,10 @@ export const initStoreMapper = () => {
         const toolPermission = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
         const needsBackendApproval = toolPermission !== undefined && toolPermission !== 'ReadOnly';
 
-        if (needsBackendApproval) {
+        // ReadOnly 工具后端直接执行，初始状态已是 completed，跳过自动审批
+        if (toolPermission === 'ReadOnly') {
+          console.log(`[StoreMapper] ⚡ ReadOnly tool "${name}" auto-executed by backend, skipping auto-approve`);
+        } else if (needsBackendApproval) {
           console.log(`[StoreMapper] 🔐 Tool "${name}" requires backend approval (permission=${toolPermission}), checking permission store...`);
 
           // 🏆 FIX: 异步检查 PermissionStore 白名单（来自"始终允许"）
@@ -2884,8 +3028,12 @@ export const initStoreMapper = () => {
             const updatedToolCalls = msg.toolCalls.map((tc: any) => {
               if (tc.id === toolId && tc.status !== 'pending') {
                 console.log(`[StoreMapper] 🔧 Resetting toolCall status: ${tc.status} → pending (tool=${toolName})`);
-                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮显示
-                return { ...tc, status: 'pending', isPartial: false };
+                // streamExtract 工具保持 isPartial: true（StreamingCodeCard 显示条件）
+                return {
+                  ...tc,
+                  status: 'pending',
+                  isPartial: toolApprovalRegistry.isStreamExtractTool(toolName),
+                };
               }
               return tc;
             });
@@ -3249,7 +3397,11 @@ export const initStoreMapper = () => {
         // 更新工具状态为 executing
         const toolIndex = targetMsg.toolCalls.findIndex((tc: any) => tc.id === toolId);
         if (toolIndex !== -1) {
-            targetMsg.toolCalls[toolIndex].status = 'executing';
+            targetMsg.toolCalls[toolIndex] = {
+              ...targetMsg.toolCalls[toolIndex],
+              status: 'executing',
+              isPartial: false,
+            };
             console.log('[StoreMapper] ✅ Updated tool status to executing:', toolId);
         }
 

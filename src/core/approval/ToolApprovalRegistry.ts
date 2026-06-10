@@ -80,6 +80,11 @@ export interface ToolApprovalConfig {
   requireSandbox?: boolean;
   pathRiskRules?: PathRiskRule[];
   aggregatable?: boolean;
+  /** 流式提取配置：声明 arguments JSON 中 path/content 的键名 */
+  streamExtract?: {
+    path: string;
+    content: string;
+  };
   display?: {
     label?: string;
     color?: string;
@@ -122,6 +127,7 @@ export class ToolApprovalRegistry {
   private toolsByCategory = new Map<ToolCategory, ToolApprovalConfig[]>();
   private toolsByRisk = new Map<RiskLevel, ToolApprovalConfig[]>();
   private aggregatableNames = new Set<string>();
+  private streamExtractTools = new Map<string, { path: string; content: string }>();
   private sortedRules: AutoApprovalRule[] = [];
 
   // 沙箱状态（运行时可变）
@@ -208,6 +214,20 @@ export class ToolApprovalRegistry {
         this.aggregatableNames.add(tool.name.toLowerCase());
         if (tool.aliases) {
           tool.aliases.forEach(a => this.aggregatableNames.add(a.toLowerCase()));
+        }
+      }
+
+      // 流式提取工具索引
+      if (tool.streamExtract) {
+        const se = tool.streamExtract;
+        this.streamExtractTools.set(tool.name.toLowerCase(), se);
+        const stripped = tool.name.replace(/^agent_/, '').toLowerCase();
+        this.streamExtractTools.set(stripped, se);
+        if (tool.aliases) {
+          tool.aliases.forEach(a => {
+            this.streamExtractTools.set(a.toLowerCase(), se);
+            this.streamExtractTools.set(a.replace(/^agent_/, '').toLowerCase(), se);
+          });
         }
       }
     }
@@ -319,7 +339,15 @@ export class ToolApprovalRegistry {
       return rule.then.approve;
     }
 
-    // 没有规则匹配
+    // 没有规则匹配 — 检查工具自身是否声明了 requiresApproval: false
+    if (toolName) {
+      const toolConfig = this.resolveTool(toolName);
+      if (toolConfig?.requiresApproval === false) {
+        console.log(`${logPrefix} ✅ Tool declares requiresApproval=false, auto-approved`);
+        return true;
+      }
+    }
+
     console.log(`${logPrefix} ✋ No rule matched, manual approval required`);
     return false;
   }
@@ -389,6 +417,15 @@ export class ToolApprovalRegistry {
       return rule.then.approve;
     }
 
+    // 没有规则匹配 — 检查工具自身是否声明了 requiresApproval: false
+    if (toolName) {
+      const asyncToolConfig = this.resolveTool(toolName);
+      if (asyncToolConfig?.requiresApproval === false) {
+        console.log(`${logPrefix} ✅ Tool declares requiresApproval=false, auto-approved (async)`);
+        return true;
+      }
+    }
+
     console.log(`${logPrefix} ✋ No rule matched, manual approval required`);
     return false;
   }
@@ -425,6 +462,24 @@ export class ToolApprovalRegistry {
   /** 沙箱状态 */
   get isSandbox(): boolean {
     return this._isSandbox;
+  }
+
+  // ─── API: 流式提取查询 ─────────────────────────────
+
+  /** 获取工具的流式提取配置（path/content 键名） */
+  getStreamExtract(toolName: string): { path: string; content: string } | undefined {
+    const lower = toolName.toLowerCase().replace(/^agent_/, '').replace(/[\s-]/g, '_');
+    return this.streamExtractTools.get(lower) || this.streamExtractTools.get(toolName.toLowerCase());
+  }
+
+  /** 工具是否为流式提取工具 */
+  isStreamExtractTool(toolName: string): boolean {
+    return !!this.getStreamExtract(toolName);
+  }
+
+  /** 获取所有流式提取工具名称集合（用于黑名单等） */
+  get streamExtractToolNames(): Set<string> {
+    return new Set(this.streamExtractTools.keys());
   }
 
   setSandbox(value: boolean): void {

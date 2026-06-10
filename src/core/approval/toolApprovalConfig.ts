@@ -78,6 +78,7 @@ export const toolApprovalConfig: ToolApprovalRegistryConfig = {
       riskLevel: 'medium',
       requiresApproval: true,
       aggregatable: true,
+      streamExtract: { path: 'rel_path', content: 'content' },
       pathRiskRules: [
         // 关键配置文件 → 升级为高风险
         { pattern: /^\.?env/i, risk: 'high' },
@@ -103,6 +104,7 @@ export const toolApprovalConfig: ToolApprovalRegistryConfig = {
       riskLevel: 'medium',
       requiresApproval: true,
       aggregatable: true,
+      streamExtract: { path: 'path', content: 'new_content' },
     },
 
     // ─── 文件系统：删除 (destructive, high) ──────────────

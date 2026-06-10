@@ -175,8 +175,16 @@ impl ApiClient for DeepSeekClient {
                                             // 无论是否已发送 ToolStart，都累积 arguments
                                             if let Some(func) = &tc.function {
                                                 if let Some(args) = &func.arguments {
-                                                    if let Some((_, current)) = tool_args_buffer.get_mut(&index) {
+                                                    if let Some((tool_id, current)) = tool_args_buffer.get_mut(&index) {
                                                         current.push_str(args);
+                                                        // 🆕 增量推送：立即发送 ToolCallDelta
+                                                        if !args.is_empty() {
+                                                            yield Ok(StreamEvent::ToolCallDelta {
+                                                                tool_id: tool_id.clone(),
+                                                                name: tc.function.as_ref().and_then(|f| f.name.clone()),
+                                                                arguments_delta: args.clone(),
+                                                            });
+                                                        }
                                                     }
                                                 }
                                             }

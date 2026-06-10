@@ -2266,6 +2266,20 @@
       "empty": "нулевой",
       "generatingArgs": "Смотрю параметры..."
     },
+    "fileWrite": {
+      "streaming": "Приём... {{count}} символов",
+      "previewDone": "Предпросмотр · {{lines}} строк",
+      "waiting": "Ожидание содержимого...",
+      "generating": "Генерация содержимого...",
+      "truncated": "... {{count}} строк сокращено",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approveAll": "Approve All",
+      "done": "Готово",
+      "streamingStatus": "Приём",
+      "waitingStatus": "Ожидание",
+      "batchProgress": "Пакетное редактирование ({{done}}/{{total}})"
+    },
     "exploreFindings": {
       "completed": "Исследование завершено",
       "directories": "{{count}} Каталог",
